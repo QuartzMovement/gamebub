@@ -1,0 +1,4 @@
+(fp_lib_table
+  (version 7)
+  (lib (name "Game_Bub")(type "KiCad")(uri "/Users/eli/Dropbox/Code/hdl/gameboy-fpga/pcb/Game_Bub.pretty")(options "")(descr ""))
+)
