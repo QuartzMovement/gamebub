@@ -4,16 +4,114 @@
 
   (paper "A4")
 
+  (title_block
+    (title "Game Bub Handheld")
+    (rev "A")
+  )
+
   (lib_symbols
+    (symbol "Mechanical:MountingHole" (pin_names (offset 1.016)) (in_bom yes) (on_board yes)
+      (property "Reference" "H" (at 0 5.08 0)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property "Value" "MountingHole" (at 0 3.175 0)
+        (effects (font (size 1.27 1.27)))
+      )
+      (property "Footprint" "" (at 0 0 0)
+        (effects (font (size 1.27 1.27)) hide)
+      )
+      (property "Datasheet" "~" (at 0 0 0)
+        (effects (font (size 1.27 1.27)) hide)
+      )
+      (property "ki_keywords" "mounting hole" (at 0 0 0)
+        (effects (font (size 1.27 1.27)) hide)
+      )
+      (property "ki_description" "Mounting Hole without connection" (at 0 0 0)
+        (effects (font (size 1.27 1.27)) hide)
+      )
+      (property "ki_fp_filters" "MountingHole*" (at 0 0 0)
+        (effects (font (size 1.27 1.27)) hide)
+      )
+      (symbol "MountingHole_0_1"
+        (circle (center 0 0) (radius 1.27)
+          (stroke (width 1.27) (type default))
+          (fill (type none))
+        )
+      )
+    )
   )
 
 
-  (text_box "TODO mounting holes"
-    (at 230.505 38.735 0) (size 35.56 8.89)
-    (stroke (width 0) (type default))
-    (fill (type color) (color 255 229 191 1))
-    (effects (font (size 1.27 1.27) (thickness 0.254) bold) (justify left top))
-    (uuid 745ffb99-f3b2-4a0c-9bc7-3ed945e63e02)
+  (symbol (lib_id "Mechanical:MountingHole") (at 252.73 81.28 0) (unit 1)
+    (in_bom no) (on_board yes) (dnp no) (fields_autoplaced)
+    (uuid 5b825783-ae7a-4faf-9953-587677cdf125)
+    (property "Reference" "H103" (at 255.27 80.01 0)
+      (effects (font (size 1.27 1.27)) (justify left))
+    )
+    (property "Value" "MountingHole" (at 255.27 82.55 0)
+      (effects (font (size 1.27 1.27)) (justify left))
+    )
+    (property "Footprint" "MountingHole:MountingHole_2.7mm_M2.5" (at 252.73 81.28 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (property "Datasheet" "~" (at 252.73 81.28 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (instances
+      (project "handheld"
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3"
+          (reference "H103") (unit 1)
+        )
+      )
+    )
+  )
+
+  (symbol (lib_id "Mechanical:MountingHole") (at 252.73 68.58 0) (unit 1)
+    (in_bom no) (on_board yes) (dnp no) (fields_autoplaced)
+    (uuid 615d5725-5a41-4dce-87e5-17bbc508a6cc)
+    (property "Reference" "H101" (at 255.27 67.31 0)
+      (effects (font (size 1.27 1.27)) (justify left))
+    )
+    (property "Value" "MountingHole" (at 255.27 69.85 0)
+      (effects (font (size 1.27 1.27)) (justify left))
+    )
+    (property "Footprint" "MountingHole:MountingHole_2.7mm_M2.5" (at 252.73 68.58 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (property "Datasheet" "~" (at 252.73 68.58 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (instances
+      (project "handheld"
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3"
+          (reference "H101") (unit 1)
+        )
+      )
+    )
+  )
+
+  (symbol (lib_id "Mechanical:MountingHole") (at 252.73 74.93 0) (unit 1)
+    (in_bom no) (on_board yes) (dnp no) (fields_autoplaced)
+    (uuid 97ec9675-bf7a-4d19-9571-696c77083c9b)
+    (property "Reference" "H102" (at 255.27 73.66 0)
+      (effects (font (size 1.27 1.27)) (justify left))
+    )
+    (property "Value" "MountingHole" (at 255.27 76.2 0)
+      (effects (font (size 1.27 1.27)) (justify left))
+    )
+    (property "Footprint" "MountingHole:MountingHole_2.7mm_M2.5" (at 252.73 74.93 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (property "Datasheet" "~" (at 252.73 74.93 0)
+      (effects (font (size 1.27 1.27)) hide)
+    )
+    (instances
+      (project "handheld"
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3"
+          (reference "H102") (unit 1)
+        )
+      )
+    )
   )
 
   (sheet (at 91.44 125.73) (size 48.26 20.32) (fields_autoplaced)
@@ -45,24 +143,7 @@
     )
     (instances
       (project "handheld"
-        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "2"))
-      )
-    )
-  )
-
-  (sheet (at 104.648 156.972) (size 22.86 20.32) (fields_autoplaced)
-    (stroke (width 0.1524) (type solid))
-    (fill (color 0 0 0 0.0000))
-    (uuid 17de4a70-88f1-4217-b216-c9613f42ee7f)
-    (property "Sheetname" "FPGA IO 3" (at 104.648 156.2604 0)
-      (effects (font (size 1.27 1.27)) (justify left bottom))
-    )
-    (property "Sheetfile" "fpga_io_3.kicad_sch" (at 104.648 177.8766 0)
-      (effects (font (size 1.27 1.27)) (justify left top))
-    )
-    (instances
-      (project "handheld"
-        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "9"))
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "3"))
       )
     )
   )
@@ -79,7 +160,41 @@
     )
     (instances
       (project "handheld"
-        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "18"))
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "17"))
+      )
+    )
+  )
+
+  (sheet (at 83.82 160.02) (size 26.67 10.16) (fields_autoplaced)
+    (stroke (width 0.1524) (type solid))
+    (fill (color 0 0 0 0.0000))
+    (uuid 30b20d0c-76d5-4bc3-b90d-33e55c128c3e)
+    (property "Sheetname" "FPGA IO Bank 16" (at 83.82 159.3084 0)
+      (effects (font (size 1.27 1.27)) (justify left bottom))
+    )
+    (property "Sheetfile" "fpga_io_16.kicad_sch" (at 83.82 170.7646 0)
+      (effects (font (size 1.27 1.27)) (justify left top))
+    )
+    (instances
+      (project "handheld"
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "9"))
+      )
+    )
+  )
+
+  (sheet (at 52.07 160.02) (size 26.67 10.16) (fields_autoplaced)
+    (stroke (width 0.1524) (type solid))
+    (fill (color 0 0 0 0.0000))
+    (uuid 5acd08b8-a2c7-42a1-9042-13196676cbb1)
+    (property "Sheetname" "FPGA IO Bank 15" (at 52.07 159.3084 0)
+      (effects (font (size 1.27 1.27)) (justify left bottom))
+    )
+    (property "Sheetfile" "fpga_io_15.kicad_sch" (at 52.07 170.7646 0)
+      (effects (font (size 1.27 1.27)) (justify left top))
+    )
+    (instances
+      (project "handheld"
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "8"))
       )
     )
   )
@@ -96,7 +211,7 @@
     )
     (instances
       (project "handheld"
-        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "21"))
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "18"))
       )
     )
   )
@@ -113,24 +228,7 @@
     )
     (instances
       (project "handheld"
-        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "5"))
-      )
-    )
-  )
-
-  (sheet (at 100.965 34.925) (size 30.48 13.97) (fields_autoplaced)
-    (stroke (width 0.1524) (type solid))
-    (fill (color 0 0 0 0.0000))
-    (uuid 88c19735-26d2-425b-804d-306142085fb3)
-    (property "Sheetname" "RP2040" (at 100.965 34.2134 0)
-      (effects (font (size 1.27 1.27)) (justify left bottom))
-    )
-    (property "Sheetfile" "rp2040.kicad_sch" (at 100.965 49.4796 0)
-      (effects (font (size 1.27 1.27)) (justify left top))
-    )
-    (instances
-      (project "handheld"
-        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "3"))
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "12"))
       )
     )
   )
@@ -164,6 +262,23 @@
     )
     (instances
       (project "handheld"
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "13"))
+      )
+    )
+  )
+
+  (sheet (at 115.57 160.02) (size 26.67 10.16) (fields_autoplaced)
+    (stroke (width 0.1524) (type solid))
+    (fill (color 0 0 0 0.0000))
+    (uuid 9f7a0892-b694-49e5-91f7-7bec1b68b7db)
+    (property "Sheetname" "FPGA IO Bank 34" (at 115.57 159.3084 0)
+      (effects (font (size 1.27 1.27)) (justify left bottom))
+    )
+    (property "Sheetfile" "fpga_io_34.kicad_sch" (at 115.57 170.7646 0)
+      (effects (font (size 1.27 1.27)) (justify left top))
+    )
+    (instances
+      (project "handheld"
         (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "10"))
       )
     )
@@ -186,23 +301,6 @@
     )
   )
 
-  (sheet (at 147.32 35.56) (size 29.845 13.335) (fields_autoplaced)
-    (stroke (width 0.1524) (type solid))
-    (fill (color 0 0 0 0.0000))
-    (uuid ad143407-394d-43e2-8027-f314bcf203ac)
-    (property "Sheetname" "ESP32" (at 147.32 34.8484 0)
-      (effects (font (size 1.27 1.27)) (justify left bottom))
-    )
-    (property "Sheetfile" "esp32.kicad_sch" (at 147.32 49.4796 0)
-      (effects (font (size 1.27 1.27)) (justify left top))
-    )
-    (instances
-      (project "handheld"
-        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "4"))
-      )
-    )
-  )
-
   (sheet (at 133.35 72.39) (size 36.195 14.605) (fields_autoplaced)
     (stroke (width 0.1524) (type solid))
     (fill (color 0 0 0 0.0000))
@@ -215,24 +313,41 @@
     )
     (instances
       (project "handheld"
-        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "12"))
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "16"))
       )
     )
   )
 
-  (sheet (at 41.148 155.702) (size 26.67 20.32) (fields_autoplaced)
+  (sheet (at 17.78 160.02) (size 26.67 10.16) (fields_autoplaced)
     (stroke (width 0.1524) (type solid))
     (fill (color 0 0 0 0.0000))
-    (uuid ca1e1c7a-9f32-463b-b076-086d7effcc75)
-    (property "Sheetname" "FPGA IO 1" (at 41.148 154.9904 0)
+    (uuid bde913ee-c8bc-47b6-a5ca-b686d66f8c25)
+    (property "Sheetname" "FPGA IO Bank 14" (at 17.78 159.3084 0)
       (effects (font (size 1.27 1.27)) (justify left bottom))
     )
-    (property "Sheetfile" "fpga_io_1.kicad_sch" (at 41.148 176.6066 0)
+    (property "Sheetfile" "fpga_io_14.kicad_sch" (at 17.78 170.7646 0)
       (effects (font (size 1.27 1.27)) (justify left top))
     )
     (instances
       (project "handheld"
         (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "7"))
+      )
+    )
+  )
+
+  (sheet (at 189.23 60.96) (size 33.02 15.24) (fields_autoplaced)
+    (stroke (width 0.1524) (type solid))
+    (fill (color 0 0 0 0.0000))
+    (uuid c0a55d09-bc96-450c-a47a-6c5f6e9aa4cc)
+    (property "Sheetname" "ESP32-S3" (at 189.23 60.2484 0)
+      (effects (font (size 1.27 1.27)) (justify left bottom))
+    )
+    (property "Sheetfile" "esp32_s3.kicad_sch" (at 189.23 76.7846 0)
+      (effects (font (size 1.27 1.27)) (justify left top))
+    )
+    (instances
+      (project "handheld"
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "4"))
       )
     )
   )
@@ -249,24 +364,7 @@
     )
     (instances
       (project "handheld"
-        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "14"))
-      )
-    )
-  )
-
-  (sheet (at 77.978 155.702) (size 16.51 20.32) (fields_autoplaced)
-    (stroke (width 0.1524) (type solid))
-    (fill (color 0 0 0 0.0000))
-    (uuid fa637ac4-f9f7-4b35-9158-4ac3c54209d5)
-    (property "Sheetname" "FPGA IO 2" (at 77.978 154.9904 0)
-      (effects (font (size 1.27 1.27)) (justify left bottom))
-    )
-    (property "Sheetfile" "fpga_io_2.kicad_sch" (at 77.978 176.6066 0)
-      (effects (font (size 1.27 1.27)) (justify left top))
-    )
-    (instances
-      (project "handheld"
-        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "8"))
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "15"))
       )
     )
   )
@@ -283,7 +381,24 @@
     )
     (instances
       (project "handheld"
-        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "13"))
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "14"))
+      )
+    )
+  )
+
+  (sheet (at 148.59 160.02) (size 26.67 10.16) (fields_autoplaced)
+    (stroke (width 0.1524) (type solid))
+    (fill (color 0 0 0 0.0000))
+    (uuid fc74a399-ef81-4e67-b5cf-49a0bfff8c60)
+    (property "Sheetname" "FPGA IO Bank 35" (at 148.59 159.3084 0)
+      (effects (font (size 1.27 1.27)) (justify left bottom))
+    )
+    (property "Sheetfile" "fpga_io_35.kicad_sch" (at 148.59 170.7646 0)
+      (effects (font (size 1.27 1.27)) (justify left top))
+    )
+    (instances
+      (project "handheld"
+        (path "/52bdc484-57b5-49d6-9a72-7077eb61eec3" (page "11"))
       )
     )
   )

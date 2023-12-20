@@ -34,9 +34,9 @@
         "other_text_thickness": 0.15,
         "other_text_upright": false,
         "pads": {
-          "drill": 0.762,
-          "height": 1.524,
-          "width": 1.524
+          "drill": 2.0,
+          "height": 2.0,
+          "width": 2.0
         },
         "silk_line_width": 0.15,
         "silk_text_italic": false,
@@ -45,10 +45,21 @@
         "silk_text_thickness": 0.15,
         "silk_text_upright": false,
         "zones": {
-          "min_clearance": 0.5
+          "min_clearance": 0.0
         }
       },
-      "diff_pair_dimensions": [],
+      "diff_pair_dimensions": [
+        {
+          "gap": 0.0,
+          "via_gap": 0.0,
+          "width": 0.0
+        },
+        {
+          "gap": 0.25,
+          "via_gap": 0.0,
+          "width": 0.13
+        }
+      ],
       "drc_exclusions": [],
       "meta": {
         "version": 2
@@ -56,7 +67,7 @@
       "rule_severities": {
         "annular_width": "error",
         "clearance": "error",
-        "connection_width": "warning",
+        "connection_width": "ignore",
         "copper_edge_clearance": "error",
         "copper_sliver": "warning",
         "courtyards_overlap": "error",
@@ -85,9 +96,9 @@
         "padstack": "warning",
         "pth_inside_courtyard": "ignore",
         "shorting_items": "error",
-        "silk_edge_clearance": "warning",
-        "silk_over_copper": "warning",
-        "silk_overlap": "warning",
+        "silk_edge_clearance": "ignore",
+        "silk_over_copper": "ignore",
+        "silk_overlap": "ignore",
         "skew_out_of_range": "error",
         "solder_mask_bridge": "error",
         "starved_thermal": "error",
@@ -105,10 +116,10 @@
       },
       "rules": {
         "max_error": 0.005,
-        "min_clearance": 0.0,
-        "min_connection": 0.0,
-        "min_copper_edge_clearance": 0.0,
-        "min_hole_clearance": 0.25,
+        "min_clearance": 0.09999999999999999,
+        "min_connection": 0.19999999999999998,
+        "min_copper_edge_clearance": 0.3,
+        "min_hole_clearance": 0.19999999999999998,
         "min_hole_to_hole": 0.25,
         "min_microvia_diameter": 0.19999999999999998,
         "min_microvia_drill": 0.09999999999999999,
@@ -116,10 +127,10 @@
         "min_silk_clearance": 0.0,
         "min_text_height": 0.7999999999999999,
         "min_text_thickness": 0.08,
-        "min_through_hole_diameter": 0.3,
-        "min_track_width": 0.0,
-        "min_via_annular_width": 0.09999999999999999,
-        "min_via_diameter": 0.5,
+        "min_through_hole_diameter": 0.25,
+        "min_track_width": 0.09999999999999999,
+        "min_via_annular_width": 0.049999999999999996,
+        "min_via_diameter": 0.39999999999999997,
         "solder_mask_clearance": 0.0,
         "solder_mask_min_width": 0.0,
         "solder_mask_to_copper_clearance": 0.0,
@@ -165,8 +176,33 @@
           "td_width_to_size_filter_ratio": 0.9
         }
       ],
-      "track_widths": [],
-      "via_dimensions": [],
+      "track_widths": [
+        0.0,
+        0.1,
+        0.2,
+        0.25,
+        0.3,
+        0.5,
+        1.5
+      ],
+      "via_dimensions": [
+        {
+          "diameter": 0.0,
+          "drill": 0.0
+        },
+        {
+          "diameter": 0.4,
+          "drill": 0.25
+        },
+        {
+          "diameter": 0.6,
+          "drill": 0.4
+        },
+        {
+          "diameter": 1.0,
+          "drill": 0.7
+        }
+      ],
       "zones_allow_external_fillets": false
     },
     "layer_presets": [],
@@ -377,7 +413,7 @@
       "no_connect_dangling": "warning",
       "pin_not_connected": "error",
       "pin_not_driven": "error",
-      "pin_to_pin": "warning",
+      "pin_to_pin": "ignore",
       "power_pin_not_driven": "error",
       "similar_labels": "warning",
       "simulation_model_issue": "ignore",
@@ -399,7 +435,7 @@
     "classes": [
       {
         "bus_width": 12,
-        "clearance": 0.2,
+        "clearance": 0.15,
         "diff_pair_gap": 0.25,
         "diff_pair_via_gap": 0.25,
         "diff_pair_width": 0.2,
@@ -409,8 +445,59 @@
         "name": "Default",
         "pcb_color": "rgba(0, 0, 0, 0.000)",
         "schematic_color": "rgba(0, 0, 0, 0.000)",
-        "track_width": 0.25,
-        "via_diameter": 0.8,
+        "track_width": 0.1,
+        "via_diameter": 0.7,
+        "via_drill": 0.4,
+        "wire_width": 6
+      },
+      {
+        "bus_width": 12,
+        "clearance": 0.1,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.2,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+        "name": "BGA",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.1,
+        "via_diameter": 0.4,
+        "via_drill": 0.3,
+        "wire_width": 6
+      },
+      {
+        "bus_width": 12,
+        "clearance": 0.15,
+        "diff_pair_gap": 0.25,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.13,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+        "name": "HDMI",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.3,
+        "via_diameter": 0.7,
+        "via_drill": 0.4,
+        "wire_width": 6
+      },
+      {
+        "bus_width": 12,
+        "clearance": 0.15,
+        "diff_pair_gap": 0.15,
+        "diff_pair_via_gap": 0.25,
+        "diff_pair_width": 0.25,
+        "line_style": 0,
+        "microvia_diameter": 0.3,
+        "microvia_drill": 0.1,
+        "name": "USB",
+        "pcb_color": "rgba(0, 0, 0, 0.000)",
+        "schematic_color": "rgba(0, 0, 0, 0.000)",
+        "track_width": 0.3,
+        "via_diameter": 0.7,
         "via_drill": 0.4,
         "wire_width": 6
       }
@@ -420,7 +507,16 @@
     },
     "net_colors": null,
     "netclass_assignments": null,
-    "netclass_patterns": []
+    "netclass_patterns": [
+      {
+        "netclass": "HDMI",
+        "pattern": "HDMI_(D0|D1|D2|CLK)[+-]"
+      },
+      {
+        "netclass": "USB",
+        "pattern": ".*USB_D[-+]"
+      }
+    ]
   },
   "pcbnew": {
     "last_paths": {
@@ -457,8 +553,16 @@
       "version": 1
     },
     "net_format_name": "",
+    "ngspice": {
+      "fix_include_paths": true,
+      "meta": {
+        "version": 0
+      },
+      "model_mode": 0,
+      "workbook_filename": ""
+    },
     "page_layout_descr_file": "",
-    "plot_directory": "",
+    "plot_directory": "../../../../../",
     "spice_current_sheet_as_root": false,
     "spice_external_command": "spice \"%I\"",
     "spice_model_current_sheet_as_root": true,
@@ -481,16 +585,8 @@
       "Power Regulators"
     ],
     [
-      "88c19735-26d2-425b-804d-306142085fb3",
-      "RP2040"
-    ],
-    [
-      "ad143407-394d-43e2-8027-f314bcf203ac",
-      "ESP32"
-    ],
-    [
-      "71c8d810-a774-4d3a-9d0c-f3e23d4c0f0b",
-      "LCD"
+      "c0a55d09-bc96-450c-a47a-6c5f6e9aa4cc",
+      "ESP32-S3"
     ],
     [
       "9faa4287-3b30-4f75-b6fb-a8c8d52ff51e",
@@ -501,28 +597,32 @@
       "FPGA Config"
     ],
     [
-      "ca1e1c7a-9f32-463b-b076-086d7effcc75",
-      "FPGA IO 1"
+      "bde913ee-c8bc-47b6-a5ca-b686d66f8c25",
+      "FPGA IO Bank 14"
     ],
     [
-      "fa637ac4-f9f7-4b35-9158-4ac3c54209d5",
-      "FPGA IO 2"
+      "5acd08b8-a2c7-42a1-9042-13196676cbb1",
+      "FPGA IO Bank 15"
     ],
     [
-      "17de4a70-88f1-4217-b216-c9613f42ee7f",
-      "FPGA IO 3"
+      "30b20d0c-76d5-4bc3-b90d-33e55c128c3e",
+      "FPGA IO Bank 16"
+    ],
+    [
+      "9f7a0892-b694-49e5-91f7-7bec1b68b7db",
+      "FPGA IO Bank 34"
+    ],
+    [
+      "fc74a399-ef81-4e67-b5cf-49a0bfff8c60",
+      "FPGA IO Bank 35"
+    ],
+    [
+      "71c8d810-a774-4d3a-9d0c-f3e23d4c0f0b",
+      "LCD"
     ],
     [
       "9a96df3c-43eb-4459-bc6e-b72e8174f2bc",
       "RAM"
-    ],
-    [
-      "10e0d59a-64f4-474f-b80c-bc86186c79a8",
-      "Game Boy Link"
-    ],
-    [
-      "ba65dbe3-0866-48a8-863b-f0d5856718f2",
-      "Audio"
     ],
     [
       "fbeecf79-62b9-4f96-ab23-0c95cb10b8c8",
@@ -533,16 +633,8 @@
       "Buttons"
     ],
     [
-      "15f3b800-3576-4625-b874-3cfeee1c8617",
-      "SDRAM_1"
-    ],
-    [
-      "e8d506f2-9c18-42ba-938a-a8f6ca7ad974",
-      "SDRAM_0"
-    ],
-    [
-      "62b316f9-e347-45ea-b257-b5179dd0bc24",
-      "Game Boy Cartridge"
+      "ba65dbe3-0866-48a8-863b-f0d5856718f2",
+      "Audio"
     ],
     [
       "231f4827-b77c-4d74-a636-52769aaaaa18",
@@ -551,6 +643,14 @@
     [
       "6c110abb-aa10-4a09-8886-0a1c6df00ea4",
       "Game Boy Interfaces"
+    ],
+    [
+      "62b316f9-e347-45ea-b257-b5179dd0bc24",
+      "Game Boy Cartridge"
+    ],
+    [
+      "10e0d59a-64f4-474f-b80c-bc86186c79a8",
+      "Game Boy Link"
     ]
   ],
   "text_variables": {}
