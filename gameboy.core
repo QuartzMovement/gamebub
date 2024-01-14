@@ -31,6 +31,11 @@ filesets:
       - verilog/pynq_cartridge_access_ps.tcl : {file_type : tclSource}
       - verilog/top_pynq_cartridge_access.sv : {file_type : systemVerilogSource}
 
+  handheld:
+    files:
+      - verilog/handheld_rev_a.xdc : {file_type : xdc}
+      - verilog/top_handheld.sv : {file_type : systemVerilogSource}
+
 generate:
   gameboy:
     generator: chisel
@@ -54,6 +59,17 @@ generate:
         files:
           - build/generated/ZynqGameboy.v: { file_type: verilogSource }
 
+  handheld:
+    generator: chisel
+    parameters:
+      buildtool: sbt
+      outputdir: build/generated
+      main_class: "platform.HandheldTop"
+      extraargs: ""
+      output:
+        files:
+          - build/generated/HandheldTop.v: { file_type: verilogSource }
+
 targets:
   pynq_z2:
     default_tool: vivado
@@ -72,3 +88,13 @@ targets:
       vivado:
         part: xc7z020clg400-1
     toplevel: top_pynq_cartridge_access
+
+  handheld:
+    default_tool: vivado
+    filesets: [base, handheld]
+    generate: [handheld]
+    tools:
+      vivado:
+        part: xc7a100tcsg324-2
+    toplevel: top_handheld
+
