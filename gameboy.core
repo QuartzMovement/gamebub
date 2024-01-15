@@ -64,7 +64,7 @@ generate:
     parameters:
       buildtool: sbt
       outputdir: build/generated
-      main_class: "platform.HandheldTop"
+      main_class: "platform.handheld.HandheldTop"
       extraargs: ""
       output:
         files:

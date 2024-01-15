@@ -2,11 +2,12 @@ module top_handheld (
     input clk_50mhz,
 
     input mcu_spi_clk,
-    input mcu_spi_cs,
+    input mcu_spi_cs_n,
     inout mcu_spi_pico,
     inout mcu_spi_poci,
     inout mcu_spi_d2,
     inout mcu_spi_d3,
+    inout mcu_irq_n,
 
     input btn_a,
     input btn_b,
@@ -33,28 +34,36 @@ module top_handheld (
     output [17:0] lcd_db,
 
     inout [7:0] cart_bank0,
-    output [7:0] cart_bank1,
-    output [7:0] cart_bank2,
-    output [3:0] cart_bank3,
-    output cart_pin30,
+    inout [7:0] cart_bank1,
+    inout [7:0] cart_bank2,
+    inout [3:0] cart_bank3,
+    inout cart_pin30,
     output cart_pin30_dir,
-    output cart_pin31,
+    inout cart_pin31,
     output cart_pin31_dir,
     output cart_bank0_dir,
     output cart_bank1_dir,
     output cart_bank2_dir,
     output cart_bank3_dir,
-    input  cart_switch,
-    output  cart_en_3v3,
-    output  cart_en_5v0,
-    output  cart_oe_n,
+    input cart_switch,
+    output cart_en_3v3,
+    output cart_en_5v0,
+    output cart_oe_n,
 
-    output [3:0] pmod,
+    inout link_so,
+    inout link_si,
+    inout link_sd,
+    inout link_sc,
+    output link_so_dir,
+    output link_si_dir,
+    output link_sd_dir,
+    output link_sc_dir,
+
+    inout [3:0] pmod,
     output vibrate_en
 );
     logic pll_reset = 1'd0;
-    logic reset;
-    assign reset = ~btn_y;
+    logic reset = 1'd0;
 
     logic clk_12mhz;
     logic clk_8mhz;
@@ -79,18 +88,35 @@ module top_handheld (
         .clk_out_8mhz(clk_8mhz)
     );
 
-    logic [1:0] gb_tCycle;
-    logic [7:0] gb_dataRead;
-    logic [7:0] gb_dataWrite;
-    logic [15:0] gb_cart_address;
-    logic gb_cart_enable;
-    logic gb_cart_write;
-    logic gb_cart_chipSelect;
+    logic [7:0] inner_cart_bank0_in;
+    logic [7:0] inner_cart_bank1_in;
+    logic [7:0] inner_cart_bank2_in;
+    logic [3:0] inner_cart_bank3_in;
+    logic inner_cart_pin30_in;
+    logic inner_cart_pin31_in;
+    logic [7:0] inner_cart_bank0_out;
+    logic [7:0] inner_cart_bank1_out;
+    logic [7:0] inner_cart_bank2_out;
+    logic [3:0] inner_cart_bank3_out;
+    logic inner_cart_pin30_out;
+    logic inner_cart_pin31_out;
+
+    logic [3:0] inner_pmod_in;
+    logic [3:0] inner_pmod_out;
+    logic [3:0] inner_pmod_dir;
+
+    logic inner_link_so_in;
+    logic inner_link_si_in;
+    logic inner_link_sd_in;
+    logic inner_link_sc_in;
+    logic inner_link_so_out;
+    logic inner_link_si_out;
+    logic inner_link_sd_out;
+    logic inner_link_sc_out;
 
     HandheldTop handheld_top(
         .clock(clk_12mhz),
         .reset(reset),
-
         .io_clk_8mhz(clk_8mhz),
 
         .io_lcd_vsync(lcd_vsync),
@@ -117,60 +143,76 @@ module top_handheld (
         .io_buttons_start(btn_start),
         .io_buttons_select(btn_select),
 
-        .io_cartridge_dataRead(gb_dataRead),
-        .io_cartridge_dataWrite(gb_dataWrite),
-        .io_cartridge_address(gb_cart_address),
-        .io_cartridge_enable(gb_cart_enable),
-        .io_cartridge_write(gb_cart_write),
-        .io_cartridge_chipSelect(gb_cart_chipSelect),
-        .io_tCycle(gb_tCycle),
+        .io_cartridgeSwitch(cart_switch),
+        .io_cartridge3V3Enable(cart_en_3v3),
+        .io_cartridge5V0Enable(cart_en_5v0),
+        .io_cartridgeOutputEnableN(cart_oe_n),
+        .io_cartridge_bank0In(inner_cart_bank0_in),
+        .io_cartridge_bank1In(inner_cart_bank1_in),
+        .io_cartridge_bank2In(inner_cart_bank2_in),
+        .io_cartridge_bank3In(inner_cart_bank3_in),
+        .io_cartridge_pin30In(inner_cart_pin30_in),
+        .io_cartridge_pin31In(inner_cart_pin31_in),
+        .io_cartridge_bank0Out(inner_cart_bank0_out),
+        .io_cartridge_bank1Out(inner_cart_bank1_out),
+        .io_cartridge_bank2Out(inner_cart_bank2_out),
+        .io_cartridge_bank3Out(inner_cart_bank3_out),
+        .io_cartridge_pin30Out(inner_cart_pin30_out),
+        .io_cartridge_pin31Out(inner_cart_pin31_out),
+        .io_cartridge_bank0Dir(cart_bank0_dir),
+        .io_cartridge_bank1Dir(cart_bank1_dir),
+        .io_cartridge_bank2Dir(cart_bank2_dir),
+        .io_cartridge_bank3Dir(cart_bank3_dir),
+        .io_cartridge_pin30Dir(cart_pin30_dir),
+        .io_cartridge_pin31Dir(cart_pin31_dir),
 
-        // .io_serial_out(),
-        .io_serial_in(1'd0),
-        // .io_serial_clockEnable(),
-        // .io_serial_clockOut(),
-        .io_serial_clockIn(1'd0),
+        .io_link_soIn(inner_link_so_in),
+        .io_link_siIn(inner_link_si_in),
+        .io_link_sdIn(inner_link_sd_in),
+        .io_link_scIn(inner_link_sc_in),
+        .io_link_soOut(inner_link_so_out),
+        .io_link_siOut(inner_link_si_out),
+        .io_link_sdOut(inner_link_sd_out),
+        .io_link_scOut(inner_link_sc_out),
+        .io_link_soDir(link_so_dir),
+        .io_link_siDir(link_si_dir),
+        .io_link_sdDir(link_sd_dir),
+        .io_link_scDir(link_sc_dir),
 
-        .io_pmod(pmod)
-        // NOTE: no comma at the end
+        .io_pmod_in(inner_pmod_in),
+        .io_pmod_out(inner_pmod_out),
+        .io_pmod_dir(inner_pmod_dir),
+
+        .io_vibrate(vibrate_en)
     );
 
-    /////////////////////////////////////////////////
-    // Physical Cartridge I/O
-    /////////////////////////////////////////////////
-    // Direction: high is output, low is input
-    // bank0: data
-    // bank1: address8-15
-    // bank2: address0-7
-    // bank3: 0: nCS1, 1: nRD, 2: nWR, 3: PHI
-    // Pin 30: nRST (GB) / nCS2 (GBA)
-    // Pin 31: VIN (GB) / nIRQ (GBA)
-    assign cart_oe_n = 1'b0; // Enabled if physical cartridge in use (active low).
-    assign cart_bank3_dir = 1'b1; // Output
-    assign cart_bank1_dir = 1'b1; // Output
-    assign cart_bank2_dir = 1'b1; // Output
-    assign cart_bank0_dir = ~cart_bank3[2]; // Output if writing.
-    assign cart_pin30_dir = 1'b1; // Output
-    assign cart_pin31_dir = 1'b0; // Input
+    assign inner_cart_bank0_in = cart_bank0;
+    assign inner_cart_bank1_in = cart_bank1;
+    assign inner_cart_bank2_in = cart_bank2;
+    assign inner_cart_bank3_in = cart_bank3;
+    assign inner_cart_pin30_in = cart_pin30;
+    assign inner_cart_pin31_in = cart_pin31;
+    assign cart_bank0 = cart_bank0_dir ? inner_cart_bank0_out : 8'hzz;
+    assign cart_bank1 = cart_bank1_dir ? inner_cart_bank1_out : 8'hzz;
+    assign cart_bank2 = cart_bank2_dir ? inner_cart_bank2_out : 8'hzz;
+    assign cart_bank3 = cart_bank3_dir ? inner_cart_bank3_out : 8'hzz;
+    assign cart_pin30 = cart_pin30_dir ? inner_cart_pin30_out : 1'bz;
+    assign cart_pin31 = cart_pin31_dir ? inner_cart_pin31_out : 1'bz;
 
-    assign gb_dataRead = cart_bank0;
-    assign cart_bank0 = (gb_cart_enable && gb_cart_write) ? gb_dataWrite : 8'hzz;
-    assign cart_bank2 = gb_cart_address[7:0];
-    assign cart_bank1 = gb_cart_address[15:8];
-    // TODO: see how this interacts with HDMA in regular speed mode.
-    // Probably doesn't matter, because even though HDMA is faster, it *never* writes.
-    assign cart_bank3[2] = ~(gb_cart_enable && gb_cart_write && (gb_tCycle == 2'd1 || gb_tCycle == 2'd2));
-    assign cart_bank3[1] = ~cart_bank3[2];
-    assign cart_bank3[0] = gb_cart_chipSelect; // high for ROM low for RAM 
-    assign cart_pin30 = 1'd1; // reset
-    assign cart_bank3[3] = 1'd0; // phi
+    assign inner_link_so_in = link_so;
+    assign inner_link_si_in = link_si;
+    assign inner_link_sd_in = link_sd;
+    assign inner_link_sc_in = link_sc;
+    assign link_so = link_so_dir ? inner_link_so_out : 1'bz;
+    assign link_si = link_si_dir ? inner_link_si_out : 1'bz;
+    assign link_sd = link_sd_dir ? inner_link_sd_out : 1'bz;
+    assign link_sc = link_sc_dir ? inner_link_sc_out : 1'bz;
 
-    // Cartridge voltages
-    assign cart_en_3v3 = ~cart_switch;
-    assign cart_en_5v0 = cart_switch;
-
-    // For testing
-    assign vibrate_en = ~btn_l;
+    assign inner_pmod_in = pmod;
+    assign pmod[0] = inner_pmod_dir[0] ? inner_pmod_out[0] : 1'bz;
+    assign pmod[1] = inner_pmod_dir[1] ? inner_pmod_out[1] : 1'bz;
+    assign pmod[2] = inner_pmod_dir[2] ? inner_pmod_out[2] : 1'bz;
+    assign pmod[3] = inner_pmod_dir[3] ? inner_pmod_out[3] : 1'bz;
 endmodule
 
 

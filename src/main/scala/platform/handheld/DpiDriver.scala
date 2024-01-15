@@ -1,4 +1,4 @@
-package platform
+package platform.handheld
 
 import chisel3._
 import chisel3.util._
