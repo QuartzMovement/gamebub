@@ -219,7 +219,8 @@ class HandheldTop extends Module {
   withClock (io.clk_8mhz) {
     val tempInnerReset = !RegNext(RegNext(io.buttons.r))
     val module = withReset(tempInnerReset) {
-      Module(new HandheldGameboy)
+//      Module(new HandheldGameboy)
+      Module(new HandheldTester)
     }
 
     io.vibrate := module.io.vibrate || !io.buttons.l // XXX: remove L-activation. For testing only

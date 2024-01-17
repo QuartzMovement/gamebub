@@ -425,11 +425,11 @@ class TLV320DAC3101:
 print("Setting up DAC")
 dac = TLV320DAC3101(i2c, dac_reset)
 dac.setup()
-dac.set_volume(128)
+dac.set_volume(100)
 # dac.set_mute(True)
 dac.set_mute(False)
 dac.set_headphones_enabled(True)
-dac.set_speakers_enabled(True)
+dac.set_speakers_enabled(False)
 
 
 
