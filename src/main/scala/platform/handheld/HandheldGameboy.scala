@@ -4,15 +4,13 @@ import chisel3._
 import chisel3.util._
 import gameboy.Gameboy
 
-object HandheldGameboy extends App {
-  emitVerilog(new HandheldGameboy, args)
-}
-
 /**
  * Clocked by the 8.3886 MHz "Gameboy" clock.
  */
-class HandheldGameboy extends Module {
+class HandheldGameboy extends Module with HandheldModule {
   val io = IO(new HandheldIo)
+  def framebufferW = 160
+  def framebufferH = 144
 
   // Gameboy
   val gameboyConfig = Gameboy.Configuration(

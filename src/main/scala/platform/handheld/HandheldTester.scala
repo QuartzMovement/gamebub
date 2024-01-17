@@ -3,8 +3,10 @@ package platform.handheld;
 import chisel3._
 import chisel3.util._
 
-class HandheldTester extends Module {
+class HandheldTester extends Module with HandheldModule {
     val io = IO(new HandheldIo)
+    def framebufferW = 240
+    def framebufferH = 160
 
     val (_, frame) = Counter(true.B, 8 * 1024 * 1024 / 60)
 
@@ -17,8 +19,8 @@ class HandheldTester extends Module {
         x := 0.U
         y := 0.U
     } .otherwise {
-        when (x === (160 - 1).U) {
-            when (y < 144.U) {
+        when (x === (framebufferW - 1).U) {
+            when (y < framebufferH.U) {
                 x := 0.U
                 y := y + 1.U
             }
@@ -28,7 +30,7 @@ class HandheldTester extends Module {
     }
     io.framebufferX := x
     io.framebufferY := y
-    io.framebufferWriteEnable := y < 144.U
+    io.framebufferWriteEnable := y < framebufferH.U
     io.framebufferDataR := 0.U
     io.framebufferDataG := 0.U
     io.framebufferDataB := 0.U
@@ -37,9 +39,9 @@ class HandheldTester extends Module {
     // XOR test pattern -- moves to left
     // X and Y are flipped: columns are R, G, B
     val color = (offX + x)(4, 0) ^ (offY + y)(4, 0)
-    when (y < 48.U) {
+    when (x < 80.U) {
         io.framebufferDataR := color
-    }.elsewhen(y < 96.U) {
+    }.elsewhen(y < 160.U) {
         io.framebufferDataG := color
     }.otherwise {
         io.framebufferDataB := color

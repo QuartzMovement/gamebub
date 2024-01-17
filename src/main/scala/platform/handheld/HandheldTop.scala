@@ -5,7 +5,10 @@ import chisel3.util._
 import xilinx.xpm_cdc_handshake
 
 object HandheldTop extends App {
-  emitVerilog(new HandheldTop, args)
+  emitVerilog(new HandheldTop(
+//    new HandheldGameboy
+    new HandheldTester
+  ), args)
 }
 
 /** IO bundle used for a handheld submodule. */
@@ -36,6 +39,13 @@ class HandheldIo extends Bundle {
 
   // TODO SRAM
   // TODO SDRAM
+}
+
+trait HandheldModule {
+  def io: HandheldIo
+
+  def framebufferW: Int
+  def framebufferH: Int
 }
 
 /** Buttons on the handheld. All are active-high. */
@@ -120,7 +130,7 @@ class HandheldLink extends Bundle {
  * The outer clock is passed down to the inner module,
  * e.g. 8.3886 MHz for Gameboy.
  */
-class HandheldTop extends Module {
+class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val io = IO(new Bundle {
     /** Audio/video clock: 12.288 MHz */
     val clock_av = Input(Clock())
@@ -145,11 +155,18 @@ class HandheldTop extends Module {
     val pmod = new HandheldPmod
     val link = new HandheldLink
   })
+  val tempModuleReset = !RegNext(RegNext(io.buttons.r))
+  val module = withReset(tempModuleReset) {
+    Module(genT)
+  }
 
+  //////////////////////////////////
+  // Video
+  //////////////////////////////////
   val screenWidth = 480
   val screenHeight = 320
-  val videoWidth = 160
-  val videoHeight = 144
+  val videoWidth = module.framebufferW
+  val videoHeight = module.framebufferH
   val framebuffer = SyncReadMem(videoWidth * videoHeight, UInt(15.W))
   withClock (io.clock_av) {
     /**
@@ -200,7 +217,9 @@ class HandheldTop extends Module {
     }
   }
 
-  // Audio transmission
+  //////////////////////////////////
+  // Audio
+  //////////////////////////////////
   val audioDataHandshake = Module(new xpm_cdc_handshake(
     width = 32,
     destExtHsk = false,
@@ -226,14 +245,8 @@ class HandheldTop extends Module {
   }
 
   //////////////////////////////////
-  // Submodule
+  // Submodule Connections
   //////////////////////////////////
-  val tempInnerReset = !RegNext(RegNext(io.buttons.r))
-  val module = withReset(tempInnerReset) {
-//      Module(new HandheldGameboy)
-    Module(new HandheldTester)
-  }
-
   io.vibrate := module.io.vibrate || !io.buttons.l // XXX: remove L-activation. For testing only
   io.link <> module.io.link
   io.pmod <> module.io.pmod
