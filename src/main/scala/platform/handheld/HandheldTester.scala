@@ -41,7 +41,7 @@ class HandheldTester extends Module with HandheldModule {
     val color = (offX + x)(4, 0) ^ (offY + y)(4, 0)
     when (x < 80.U) {
         io.framebufferDataR := color
-    }.elsewhen(y < 160.U) {
+    }.elsewhen(x < 160.U) {
         io.framebufferDataG := color
     }.otherwise {
         io.framebufferDataB := color

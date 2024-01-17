@@ -256,7 +256,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
   // Framebuffer writes
   when (module.io.framebufferWriteEnable) {
-    val address = (module.io.framebufferY * 160.U(8.W)) + module.io.framebufferX
+    val address = (module.io.framebufferY * videoWidth.U(8.W)) + module.io.framebufferX
     val data = Cat(module.io.framebufferDataR, module.io.framebufferDataG, module.io.framebufferDataB)
     framebuffer.write(address, data)
   }
