@@ -115,9 +115,9 @@ module top_handheld (
     logic inner_link_sc_out;
 
     HandheldTop handheld_top(
-        .clock(clk_12mhz),
+        .clock(clk_8mhz),
         .reset(reset),
-        .io_clk_8mhz(clk_8mhz),
+        .io_clock_av(clk_12mhz),
 
         .io_lcd_vsync(lcd_vsync),
         .io_lcd_hsync(lcd_hsync),

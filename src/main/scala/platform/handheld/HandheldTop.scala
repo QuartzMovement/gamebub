@@ -117,11 +117,13 @@ class HandheldLink extends Bundle {
 /**
  * Top-level Chisel module for the handheld.
  *
- * Expects an outer clock of 12.288 MHz.
+ * The outer clock is passed down to the inner module,
+ * e.g. 8.3886 MHz for Gameboy.
  */
 class HandheldTop extends Module {
   val io = IO(new Bundle {
-    val clk_8mhz = Input(Clock())
+    /** Audio/video clock: 12.288 MHz */
+    val clock_av = Input(Clock())
 
     val lcd = Output(new DpiSignals)
     val lcdData = Output(UInt(18.W))
@@ -143,115 +145,123 @@ class HandheldTop extends Module {
     val pmod = new HandheldPmod
     val link = new HandheldLink
   })
-  /**
-   * DPI video signal output
-   * dotclk = 12.288MHz, fps = 60
-   * H = 320, total inactive = 88
-   * V = 480, total inactive = 22
-   */
-  val dpiDriver = Module(new DpiDriver(
-    hActive = 320,
-    hSync = 30, // min = 3
-    hBackPorch = 29, // min = 3
-    hFrontPorch = 29, // min = 3
-    vActive = 480,
-    vSync = 8, // min = 1
-    vBackPorch = 7, // min = 2
-    vFrontPorch = 7, // min = 2
-  ))
-  io.lcd := dpiDriver.io.signals
-  val dpiX = dpiDriver.io.pixelY
-  val dpiY = dpiDriver.io.pixelX
 
-  // 160x144 to 480x320 -- scale by 2, and center
-  val framebuffer = SyncReadMem(160 * 144, UInt(15.W))
+  val screenWidth = 480
+  val screenHeight = 320
   val videoWidth = 160
   val videoHeight = 144
-  val videoScale = 2
-  val videoOffsetX = (480 - (videoWidth * videoScale)) / 2
-  val videoOffsetY = (320 - (videoHeight * videoScale)) / 2
-  val framebufferReadDelay = 2 // 2 cycles to read from the framebuffer
-  val framebufferReadAddress =
-    (((dpiY - videoOffsetY.U(16.W) + framebufferReadDelay.U(16.W)) / videoScale.U(16.W)) * videoWidth.U(16.W)) +
-      ((dpiX - videoOffsetX.U(16.W)) / videoScale.U)
-  // Buffering the read allows this to be a block ram instead of distributed ram
-  val framebufferRead = RegNext(framebuffer.read(framebufferReadAddress, true.B))
-  when (
-    dpiX >= videoOffsetX.U(16.W) &&
-      dpiX < (videoOffsetX + (videoWidth * videoScale)).U(16.W) &&
-      dpiY >= videoOffsetY.U(16.W) &&
-      dpiY < (videoOffsetY + (videoHeight * videoScale)).U(16.W)) {
-    val framebufferReadR = framebufferRead(14, 10)
-    val framebufferReadG = framebufferRead(9, 5)
-    val framebufferReadB = framebufferRead(4, 0)
-    io.lcdData := Cat(
-      Cat(framebufferReadR, 0.U(1.W)),
-      Cat(framebufferReadG, 0.U(1.W)),
-      Cat(framebufferReadB, 0.U(1.W)),
-    )
-  } .otherwise {
-    io.lcdData := 0.U(15.W)
+  val framebuffer = SyncReadMem(videoWidth * videoHeight, UInt(15.W))
+  withClock (io.clock_av) {
+    /**
+     * DPI video signal output
+     * dotclk = 12.288MHz, fps = 60
+     * H = 320, total inactive = 88
+     * V = 480, total inactive = 22
+     */
+    val dpiDriver = Module(new DpiDriver(
+      hActive = screenHeight,
+      hSync = 30, // min = 3
+      hBackPorch = 29, // min = 3
+      hFrontPorch = 29, // min = 3
+      vActive = screenWidth,
+      vSync = 8, // min = 1
+      vBackPorch = 7, // min = 2
+      vFrontPorch = 7, // min = 2
+    ))
+    io.lcd := dpiDriver.io.signals
+    val dpiX = dpiDriver.io.pixelY
+    val dpiY = dpiDriver.io.pixelX
+
+    // 160x144 to 480x320 -- scale by 2, and center
+    val videoScale = 2
+    val videoOffsetX = (screenWidth - (videoWidth * videoScale)) / 2
+    val videoOffsetY = (screenHeight - (videoHeight * videoScale)) / 2
+    val framebufferReadDelay = 2 // 2 cycles to read from the framebuffer
+    val framebufferReadAddress =
+      (((dpiY - videoOffsetY.U(16.W) + framebufferReadDelay.U(16.W)) / videoScale.U(16.W)) * videoWidth.U(16.W)) +
+        ((dpiX - videoOffsetX.U(16.W)) / videoScale.U)
+    // Buffering the read allows this to be a block ram instead of distributed ram
+    val framebufferRead = RegNext(framebuffer.read(framebufferReadAddress, io.clock_av))
+    when (
+      dpiX >= videoOffsetX.U(16.W) &&
+        dpiX < (videoOffsetX + (videoWidth * videoScale)).U(16.W) &&
+        dpiY >= videoOffsetY.U(16.W) &&
+        dpiY < (videoOffsetY + (videoHeight * videoScale)).U(16.W)) {
+      val framebufferReadR = framebufferRead(14, 10)
+      val framebufferReadG = framebufferRead(9, 5)
+      val framebufferReadB = framebufferRead(4, 0)
+      io.lcdData := Cat(
+        Cat(framebufferReadR, 0.U(1.W)),
+        Cat(framebufferReadG, 0.U(1.W)),
+        Cat(framebufferReadB, 0.U(1.W)),
+      )
+    } .otherwise {
+      io.lcdData := 0.U(15.W)
+    }
   }
 
   // Audio transmission
-  val i2sTransmitter = Module(new I2sTransmitter(
-    bitWidth = 16,
-    mclkFactor = 256,
-    channels = 2,
-  ))
-  io.dac := i2sTransmitter.io.signals
-
-  val audioData = RegInit(0.U(32.W))
   val audioDataHandshake = Module(new xpm_cdc_handshake(
     width = 32,
     destExtHsk = false,
   ))
-  audioDataHandshake.io.src_clk := io.clk_8mhz
-  audioDataHandshake.io.dest_clk := clock
+  audioDataHandshake.io.src_clk := clock
+  audioDataHandshake.io.dest_clk := io.clock_av
   audioDataHandshake.io.dest_ack := true.B // unused when destExtHsk = false
-  when (audioDataHandshake.io.dest_req) {
-    audioData := audioDataHandshake.io.dest_out
-  }
-  i2sTransmitter.io.dataLeft := audioData(31, 16)
-  i2sTransmitter.io.dataRight := audioData(15, 0)
+  withClock (io.clock_av) {
+    val i2sTransmitter =
+      Module(new I2sTransmitter(
+        bitWidth = 16,
+        mclkFactor = 256,
+        channels = 2,
+      ))
+    io.dac := i2sTransmitter.io.signals
 
+    val audioData = RegInit(0.U(32.W))
+    when (audioDataHandshake.io.dest_req) {
+      audioData := audioDataHandshake.io.dest_out
+    }
+    i2sTransmitter.io.dataLeft := audioData(31, 16)
+    i2sTransmitter.io.dataRight := audioData(15, 0)
+  }
+
+  //////////////////////////////////
   // Submodule
-  withClock (io.clk_8mhz) {
-    val tempInnerReset = !RegNext(RegNext(io.buttons.r))
-    val module = withReset(tempInnerReset) {
+  //////////////////////////////////
+  val tempInnerReset = !RegNext(RegNext(io.buttons.r))
+  val module = withReset(tempInnerReset) {
 //      Module(new HandheldGameboy)
-      Module(new HandheldTester)
-    }
-
-    io.vibrate := module.io.vibrate || !io.buttons.l // XXX: remove L-activation. For testing only
-    io.link <> module.io.link
-    io.pmod <> module.io.pmod
-
-    // Buttons must be synchronized and inverted.
-    module.io.buttons := RegNext(RegNext(~io.buttons.asUInt)).asTypeOf(new HandheldButtons)
-
-    // Framebuffer writes
-    when (module.io.framebufferWriteEnable) {
-      val address = (module.io.framebufferY * 160.U(8.W)) + module.io.framebufferX
-      val data = Cat(module.io.framebufferDataR, module.io.framebufferDataG, module.io.framebufferDataB)
-      framebuffer.write(address, data, io.clk_8mhz)
-    }
-
-    // Audio sample synchronization
-    val audioDataSend = RegInit(false.B)
-    audioDataHandshake.io.src_in := Cat(module.io.audioLeft.asUInt, module.io.audioRight.asUInt)
-    audioDataHandshake.io.src_send := audioDataSend
-    when(!audioDataHandshake.io.src_rcv && !audioDataSend) {
-      audioDataSend := true.B
-    }
-    when(audioDataHandshake.io.src_rcv && audioDataSend) {
-      audioDataSend := false.B
-    }
-
-    // Cartridge
-    io.cartridge <> module.io.cartridge
-    io.cartridgeOutputEnableN := !module.io.cartridgeEnabled
-    io.cartridge3V3Enable := !io.cartridgeSwitch && module.io.cartridgeEnabled
-    io.cartridge5V0Enable := io.cartridgeSwitch && module.io.cartridgeEnabled
+    Module(new HandheldTester)
   }
+
+  io.vibrate := module.io.vibrate || !io.buttons.l // XXX: remove L-activation. For testing only
+  io.link <> module.io.link
+  io.pmod <> module.io.pmod
+
+  // Buttons must be synchronized and inverted.
+  module.io.buttons := RegNext(RegNext(~io.buttons.asUInt)).asTypeOf(new HandheldButtons)
+
+  // Framebuffer writes
+  when (module.io.framebufferWriteEnable) {
+    val address = (module.io.framebufferY * 160.U(8.W)) + module.io.framebufferX
+    val data = Cat(module.io.framebufferDataR, module.io.framebufferDataG, module.io.framebufferDataB)
+    framebuffer.write(address, data)
+  }
+
+  // Audio sample synchronization
+  val audioDataSend = RegInit(false.B)
+  audioDataHandshake.io.src_in := Cat(module.io.audioLeft.asUInt, module.io.audioRight.asUInt)
+  audioDataHandshake.io.src_send := audioDataSend
+  when (!audioDataHandshake.io.src_rcv && !audioDataSend) {
+    audioDataSend := true.B
+  }
+  when (audioDataHandshake.io.src_rcv && audioDataSend) {
+    audioDataSend := false.B
+  }
+
+  // Cartridge
+  io.cartridge <> module.io.cartridge
+  io.cartridgeOutputEnableN := !module.io.cartridgeEnabled
+  io.cartridge3V3Enable := !io.cartridgeSwitch && module.io.cartridgeEnabled
+  io.cartridge5V0Enable := io.cartridgeSwitch && module.io.cartridgeEnabled
 }
