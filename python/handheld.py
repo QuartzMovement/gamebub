@@ -2,6 +2,7 @@ import machine
 from machine import I2C, Pin
 import time
 import sys
+import deflate
 
 lcd_backlight = Pin(6, Pin.OUT)
 lcd_reset = Pin(7, Pin.OUT)
@@ -433,7 +434,7 @@ dac.set_speakers_enabled(False)
 
 
 
-def program_fpga(bitstream='/top_handheld.bit'):
+def program_fpga(bitstream='/top_handheld.bit.gz'):
     # TODO check and see if timings can be reduced
     print("Powering on FPGA")
     fpga_power.value(1)
@@ -447,7 +448,9 @@ def program_fpga(bitstream='/top_handheld.bit'):
         time.sleep_ms(50)
 
     print("FPGA is in program mode.")
-    f = open(bitstream, 'rb')
+    f = raw_file = open(bitstream, 'rb')
+    if bitstream.endswith('.gz'):
+        f = deflate.DeflateIO(f)
     f.read(129) # discard header
 
     fpga_config_spi = machine.SPI(2, baudrate=80_000_000, polarity=0, phase=0, firstbit=machine.SPI.MSB, sck=Pin(12), mosi=Pin(11), miso=Pin(13))
@@ -469,7 +472,7 @@ def program_fpga(bitstream='/top_handheld.bit'):
         end_time = time.time_ns()
         duration_write += (end_time - start_time)
     #
-    print(f"Done! read time (ns) = {duration_read}, write time = {duration_write}")
+    print(f"Done! read time (sec) = {duration_read / 1_000_000_000}, write time = {duration_write / 1_000_000_000}")
     time.sleep_ms(100)
     print("Done pin (should be 1):", fpga_done.value())
 
