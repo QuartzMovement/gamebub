@@ -3,6 +3,7 @@ from machine import I2C, Pin
 import time
 import sys
 import deflate
+import struct
 
 lcd_backlight = Pin(6, Pin.OUT)
 lcd_reset = Pin(7, Pin.OUT)
@@ -16,13 +17,18 @@ fpga_done = Pin(17, Pin.IN)
 fpga_program_b = Pin(18, Pin.OPEN_DRAIN, value=1)
 fpga_init_b = Pin(8, Pin.IN)
 fpga_spi_d2 = Pin(14, Pin.IN)
+pin_vbus_pgood_n = Pin(41, Pin.IN)
+pin_chg = Pin(42, Pin.IN)
+mcu_irq = Pin(2, Pin.IN)
+
+
 
 # BUG: FPGA can interfere with LCD SPI, also using LCD SPI while FPGA is unpowered probably isn't great
 fpga_power.value(1)
 
 lcd_pwm = machine.PWM(lcd_backlight, freq=30_000, duty=256)
 
-display_spi = machine.SPI(2, baudrate=10_000_000, polarity=1, phase=1, firstbit=machine.SPI.MSB, sck=Pin(12), mosi=Pin(11), miso=Pin(13))
+display_spi = machine.SPI(2, baudrate=1_000_000, polarity=0, phase=0, firstbit=machine.SPI.MSB, sck=Pin(12), mosi=Pin(11), miso=Pin(13))
 
 # # 1-bit SPI
 # sd_card = machine.SDCard(
@@ -45,6 +51,45 @@ display_spi = machine.SPI(2, baudrate=10_000_000, polarity=1, phase=1, firstbit=
 # s = time.time_ns() ; print(len(open('/sd/BOOT.bin', 'rb').read(256 * 1024))) ; e = time.time_ns()
 # print("time (ns)", e - s)
 
+class MAX17048:
+    i2c_address = 0x36
+
+    def __init__(
+        self,
+        i2c: machine.SPI,
+    ) -> None:
+        self._i2c = i2c
+
+    def _read_reg(self, reg: int) -> int:
+        """Reads a 16-bit big-endian register."""
+        raw = i2c.readfrom_mem(self.i2c_address, reg, 2)
+        return struct.unpack('>H', raw)[0]
+
+    def ping(self) -> bool:
+        """
+        Returns whether the device is active and responding.
+
+        May give false positives (can be powered by I2C bus sometimes).
+        """
+        try:
+            chip_version = self._read_reg(0x08)
+            return (chip_version & 0xFFF0) == 0x0010
+        except:
+            return False
+
+    def battery_voltage(self) -> float:
+        """Returns the battery voltage in volts."""
+        return (self._read_reg(0x2) * 78.125) / 1_000_000
+
+    def battery_level(self) -> float:
+        """Returns the battery state of charge, in percent."""
+        return self._read_reg(0x4) / 256
+
+    def charge_rate(self) -> float:
+        """Returns the charge or discharge rate of the battery, in %/hr"""
+        return self._read_reg(0x16) * 0.208
+
+fuel_gauge = MAX17048(i2c)
 
 class ILI9488:
     def __init__(
@@ -231,6 +276,11 @@ print("Setting FPGA control???")
 lcd._write_cmd(0xB6, bytes([0x32]))
 # hsync, vsync, enable polarity high, dotclock: sample on falling edge
 lcd._write_cmd(0xB0, bytes([0x0E]))
+
+
+# TESTING: bypass memory, direct to shift register:
+lcd._write_cmd(0xB6, bytes([0xB2, 0x62]))   # BYPASS memory, direct to shift register... and rotate gate/drive 
+lcd._write_cmd(0xB4, bytes([0x00]))  # set display inversion to "column inversion"
 
 
 class TLV320DAC3101:
