@@ -3,7 +3,6 @@ package platform.handheld
 import chisel3._
 import chiseltest._
 import org.scalatest.freespec.AnyFreeSpec
-import platform.DpiDriver
 
 class DpiDriverSpec extends AnyFreeSpec with ChiselScalatestTester {
   "go" in {
