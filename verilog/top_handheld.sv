@@ -3,11 +3,8 @@ module top_handheld (
 
     input mcu_spi_clk,
     input mcu_spi_cs_n,
-    inout mcu_spi_pico,
-    inout mcu_spi_poci,
-    inout mcu_spi_d2,
-    inout mcu_spi_d3,
-    inout mcu_irq_n,
+    inout [3:0] mcu_spi_d,
+    output mcu_irq_n,
 
     input btn_a,
     input btn_b,
@@ -114,10 +111,23 @@ module top_handheld (
     logic inner_link_sd_out;
     logic inner_link_sc_out;
 
+    logic inner_mcu_irq;
+    logic [3:0] inner_mcu_spi_data_in;
+    logic [3:0] inner_mcu_spi_data_out;
+    logic [3:0] inner_mcu_spi_data_dir;
+
+
     HandheldTop handheld_top(
         .clock(clk_8mhz),
         .reset(reset),
         .io_clock_av(clk_12mhz),
+
+        .io_mcuIrq(inner_mcu_irq),
+        .io_mcuSpiChipSelect(mcu_spi_cs_n),
+        .io_mcuSpiClock(mcu_spi_clk),
+        .io_mcuSpiDataIn(inner_mcu_spi_data_in),
+        .io_mcuSpiDataOut(inner_mcu_spi_data_out),
+        .io_mcuSpiDataDir(inner_mcu_spi_data_dir),
 
         .io_lcd_vsync(lcd_vsync),
         .io_lcd_hsync(lcd_hsync),
@@ -213,6 +223,13 @@ module top_handheld (
     assign pmod[1] = inner_pmod_dir[1] ? inner_pmod_out[1] : 1'bz;
     assign pmod[2] = inner_pmod_dir[2] ? inner_pmod_out[2] : 1'bz;
     assign pmod[3] = inner_pmod_dir[3] ? inner_pmod_out[3] : 1'bz;
+
+    assign mcu_irq_n = inner_mcu_irq ? 1'b0 : 1'bz;
+    assign inner_mcu_spi_data_in = mcu_spi_d;
+    assign mcu_spi_d[0] = inner_mcu_spi_data_dir[0] ? inner_mcu_spi_data_out[0] : 1'bz;
+    assign mcu_spi_d[1] = inner_mcu_spi_data_dir[1] ? inner_mcu_spi_data_out[1] : 1'bz;
+    assign mcu_spi_d[2] = inner_mcu_spi_data_dir[2] ? inner_mcu_spi_data_out[2] : 1'bz;
+    assign mcu_spi_d[3] = inner_mcu_spi_data_dir[3] ? inner_mcu_spi_data_out[3] : 1'bz;
 endmodule
 
 

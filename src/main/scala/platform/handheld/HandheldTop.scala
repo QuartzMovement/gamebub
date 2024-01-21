@@ -135,6 +135,14 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     /** Audio/video clock: 12.288 MHz */
     val clock_av = Input(Clock())
 
+    /** MCU interrupt: true to pull it low (active) */
+    val mcuIrq = Output(Bool())
+    val mcuSpiChipSelect = Input(Bool())
+    val mcuSpiClock = Input(Bool())
+    val mcuSpiDataIn = Input(UInt(4.W))
+    val mcuSpiDataOut = Output(UInt(4.W))
+    val mcuSpiDataDir = Output(UInt(4.W))
+
     val lcd = Output(new DpiSignals)
     val lcdData = Output(UInt(18.W))
     val dac = Output(new I2sSignals)
@@ -158,6 +166,40 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val tempModuleReset = !RegNext(RegNext(io.buttons.r))
   val module = withReset(tempModuleReset) {
     Module(genT)
+  }
+
+  //////////////////////////////////
+  // MCU Communication
+  //////////////////////////////////
+  // D0: PICO, D1: POCI
+  val spi = Module(new SpiReceiver)
+  io.mcuIrq := false.B
+  io.mcuSpiDataDir := Mux(io.mcuSpiChipSelect, 0.U, "b0010".U)
+  io.mcuSpiDataOut := Cat(0.U(2.W), spi.io.signals.serialOut, 0.U(1.W))
+  spi.io.signals.serialClock := io.mcuSpiClock
+  spi.io.signals.serialIn := io.mcuSpiDataIn(0)
+  spi.io.signals.chipSelect := io.mcuSpiChipSelect
+  spi.io.dataRead := 0.U
+
+  val tempRegister = RegInit(0.U(16.W))
+
+  switch (spi.io.address) {
+    is (0.U) {
+      spi.io.dataRead := 0xF00F.U
+    }
+    is (1.U) {
+      spi.io.dataRead := tempRegister
+    }
+  }
+  when (spi.io.writeValid) {
+    switch (spi.io.address) {
+      is (0.U) {
+        tempRegister := spi.io.dataWrite
+      }
+      is (1.U) {
+        tempRegister := ~spi.io.dataWrite
+      }
+    }
   }
 
   //////////////////////////////////

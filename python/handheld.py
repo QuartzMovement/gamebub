@@ -16,11 +16,10 @@ dac_reset = Pin(40, Pin.OUT)
 fpga_done = Pin(17, Pin.IN)
 fpga_program_b = Pin(18, Pin.OPEN_DRAIN, value=1)
 fpga_init_b = Pin(8, Pin.IN)
-fpga_spi_d2 = Pin(14, Pin.IN)
+fpga_spi_cs = Pin(10, Pin.OUT)
 pin_vbus_pgood_n = Pin(41, Pin.IN)
 pin_chg = Pin(42, Pin.IN)
 mcu_irq = Pin(2, Pin.IN)
-
 
 
 # BUG: FPGA can interfere with LCD SPI, also using LCD SPI while FPGA is unpowered probably isn't great
@@ -28,7 +27,20 @@ fpga_power.value(1)
 
 lcd_pwm = machine.PWM(lcd_backlight, freq=30_000, duty=256)
 
-display_spi = machine.SPI(2, baudrate=1_000_000, polarity=0, phase=0, firstbit=machine.SPI.MSB, sck=Pin(12), mosi=Pin(11), miso=Pin(13))
+spi2 = machine.SPI(2, baudrate=1_000_000, polarity=0, phase=0, firstbit=machine.SPI.MSB, sck=Pin(12), mosi=Pin(11), miso=Pin(13))
+fpga_spi_cs.value(1)
+
+def fpga_spi_write(address, data):
+    fpga_spi_cs.value(0)
+    spi2.write(bytes([0x00, (address >> 8) & 0xFF, address & 0xFF]) + data)
+    fpga_spi_cs.value(1)
+
+def fpga_spi_read(address, nbytes):
+    fpga_spi_cs.value(0)
+    spi2.write(bytes([0x01, (address >> 8) & 0xFF, address & 0xFF]))
+    data = spi2.read(nbytes)
+    fpga_spi_cs.value(1)
+    return data
 
 # # 1-bit SPI
 # sd_card = machine.SDCard(
@@ -208,8 +220,9 @@ class ILI9488:
 ### END
 
 print("Initializing LCD")
-lcd = ILI9488(display_spi, pin_rst=lcd_reset, pin_cs=lcd_cs, pin_dc=lcd_dc)
+lcd = ILI9488(spi2, pin_rst=lcd_reset, pin_cs=lcd_cs, pin_dc=lcd_dc)
 lcd.setup()
+
 
 
 
@@ -525,5 +538,10 @@ def program_fpga(bitstream='/top_handheld.bit.gz'):
     print(f"Done! read time (sec) = {duration_read / 1_000_000_000}, write time = {duration_write / 1_000_000_000}")
     time.sleep_ms(100)
     print("Done pin (should be 1):", fpga_done.value())
+
+    # Change SPI back to 1 MHz
+    # TODO find a more elegant way to do bus sharing with different speeds
+    fpga_config_spi.deinit()
+    machine.SPI(2, baudrate=1_000_000, polarity=0, phase=0, firstbit=machine.SPI.MSB, sck=Pin(12), mosi=Pin(11), miso=Pin(13))
 
 program_fpga()

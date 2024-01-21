@@ -143,10 +143,10 @@ set_property -dict { PACKAGE_PIN J4     IOSTANDARD LVCMOS33 } [get_ports { dac_d
 ########################################
 set_property -dict { PACKAGE_PIN F4     IOSTANDARD LVCMOS33 } [get_ports { mcu_spi_clk  }];
 set_property -dict { PACKAGE_PIN J2     IOSTANDARD LVCMOS33 } [get_ports { mcu_spi_cs_n }];
-set_property -dict { PACKAGE_PIN H2     IOSTANDARD LVCMOS33 } [get_ports { mcu_spi_pico }];
-set_property -dict { PACKAGE_PIN G1     IOSTANDARD LVCMOS33 } [get_ports { mcu_spi_poci }];
-set_property -dict { PACKAGE_PIN G2     IOSTANDARD LVCMOS33 } [get_ports { mcu_spi_d2   }];
-set_property -dict { PACKAGE_PIN H1     IOSTANDARD LVCMOS33 } [get_ports { mcu_spi_d3   }];
+set_property -dict { PACKAGE_PIN H2     IOSTANDARD LVCMOS33 } [get_ports { mcu_spi_d[0] }];
+set_property -dict { PACKAGE_PIN G1     IOSTANDARD LVCMOS33 } [get_ports { mcu_spi_d[1] }];
+set_property -dict { PACKAGE_PIN G2     IOSTANDARD LVCMOS33 } [get_ports { mcu_spi_d[2] }];
+set_property -dict { PACKAGE_PIN H1     IOSTANDARD LVCMOS33 } [get_ports { mcu_spi_d[3] }];
 set_property -dict { PACKAGE_PIN J3     IOSTANDARD LVCMOS33 } [get_ports { mcu_irq_n    }];
 
 ########################################
