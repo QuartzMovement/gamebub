@@ -69,67 +69,69 @@ class SpiReceiver(
   io.readValid := false.B
   io.writeValid := false.B
 
-  // Chip activation: nCS falling edge
-  when (!chipSelect && RegNext(chipSelect)) {
-    state := SpiState.writeCommand
-    shiftInCounter := commandLength.U
-//    printf(cf"    Chip selected\n")
-  }
-
   val prevSerialClock = RegNext(serialClock)
   val risingClock = serialClock && !prevSerialClock
   val fallingClock = !serialClock && prevSerialClock
 
-  // Rising clock: sample data
-  when (risingClock) {
-    shiftInReg := Cat(shiftInReg, serialIn)
-    shiftInCounter := shiftInCounter - 1.U
-//    printf(cf"    RisingClock; state = ${state}, nextShift = ${Cat(shiftInReg, serialIn)}%b\n")
-  }
-  // Falling clock: shift out data
-  when (fallingClock) {
-    when (state === SpiState.readData && shiftOutCounter === 0.U) {
-      // Read the next data.
-      io.readValid := true.B
-      shiftOutReg := io.dataRead
-      shiftOutCounter := dataLength.U - 1.U
-      regAddress := regAddress + 1.U
-//      printf(cf"    > Sending data: ${io.dataRead}%x\n")
-    } .otherwise {
-      shiftOutReg := shiftOutReg << 1
-      shiftOutCounter := shiftOutCounter - 1.U
+  when (!chipSelect) {
+    // Chip activation: nCS falling edge
+    when (RegNext(chipSelect)) {
+      state := SpiState.writeCommand
+      shiftInCounter := commandLength.U
+      //    printf(cf"    Chip selected\n")
     }
-//    printf(cf"    FallingClock; state = ${state}, nextShift = ${shiftOutReg << 1}%b\n")
-  }
 
-  when (shiftInCounter === 0.U) {
-    switch (state) {
-      is (SpiState.writeCommand) {
-        // Finished writing command
-//        printf(cf"    > Got command: ${shiftInReg}%x\n")
-        regCommand := shiftInReg.asTypeOf(new SpiCommand)
-        state := SpiState.writeAddress
-        shiftInCounter := addressLength.U
+    // Rising clock: sample data
+    when (risingClock) {
+      shiftInReg := Cat(shiftInReg, serialIn)
+      shiftInCounter := shiftInCounter - 1.U
+      //    printf(cf"    RisingClock; state = ${state}, nextShift = ${Cat(shiftInReg, serialIn)}%b\n")
+    }
+    // Falling clock: shift out data
+    when (fallingClock) {
+      when (state === SpiState.readData && shiftOutCounter === 0.U) {
+        // Read the next data.
+        io.readValid := true.B
+        shiftOutReg := io.dataRead
+        shiftOutCounter := dataLength.U - 1.U
+        regAddress := regAddress + 1.U
+        //      printf(cf"    > Sending data: ${io.dataRead}%x\n")
+      }.otherwise {
+        shiftOutReg := shiftOutReg << 1
+        shiftOutCounter := shiftOutCounter - 1.U
       }
-      is (SpiState.writeAddress) {
-        // Finished writing address
-//        printf(cf"    > Got address: ${shiftInReg}%x\n")
-        regAddress := shiftInReg
-        shiftInCounter := dataLength.U
-        shiftOutCounter := 0.U
+      //    printf(cf"    FallingClock; state = ${state}, nextShift = ${shiftOutReg << 1}%b\n")
+    }
 
-        when (regCommand.isRead) {
-          state := SpiState.readData
-        }.otherwise {
-          state := SpiState.writeData
+    when(shiftInCounter === 0.U) {
+      switch(state) {
+        is (SpiState.writeCommand) {
+          // Finished writing command
+          //        printf(cf"    > Got command: ${shiftInReg}%x\n")
+          regCommand := shiftInReg.asTypeOf(new SpiCommand)
+          state := SpiState.writeAddress
+          shiftInCounter := addressLength.U
         }
-      }
-      is (SpiState.writeData) {
-        // Finished writing data
-//        printf(cf"    > Received data: ${shiftInReg}%x\n")
-        io.writeValid := true.B
-        shiftInCounter := dataLength.U
-        regAddress := regAddress + 1.U // XXX: check auto-increment write behavior
+        is (SpiState.writeAddress) {
+          // Finished writing address
+          //        printf(cf"    > Got address: ${shiftInReg}%x\n")
+          regAddress := shiftInReg
+          shiftInCounter := dataLength.U
+          shiftOutCounter := 0.U
+
+          when(regCommand.isRead) {
+            state := SpiState.readData
+          }.otherwise {
+            state := SpiState.writeData
+          }
+        }
+        is (SpiState.writeData) {
+          // Finished writing data
+          //        printf(cf"    > Received data: ${shiftInReg}%x\n")
+          io.writeValid := true.B
+          shiftInCounter := dataLength.U
+          regAddress := regAddress + 1.U // XXX: check auto-increment write behavior
+        }
       }
     }
   }
