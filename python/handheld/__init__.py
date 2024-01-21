@@ -6,6 +6,7 @@ from .ili9488 import ILI9488
 from .max17048 import MAX17048
 from .tlv320dac3101 import TLV320DAC3101
 from .fpga import FPGA
+from .tca9535 import TCA9535
 
 lcd_backlight = Pin(6, Pin.OUT)
 lcd_reset = Pin(7, Pin.OUT)
@@ -44,6 +45,10 @@ spi = SpiGetter()
 lcd_pwm = machine.PWM(lcd_backlight, freq=30_000, duty=256)
 
 fuel_gauge = MAX17048(i2c)
+
+# P0: [R, X, Y, A, B, nHDMI_HPD, n/a, n/a]
+# P1: [n/a, L, Up, Right, Left, Down, Select, Start]
+io_expander = TCA9535(i2c)
 
 print("Initializing LCD")
 lcd = ILI9488(lambda: spi(10_000_000), pin_rst=lcd_reset, pin_cs=lcd_cs, pin_dc=lcd_dc)

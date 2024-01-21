@@ -12,7 +12,7 @@ class MAX17048:
 
     def _read_reg(self, reg: int) -> int:
         """Reads a 16-bit big-endian register."""
-        raw = i2c.readfrom_mem(self.i2c_address, reg, 2)
+        raw = self._i2c.readfrom_mem(self.i2c_address, reg, 2)
         return struct.unpack('>H', raw)[0]
 
     def ping(self) -> bool:
