@@ -21,7 +21,7 @@ class HandheldGameboy extends Module with HandheldModule {
   val gameboy = Module(new Gameboy(gameboyConfig))
 
   // Gameboy clock control
-  gameboy.io.clockConfig.enable := true.B
+  gameboy.io.clockConfig.enable := io.enable
   gameboy.io.clockConfig.provide8Mhz := true.B
 
   gameboy.io.joypad.a := io.buttons.a

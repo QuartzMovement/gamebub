@@ -5,14 +5,17 @@ import chisel3.util._
 import xilinx.xpm_cdc_handshake
 
 object HandheldTop extends App {
+
   emitVerilog(new HandheldTop(
-//    new HandheldGameboy
-    new HandheldTester
+    new HandheldGameboy
+//    new HandheldTester
   ), args)
 }
 
 /** IO bundle used for a handheld submodule. */
 class HandheldIo extends Bundle {
+  val enable = Input(Bool())
+
   val buttons = Input(new HandheldButtons)
 
   // Video output
@@ -163,14 +166,19 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val pmod = new HandheldPmod
     val link = new HandheldLink
   })
-  val tempModuleReset = !RegNext(RegNext(io.buttons.r))
-  val module = withReset(tempModuleReset) {
+  val moduleReset = WireDefault(false.B)
+  val module = withReset(moduleReset) {
     Module(genT)
   }
 
   //////////////////////////////////
   // MCU Communication
   //////////////////////////////////
+  val regIndexDummy = 0x00
+  val regIndexCount = 0x01
+  val regIndexControl = 0x02
+  val regIndexButtons = 0x03
+
   // D0: PICO, D1: POCI
   val spi = Module(new SpiReceiver)
   io.mcuIrq := false.B
@@ -182,23 +190,24 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   spi.io.dataRead := 0.U
 
   val tempRegister = RegInit(0.U(16.W))
+  val countRegister = RegInit(0.U(16.W))
+  val controlRegister = RegInit(0.U(3.W))
+  val buttonRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
+  moduleReset := controlRegister(1)
 
   switch (spi.io.address) {
-    is (0.U) {
-      spi.io.dataRead := 0xF00F.U
-    }
-    is (1.U) {
-      spi.io.dataRead := tempRegister
-    }
+    is(regIndexDummy.U) { spi.io.dataRead := tempRegister }
+    is(regIndexCount.U) { spi.io.dataRead := countRegister }
+    is(regIndexControl.U) { spi.io.dataRead := controlRegister }
+    is(regIndexButtons.U) { spi.io.dataRead := buttonRegister.asUInt }
   }
   when (spi.io.writeValid) {
+    countRegister := countRegister + 1.U
     switch (spi.io.address) {
-      is (0.U) {
-        tempRegister := spi.io.dataWrite
-      }
-      is (1.U) {
-        tempRegister := ~spi.io.dataWrite
-      }
+      is (regIndexDummy.U) { tempRegister := spi.io.dataWrite }
+      is (regIndexCount.U) {  }
+      is (regIndexControl.U) { controlRegister := spi.io.dataWrite }
+      is (regIndexButtons.U) { buttonRegister := spi.io.dataWrite.asTypeOf(new HandheldButtons) }
     }
   }
 
@@ -289,12 +298,14 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   //////////////////////////////////
   // Submodule Connections
   //////////////////////////////////
-  io.vibrate := module.io.vibrate || !io.buttons.l // XXX: remove L-activation. For testing only
+  module.io.enable := !controlRegister(0)
+  io.vibrate := module.io.vibrate || controlRegister(2)
   io.link <> module.io.link
   io.pmod <> module.io.pmod
 
   // Buttons must be synchronized and inverted.
-  module.io.buttons := RegNext(RegNext(~io.buttons.asUInt)).asTypeOf(new HandheldButtons)
+  module.io.buttons :=
+    (RegNext(RegNext(~io.buttons.asUInt)).asUInt | buttonRegister.asUInt).asTypeOf(new HandheldButtons)
 
   // Framebuffer writes
   when (module.io.framebufferWriteEnable) {
