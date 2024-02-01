@@ -130,6 +130,24 @@ def do_sram_test(max_address = 2**4, seed = 1234):
         if data != actual:
             print(f"mismatch at addr={i}, actual={actual}, expected={data}")
 
+def load_fpga_sram(path = '/Tetris.gb'):
+    print("Reading ROM...")
+    data = open(path, 'rb').read()
+    print("Done, length:", len(data))
+    print("Writing to SRAM...")
+    for i in range(0, len(data), 2):
+        addr = 0x8000_0000 | i
+        fpga.spi_write(addr, data[i:i+2])
+    print("Done.")
+
+def configure_fpga():
+    # configure emu cart
+    fpga.spi_write(0x0000_0000, (0b0000001).to_bytes(2, 'big'))
+
+    # reset...
+    fpga.spi_write(0x0000_0002, (0b10).to_bytes(2, 'big'))
+    fpga.spi_write(0x0000_0002, (0b00).to_bytes(2, 'big'))
+
 
 # fpga.spi_write(0x8000_0001, bytes.fromhex('6789'))
 # fpga.spi_read(0x8000_0001, 2).hex()

@@ -3,6 +3,7 @@ package platform.handheld
 import chisel3._
 import chisel3.util._
 import gameboy.Gameboy
+import gameboy.cart.{EmuCartConfig, EmuCartridge}
 
 /**
  * Clocked by the 8.3886 MHz "Gameboy" clock.
@@ -100,39 +101,84 @@ class HandheldGameboy extends Module with HandheldModule {
     }
   }
 
-  // Cartridge I/O
-  // This t-cycle logic works with HDMA too, even though it's 2x faster,
-  // because HDMA always reads, never writes.
-  val cartWrite = gameboy.io.cartridge.write && (gameboy.io.tCycle === 1.U || gameboy.io.tCycle === 2.U)
-  io.cartridgeEnabled := true.B
+  // Emulated Cartridge
+  val emuCart = Module(new EmuCartridge(8 * 1024 * 1024))
+  emuCart.io.config := io.temp.asTypeOf(new EmuCartConfig)
+  emuCart.io.tCycle := gameboy.io.tCycle
+  emuCart.io.rtcAccess.writeEnable := false.B
+  emuCart.io.rtcAccess.writeState := DontCare
+  emuCart.io.rtcAccess.latchSelect := DontCare
 
-  // Bank 0: Data bus
-  gameboy.io.cartridge.dataRead := io.cartridge.bank0In
-  io.cartridge.bank0Out := gameboy.io.cartridge.dataWrite
-  io.cartridge.bank0Dir := cartWrite // Output if writing
+  // TODO SRAM write, RAM
+  io.sramEnable := emuCart.io.dataAccess.enable
+  io.sramWrite := false.B
+  io.sramDataWrite := DontCare
+  emuCart.io.dataAccess.valid := true.B
+  io.sramAddress := emuCart.io.dataAccess.address(18, 1)
+  emuCart.io.dataAccess.dataRead := Mux(emuCart.io.dataAccess.address(0), io.sramDataRead(7, 0), io.sramDataRead(15, 8))
 
-  // Bank 1: Address High
-  io.cartridge.bank1Out := gameboy.io.cartridge.address(15, 8)
-  io.cartridge.bank1Dir := true.B
+  when (emuCart.io.config.enabled) {
+    io.cartridgeEnabled := false.B
 
-  // Bank 2: Address Low
-  io.cartridge.bank2Out := gameboy.io.cartridge.address(7, 0)
-  io.cartridge.bank2Dir := true.B
+    // Connect emulated cartridge
+    emuCart.io.cartridgeIo <> gameboy.io.cartridge
 
-  // Bank 3: Control signals (0: nCS, 1: nRD, 2: nWR, 3: PHI)
-  io.cartridge.bank3Dir := true.B
-  io.cartridge.bank3Out := Cat(
-    0.U(1.W), // PHI
-    ~cartWrite, // nWR
-    cartWrite, // nRD
-    gameboy.io.cartridge.chipSelect, // nCS
-  )
+    // Disconnect physical cartridge
+    io.cartridge.bank0Out := DontCare
+    io.cartridge.bank1Out := DontCare
+    io.cartridge.bank2Out := DontCare
+    io.cartridge.bank3Out := DontCare
+    io.cartridge.pin30Out := DontCare
+    io.cartridge.pin31Out := DontCare
+    io.cartridge.bank0Dir := false.B
+    io.cartridge.bank1Dir := false.B
+    io.cartridge.bank2Dir := false.B
+    io.cartridge.bank3Dir := false.B
+    io.cartridge.pin30Dir := false.B
+    io.cartridge.pin31Dir := false.B
+  } .otherwise {
+    // Cartridge I/O
+    // This t-cycle logic works with HDMA too, even though it's 2x faster,
+    // because HDMA always reads, never writes.
+    val cartWrite = gameboy.io.cartridge.write && (gameboy.io.tCycle === 1.U || gameboy.io.tCycle === 2.U)
+    io.cartridgeEnabled := true.B
 
-  // Pin 30: nRST
-  io.cartridge.pin30Dir := true.B
-  io.cartridge.pin30Out := true.B
+    // Bank 0: Data bus
+    gameboy.io.cartridge.dataRead := io.cartridge.bank0In
+    io.cartridge.bank0Out := gameboy.io.cartridge.dataWrite
+    io.cartridge.bank0Dir := cartWrite // Output if writing
 
-  // Pin 31: VIN
-  io.cartridge.pin31Dir := false.B
-  io.cartridge.pin31Out := DontCare
+    // Bank 1: Address High
+    io.cartridge.bank1Out := gameboy.io.cartridge.address(15, 8)
+    io.cartridge.bank1Dir := true.B
+
+    // Bank 2: Address Low
+    io.cartridge.bank2Out := gameboy.io.cartridge.address(7, 0)
+    io.cartridge.bank2Dir := true.B
+
+    // Bank 3: Control signals (0: nCS, 1: nRD, 2: nWR, 3: PHI)
+    io.cartridge.bank3Dir := true.B
+    io.cartridge.bank3Out := Cat(
+      0.U(1.W), // PHI
+      ~cartWrite, // nWR
+      cartWrite, // nRD
+      gameboy.io.cartridge.chipSelect, // nCS
+    )
+
+    // Pin 30: nRST
+    io.cartridge.pin30Dir := true.B
+    io.cartridge.pin30Out := true.B
+
+    // Pin 31: VIN
+    io.cartridge.pin31Dir := false.B
+    io.cartridge.pin31Out := DontCare
+
+    // Disconnect emulated cartridge
+    emuCart.io.cartridgeIo.write := false.B
+    emuCart.io.cartridgeIo.enable := false.B
+    emuCart.io.cartridgeIo.deadline := false.B
+    emuCart.io.cartridgeIo.dataWrite := 0.U
+    emuCart.io.cartridgeIo.chipSelect := false.B
+    emuCart.io.cartridgeIo.address := 0.U
+  }
 }

@@ -7,8 +7,8 @@ import xilinx.xpm_cdc_handshake
 object HandheldTop extends App {
 
   emitVerilog(new HandheldTop(
-//    new HandheldGameboy
-    new HandheldTester
+    new HandheldGameboy
+//    new HandheldTester
   ), args)
 }
 
@@ -40,7 +40,17 @@ class HandheldIo extends Bundle {
   val link = new HandheldLink
   val pmod = new HandheldPmod
 
-  // TODO SRAM
+  // TODO allow SPI interaction
+  val temp = Input(UInt(16.W))
+
+  // SRAM
+  val sramEnable = Output(Bool())
+  val sramWrite = Output(Bool())
+  val sramAddress = Output(UInt(18.W))
+  val sramDataRead = Input(UInt(16.W))
+  val sramDataWrite = Output(UInt(16.W))
+  // TODO UB/LB select
+
   // TODO SDRAM
 }
 
@@ -234,7 +244,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.sramWeN := 1.U
 
   when (spi.io.address(31)) {
-    io.sramA := spi.io.address
+    io.sramA := spi.io.address(18, 1)
 
     when (spi.io.readValid) {
       io.sramCeN := 0.U
@@ -339,6 +349,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.vibrate := module.io.vibrate || controlRegister(2)
   io.link <> module.io.link
   io.pmod <> module.io.pmod
+  module.io.temp := tempRegister
 
   // Buttons must be synchronized and inverted.
   module.io.buttons :=
@@ -367,4 +378,20 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.cartridgeOutputEnableN := !module.io.cartridgeEnabled
   io.cartridge3V3Enable := !io.cartridgeSwitch && module.io.cartridgeEnabled
   io.cartridge5V0Enable := io.cartridgeSwitch && module.io.cartridgeEnabled
+
+  // SRAM
+  module.io.sramDataRead := io.sramIoIn
+  when (module.io.sramEnable) {
+    io.sramA := module.io.sramAddress
+
+    when (module.io.sramWrite) {
+      io.sramCeN := 0.U
+      io.sramWeN := 0.U
+      io.sramIoOut := module.io.sramDataWrite
+    } .otherwise {
+      io.sramCeN := 0.U
+      io.sramWeN := 1.U
+      io.sramOeN := 0.U
+    }
+  }
 }
