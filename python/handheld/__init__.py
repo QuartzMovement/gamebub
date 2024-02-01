@@ -1,6 +1,7 @@
 import machine
 from machine import SPI, I2C, Pin
 import time
+import random
 
 from .ili9488 import ILI9488
 from .max17048 import MAX17048
@@ -113,8 +114,25 @@ fpga.program()
 
 ### END
 
+# SRAM test
+def do_sram_test(max_address = 2**4, seed = 1234):
+    random.seed(seed)
+    for i in range(0, max_address):
+        addr = 0x8000_0000 | i
+        data = bytes(random.getrandbits(8) for _ in range(2))
+        fpga.spi_write(addr, data)
+
+    random.seed(seed)
+    for i in range(0, max_address):
+        addr = 0x8000_0000 | i
+        data = bytes(random.getrandbits(8) for _ in range(2))
+        actual = fpga.spi_read(addr, 2)
+        if data != actual:
+            print(f"mismatch at addr={i}, actual={actual}, expected={data}")
 
 
+# fpga.spi_write(0x8000_0001, bytes.fromhex('6789'))
+# fpga.spi_read(0x8000_0001, 2).hex()
 
 
 

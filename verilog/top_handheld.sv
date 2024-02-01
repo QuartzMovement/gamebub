@@ -1,63 +1,73 @@
+`default_nettype none
+
 module top_handheld (
-    input clk_50mhz,
+    input  wire clk_50mhz,
 
-    input mcu_spi_clk,
-    input mcu_spi_cs_n,
-    inout [3:0] mcu_spi_d,
-    output mcu_irq_n,
+    input  wire        mcu_spi_clk,
+    input  wire        mcu_spi_cs_n,
+    inout  wire [3:0]  mcu_spi_d,
+    output wire        mcu_irq_n,
 
-    input btn_a,
-    input btn_b,
-    input btn_x,
-    input btn_y,
-    input btn_up,
-    input btn_down,
-    input btn_left,
-    input btn_right,
-    input btn_l,
-    input btn_r,
-    input btn_start,
-    input btn_select,
+    input  wire        btn_a,
+    input  wire        btn_b,
+    input  wire        btn_x,
+    input  wire        btn_y,
+    input  wire        btn_up,
+    input  wire        btn_down,
+    input  wire        btn_left,
+    input  wire        btn_right,
+    input  wire        btn_l,
+    input  wire        btn_r,
+    input  wire        btn_start,
+    input  wire        btn_select,
 
-    output dac_mclk,
-    output dac_bclk,
-    output dac_wclk,
-    output dac_din,
+    output wire        dac_mclk,
+    output wire        dac_bclk,
+    output wire        dac_wclk,
+    output wire        dac_din,
 
-    output lcd_dotclk, 
-    output lcd_hsync,
-    output lcd_vsync,
-    output lcd_data_en,
-    output [17:0] lcd_db,
+    output wire        lcd_dotclk,
+    output wire        lcd_hsync,
+    output wire        lcd_vsync,
+    output wire        lcd_data_en,
+    output wire [17:0] lcd_db,
 
-    inout [7:0] cart_bank0,
-    inout [7:0] cart_bank1,
-    inout [7:0] cart_bank2,
-    inout [3:0] cart_bank3,
-    inout cart_pin30,
-    output cart_pin30_dir,
-    inout cart_pin31,
-    output cart_pin31_dir,
-    output cart_bank0_dir,
-    output cart_bank1_dir,
-    output cart_bank2_dir,
-    output cart_bank3_dir,
-    input cart_switch,
-    output cart_en_3v3,
-    output cart_en_5v0,
-    output cart_oe_n,
+    inout  wire [7:0]  cart_bank0,
+    inout  wire [7:0]  cart_bank1,
+    inout  wire [7:0]  cart_bank2,
+    inout  wire [3:0]  cart_bank3,
+    inout  wire        cart_pin30,
+    output wire        cart_pin30_dir,
+    inout  wire        cart_pin31,
+    output wire        cart_pin31_dir,
+    output wire        cart_bank0_dir,
+    output wire        cart_bank1_dir,
+    output wire        cart_bank2_dir,
+    output wire        cart_bank3_dir,
+    input  wire        cart_switch,
+    output wire        cart_en_3v3,
+    output wire        cart_en_5v0,
+    output wire        cart_oe_n,
 
-    inout link_so,
-    inout link_si,
-    inout link_sd,
-    inout link_sc,
-    output link_so_dir,
-    output link_si_dir,
-    output link_sd_dir,
-    output link_sc_dir,
+    inout  wire        link_so,
+    inout  wire        link_si,
+    inout  wire        link_sd,
+    inout  wire        link_sc,
+    output wire        link_so_dir,
+    output wire        link_si_dir,
+    output wire        link_sd_dir,
+    output wire        link_sc_dir,
 
-    inout [3:0] pmod,
-    output vibrate_en
+    output wire [17:0] sram_a,
+    inout  wire [15:0] sram_io,
+    output wire        sram_ce_n,
+    output wire        sram_we_n,
+    output wire        sram_oe_n,
+    output wire        sram_ub_n,
+    output wire        sram_lb_n,
+
+    inout  wire [3:0]  pmod,
+    output wire        vibrate_en
 );
     logic pll_reset = 1'd0;
     logic reset = 1'd0;
@@ -116,6 +126,9 @@ module top_handheld (
     logic [3:0] inner_mcu_spi_data_out;
     logic [3:0] inner_mcu_spi_data_dir;
 
+    logic [15:0] inner_sram_io_in;
+    logic [15:0] inner_sram_io_out;
+    logic inner_sram_io_dir;
 
     HandheldTop handheld_top(
         .clock(clk_8mhz),
@@ -189,6 +202,16 @@ module top_handheld (
         .io_link_sdDir(link_sd_dir),
         .io_link_scDir(link_sc_dir),
 
+        .io_sramA(sram_a),
+        .io_sramIoIn(inner_sram_io_in),
+        .io_sramIoOut(inner_sram_io_out),
+        .io_sramIoDir(inner_sram_io_dir),
+        .io_sramCeN(sram_ce_n),
+        .io_sramWeN(sram_we_n),
+        .io_sramOeN(sram_oe_n),
+        .io_sramUbN(sram_ub_n),
+        .io_sramLbN(sram_lb_n),
+
         .io_pmod_in(inner_pmod_in),
         .io_pmod_out(inner_pmod_out),
         .io_pmod_dir(inner_pmod_dir),
@@ -230,8 +253,12 @@ module top_handheld (
     assign mcu_spi_d[1] = inner_mcu_spi_data_dir[1] ? inner_mcu_spi_data_out[1] : 1'bz;
     assign mcu_spi_d[2] = inner_mcu_spi_data_dir[2] ? inner_mcu_spi_data_out[2] : 1'bz;
     assign mcu_spi_d[3] = inner_mcu_spi_data_dir[3] ? inner_mcu_spi_data_out[3] : 1'bz;
+
+    assign inner_sram_io_in = sram_io;
+    assign sram_io = inner_sram_io_dir ? inner_sram_io_out : 16'hzzzz;
 endmodule
 
+`default_nettype wire
 
 // file: clk_wiz_0.v
 //

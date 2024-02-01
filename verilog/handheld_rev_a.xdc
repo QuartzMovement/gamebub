@@ -183,47 +183,47 @@ set_property -dict { PACKAGE_PIN M13    IOSTANDARD LVCMOS33 } [get_ports { pmod[
 ########################################
 # SRAM
 ########################################
-# set_property -dict { PACKAGE_PIN N17    IOSTANDARD LVCMOS33 } [get_ports { sram_a[0]  }];
-# set_property -dict { PACKAGE_PIN M17    IOSTANDARD LVCMOS33 } [get_ports { sram_a[1]  }];
-# set_property -dict { PACKAGE_PIN M18    IOSTANDARD LVCMOS33 } [get_ports { sram_a[2]  }];
-# set_property -dict { PACKAGE_PIN T9     IOSTANDARD LVCMOS33 } [get_ports { sram_a[3]  }];
-# set_property -dict { PACKAGE_PIN T10    IOSTANDARD LVCMOS33 } [get_ports { sram_a[4]  }];
-# set_property -dict { PACKAGE_PIN P15    IOSTANDARD LVCMOS33 } [get_ports { sram_a[5]  }];
-# set_property -dict { PACKAGE_PIN N16    IOSTANDARD LVCMOS33 } [get_ports { sram_a[6]  }];
-# set_property -dict { PACKAGE_PIN N15    IOSTANDARD LVCMOS33 } [get_ports { sram_a[7]  }];
-# set_property -dict { PACKAGE_PIN M16    IOSTANDARD LVCMOS33 } [get_ports { sram_a[8]  }];
-# set_property -dict { PACKAGE_PIN L16    IOSTANDARD LVCMOS33 } [get_ports { sram_a[9]  }];
-# set_property -dict { PACKAGE_PIN V12    IOSTANDARD LVCMOS33 } [get_ports { sram_a[10] }];
-# set_property -dict { PACKAGE_PIN U11    IOSTANDARD LVCMOS33 } [get_ports { sram_a[11] }];
-# set_property -dict { PACKAGE_PIN V11    IOSTANDARD LVCMOS33 } [get_ports { sram_a[12] }];
-# set_property -dict { PACKAGE_PIN V10    IOSTANDARD LVCMOS33 } [get_ports { sram_a[13] }];
-# set_property -dict { PACKAGE_PIN U12    IOSTANDARD LVCMOS33 } [get_ports { sram_a[14] }];
-# set_property -dict { PACKAGE_PIN R18    IOSTANDARD LVCMOS33 } [get_ports { sram_a[15] }];
-# set_property -dict { PACKAGE_PIN P17    IOSTANDARD LVCMOS33 } [get_ports { sram_a[16] }];
-# set_property -dict { PACKAGE_PIN P18    IOSTANDARD LVCMOS33 } [get_ports { sram_a[17] }];
+set_property -dict { PACKAGE_PIN N17    IOSTANDARD LVCMOS33 } [get_ports { sram_a[0]  }];
+set_property -dict { PACKAGE_PIN M17    IOSTANDARD LVCMOS33 } [get_ports { sram_a[1]  }];
+set_property -dict { PACKAGE_PIN M18    IOSTANDARD LVCMOS33 } [get_ports { sram_a[2]  }];
+set_property -dict { PACKAGE_PIN T9     IOSTANDARD LVCMOS33 } [get_ports { sram_a[3]  }];
+set_property -dict { PACKAGE_PIN T10    IOSTANDARD LVCMOS33 } [get_ports { sram_a[4]  }];
+set_property -dict { PACKAGE_PIN P15    IOSTANDARD LVCMOS33 } [get_ports { sram_a[5]  }];
+set_property -dict { PACKAGE_PIN N16    IOSTANDARD LVCMOS33 } [get_ports { sram_a[6]  }];
+set_property -dict { PACKAGE_PIN N15    IOSTANDARD LVCMOS33 } [get_ports { sram_a[7]  }];
+set_property -dict { PACKAGE_PIN M16    IOSTANDARD LVCMOS33 } [get_ports { sram_a[8]  }];
+set_property -dict { PACKAGE_PIN L16    IOSTANDARD LVCMOS33 } [get_ports { sram_a[9]  }];
+set_property -dict { PACKAGE_PIN V12    IOSTANDARD LVCMOS33 } [get_ports { sram_a[10] }];
+set_property -dict { PACKAGE_PIN U11    IOSTANDARD LVCMOS33 } [get_ports { sram_a[11] }];
+set_property -dict { PACKAGE_PIN V11    IOSTANDARD LVCMOS33 } [get_ports { sram_a[12] }];
+set_property -dict { PACKAGE_PIN V10    IOSTANDARD LVCMOS33 } [get_ports { sram_a[13] }];
+set_property -dict { PACKAGE_PIN U12    IOSTANDARD LVCMOS33 } [get_ports { sram_a[14] }];
+set_property -dict { PACKAGE_PIN R18    IOSTANDARD LVCMOS33 } [get_ports { sram_a[15] }];
+set_property -dict { PACKAGE_PIN P17    IOSTANDARD LVCMOS33 } [get_ports { sram_a[16] }];
+set_property -dict { PACKAGE_PIN P18    IOSTANDARD LVCMOS33 } [get_ports { sram_a[17] }];
 
-# set_property -dict { PACKAGE_PIN R11    IOSTANDARD LVCMOS33 } [get_ports { sram_io[0]  }];
-# set_property -dict { PACKAGE_PIN R12    IOSTANDARD LVCMOS33 } [get_ports { sram_io[1]  }];
-# set_property -dict { PACKAGE_PIN T13    IOSTANDARD LVCMOS33 } [get_ports { sram_io[2]  }];
-# set_property -dict { PACKAGE_PIN R13    IOSTANDARD LVCMOS33 } [get_ports { sram_io[3]  }];
-# set_property -dict { PACKAGE_PIN T14    IOSTANDARD LVCMOS33 } [get_ports { sram_io[4]  }];
-# set_property -dict { PACKAGE_PIN T15    IOSTANDARD LVCMOS33 } [get_ports { sram_io[5]  }];
-# set_property -dict { PACKAGE_PIN T16    IOSTANDARD LVCMOS33 } [get_ports { sram_io[6]  }];
-# set_property -dict { PACKAGE_PIN R16    IOSTANDARD LVCMOS33 } [get_ports { sram_io[7]  }];
-# set_property -dict { PACKAGE_PIN U13    IOSTANDARD LVCMOS33 } [get_ports { sram_io[8]  }];
-# set_property -dict { PACKAGE_PIN V14    IOSTANDARD LVCMOS33 } [get_ports { sram_io[9]  }];
-# set_property -dict { PACKAGE_PIN U14    IOSTANDARD LVCMOS33 } [get_ports { sram_io[10] }];
-# set_property -dict { PACKAGE_PIN V15    IOSTANDARD LVCMOS33 } [get_ports { sram_io[11] }];
-# set_property -dict { PACKAGE_PIN V16    IOSTANDARD LVCMOS33 } [get_ports { sram_io[12] }];
-# set_property -dict { PACKAGE_PIN U16    IOSTANDARD LVCMOS33 } [get_ports { sram_io[13] }];
-# set_property -dict { PACKAGE_PIN V17    IOSTANDARD LVCMOS33 } [get_ports { sram_io[14] }];
-# set_property -dict { PACKAGE_PIN U18    IOSTANDARD LVCMOS33 } [get_ports { sram_io[15] }];
+set_property -dict { PACKAGE_PIN R11    IOSTANDARD LVCMOS33 } [get_ports { sram_io[0]  }];
+set_property -dict { PACKAGE_PIN R12    IOSTANDARD LVCMOS33 } [get_ports { sram_io[1]  }];
+set_property -dict { PACKAGE_PIN T13    IOSTANDARD LVCMOS33 } [get_ports { sram_io[2]  }];
+set_property -dict { PACKAGE_PIN R13    IOSTANDARD LVCMOS33 } [get_ports { sram_io[3]  }];
+set_property -dict { PACKAGE_PIN T14    IOSTANDARD LVCMOS33 } [get_ports { sram_io[4]  }];
+set_property -dict { PACKAGE_PIN T15    IOSTANDARD LVCMOS33 } [get_ports { sram_io[5]  }];
+set_property -dict { PACKAGE_PIN T16    IOSTANDARD LVCMOS33 } [get_ports { sram_io[6]  }];
+set_property -dict { PACKAGE_PIN R16    IOSTANDARD LVCMOS33 } [get_ports { sram_io[7]  }];
+set_property -dict { PACKAGE_PIN U13    IOSTANDARD LVCMOS33 } [get_ports { sram_io[8]  }];
+set_property -dict { PACKAGE_PIN V14    IOSTANDARD LVCMOS33 } [get_ports { sram_io[9]  }];
+set_property -dict { PACKAGE_PIN U14    IOSTANDARD LVCMOS33 } [get_ports { sram_io[10] }];
+set_property -dict { PACKAGE_PIN V15    IOSTANDARD LVCMOS33 } [get_ports { sram_io[11] }];
+set_property -dict { PACKAGE_PIN V16    IOSTANDARD LVCMOS33 } [get_ports { sram_io[12] }];
+set_property -dict { PACKAGE_PIN U16    IOSTANDARD LVCMOS33 } [get_ports { sram_io[13] }];
+set_property -dict { PACKAGE_PIN V17    IOSTANDARD LVCMOS33 } [get_ports { sram_io[14] }];
+set_property -dict { PACKAGE_PIN U18    IOSTANDARD LVCMOS33 } [get_ports { sram_io[15] }];
 
-# set_property -dict { PACKAGE_PIN R10    IOSTANDARD LVCMOS33 } [get_ports { sram_ce_n }];
-# set_property -dict { PACKAGE_PIN R15    IOSTANDARD LVCMOS33 } [get_ports { sram_we_n }];
-# set_property -dict { PACKAGE_PIN R17    IOSTANDARD LVCMOS33 } [get_ports { sram_oe_n }];
-# set_property -dict { PACKAGE_PIN T18    IOSTANDARD LVCMOS33 } [get_ports { sram_ub_n }];
-# set_property -dict { PACKAGE_PIN U17    IOSTANDARD LVCMOS33 } [get_ports { sram_lb_n }];
+set_property -dict { PACKAGE_PIN R10    IOSTANDARD LVCMOS33 } [get_ports { sram_ce_n }];
+set_property -dict { PACKAGE_PIN R15    IOSTANDARD LVCMOS33 } [get_ports { sram_we_n }];
+set_property -dict { PACKAGE_PIN R17    IOSTANDARD LVCMOS33 } [get_ports { sram_oe_n }];
+set_property -dict { PACKAGE_PIN T18    IOSTANDARD LVCMOS33 } [get_ports { sram_ub_n }];
+set_property -dict { PACKAGE_PIN U17    IOSTANDARD LVCMOS33 } [get_ports { sram_lb_n }];
 
 ########################################
 # SDRAM

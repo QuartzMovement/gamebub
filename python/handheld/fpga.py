@@ -68,13 +68,13 @@ class FPGA:
     def spi_write(self, address: int, data: bytes) -> None:
         command = 0x00
         self._pin_spi_cs.value(0)
-        self._fpga_spi().write(bytes([command, (address >> 8) & 0xFF, address & 0xFF]) + data)
+        self._fpga_spi().write(bytes([command, (address >> 24) & 0xFF, (address >> 16) & 0xFF, (address >> 8) & 0xFF, address & 0xFF]) + data)
         self._pin_spi_cs.value(1)
 
     def spi_read(self, address: int, nbytes: int) -> bytes:
         command = 0x01
         self._pin_spi_cs.value(0)
-        self._fpga_spi().write(bytes([command, (address >> 8) & 0xFF, address & 0xFF]))
+        self._fpga_spi().write(bytes([command, (address >> 24) & 0xFF, (address >> 16) & 0xFF, (address >> 8) & 0xFF, address & 0xFF]))
         data = self._fpga_spi().read(nbytes)
         self._pin_spi_cs.value(1)
         return data

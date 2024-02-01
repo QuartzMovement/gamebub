@@ -7,8 +7,8 @@ import xilinx.xpm_cdc_handshake
 object HandheldTop extends App {
 
   emitVerilog(new HandheldTop(
-    new HandheldGameboy
-//    new HandheldTester
+//    new HandheldGameboy
+    new HandheldTester
   ), args)
 }
 
@@ -165,6 +165,17 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val vibrate = Output(Bool())
     val pmod = new HandheldPmod
     val link = new HandheldLink
+
+    // SRAM
+    val sramA = Output(UInt(18.W))
+    val sramIoIn = Input(UInt(16.W))
+    val sramIoOut = Output(UInt(16.W))
+    val sramIoDir = Output(Bool())
+    val sramCeN = Output(Bool())
+    val sramWeN = Output(Bool())
+    val sramOeN = Output(Bool())
+    val sramUbN = Output(Bool())
+    val sramLbN = Output(Bool())
   })
   val moduleReset = WireDefault(false.B)
   val module = withReset(moduleReset) {
@@ -180,7 +191,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val regIndexButtons = 0x03
 
   // D0: PICO, D1: POCI
-  val spi = Module(new SpiReceiver)
+  val spi = Module(new SpiReceiver(addressLength = 32))
   io.mcuIrq := false.B
   io.mcuSpiDataDir := Mux(io.mcuSpiChipSelect, 0.U, "b0010".U)
   io.mcuSpiDataOut := Cat(0.U(2.W), spi.io.signals.serialOut, 0.U(1.W))
@@ -208,6 +219,32 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       is (regIndexCount.U) {  }
       is (regIndexControl.U) { controlRegister := spi.io.dataWrite }
       is (regIndexButtons.U) { buttonRegister := spi.io.dataWrite.asTypeOf(new HandheldButtons) }
+    }
+  }
+
+  // Testing SRAM stuff
+  io.sramOeN := 1.U
+  io.sramLbN := 0.U
+  io.sramUbN := 0.U
+  io.sramIoDir := !io.sramWeN
+
+  io.sramCeN := 1.U
+  io.sramA := DontCare
+  io.sramIoOut := DontCare
+  io.sramWeN := 1.U
+
+  when (spi.io.address(31)) {
+    io.sramA := spi.io.address
+
+    when (spi.io.readValid) {
+      io.sramCeN := 0.U
+      io.sramWeN := 1.U
+      io.sramOeN := 0.U
+      spi.io.dataRead := io.sramIoIn
+    } .elsewhen(spi.io.writeValid) {
+      io.sramCeN := 0.U
+      io.sramWeN := 0.U
+      io.sramIoOut := spi.io.dataWrite
     }
   }
 
