@@ -94,7 +94,7 @@ class SpiReceiver(
         io.readValid := true.B
         shiftOutReg := io.dataRead
         shiftOutCounter := dataLength.U - 1.U
-        regAddress := regAddress + 1.U
+        regAddress := regAddress + (dataLength / 8).U
         //      printf(cf"    > Sending data: ${io.dataRead}%x\n")
       }.otherwise {
         shiftOutReg := shiftOutReg << 1
@@ -130,7 +130,7 @@ class SpiReceiver(
           //        printf(cf"    > Received data: ${shiftInReg}%x\n")
           io.writeValid := true.B
           shiftInCounter := dataLength.U
-          regAddress := regAddress + 1.U // XXX: check auto-increment write behavior
+          regAddress := regAddress + (dataLength / 8).U // XXX: check auto-increment write behavior
         }
       }
     }

@@ -97,8 +97,8 @@ class SpiReceiverSpec extends AnyFreeSpec with ChiselScalatestTester {
 
       assert(receiveQueue.length == 3)
       assert(receiveQueue.dequeue() == (0x4080, 0xAABB))
-      assert(receiveQueue.dequeue() == (0x4081, 0xCCDD))
-      assert(receiveQueue.dequeue() == (0x4082, 0x1122))
+      assert(receiveQueue.dequeue() == (0x4082, 0xCCDD))
+      assert(receiveQueue.dequeue() == (0x4084, 0x1122))
     }
   }
 
@@ -119,9 +119,9 @@ class SpiReceiverSpec extends AnyFreeSpec with ChiselScalatestTester {
     test(new SpiReceiver) { dut =>
       val (sendQueue, receiveQueue) = setupDut(dut)
       sendQueue.enqueue((0xFF02, 0x3344))
-      sendQueue.enqueue((0xFF03, 0x5566))
-      sendQueue.enqueue((0xFF04, 0x7788))
-      sendQueue.enqueue((0xFF05, 0x0000)) // Extra read at the end.
+      sendQueue.enqueue((0xFF04, 0x5566))
+      sendQueue.enqueue((0xFF06, 0x7788))
+      sendQueue.enqueue((0xFF08, 0x0000)) // Extra read at the end.
 
       val data = spiTransaction(dut, CommandRead, 0xFF02, Seq.fill(3)(0x0))
 
@@ -134,8 +134,8 @@ class SpiReceiverSpec extends AnyFreeSpec with ChiselScalatestTester {
     test(new SpiReceiver) { dut =>
       val (sendQueue, receiveQueue) = setupDut(dut)
       sendQueue.enqueue((0xAA04, 0xABCD))
-      sendQueue.enqueue((0xAA05, 0x1234))
-      sendQueue.enqueue((0xAA06, 0x0000)) // Extra read at the end.
+      sendQueue.enqueue((0xAA06, 0x1234))
+      sendQueue.enqueue((0xAA08, 0x0000)) // Extra read at the end.
 
       val _ = spiTransaction(dut, CommandWrite, 0xA0B0, Seq(0x9876))
       assert(receiveQueue.length == 1)

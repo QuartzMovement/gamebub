@@ -109,13 +109,20 @@ class HandheldGameboy extends Module with HandheldModule {
   emuCart.io.rtcAccess.writeState := DontCare
   emuCart.io.rtcAccess.latchSelect := DontCare
 
-  // TODO SRAM write, RAM
   io.sramEnable := emuCart.io.dataAccess.enable
-  io.sramWrite := false.B
-  io.sramDataWrite := DontCare
+  io.sramWrite := emuCart.io.dataAccess.write
+  io.sramDataWrite := Fill(2, emuCart.io.dataAccess.dataWrite)
   emuCart.io.dataAccess.valid := true.B
-  io.sramAddress := emuCart.io.dataAccess.address(18, 1)
-  emuCart.io.dataAccess.dataRead := Mux(emuCart.io.dataAccess.address(0), io.sramDataRead(7, 0), io.sramDataRead(15, 8))
+  io.sramAddress := Mux(
+    emuCart.io.dataAccess.selectRom,
+    emuCart.io.dataAccess.address(18, 1),
+    Cat(io.temp(15, 8), emuCart.io.dataAccess.address(10, 1))
+  )
+  emuCart.io.dataAccess.dataRead := Mux(emuCart.io.dataAccess.address(0), io.sramDataRead(15, 8), io.sramDataRead(7, 0))
+  io.sramStrobe := Cat(
+    emuCart.io.dataAccess.address(0),
+    !emuCart.io.dataAccess.address(0),
+  )
 
   when (emuCart.io.config.enabled) {
     io.cartridgeEnabled := false.B

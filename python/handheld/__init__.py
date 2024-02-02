@@ -130,27 +130,90 @@ def do_sram_test(max_address = 2**4, seed = 1234):
         if data != actual:
             print(f"mismatch at addr={i}, actual={actual}, expected={data}")
 
-def load_fpga_sram(path = '/Tetris.gb'):
-    print("Reading ROM...")
-    data = open(path, 'rb').read()
-    print("Done, length:", len(data))
-    print("Writing to SRAM...")
-    for i in range(0, len(data), 2):
-        addr = 0x8000_0000 | i
-        fpga.spi_write(addr, data[i:i+2])
-    print("Done.")
+class RomHeader:
+    def __init__(self, rom_data: bytes) -> None:
+        self.mbc = 0
+        self.has_ram = False
+        self.has_rtc = False
+        self.has_rumble = False
 
-def configure_fpga():
+        emu_configs = {
+            0x00: dict(mbc=0),
+            0x01: dict(mbc=1),
+            0x02: dict(mbc=1, has_ram=True),
+            0x03: dict(mbc=1, has_ram=True),
+            0x05: dict(mbc=2, has_ram=True),
+            0x06: dict(mbc=2, has_ram=True),
+            0x0F: dict(mbc=3, has_rtc=True),
+            0x10: dict(mbc=3, has_ram=True, has_rtc=True),
+            0x11: dict(mbc=3),
+            0x12: dict(mbc=3, has_ram=True),
+            0x13: dict(mbc=3, has_ram=True),
+            0x19: dict(mbc=4),
+            0x1C: dict(mbc=4, has_rumble=True),
+            0x1A: dict(mbc=4, has_ram=True),
+            0x1B: dict(mbc=4, has_ram=True),
+            0x1D: dict(mbc=4, has_ram=True, has_rumble=True),
+            0x1E: dict(mbc=4, has_ram=True, has_rumble=True),
+        }
+        self.cartridge_type = rom_data[0x147]
+        if self.cartridge_type not in emu_configs:
+            raise RuntimeException(f"Unsupported cart {hex(self.cartridge_type)}")
+        config = emu_configs[self.cartridge_type]
+        self.mbc = config['mbc']
+        self.has_ram = config.get('has_ram', False)
+        self.has_rtc = config.get('has_rtc', False)
+        self.has_rumble = config.get('has_rumble', False)
+
+        self.rom_size = 32 * 1024 * (1 << rom_data[0x148])
+        self.ram_size = {0: 0, 2: (8 * 1024), 3: (32 * 1024), 4: (128 * 1024), 5: (64 * 1024)}[rom_data[0x149]]
+        if self.mbc == 2:
+            self.ram_size = 512
+
+    def get_emu_cart_config(self) -> int:
+        value = 1  # Lowest bit: is emulated cartridge enabled
+        value |= self.mbc << 1
+        value |= int(self.has_ram) << 4
+        value |= int(self.has_rtc) << 5
+        value |= int(self.has_rumble) << 6
+        return value
+
+def load_fpga_sram(path = '/Tetris.gb', ram_location=0x80):
+    chunk_size = 1024
+
+    # bit 0: pause
+    fpga.spi_write(0x0000_0002, (0b01).to_bytes(2, 'big'))
+
+    rom_header = None
+    print("Transferring ROM...")
+    total = 0
+    with open(path, 'rb') as f:
+        while True:
+            data = f.read(chunk_size)
+            if rom_header is None:
+                rom_header = RomHeader(data)
+            if len(data) == 0:
+                break
+            addr = 0x8000_0000 | total
+            fpga.spi_write(addr, data)
+            total += len(data)
+
+    print("Done, length:", total)
+
     # configure emu cart
-    fpga.spi_write(0x0000_0000, (0b0000001).to_bytes(2, 'big'))
+    config = rom_header.get_emu_cart_config() | (ram_location << 8)
+    fpga.spi_write(0x0000_0000, (config).to_bytes(2, 'big'))
 
-    # reset...
-    fpga.spi_write(0x0000_0002, (0b10).to_bytes(2, 'big'))
+    # reset, then go..
+    fpga.spi_write(0x0000_0002, (0b11).to_bytes(2, 'big'))
     fpga.spi_write(0x0000_0002, (0b00).to_bytes(2, 'big'))
 
+    return rom_header
 
-# fpga.spi_write(0x8000_0001, bytes.fromhex('6789'))
-# fpga.spi_read(0x8000_0001, 2).hex()
+"""
+
+config = handheld.load_fpga_sram('/Metroid_II.gb', 0x80)
+"""
 
 
 

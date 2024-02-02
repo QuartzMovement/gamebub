@@ -49,7 +49,7 @@ class HandheldIo extends Bundle {
   val sramAddress = Output(UInt(18.W))
   val sramDataRead = Input(UInt(16.W))
   val sramDataWrite = Output(UInt(16.W))
-  // TODO UB/LB select
+  val sramStrobe = Output(UInt(2.W))
 
   // TODO SDRAM
 }
@@ -250,11 +250,26 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       io.sramCeN := 0.U
       io.sramWeN := 1.U
       io.sramOeN := 0.U
-      spi.io.dataRead := io.sramIoIn
+      // Byte-swap:
+      // SPI data is clocked in big-endian
+      // However, if there's a series of writes, we want the *first* byte to go in the lowest position,
+      // second to go in the next, third to go in the next, etc. That is, little endian.
+      // So, we swap the byte order here.
+      // TODO: determine if this is the right place to do it. It probably isn't.
+      // Ideas: just make the MCU do it (e.g. a cursory glance at ESP32-S3 datasheet suggests SPI controller can do
+      // byte-swaps.
+      // Alternatively, have a flag in the SPI command byte to do the byte swapping in the SPI receiver.
+      spi.io.dataRead := Cat(
+        io.sramIoIn(7, 0),
+        io.sramIoIn(15, 8),
+      )
     } .elsewhen(spi.io.writeValid) {
       io.sramCeN := 0.U
       io.sramWeN := 0.U
-      io.sramIoOut := spi.io.dataWrite
+      io.sramIoOut := Cat(
+        spi.io.dataWrite(7, 0),
+        spi.io.dataWrite(15, 8),
+      )
     }
   }
 
@@ -383,6 +398,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   module.io.sramDataRead := io.sramIoIn
   when (module.io.sramEnable) {
     io.sramA := module.io.sramAddress
+    io.sramUbN := !module.io.sramStrobe(1)
+    io.sramLbN := !module.io.sramStrobe(0)
 
     when (module.io.sramWrite) {
       io.sramCeN := 0.U
