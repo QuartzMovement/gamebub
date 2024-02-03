@@ -66,6 +66,18 @@ module top_handheld (
     output wire        sram_ub_n,
     output wire        sram_lb_n,
 
+    output wire        sdram_clk,
+    output wire        sdram_cs_n,
+    output wire        sdram_cke,
+    output wire        sdram_ras_n,
+    output wire        sdram_cas_n,
+    output wire        sdram_we_n,
+    output wire        sdram_ldqm,
+    output wire        sdram_udqm,
+    output wire [1:0]  sdram_bs,
+    output wire [12:0] sdram_a,
+    inout  wire [15:0] sdram_dq,
+
     inout  wire [3:0]  pmod,
     output wire        vibrate_en
 );
@@ -129,6 +141,11 @@ module top_handheld (
     logic [15:0] inner_sram_io_in;
     logic [15:0] inner_sram_io_out;
     logic inner_sram_io_dir;
+
+    logic [1:0] inner_sdram_dqm;
+    logic [15:0] inner_sdram_dq_in;
+    logic [15:0] inner_sdram_dq_out;
+    logic inner_sdram_dq_dir;
 
     HandheldTop handheld_top(
         .clock(clk_8mhz),
@@ -212,6 +229,19 @@ module top_handheld (
         .io_sramUbN(sram_ub_n),
         .io_sramLbN(sram_lb_n),
 
+        .io_sdramClock(sdram_clk),
+        .io_sdram_cke(sdram_cke),
+        .io_sdram_cs(sdram_cs_n),
+        .io_sdram_ras(sdram_ras_n),
+        .io_sdram_cas(sdram_cas_n),
+        .io_sdram_we(sdram_we_n),
+        .io_sdram_dqm(inner_sdram_dqm),
+        .io_sdram_bank(sdram_bs),
+        .io_sdram_address(sdram_a),
+        .io_sdram_dataIn(inner_sdram_dq_in),
+        .io_sdram_dataOut(inner_sdram_dq_out),
+        .io_sdram_dataDir(inner_sdram_dq_dir),
+
         .io_pmod_in(inner_pmod_in),
         .io_pmod_out(inner_pmod_out),
         .io_pmod_dir(inner_pmod_dir),
@@ -256,6 +286,10 @@ module top_handheld (
 
     assign inner_sram_io_in = sram_io;
     assign sram_io = inner_sram_io_dir ? inner_sram_io_out : 16'hzzzz;
+
+    assign {sdram_udqm, sdram_ldqm} = inner_sdram_dqm;
+    assign inner_sdram_dq_in = sdram_dq;
+    assign sdram_dq = inner_sdram_dq_dir ? inner_sdram_dq_out : 16'hzzzz;
 endmodule
 
 `default_nettype wire

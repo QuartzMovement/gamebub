@@ -144,6 +144,7 @@ class HandheldLink extends Bundle {
  * e.g. 8.3886 MHz for Gameboy.
  */
 class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
+  val sdramConfig = SdramConfig()
   val io = IO(new Bundle {
     /** Audio/video clock: 12.288 MHz */
     val clock_av = Input(Clock())
@@ -186,6 +187,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val sramOeN = Output(Bool())
     val sramUbN = Output(Bool())
     val sramLbN = Output(Bool())
+
+    // SDRAM
+    val sdramClock = Output(Clock()) // TODO: phase shift, faster?
+    val sdram = new SdramSignals(sdramConfig)
   })
   val moduleReset = WireDefault(false.B)
   val module = withReset(moduleReset) {
@@ -232,6 +237,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     }
   }
 
+  //////////////////////////////////
+  // Memory
+  //////////////////////////////////
   // Testing SRAM stuff
   io.sramOeN := 1.U
   io.sramLbN := 0.U
@@ -260,6 +268,11 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       io.sramIoOut := spi.io.dataWrite
     }
   }
+
+  // SDRAM
+  val sdram = Module(new SdramController(sdramConfig))
+  io.sdramClock := clock // TODO
+  io.sdram <> sdram.io.signals
 
   //////////////////////////////////
   // Video
