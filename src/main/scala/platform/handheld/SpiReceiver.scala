@@ -22,8 +22,14 @@ object SpiState extends ChiselEnum {
 }
 
 class SpiCommand extends Bundle {
+  /** Bit 4: Autoincrement address by word size */
+  val autoIncrement = Bool()
+  /** Bit 3: 1 to enable byte swapping (within the word) */
+  val byteSwap = Bool()
+  /** Bit 1-2: 0=8, 1=16, 2=32, 3=64 (unimplemented) */
+  val wordSize = UInt(2.W)
   /** Bit 0: 1 if the command is controller reading a register */
-  val isRead = Bool()
+  val read = Bool()
 }
 
 /**
@@ -35,14 +41,14 @@ class SpiCommand extends Bundle {
 class SpiReceiver(
   commandLength: Int = 8,
   addressLength: Int = 16,
-  dataLength: Int = 16,
+  maxDataLength: Int = 32,
 ) extends Module {
   val io = IO(new Bundle {
     val signals = new SpiSignals
 
     val address = Output(UInt(addressLength.W))
-    val dataWrite = Output(UInt(dataLength.W))
-    val dataRead = Input(UInt(dataLength.W))
+    val dataWrite = Output(UInt(maxDataLength.W))
+    val dataRead = Input(UInt(maxDataLength.W))
     val readValid = Output(Bool())
     val writeValid = Output(Bool())
   })
@@ -53,7 +59,7 @@ class SpiReceiver(
   val chipSelect = RegNext(RegNext(io.signals.chipSelect))
 
   // State
-  val shiftRegisterLength = commandLength.max(addressLength).max(dataLength)
+  val shiftRegisterLength = commandLength.max(addressLength).max(maxDataLength)
   val state = Reg(SpiState())
   val shiftInReg = Reg(UInt(shiftRegisterLength.W))
   val shiftInCounter = Reg(UInt((log2Ceil(shiftRegisterLength) + 1).W))
@@ -62,10 +68,22 @@ class SpiReceiver(
   val regCommand = Reg(new SpiCommand)
   val regAddress = Reg(UInt(addressLength.W))
 
+  val wordSizeInBits = (8.U << regCommand.wordSize).asUInt
+
   // I/O
-  io.signals.serialOut := shiftOutReg(dataLength - 1)
+  io.signals.serialOut := VecInit(Seq(
+    shiftOutReg(7), shiftOutReg(15), shiftOutReg(31), shiftOutReg(31),
+  ))(regCommand.wordSize)
   io.address := regAddress
-  io.dataWrite := shiftInReg
+  io.dataWrite := Mux(regCommand.byteSwap,
+    VecInit(Seq(
+      shiftInReg(7, 0),
+      Cat(shiftInReg(7, 0), shiftInReg(15, 8)),
+      Cat(shiftInReg(7, 0), shiftInReg(15, 8), shiftInReg(23, 16), shiftInReg(31, 24)),
+      shiftInReg, // XXX: 64-bit not implemented
+    ))(regCommand.wordSize),
+    shiftInReg
+  )
   io.readValid := false.B
   io.writeValid := false.B
 
@@ -92,9 +110,20 @@ class SpiReceiver(
       when (state === SpiState.readData && shiftOutCounter === 0.U) {
         // Read the next data.
         io.readValid := true.B
-        shiftOutReg := io.dataRead
-        shiftOutCounter := dataLength.U - 1.U
-        regAddress := regAddress + (dataLength / 8).U
+        shiftOutReg := Mux(regCommand.byteSwap,
+          VecInit(Seq(
+            io.dataRead(7, 0),
+            Cat(io.dataRead(7, 0), io.dataRead(15, 8)),
+            Cat(io.dataRead(7, 0), io.dataRead(15, 8), io.dataRead(23, 16), io.dataRead(31, 24)),
+            io.dataRead, // XXX: 64-bit not implemented
+          ))(regCommand.wordSize),
+          io.dataRead
+        )
+
+        shiftOutCounter := wordSizeInBits - 1.U
+        when (regCommand.autoIncrement) {
+          regAddress := regAddress + (1.U << regCommand.wordSize).asUInt
+        }
         //      printf(cf"    > Sending data: ${io.dataRead}%x\n")
       }.otherwise {
         shiftOutReg := shiftOutReg << 1
@@ -116,10 +145,10 @@ class SpiReceiver(
           // Finished writing address
           //        printf(cf"    > Got address: ${shiftInReg}%x\n")
           regAddress := shiftInReg
-          shiftInCounter := dataLength.U
+          shiftInCounter := wordSizeInBits
           shiftOutCounter := 0.U
 
-          when(regCommand.isRead) {
+          when(regCommand.read) {
             state := SpiState.readData
           }.otherwise {
             state := SpiState.writeData
@@ -129,8 +158,10 @@ class SpiReceiver(
           // Finished writing data
           //        printf(cf"    > Received data: ${shiftInReg}%x\n")
           io.writeValid := true.B
-          shiftInCounter := dataLength.U
-          regAddress := regAddress + (dataLength / 8).U // XXX: check auto-increment write behavior
+          shiftInCounter := wordSizeInBits
+          when (regCommand.autoIncrement) {
+            regAddress := regAddress + (1.U << regCommand.wordSize).asUInt
+          }
         }
       }
     }

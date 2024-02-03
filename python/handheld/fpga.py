@@ -65,16 +65,42 @@ class FPGA:
         time.sleep_ms(100)
         print("Done pin (should be 1):", self._pin_done.value())
 
-    def spi_write(self, address: int, data: bytes) -> None:
-        command = 0x00
+    @staticmethod
+    def _spi_command(read: bool, word_size: int, byte_swap: bool, auto_increment: bool) -> int:
+        return (0
+            | (int(read) << 0)
+            | ({8: 0, 16: 1, 32: 2, 64: 3}[word_size] << 1)
+            | (int(byte_swap) << 3)
+            | (int(auto_increment) << 4)
+        )
+
+    def spi_write(self, command: int, address: int, data: bytes) -> None:
         self._pin_spi_cs.value(0)
-        self._fpga_spi().write(bytes([command, (address >> 24) & 0xFF, (address >> 16) & 0xFF, (address >> 8) & 0xFF, address & 0xFF]) + data)
+        self._fpga_spi().write(bytes([command]) + address.to_bytes(4, 'big'))
+        self._fpga_spi().write(data)
         self._pin_spi_cs.value(1)
 
-    def spi_read(self, address: int, nbytes: int) -> bytes:
-        command = 0x01
+    def spi_read(self, command: int, address: int, nbytes: int) -> bytes:
         self._pin_spi_cs.value(0)
-        self._fpga_spi().write(bytes([command, (address >> 24) & 0xFF, (address >> 16) & 0xFF, (address >> 8) & 0xFF, address & 0xFF]))
+        self._fpga_spi().write(bytes([command]) + address.to_bytes(4, 'big'))
         data = self._fpga_spi().read(nbytes)
         self._pin_spi_cs.value(1)
         return data
+
+    def spi_write_u16(self, address: int, data: int) -> None:
+        """Write a single 16-bit value."""
+        command = self._spi_command(False, 16, False, True)
+        self.spi_write(command, address, data.to_bytes(2, 'big'))
+
+    def spi_read_u16(self, address: int) -> int:
+        """Read a single 16-bit value."""
+        command = self._spi_command(True, 16, False, True)
+        data = self.spi_read(command, address)
+        return int.from_bytes(data, 'big')
+
+    def sram_write(self, address: int, data: bytes) -> None:
+        """Write a sequence of bytes to SRAM. Address is relative to SRAM start."""
+        mem_address = 0x8000_0000 | address
+        command = self._spi_command(False, 16, True, True)
+        self.spi_write(command, mem_address, data)
+

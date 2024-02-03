@@ -178,35 +178,37 @@ class RomHeader:
         value |= int(self.has_rumble) << 6
         return value
 
-def load_fpga_sram(path = '/Tetris.gb', ram_location=0x80):
-    chunk_size = 1024
+def load_fpga_sram(path = '/Tetris.gb', ram_location=0x80, chunk_size=1024):
+    # chunk_size = 2048
 
     # bit 0: pause
-    fpga.spi_write(0x0000_0002, (0b01).to_bytes(2, 'big'))
+    fpga.spi_write_u16(0x0000_0002, 0b01)
 
     rom_header = None
     print("Transferring ROM...")
     total = 0
+    start_time = time.time_ns()
     with open(path, 'rb') as f:
+        rom_header = RomHeader(f.read(512))
+        f.seek(0)
+
         while True:
             data = f.read(chunk_size)
-            if rom_header is None:
-                rom_header = RomHeader(data)
             if len(data) == 0:
                 break
-            addr = 0x8000_0000 | total
-            fpga.spi_write(addr, data)
+            fpga.sram_write(total, data)
             total += len(data)
 
-    print("Done, length:", total)
+    duration = time.time_ns() - start_time
+    print(f"Done. len={total} time(s)={duration / 1_000_000_000}")
 
     # configure emu cart
     config = rom_header.get_emu_cart_config() | (ram_location << 8)
-    fpga.spi_write(0x0000_0000, (config).to_bytes(2, 'big'))
+    fpga.spi_write_u16(0x0000_0000, config)
 
     # reset, then go..
-    fpga.spi_write(0x0000_0002, (0b11).to_bytes(2, 'big'))
-    fpga.spi_write(0x0000_0002, (0b00).to_bytes(2, 'big'))
+    fpga.spi_write_u16(0x0000_0002, 0b11)
+    fpga.spi_write_u16(0x0000_0002, 0b00)
 
     return rom_header
 

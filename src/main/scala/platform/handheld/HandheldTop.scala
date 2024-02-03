@@ -201,7 +201,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val regIndexButtons = 0x03
 
   // D0: PICO, D1: POCI
-  val spi = Module(new SpiReceiver(addressLength = 32))
+  val spi = Module(new SpiReceiver(addressLength = 32, maxDataLength = 32))
   io.mcuIrq := false.B
   io.mcuSpiDataDir := Mux(io.mcuSpiChipSelect, 0.U, "b0010".U)
   io.mcuSpiDataOut := Cat(0.U(2.W), spi.io.signals.serialOut, 0.U(1.W))
@@ -243,33 +243,21 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.sramIoOut := DontCare
   io.sramWeN := 1.U
 
+  val sramBusy = WireDefault(false.B)
   when (spi.io.address(31)) {
     io.sramA := spi.io.address(18, 1)
 
     when (spi.io.readValid) {
+      sramBusy := true.B
       io.sramCeN := 0.U
       io.sramWeN := 1.U
       io.sramOeN := 0.U
-      // Byte-swap:
-      // SPI data is clocked in big-endian
-      // However, if there's a series of writes, we want the *first* byte to go in the lowest position,
-      // second to go in the next, third to go in the next, etc. That is, little endian.
-      // So, we swap the byte order here.
-      // TODO: determine if this is the right place to do it. It probably isn't.
-      // Ideas: just make the MCU do it (e.g. a cursory glance at ESP32-S3 datasheet suggests SPI controller can do
-      // byte-swaps.
-      // Alternatively, have a flag in the SPI command byte to do the byte swapping in the SPI receiver.
-      spi.io.dataRead := Cat(
-        io.sramIoIn(7, 0),
-        io.sramIoIn(15, 8),
-      )
+      spi.io.dataRead := io.sramIoIn
     } .elsewhen(spi.io.writeValid) {
+      sramBusy := true.B
       io.sramCeN := 0.U
       io.sramWeN := 0.U
-      io.sramIoOut := Cat(
-        spi.io.dataWrite(7, 0),
-        spi.io.dataWrite(15, 8),
-      )
+      io.sramIoOut := spi.io.dataWrite
     }
   }
 
@@ -396,10 +384,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
   // SRAM
   module.io.sramDataRead := io.sramIoIn
-  when (module.io.sramEnable) {
+  when (module.io.sramEnable && !sramBusy) {
     io.sramA := module.io.sramAddress
-    io.sramUbN := !module.io.sramStrobe(1)
-    io.sramLbN := !module.io.sramStrobe(0)
+    io.sramUbN := module.io.sramWrite && !module.io.sramStrobe(1)
+    io.sramLbN := module.io.sramWrite && !module.io.sramStrobe(0)
 
     when (module.io.sramWrite) {
       io.sramCeN := 0.U
