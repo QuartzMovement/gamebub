@@ -108,4 +108,11 @@ class HandheldTester extends Module with HandheldModule {
     io.link.siDir := false.B
     io.link.sdDir := false.B
     io.link.scDir := false.B
+
+    // SRAM unused
+    io.sramEnable := false.B
+    io.sramAddress := DontCare
+    io.sramStrobe := DontCare
+    io.sramWrite := DontCare
+    io.sramDataWrite := DontCare
 }

@@ -4,6 +4,8 @@ import deflate
 from machine import Pin, SPI
 
 class FPGA:
+    SPI_DUMMY_BYTES: int = 4
+
     def __init__(
         self,
         pin_power: Pin,
@@ -27,6 +29,8 @@ class FPGA:
         print("Powering on FPGA")
         self._pin_power.value(1)
         self._pin_spi_cs.value(1)
+        self._program_spi()  # grab SPI bus
+
         time.sleep_ms(100)
         self._pin_program_b.value(0)
         time.sleep_ms(50)
@@ -75,32 +79,43 @@ class FPGA:
         )
 
     def spi_write(self, command: int, address: int, data: bytes) -> None:
+        self._fpga_spi()  # ensure bus is acquired / clock is set before pulling CS low
         self._pin_spi_cs.value(0)
-        self._fpga_spi().write(bytes([command]) + address.to_bytes(4, 'big'))
+        self._fpga_spi().write(bytes([command]))
+        self._fpga_spi().write(address.to_bytes(4, 'big'))
         self._fpga_spi().write(data)
         self._pin_spi_cs.value(1)
 
     def spi_read(self, command: int, address: int, nbytes: int) -> bytes:
+        self._fpga_spi()  # ensure bus is acquired / clock is set before pulling CS low
         self._pin_spi_cs.value(0)
-        self._fpga_spi().write(bytes([command]) + address.to_bytes(4, 'big'))
+        self._fpga_spi().write(bytes([command]))
+        self._fpga_spi().write(address.to_bytes(4, 'big'))
+        self._fpga_spi().read(self.SPI_DUMMY_BYTES)
         data = self._fpga_spi().read(nbytes)
         self._pin_spi_cs.value(1)
         return data
 
     def spi_write_u16(self, address: int, data: int) -> None:
         """Write a single 16-bit value."""
-        command = self._spi_command(False, 16, False, True)
+        command = self._spi_command(read=False, word_size=16, byte_swap=False, auto_increment=True)
         self.spi_write(command, address, data.to_bytes(2, 'big'))
 
     def spi_read_u16(self, address: int) -> int:
         """Read a single 16-bit value."""
-        command = self._spi_command(True, 16, False, True)
-        data = self.spi_read(command, address)
+        command = self._spi_command(read=True, word_size=16, byte_swap=False, auto_increment=True)
+        data = self.spi_read(command, address, 2)
         return int.from_bytes(data, 'big')
 
     def sram_write(self, address: int, data: bytes) -> None:
         """Write a sequence of bytes to SRAM. Address is relative to SRAM start."""
         mem_address = 0x8000_0000 | address
-        command = self._spi_command(False, 16, True, True)
+        command = self._spi_command(read=False, word_size=16, byte_swap=True, auto_increment=True)
         self.spi_write(command, mem_address, data)
+
+    def sram_read(self, address: int, nbytes: int) -> bytes:
+        """Read a sequence of bytes from SRAM. Address is relative to SRAM start."""
+        mem_address = 0x8000_0000 | address
+        command = self._spi_command(read=True, word_size=16, byte_swap=True, auto_increment=True)
+        return self.spi_read(command, mem_address, nbytes)
 

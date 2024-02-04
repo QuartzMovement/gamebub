@@ -15,6 +15,7 @@ class ILI9488:
         self._pin_dc = pin_dc
 
     def _write_cmd(self, cmd: int, params: bytes = bytes()) -> None:
+        self._spi()  # take spi bus
         self._pin_cs.value(0)
         self._pin_dc.value(0) # command
         self._spi().write(bytes([cmd]))
@@ -26,6 +27,7 @@ class ILI9488:
         self._pin_cs.value(1)
 
     def _read_cmd(self, cmd, len=2):
+        self._spi()  # take spi bus
         self._pin_cs.value(0)
         self._pin_dc.value(0) # command
         self._spi().write(bytes([cmd]))

@@ -201,19 +201,20 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // MCU Communication
   //////////////////////////////////
   val regIndexDummy = 0x00
-  val regIndexCount = 0x01
   val regIndexControl = 0x02
-  val regIndexButtons = 0x03
+  val regIndexCount = 0x04
+  val regIndexButtons = 0x06
 
   // D0: PICO, D1: POCI
-  val spi = Module(new SpiReceiver(addressLength = 32, maxDataLength = 32))
+  val spi = Module(new SpiReceiverFifo())
   io.mcuIrq := false.B
   io.mcuSpiDataDir := Mux(io.mcuSpiChipSelect, 0.U, "b0010".U)
   io.mcuSpiDataOut := Cat(0.U(2.W), spi.io.signals.serialOut, 0.U(1.W))
   spi.io.signals.serialClock := io.mcuSpiClock
   spi.io.signals.serialIn := io.mcuSpiDataIn(0)
   spi.io.signals.chipSelect := io.mcuSpiChipSelect
-  spi.io.dataRead := 0.U
+  spi.io.dataRead := DontCare
+  spi.io.valid := false.B
 
   val tempRegister = RegInit(0.U(16.W))
   val countRegister = RegInit(0.U(16.W))
@@ -221,13 +222,17 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val buttonRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
   moduleReset := controlRegister(1)
 
-  switch (spi.io.address) {
-    is(regIndexDummy.U) { spi.io.dataRead := tempRegister }
-    is(regIndexCount.U) { spi.io.dataRead := countRegister }
-    is(regIndexControl.U) { spi.io.dataRead := controlRegister }
-    is(regIndexButtons.U) { spi.io.dataRead := buttonRegister.asUInt }
+  when (spi.io.readReady && !spi.io.address(31)) {
+    spi.io.valid := true.B
+    switch (spi.io.address) {
+      is(regIndexDummy.U) { spi.io.dataRead := tempRegister }
+      is(regIndexCount.U) { spi.io.dataRead := countRegister }
+      is(regIndexControl.U) { spi.io.dataRead := controlRegister }
+      is(regIndexButtons.U) { spi.io.dataRead := buttonRegister.asUInt }
+    }
   }
-  when (spi.io.writeValid) {
+  when (spi.io.writeReady && !spi.io.address(31)) {
+    spi.io.valid := true.B
     countRegister := countRegister + 1.U
     switch (spi.io.address) {
       is (regIndexDummy.U) { tempRegister := spi.io.dataWrite }
@@ -255,17 +260,19 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   when (spi.io.address(31)) {
     io.sramA := spi.io.address(18, 1)
 
-    when (spi.io.readValid) {
+    when (spi.io.readReady) {
       sramBusy := true.B
       io.sramCeN := 0.U
       io.sramWeN := 1.U
       io.sramOeN := 0.U
       spi.io.dataRead := io.sramIoIn
-    } .elsewhen(spi.io.writeValid) {
+      spi.io.valid := true.B
+    } .elsewhen(spi.io.writeReady) {
       sramBusy := true.B
       io.sramCeN := 0.U
       io.sramWeN := 0.U
       io.sramIoOut := spi.io.dataWrite
+      spi.io.valid := true.B
     }
   }
 

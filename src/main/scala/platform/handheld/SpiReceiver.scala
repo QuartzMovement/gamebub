@@ -14,13 +14,6 @@ class SpiSignals extends Bundle {
   // TODO implement QSPI
 }
 
-object SpiState extends ChiselEnum {
-  val writeCommand = Value
-  val writeAddress = Value
-  val writeData = Value
-  val readData = Value
-}
-
 class SpiCommand extends Bundle {
   /** Bit 4: Autoincrement address by word size */
   val autoIncrement = Bool()
@@ -53,6 +46,13 @@ class SpiReceiver(
     val writeValid = Output(Bool())
   })
 
+  object State extends ChiselEnum {
+    val writeCommand = Value
+    val writeAddress = Value
+    val writeData = Value
+    val readData = Value
+  }
+
   // Synchronized signals
   val serialClock = RegNext(RegNext(io.signals.serialClock))
   val serialIn = RegNext(RegNext(io.signals.serialIn))
@@ -60,7 +60,7 @@ class SpiReceiver(
 
   // State
   val shiftRegisterLength = commandLength.max(addressLength).max(maxDataLength)
-  val state = Reg(SpiState())
+  val state = Reg(State())
   val shiftInReg = Reg(UInt(shiftRegisterLength.W))
   val shiftInCounter = Reg(UInt((log2Ceil(shiftRegisterLength) + 1).W))
   val shiftOutReg = Reg(UInt(shiftRegisterLength.W))
@@ -94,20 +94,18 @@ class SpiReceiver(
   when (!chipSelect) {
     // Chip activation: nCS falling edge
     when (RegNext(chipSelect)) {
-      state := SpiState.writeCommand
+      state := State.writeCommand
       shiftInCounter := commandLength.U
-      //    printf(cf"    Chip selected\n")
     }
 
     // Rising clock: sample data
     when (risingClock) {
       shiftInReg := Cat(shiftInReg, serialIn)
       shiftInCounter := shiftInCounter - 1.U
-      //    printf(cf"    RisingClock; state = ${state}, nextShift = ${Cat(shiftInReg, serialIn)}%b\n")
     }
     // Falling clock: shift out data
     when (fallingClock) {
-      when (state === SpiState.readData && shiftOutCounter === 0.U) {
+      when (state === State.readData && shiftOutCounter === 0.U) {
         // Read the next data.
         io.readValid := true.B
         shiftOutReg := Mux(regCommand.byteSwap,
@@ -124,39 +122,34 @@ class SpiReceiver(
         when (regCommand.autoIncrement) {
           regAddress := regAddress + (1.U << regCommand.wordSize).asUInt
         }
-        //      printf(cf"    > Sending data: ${io.dataRead}%x\n")
       }.otherwise {
         shiftOutReg := shiftOutReg << 1
         shiftOutCounter := shiftOutCounter - 1.U
       }
-      //    printf(cf"    FallingClock; state = ${state}, nextShift = ${shiftOutReg << 1}%b\n")
     }
 
     when(shiftInCounter === 0.U) {
       switch(state) {
-        is (SpiState.writeCommand) {
+        is (State.writeCommand) {
           // Finished writing command
-          //        printf(cf"    > Got command: ${shiftInReg}%x\n")
           regCommand := shiftInReg.asTypeOf(new SpiCommand)
-          state := SpiState.writeAddress
+          state := State.writeAddress
           shiftInCounter := addressLength.U
         }
-        is (SpiState.writeAddress) {
+        is (State.writeAddress) {
           // Finished writing address
-          //        printf(cf"    > Got address: ${shiftInReg}%x\n")
           regAddress := shiftInReg
           shiftInCounter := wordSizeInBits
           shiftOutCounter := 0.U
 
           when(regCommand.read) {
-            state := SpiState.readData
+            state := State.readData
           }.otherwise {
-            state := SpiState.writeData
+            state := State.writeData
           }
         }
-        is (SpiState.writeData) {
+        is (State.writeData) {
           // Finished writing data
-          //        printf(cf"    > Received data: ${shiftInReg}%x\n")
           io.writeValid := true.B
           shiftInCounter := wordSizeInBits
           when (regCommand.autoIncrement) {
