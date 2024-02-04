@@ -84,6 +84,9 @@ fpga = FPGA(
     fpga_spi = lambda: spi(1_000_000),
 )
 fpga.program()
+# Set FPGA submodule to running and out of reset.
+fpga.spi_write_u16(0x0000_0002, 0b11)
+
 
 
 # # 1-bit SPI
@@ -181,8 +184,8 @@ class RomHeader:
 def load_fpga_sram(path = '/Tetris.gb', ram_location=0x80, chunk_size=1024):
     # chunk_size = 2048
 
-    # bit 0: pause
-    fpga.spi_write_u16(0x0000_0002, 0b01)
+    # bit 0: pause, bit 1: reset
+    fpga.spi_write_u16(0x0000_0002, 0b00)
 
     rom_header = None
     print("Transferring ROM...")
@@ -206,9 +209,8 @@ def load_fpga_sram(path = '/Tetris.gb', ram_location=0x80, chunk_size=1024):
     config = rom_header.get_emu_cart_config() | (ram_location << 8)
     fpga.spi_write_u16(0x0000_0000, config)
 
-    # reset, then go..
+    # then go...
     fpga.spi_write_u16(0x0000_0002, 0b11)
-    fpga.spi_write_u16(0x0000_0002, 0b00)
 
     return rom_header
 

@@ -220,7 +220,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val countRegister = RegInit(0.U(16.W))
   val controlRegister = RegInit(0.U(3.W))
   val buttonRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
-  moduleReset := controlRegister(1)
+  moduleReset := !controlRegister(1)
 
   when (spi.io.readReady && !spi.io.address(31)) {
     spi.io.valid := true.B
@@ -368,7 +368,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   //////////////////////////////////
   // Submodule Connections
   //////////////////////////////////
-  module.io.enable := !controlRegister(0)
+  module.io.enable := controlRegister(0)
   io.vibrate := (module.io.enable && module.io.vibrate) || controlRegister(2)
   io.link <> module.io.link
   io.pmod <> module.io.pmod
