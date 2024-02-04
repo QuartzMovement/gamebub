@@ -369,7 +369,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // Submodule Connections
   //////////////////////////////////
   module.io.enable := !controlRegister(0)
-  io.vibrate := module.io.vibrate || controlRegister(2)
+  io.vibrate := (module.io.enable && module.io.vibrate) || controlRegister(2)
   io.link <> module.io.link
   io.pmod <> module.io.pmod
   module.io.temp := tempRegister
