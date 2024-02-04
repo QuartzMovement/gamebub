@@ -52,7 +52,6 @@ class FPGA:
         duration_read = 0
         duration_write = 0
         while True:
-            print(f"Sending byte ", chunk_size * i)
             i += 1
             start_time = time.time_ns()
             data = f.read(chunk_size)
