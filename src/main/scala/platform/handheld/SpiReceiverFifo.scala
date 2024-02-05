@@ -13,12 +13,18 @@ class SpiReceiverFifo(
   val io = IO(new Bundle {
     val signals = new SpiSignals
 
+    /** During an access, the requested address. */
     val address = Output(UInt(addressWidth.W))
+    /** During a write request, the data to be written. */
     val dataWrite = Output(UInt(dataWidth.W))
+    /** During a read request, the data that has been read. */
     val dataRead = Input(UInt(dataWidth.W))
-    val readReady = Output(Bool())
-    val writeReady = Output(Bool())
-    val valid = Input(Bool())
+    /** Whether a read is requested. */
+    val readRequest = Output(Bool())
+    /** Whether a write is requested. */
+    val writeRequest = Output(Bool())
+    /** Whether the requested access has completed. */
+    val accessDone = Input(Bool())
   })
 
   class FifoRequest extends Bundle {
@@ -211,8 +217,8 @@ class SpiReceiverFifo(
   val sysChipSelect = RegNext(RegNext(io.signals.chipSelect))
 
   io.address := regSysAddress
-  io.writeReady := false.B
-  io.readReady := false.B
+  io.writeRequest := false.B
+  io.readRequest := false.B
   io.dataWrite := DontCare
 
   when (!fifoRequest.io.empty) {
@@ -225,19 +231,19 @@ class SpiReceiverFifo(
     } .otherwise {
       val request = fifoRequest.io.dataOut.inner.asTypeOf(new FifoRequestContinue)
       when (regSysWrite) {
-        io.writeReady := true.B
+        io.writeRequest := true.B
         io.dataWrite := request.data
 
       } .otherwise {
-        io.readReady := true.B
+        io.readRequest := true.B
 
-        when (io.valid) {
+        when (io.accessDone) {
           fifoResponse.io.writeEnable := true.B
           fifoResponse.io.dataIn := io.dataRead
         }
       }
 
-      when (io.valid) {
+      when (io.accessDone) {
         // A write or read operation completed, so confirm and increment.
         fifoRequest.io.readEnable := true.B
         when (request.autoincrement) {

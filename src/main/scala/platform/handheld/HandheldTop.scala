@@ -214,7 +214,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   spi.io.signals.serialIn := io.mcuSpiDataIn(0)
   spi.io.signals.chipSelect := io.mcuSpiChipSelect
   spi.io.dataRead := DontCare
-  spi.io.valid := false.B
+  spi.io.accessDone := false.B
 
   val tempRegister = RegInit(0.U(16.W))
   val countRegister = RegInit(0.U(16.W))
@@ -222,8 +222,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val buttonRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
   moduleReset := !controlRegister(1)
 
-  when (spi.io.readReady && !spi.io.address(31)) {
-    spi.io.valid := true.B
+  when (spi.io.readRequest && !spi.io.address(31)) {
+    spi.io.accessDone := true.B
     switch (spi.io.address) {
       is(regIndexDummy.U) { spi.io.dataRead := tempRegister }
       is(regIndexCount.U) { spi.io.dataRead := countRegister }
@@ -231,8 +231,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       is(regIndexButtons.U) { spi.io.dataRead := buttonRegister.asUInt }
     }
   }
-  when (spi.io.writeReady && !spi.io.address(31)) {
-    spi.io.valid := true.B
+  when (spi.io.writeRequest && !spi.io.address(31)) {
+    spi.io.accessDone := true.B
     countRegister := countRegister + 1.U
     switch (spi.io.address) {
       is (regIndexDummy.U) { tempRegister := spi.io.dataWrite }
@@ -260,19 +260,19 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   when (spi.io.address(31)) {
     io.sramA := spi.io.address(18, 1)
 
-    when (spi.io.readReady) {
+    when (spi.io.readRequest) {
       sramBusy := true.B
       io.sramCeN := 0.U
       io.sramWeN := 1.U
       io.sramOeN := 0.U
       spi.io.dataRead := io.sramIoIn
-      spi.io.valid := true.B
-    } .elsewhen(spi.io.writeReady) {
+      spi.io.accessDone := true.B
+    } .elsewhen(spi.io.writeRequest) {
       sramBusy := true.B
       io.sramCeN := 0.U
       io.sramWeN := 0.U
       io.sramIoOut := spi.io.dataWrite
-      spi.io.valid := true.B
+      spi.io.accessDone := true.B
     }
   }
 
