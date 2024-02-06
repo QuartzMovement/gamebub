@@ -2,6 +2,7 @@ package platform.handheld
 
 import chisel3._
 import chisel3.util._
+import lib.mem.MemoryInterface
 import xilinx.XpmFifoAsync
 
 class SpiReceiverFifo(
@@ -13,18 +14,8 @@ class SpiReceiverFifo(
   val io = IO(new Bundle {
     val signals = new SpiSignals
 
-    /** During an access, the requested address. */
-    val address = Output(UInt(addressWidth.W))
-    /** During a write request, the data to be written. */
-    val dataWrite = Output(UInt(dataWidth.W))
-    /** During a read request, the data that has been read. */
-    val dataRead = Input(UInt(dataWidth.W))
-    /** Whether a read is requested. */
-    val readRequest = Output(Bool())
-    /** Whether a write is requested. */
-    val writeRequest = Output(Bool())
-    /** Whether the requested access has completed. */
-    val accessDone = Input(Bool())
+    /** Interface for SPI receiver to access device memory. */
+    val mem = new MemoryInterface(addressWidth, dataWidth)
   })
 
   class FifoRequest extends Bundle {
@@ -216,10 +207,10 @@ class SpiReceiverFifo(
   /** Chip select synchronized into system clock domain. */
   val sysChipSelect = RegNext(RegNext(io.signals.chipSelect))
 
-  io.address := regSysAddress
-  io.writeRequest := false.B
-  io.readRequest := false.B
-  io.dataWrite := DontCare
+  io.mem.address := regSysAddress
+  io.mem.write := false.B
+  io.mem.read := false.B
+  io.mem.dataWrite := DontCare
 
   when (!fifoRequest.io.empty) {
     when (fifoRequest.io.dataOut.isStart) {
@@ -231,19 +222,19 @@ class SpiReceiverFifo(
     } .otherwise {
       val request = fifoRequest.io.dataOut.inner.asTypeOf(new FifoRequestContinue)
       when (regSysWrite) {
-        io.writeRequest := true.B
-        io.dataWrite := request.data
+        io.mem.write := true.B
+        io.mem.dataWrite := request.data
 
       } .otherwise {
-        io.readRequest := true.B
+        io.mem.read := true.B
 
-        when (io.accessDone) {
+        when (io.mem.done) {
           fifoResponse.io.writeEnable := true.B
-          fifoResponse.io.dataIn := io.dataRead
+          fifoResponse.io.dataIn := io.mem.dataRead
         }
       }
 
-      when (io.accessDone) {
+      when (io.mem.done) {
         // A write or read operation completed, so confirm and increment.
         fifoRequest.io.readEnable := true.B
         when (request.autoincrement) {
