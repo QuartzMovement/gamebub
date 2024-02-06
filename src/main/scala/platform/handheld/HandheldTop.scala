@@ -8,8 +8,8 @@ import xilinx.xpm_cdc_handshake
 object HandheldTop extends App {
 
   emitVerilog(new HandheldTop(
-//    new HandheldGameboy
-    new HandheldTester
+    new HandheldGameboy
+//    new HandheldTester
   ), args)
 }
 

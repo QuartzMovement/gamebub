@@ -85,7 +85,7 @@ fpga = FPGA(
 )
 fpga.program()
 # Set FPGA submodule to running and out of reset.
-fpga.spi_write_u16(0x0000_0002, 0b11)
+fpga.spi_write_u16(0x0000_0004, 0b11)
 
 
 
@@ -202,9 +202,7 @@ class RomHeader:
         value |= int(self.has_rumble) << 6
         return value
 
-def load_fpga_sram(path = '/Tetris.gb', chunk_size=1024):
-    # chunk_size = 2048
-
+def load_fpga_sdram(path = '/Tetris.gb', chunk_size=1024):
     # bit 0: pause, bit 1: reset
     fpga.spi_write_u32(0x0000_0004, 0b00)
 
@@ -220,7 +218,7 @@ def load_fpga_sram(path = '/Tetris.gb', chunk_size=1024):
             data = f.read(chunk_size)
             if len(data) == 0:
                 break
-            fpga.sram_write(rom_size, data)
+            fpga.sdram_write(rom_size, data)
             rom_size += len(data)
 
     duration = time.time_ns() - start_time
