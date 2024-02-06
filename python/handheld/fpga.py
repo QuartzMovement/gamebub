@@ -108,13 +108,13 @@ class FPGA:
 
     def sram_write(self, address: int, data: bytes) -> None:
         """Write a sequence of bytes to SRAM. Address is relative to SRAM start."""
-        mem_address = 0x8000_0000 | address
+        mem_address = 0x1000_0000 | address
         command = self._spi_command(read=False, word_size=16, byte_swap=True, auto_increment=True)
         self.spi_write(command, mem_address, data)
 
     def sram_read(self, address: int, nbytes: int) -> bytes:
         """Read a sequence of bytes from SRAM. Address is relative to SRAM start."""
-        mem_address = 0x8000_0000 | address
+        mem_address = 0x1000_0000 | address
         command = self._spi_command(read=True, word_size=16, byte_swap=True, auto_increment=True)
         return self.spi_read(command, mem_address, nbytes)
 

@@ -15,7 +15,7 @@ class SpiReceiverFifo(
     val signals = new SpiSignals
 
     /** Interface for SPI receiver to access device memory. */
-    val mem = new MemoryInterface(addressWidth, dataWidth)
+    val mem = Flipped(new MemoryInterface(addressWidth, dataWidth))
   })
 
   class FifoRequest extends Bundle {

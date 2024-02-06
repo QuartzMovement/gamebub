@@ -2,6 +2,7 @@ package platform.handheld
 
 import chisel3._
 import chisel3.util._
+import lib.mem.{MemoryInterface, MemoryMap, RegisterMap}
 import xilinx.xpm_cdc_handshake
 
 object HandheldTop extends App {
@@ -200,11 +201,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   //////////////////////////////////
   // MCU Communication
   //////////////////////////////////
-  val regIndexDummy = 0x00
-  val regIndexControl = 0x02
-  val regIndexCount = 0x04
-  val regIndexButtons = 0x06
-
   // D0: PICO, D1: POCI
   val spi = Module(new SpiReceiverFifo())
   io.mcuIrq := false.B
@@ -213,34 +209,34 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   spi.io.signals.serialClock := io.mcuSpiClock
   spi.io.signals.serialIn := io.mcuSpiDataIn(0)
   spi.io.signals.chipSelect := io.mcuSpiChipSelect
-  spi.io.mem.dataRead := DontCare
-  spi.io.mem.done := false.B
 
   val tempRegister = RegInit(0.U(16.W))
   val countRegister = RegInit(0.U(16.W))
   val controlRegister = RegInit(0.U(3.W))
   val buttonRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
-  moduleReset := !controlRegister(1)
 
-  when (spi.io.mem.read && !spi.io.mem.address(31)) {
-    spi.io.mem.done := true.B
-    switch (spi.io.mem.address) {
-      is(regIndexDummy.U) { spi.io.mem.dataRead := tempRegister }
-      is(regIndexCount.U) { spi.io.mem.dataRead := countRegister }
-      is(regIndexControl.U) { spi.io.mem.dataRead := controlRegister }
-      is(regIndexButtons.U) { spi.io.mem.dataRead := buttonRegister.asUInt }
-    }
-  }
-  when (spi.io.mem.write && !spi.io.mem.address(31)) {
-    spi.io.mem.done := true.B
-    countRegister := countRegister + 1.U
-    switch (spi.io.mem.address) {
-      is (regIndexDummy.U) { tempRegister := spi.io.mem.dataWrite }
-      is (regIndexCount.U) {  }
-      is (regIndexControl.U) { controlRegister := spi.io.mem.dataWrite }
-      is (regIndexButtons.U) { buttonRegister := spi.io.mem.dataWrite.asTypeOf(new HandheldButtons) }
-    }
-  }
+  val registerMap = RegisterMap(
+    addressWidth = 32,
+    dataWidth = 16,
+    entries = Seq(
+      0x0 -> tempRegister,
+      0x2 -> controlRegister,
+      0x4 -> countRegister,
+      0x6 -> buttonRegister,
+    )
+  )
+
+  val sramInterface = Wire(new MemoryInterface(addressWidth = 19, dataWidth = 16))
+
+  spi.io.mem <> MemoryMap(
+    addressWidth = 32,
+    dataWidth = 32,
+    entries = Seq(
+      "b0000".U(4.W) -> registerMap,
+      "b0001".U(4.W) -> sramInterface,
+    ))
+
+  moduleReset := !controlRegister(1)
 
   //////////////////////////////////
   // Memory
@@ -257,23 +253,22 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.sramWeN := 1.U
 
   val sramBusy = WireDefault(false.B)
-  when (spi.io.mem.address(31)) {
-    io.sramA := spi.io.mem.address(18, 1)
-
-    when (spi.io.mem.read) {
-      sramBusy := true.B
-      io.sramCeN := 0.U
-      io.sramWeN := 1.U
-      io.sramOeN := 0.U
-      spi.io.mem.dataRead := io.sramIoIn
-      spi.io.mem.done := true.B
-    } .elsewhen(spi.io.mem.write) {
-      sramBusy := true.B
-      io.sramCeN := 0.U
-      io.sramWeN := 0.U
-      io.sramIoOut := spi.io.mem.dataWrite
-      spi.io.mem.done := true.B
-    }
+  io.sramA := sramInterface.address(18, 1)
+  sramInterface.done := false.B
+  sramInterface.dataRead := DontCare
+  when (sramInterface.read) {
+    sramBusy := true.B
+    io.sramCeN := 0.U
+    io.sramWeN := 1.U
+    io.sramOeN := 0.U
+    sramInterface.dataRead := io.sramIoIn
+    sramInterface.done := true.B
+  } .elsewhen (sramInterface.write) {
+    sramBusy := true.B
+    io.sramCeN := 0.U
+    io.sramWeN := 0.U
+    io.sramIoOut := sramInterface.dataWrite
+    sramInterface.done := true.B
   }
 
   // SDRAM
@@ -403,6 +398,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.cartridge5V0Enable := io.cartridgeSwitch && module.io.cartridgeEnabled
 
   // SRAM
+  // TODO integrate with MemoryInterface arbiter
   module.io.sramDataRead := io.sramIoIn
   when (module.io.sramEnable && !sramBusy) {
     io.sramA := module.io.sramAddress
