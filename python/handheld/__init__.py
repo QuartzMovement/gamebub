@@ -181,7 +181,7 @@ class RomHeader:
         value |= int(self.has_rumble) << 6
         return value
 
-def load_fpga_sram(path = '/Tetris.gb', ram_location=0x80, chunk_size=1024):
+def load_fpga_sram(path = '/Tetris.gb', chunk_size=1024):
     # chunk_size = 2048
 
     # bit 0: pause, bit 1: reset
@@ -205,8 +205,23 @@ def load_fpga_sram(path = '/Tetris.gb', ram_location=0x80, chunk_size=1024):
     duration = time.time_ns() - start_time
     print(f"Done. len={total} time(s)={duration / 1_000_000_000}")
 
+    try:
+        with open(path[:-3] + ".sav", 'rb') as f:
+            print("Loading RAM.")
+            chunk_size = 256
+            address = 0b110_0000_0000_0000_0000
+            while True:
+                data = f.read(chunk_size)
+                if len(data) == 0:
+                    break
+                fpga.sram_write(address, data)
+                address += len(data)
+            print("Done.")
+    except:
+        print("Not loading RAM.")
+
     # configure emu cart
-    config = rom_header.get_emu_cart_config() | (ram_location << 8)
+    config = rom_header.get_emu_cart_config()
     fpga.spi_write_u16(0x0000_0000, config)
 
     # then go...

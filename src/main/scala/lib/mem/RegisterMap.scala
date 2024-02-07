@@ -2,7 +2,11 @@ package lib.mem
 
 import chisel3._
 
-/** Exposes a simple map of registers as a MemoryInterface  */
+/**
+ * Exposes a simple map of registers as a MemoryInterface.
+ *
+ * writeStrobe is ignored.
+ */
 object RegisterMap {
   def apply (addressWidth: Int, dataWidth: Int, entries: Seq[(Int, Data)]): MemoryInterface = {
     val byteWidth = dataWidth / 8

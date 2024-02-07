@@ -34,6 +34,7 @@ object MemoryMap {
     entries.foreach { case (prefix, mem) =>
       mem.address := interface.address
       mem.dataWrite := interface.dataWrite
+      mem.writeStrobe := interface.writeStrobe
 
       when (interface.address.head(prefix.getWidth) === prefix) {
         mem.read := interface.read

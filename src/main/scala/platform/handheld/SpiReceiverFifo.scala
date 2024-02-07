@@ -211,6 +211,7 @@ class SpiReceiverFifo(
   io.mem.write := false.B
   io.mem.read := false.B
   io.mem.dataWrite := DontCare
+  io.mem.writeStrobe := DontCare
 
   when (!fifoRequest.io.empty) {
     when (fifoRequest.io.dataOut.isStart) {
@@ -224,6 +225,8 @@ class SpiReceiverFifo(
       when (regSysWrite) {
         io.mem.write := true.B
         io.mem.dataWrite := request.data
+        // TODO: determine based on addresses
+        io.mem.writeStrobe := "b1111".U
 
       } .otherwise {
         io.mem.read := true.B

@@ -114,16 +114,16 @@ class HandheldGameboy extends Module with HandheldModule {
   io.sram.address := Mux(
     emuCart.io.dataAccess.selectRom,
     Cat(emuCart.io.dataAccess.address(18, 1), 0.U(1.W)),
-    Cat(io.temp(15, 9), emuCart.io.dataAccess.address(10, 1), 0.U(1.W))
+    Cat("b11".U, emuCart.io.dataAccess.address(16, 1), 0.U(1.W))
   )
   io.sram.dataWrite := emuCart.io.dataAccess.dataWrite
+  io.sram.writeStrobe := Mux(emuCart.io.dataAccess.address(0), "b10".U, "b01".U)
   emuCart.io.dataAccess.valid := io.sram.done
   emuCart.io.dataAccess.dataRead := Mux(
-    emuCart.io.dataAccess.selectRom && emuCart.io.dataAccess.address(0),
+    emuCart.io.dataAccess.address(0),
     io.sram.dataRead(15, 8),
     io.sram.dataRead(7, 0)
   )
-  // XXX: Cartridge RAM uses only low byte of each SRAM word (temporarily).
 
   when (emuCart.io.config.enabled) {
     io.cartridgeEnabled := false.B

@@ -28,6 +28,7 @@ class MemoryArbiter(addressWidth: Int, dataWidth: Int, n: Int) extends Module {
     io.target.read := io.initiator(busyOwner).read
     io.target.write := io.initiator(busyOwner).write
     io.target.dataWrite := io.initiator(busyOwner).dataWrite
+    io.target.writeStrobe := io.initiator(busyOwner).writeStrobe
 
     when (io.target.done) {
       io.initiator(busyOwner).done := true.B
@@ -38,6 +39,7 @@ class MemoryArbiter(addressWidth: Int, dataWidth: Int, n: Int) extends Module {
     io.target.read := false.B
     io.target.write := false.B
     io.target.dataWrite := DontCare
+    io.target.writeStrobe := DontCare
 
     val hasRequest = WireDefault(false.B)
     val chosen = WireDefault(0.U(log2Ceil(n).W))
@@ -51,6 +53,7 @@ class MemoryArbiter(addressWidth: Int, dataWidth: Int, n: Int) extends Module {
         io.target.read := io.initiator(i).read
         io.target.write := io.initiator(i).write
         io.target.dataWrite := io.initiator(i).dataWrite
+        io.target.writeStrobe := io.initiator(i).writeStrobe
       }
     }
 

@@ -114,4 +114,5 @@ class HandheldTester extends Module with HandheldModule {
     io.sram.write := false.B
     io.sram.address := DontCare
     io.sram.dataWrite := DontCare
+    io.sram.writeStrobe := DontCare
 }

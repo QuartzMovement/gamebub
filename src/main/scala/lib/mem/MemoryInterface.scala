@@ -13,6 +13,8 @@ class MemoryInterface(addressWidth: Int, dataWidth: Int) extends Bundle {
   val dataRead = Output(UInt(dataWidth.W))
   /** Write data */
   val dataWrite = Input(UInt(dataWidth.W))
+  /** Write data byte strobe. Ignored by some targets. */
+  val writeStrobe = Input(UInt((dataWidth / 8).W))
   /** True when the access is complete. */
   val done = Output(Bool())
 }

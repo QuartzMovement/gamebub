@@ -45,7 +45,6 @@ class HandheldIo extends Bundle {
   val temp = Input(UInt(16.W))
 
   // SRAM
-  // TODO figure out how sram byte write strobe works with arbiter
   val sram = Flipped(new MemoryInterface(addressWidth = 19, dataWidth = 16))
 
   // TODO SDRAM
@@ -263,6 +262,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   } .elsewhen (sramInterface.write) {
     io.sramCeN := 0.U
     io.sramWeN := 0.U
+    io.sramLbN := !sramInterface.writeStrobe(0)
+    io.sramUbN := !sramInterface.writeStrobe(1)
     io.sramIoOut := sramInterface.dataWrite
     sramInterface.done := true.B
   }
