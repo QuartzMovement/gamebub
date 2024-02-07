@@ -8,8 +8,8 @@ import xilinx.xpm_cdc_handshake
 object HandheldTop extends App {
 
   emitVerilog(new HandheldTop(
-    new HandheldGameboy
-//    new HandheldTester
+//    new HandheldGameboy
+    new HandheldTester
   ), args)
 }
 
@@ -43,10 +43,9 @@ class HandheldIo extends Bundle {
 
   val mcuInterface = new MemoryInterface(addressWidth = 30, dataWidth = 32)
 
-  // SRAM
+  // Memory interfaces
   val sram = Flipped(new MemoryInterface(addressWidth = 19, dataWidth = 16))
-
-  // TODO SDRAM
+  val sdram = Flipped(new MemoryInterface(addressWidth = 25, dataWidth = 32))
 }
 
 trait HandheldModule {
@@ -221,6 +220,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   )
 
   val sramSpiInterface = Wire(new MemoryInterface(addressWidth = 19, dataWidth = 16))
+  val sdramSpiInterface = Wire(new MemoryInterface(addressWidth = 25, dataWidth = 32))
   val moduleMcuInterface = Wire(new MemoryInterface(addressWidth = 30, dataWidth = 32))
 
   spi.io.mem <> MemoryMap(
@@ -229,6 +229,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     entries = Seq(
       "b0000".U(4.W) -> registerMap,
       "b0001".U(4.W) -> sramSpiInterface,
+      "b0010".U(4.W) -> sdramSpiInterface,
       "b11".U(2.W) -> moduleMcuInterface,
     ))
 
@@ -270,7 +271,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   }
 
   // SDRAM
+  val sdramArbiter = Module(new MemoryArbiter(addressWidth = 25, dataWidth = 32, n = 2))
+  sdramArbiter.io.initiator(0) <> sdramSpiInterface
   val sdram = Module(new SdramController(sdramConfig))
+  sdram.io.mem <> sdramArbiter.io.target
   io.sdramClock := clock // TODO
   io.sdram <> sdram.io.signals
 
@@ -395,6 +399,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.cartridge3V3Enable := !io.cartridgeSwitch && module.io.cartridgeEnabled
   io.cartridge5V0Enable := io.cartridgeSwitch && module.io.cartridgeEnabled
 
-  // SRAM
+  // Memories
   sramArbiter.io.initiator(1) <> module.io.sram
+  sdramArbiter.io.initiator(1) <> module.io.sdram
 }

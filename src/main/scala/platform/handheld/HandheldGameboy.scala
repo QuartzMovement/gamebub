@@ -120,6 +120,13 @@ class HandheldGameboy extends Module with HandheldModule {
     }
   }
 
+  // SDRAM unused
+  io.sdram.read := false.B
+  io.sdram.write := false.B
+  io.sdram.address := DontCare
+  io.sdram.dataWrite := DontCare
+  io.sdram.writeStrobe := DontCare
+
   // Emulated Cartridge
   val emuCart = Module(new EmuCartridge(8 * 1024 * 1024))
   emuCart.io.config := configRegEmuCart
