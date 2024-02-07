@@ -106,6 +106,17 @@ class FPGA:
         data = self.spi_read(command, address, 2)
         return int.from_bytes(data, 'big')
 
+    def spi_write_u32(self, address: int, data: int) -> None:
+        """Write a single 32-bit value."""
+        command = self._spi_command(read=False, word_size=32, byte_swap=False, auto_increment=True)
+        self.spi_write(command, address, data.to_bytes(4, 'big'))
+
+    def spi_read_u32(self, address: int) -> int:
+        """Read a single 32-bit value."""
+        command = self._spi_command(read=True, word_size=32, byte_swap=False, auto_increment=True)
+        data = self.spi_read(command, address, 4)
+        return int.from_bytes(data, 'big')
+
     def sram_write(self, address: int, data: bytes) -> None:
         """Write a sequence of bytes to SRAM. Address is relative to SRAM start."""
         mem_address = 0x1000_0000 | address

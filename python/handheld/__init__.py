@@ -189,7 +189,7 @@ def load_fpga_sram(path = '/Tetris.gb', chunk_size=1024):
 
     rom_header = None
     print("Transferring ROM...")
-    total = 0
+    rom_size = 0
     start_time = time.time_ns()
     with open(path, 'rb') as f:
         rom_header = RomHeader(f.read(512))
@@ -199,30 +199,40 @@ def load_fpga_sram(path = '/Tetris.gb', chunk_size=1024):
             data = f.read(chunk_size)
             if len(data) == 0:
                 break
-            fpga.sram_write(total, data)
-            total += len(data)
+            fpga.sram_write(rom_size, data)
+            rom_size += len(data)
 
     duration = time.time_ns() - start_time
-    print(f"Done. len={total} time(s)={duration / 1_000_000_000}")
+    print(f"Done. len={rom_size} time(s)={duration / 1_000_000_000}")
 
+    ram_address_start = 0b110_0000_0000_0000_0000
+    ram_size = 0
     try:
         with open(path[:-3] + ".sav", 'rb') as f:
             print("Loading RAM.")
             chunk_size = 256
-            address = 0b110_0000_0000_0000_0000
+            address = ram_address_start
             while True:
                 data = f.read(chunk_size)
                 if len(data) == 0:
                     break
                 fpga.sram_write(address, data)
                 address += len(data)
-            print("Done.")
+                ram_size += len(data)
+            print(f"Done. len=${ram_size}")
     except:
         print("Not loading RAM.")
 
+    # take out of reset, leave paused
+    fpga.spi_write_u16(0x0000_0002, 0b10)
+
     # configure emu cart
     config = rom_header.get_emu_cart_config()
-    fpga.spi_write_u16(0x0000_0000, config)
+    fpga.spi_write_u32(0xC000_0000, config)
+    fpga.spi_write_u32(0xC000_0004, 0)  # rom address
+    fpga.spi_write_u32(0xC000_0008, rom_size - 1)  # rom mask
+    fpga.spi_write_u32(0xC000_000C, ram_address_start)  # ram address
+    fpga.spi_write_u32(0xC000_0010, ram_size - 1)  # ram mask
 
     # then go...
     fpga.spi_write_u16(0x0000_0002, 0b11)
@@ -231,7 +241,7 @@ def load_fpga_sram(path = '/Tetris.gb', chunk_size=1024):
 
 """
 
-config = handheld.load_fpga_sram('/Metroid_II.gb', 0x80)
+config = handheld.load_fpga_sram('/Metroid_II.gb')
 """
 
 

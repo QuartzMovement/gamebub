@@ -2,6 +2,7 @@ package platform.handheld;
 
 import chisel3._
 import chisel3.util._
+import lib.mem.RegisterMap
 
 class HandheldTester extends Module with HandheldModule {
     val io = IO(new HandheldIo)
@@ -14,6 +15,15 @@ class HandheldTester extends Module with HandheldModule {
     val offY = RegInit(0.U(5.W))
     val x = RegInit(0.U(8.W))
     val y = RegInit(0.U(8.W))
+
+    io.mcuInterface <> RegisterMap(
+        addressWidth = 8,
+        dataWidth = 32,
+        entries = Seq(
+            0x0 -> offX,
+            0x4 -> offY,
+        )
+    )
 
     when (frame) {
         x := 0.U

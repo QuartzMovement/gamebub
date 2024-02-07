@@ -41,8 +41,7 @@ class HandheldIo extends Bundle {
   val link = new HandheldLink
   val pmod = new HandheldPmod
 
-  // TODO allow SPI interaction
-  val temp = Input(UInt(16.W))
+  val mcuInterface = new MemoryInterface(addressWidth = 30, dataWidth = 32)
 
   // SRAM
   val sram = Flipped(new MemoryInterface(addressWidth = 19, dataWidth = 16))
@@ -222,6 +221,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   )
 
   val sramSpiInterface = Wire(new MemoryInterface(addressWidth = 19, dataWidth = 16))
+  val moduleMcuInterface = Wire(new MemoryInterface(addressWidth = 30, dataWidth = 32))
 
   spi.io.mem <> MemoryMap(
     addressWidth = 32,
@@ -229,6 +229,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     entries = Seq(
       "b0000".U(4.W) -> registerMap,
       "b0001".U(4.W) -> sramSpiInterface,
+      "b11".U(2.W) -> moduleMcuInterface,
     ))
 
   moduleReset := !controlRegister(1)
@@ -364,7 +365,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.vibrate := (module.io.enable && module.io.vibrate) || controlRegister(2)
   io.link <> module.io.link
   io.pmod <> module.io.pmod
-  module.io.temp := tempRegister
+  module.io.mcuInterface <> moduleMcuInterface
 
   // Buttons must be synchronized and inverted.
   module.io.buttons :=

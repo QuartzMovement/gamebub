@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import gameboy.Gameboy
 import gameboy.cart.{EmuCartConfig, EmuCartridge}
+import lib.mem.RegisterMap
 
 /**
  * Clocked by the 8.3886 MHz "Gameboy" clock.
@@ -12,6 +13,24 @@ class HandheldGameboy extends Module with HandheldModule {
   val io = IO(new HandheldIo)
   def framebufferW = 160
   def framebufferH = 144
+
+  // Config
+  val configRegEmuCart = RegInit(0.U.asTypeOf(new EmuCartConfig))
+  val configRegRomAddress = RegInit(0.U(19.W))
+  val configRegRomMask = RegInit(0.U(23.W))
+  val configRegRamAddress = RegInit(0.U(19.W))
+  val configRegRamMask = RegInit(0.U(17.W))
+  io.mcuInterface <> RegisterMap(
+    addressWidth = 16,
+    dataWidth = 32,
+    entries = Seq(
+      0x00 -> configRegEmuCart,
+      0x04 -> configRegRomAddress,
+      0x08 -> configRegRomMask,
+      0x0C -> configRegRamAddress,
+      0x10 -> configRegRamMask,
+    )
+  )
 
   // Gameboy
   val gameboyConfig = Gameboy.Configuration(
@@ -103,7 +122,7 @@ class HandheldGameboy extends Module with HandheldModule {
 
   // Emulated Cartridge
   val emuCart = Module(new EmuCartridge(8 * 1024 * 1024))
-  emuCart.io.config := io.temp.asTypeOf(new EmuCartConfig)
+  emuCart.io.config := configRegEmuCart
   emuCart.io.tCycle := gameboy.io.tCycle
   emuCart.io.rtcAccess.writeEnable := false.B
   emuCart.io.rtcAccess.writeState := DontCare
@@ -113,8 +132,8 @@ class HandheldGameboy extends Module with HandheldModule {
   io.sram.write := emuCart.io.dataAccess.enable && emuCart.io.dataAccess.write
   io.sram.address := Mux(
     emuCart.io.dataAccess.selectRom,
-    Cat(emuCart.io.dataAccess.address(18, 1), 0.U(1.W)),
-    Cat("b11".U, emuCart.io.dataAccess.address(16, 1), 0.U(1.W))
+    configRegRomAddress + (Cat(emuCart.io.dataAccess.address(18, 1), "b0".U) & configRegRomMask),
+    configRegRamAddress + (Cat(emuCart.io.dataAccess.address(16, 1), "b0".U) & configRegRamMask),
   )
   io.sram.dataWrite := emuCart.io.dataAccess.dataWrite
   io.sram.writeStrobe := Mux(emuCart.io.dataAccess.address(0), "b10".U, "b01".U)
