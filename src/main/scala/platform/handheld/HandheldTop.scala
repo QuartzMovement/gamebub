@@ -2,14 +2,14 @@ package platform.handheld
 
 import chisel3._
 import chisel3.util._
-import lib.mem.{MemoryInterface, MemoryMap, RegisterMap}
+import lib.mem.{MemoryArbiter, MemoryInterface, MemoryMap, RegisterMap}
 import xilinx.xpm_cdc_handshake
 
 object HandheldTop extends App {
 
   emitVerilog(new HandheldTop(
-//    new HandheldGameboy
-    new HandheldTester
+    new HandheldGameboy
+//    new HandheldTester
   ), args)
 }
 
@@ -45,12 +45,8 @@ class HandheldIo extends Bundle {
   val temp = Input(UInt(16.W))
 
   // SRAM
-  val sramEnable = Output(Bool())
-  val sramWrite = Output(Bool())
-  val sramAddress = Output(UInt(18.W))
-  val sramDataRead = Input(UInt(16.W))
-  val sramDataWrite = Output(UInt(16.W))
-  val sramStrobe = Output(UInt(2.W))
+  // TODO figure out how sram byte write strobe works with arbiter
+  val sram = Flipped(new MemoryInterface(addressWidth = 19, dataWidth = 16))
 
   // TODO SDRAM
 }
@@ -226,14 +222,14 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     )
   )
 
-  val sramInterface = Wire(new MemoryInterface(addressWidth = 19, dataWidth = 16))
+  val sramSpiInterface = Wire(new MemoryInterface(addressWidth = 19, dataWidth = 16))
 
   spi.io.mem <> MemoryMap(
     addressWidth = 32,
     dataWidth = 32,
     entries = Seq(
       "b0000".U(4.W) -> registerMap,
-      "b0001".U(4.W) -> sramInterface,
+      "b0001".U(4.W) -> sramSpiInterface,
     ))
 
   moduleReset := !controlRegister(1)
@@ -241,7 +237,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   //////////////////////////////////
   // Memory
   //////////////////////////////////
-  // Testing SRAM stuff
   io.sramOeN := 1.U
   io.sramLbN := 0.U
   io.sramUbN := 0.U
@@ -252,19 +247,20 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.sramIoOut := DontCare
   io.sramWeN := 1.U
 
-  val sramBusy = WireDefault(false.B)
+  val sramArbiter = Module(new MemoryArbiter(addressWidth = 19, dataWidth = 16, n = 2))
+  val sramInterface = sramArbiter.io.target
+  sramArbiter.io.initiator(0) <> sramSpiInterface
+
   io.sramA := sramInterface.address(18, 1)
   sramInterface.done := false.B
   sramInterface.dataRead := DontCare
   when (sramInterface.read) {
-    sramBusy := true.B
     io.sramCeN := 0.U
     io.sramWeN := 1.U
     io.sramOeN := 0.U
     sramInterface.dataRead := io.sramIoIn
     sramInterface.done := true.B
   } .elsewhen (sramInterface.write) {
-    sramBusy := true.B
     io.sramCeN := 0.U
     io.sramWeN := 0.U
     io.sramIoOut := sramInterface.dataWrite
@@ -398,21 +394,5 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.cartridge5V0Enable := io.cartridgeSwitch && module.io.cartridgeEnabled
 
   // SRAM
-  // TODO integrate with MemoryInterface arbiter
-  module.io.sramDataRead := io.sramIoIn
-  when (module.io.sramEnable && !sramBusy) {
-    io.sramA := module.io.sramAddress
-    io.sramUbN := module.io.sramWrite && !module.io.sramStrobe(1)
-    io.sramLbN := module.io.sramWrite && !module.io.sramStrobe(0)
-
-    when (module.io.sramWrite) {
-      io.sramCeN := 0.U
-      io.sramWeN := 0.U
-      io.sramIoOut := module.io.sramDataWrite
-    } .otherwise {
-      io.sramCeN := 0.U
-      io.sramWeN := 1.U
-      io.sramOeN := 0.U
-    }
-  }
+  sramArbiter.io.initiator(1) <> module.io.sram
 }

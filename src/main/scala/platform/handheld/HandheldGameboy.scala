@@ -109,20 +109,21 @@ class HandheldGameboy extends Module with HandheldModule {
   emuCart.io.rtcAccess.writeState := DontCare
   emuCart.io.rtcAccess.latchSelect := DontCare
 
-  io.sramEnable := emuCart.io.dataAccess.enable
-  io.sramWrite := emuCart.io.dataAccess.write
-  io.sramDataWrite := Fill(2, emuCart.io.dataAccess.dataWrite)
-  emuCart.io.dataAccess.valid := true.B
-  io.sramAddress := Mux(
+  io.sram.read := emuCart.io.dataAccess.enable && !emuCart.io.dataAccess.write
+  io.sram.write := emuCart.io.dataAccess.enable && emuCart.io.dataAccess.write
+  io.sram.address := Mux(
     emuCart.io.dataAccess.selectRom,
-    emuCart.io.dataAccess.address(18, 1),
-    Cat(io.temp(15, 8), emuCart.io.dataAccess.address(10, 1))
+    Cat(emuCart.io.dataAccess.address(18, 1), 0.U(1.W)),
+    Cat(io.temp(15, 9), emuCart.io.dataAccess.address(10, 1), 0.U(1.W))
   )
-  emuCart.io.dataAccess.dataRead := Mux(emuCart.io.dataAccess.address(0), io.sramDataRead(15, 8), io.sramDataRead(7, 0))
-  io.sramStrobe := Cat(
-    emuCart.io.dataAccess.address(0),
-    !emuCart.io.dataAccess.address(0),
+  io.sram.dataWrite := emuCart.io.dataAccess.dataWrite
+  emuCart.io.dataAccess.valid := io.sram.done
+  emuCart.io.dataAccess.dataRead := Mux(
+    emuCart.io.dataAccess.selectRom && emuCart.io.dataAccess.address(0),
+    io.sram.dataRead(15, 8),
+    io.sram.dataRead(7, 0)
   )
+  // XXX: Cartridge RAM uses only low byte of each SRAM word (temporarily).
 
   when (emuCart.io.config.enabled) {
     io.cartridgeEnabled := false.B
