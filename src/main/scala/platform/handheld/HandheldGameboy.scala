@@ -153,67 +153,45 @@ class HandheldGameboy extends Module with HandheldModule {
   io.sram.dataWrite := DontCare
   io.sram.writeStrobe := DontCare
 
-  emuCart.io.dataAccess.valid := false.B
-  emuCart.io.dataAccess.dataRead := DontCare
+  val emuCartStartAccess = emuCart.io.dataAccess.enable && !RegNext(emuCart.io.dataAccess.enable)
+  val emuCartBusy = RegInit(false.B)
+  val emuCartDataRead = Reg(UInt(8.W))
 
-  // Freeze dataaccess accesses
-  val daRegAddress = Reg(UInt(23.W))
-  val daRegWrite = RegInit(false.B)
-  val daRegEnable = RegInit(false.B)
-  val daRegDataWrite = Reg(UInt(8.W))
-  val daRegDataRead = Reg(UInt(8.W))
-  val daRegSelectRom = Reg(Bool())
-  val daRegBusy = RegInit(false.B)
-  val daValid = WireDefault(false.B)
-  val daDataRead = WireDefault(0.U(8.W))
-  
-  emuCart.io.dataAccess.valid := false.B
-  emuCart.io.dataAccess.dataRead := daRegDataRead
-  when (!daRegBusy) {
-    when (emuCart.io.dataAccess.enable && !RegNext(emuCart.io.dataAccess.enable)) {
-      daRegBusy := true.B
-      daRegEnable := true.B
-      daRegWrite := emuCart.io.dataAccess.write
-      daRegAddress := emuCart.io.dataAccess.address
-      daRegDataWrite := emuCart.io.dataAccess.dataWrite
-      daRegSelectRom := emuCart.io.dataAccess.selectRom
-    }
-  } .otherwise {
-    when (daValid) {
-      daRegBusy := false.B
-      daRegEnable := false.B
-      emuCart.io.dataAccess.valid := true.B
-      emuCart.io.dataAccess.dataRead := daDataRead
-      daRegDataRead := daDataRead
-    }
+  when (emuCartStartAccess) {
+    emuCartBusy := true.B
   }
-
-  when (daRegEnable) {
-    when (daRegSelectRom) {
-      when (daRegWrite) {
+  emuCart.io.dataAccess.valid := false.B
+  emuCart.io.dataAccess.dataRead := emuCartDataRead
+  when (emuCartStartAccess || emuCartBusy) {
+    when (emuCart.io.dataAccess.selectRom) {
+      when (emuCart.io.dataAccess.write) {
         // Don't handle ROM writes.
-        daValid := true.B
+        emuCart.io.dataAccess.valid := true.B
       } .otherwise {
         io.sdram.read := true.B
-        io.sdram.address := configRegRomAddress + (Cat(daRegAddress(22, 2), "b00".U(2.W)) & configRegRomMask)
-        daDataRead := io.sdram.dataRead
+        io.sdram.address := configRegRomAddress + (Cat(emuCart.io.dataAccess.address(22, 2), "b00".U(2.W)) & configRegRomMask)
+        emuCart.io.dataAccess.dataRead := io.sdram.dataRead
           .asTypeOf(Vec(4, UInt(8.W)))(
-            daRegAddress(1, 0)
+            emuCart.io.dataAccess.address(1, 0)
           )
-        daValid := io.sdram.done
+        emuCart.io.dataAccess.valid := io.sdram.done
       }
     } .otherwise {
-      io.sram.read := !daRegWrite
-      io.sram.write := daRegWrite
-      io.sram.address := configRegRamAddress + (Cat(daRegAddress(16, 1), "b0".U(1.W)) & configRegRamMask)
-      io.sram.dataWrite := daRegDataWrite
-      io.sram.writeStrobe := Mux(daRegAddress(0), "b10".U(2.W), "b01".U(2.W))
-      daValid := io.sram.done
-      daDataRead := Mux(
-        daRegAddress(0),
+      io.sram.read := !emuCart.io.dataAccess.write
+      io.sram.write := emuCart.io.dataAccess.write
+      io.sram.address := configRegRamAddress + (Cat(emuCart.io.dataAccess.address(16, 1), "b0".U(1.W)) & configRegRamMask)
+      io.sram.dataWrite := emuCart.io.dataAccess.dataWrite
+      io.sram.writeStrobe := Mux(emuCart.io.dataAccess.address(0), "b10".U(2.W), "b01".U(2.W))
+      emuCart.io.dataAccess.valid := io.sram.done
+      emuCart.io.dataAccess.dataRead := Mux(
+        emuCart.io.dataAccess.address(0),
         io.sram.dataRead(15, 8),
         io.sram.dataRead(7, 0)
       )
+    }
+    when (emuCart.io.dataAccess.valid) {
+      emuCartBusy := false.B
+      emuCartDataRead := emuCart.io.dataAccess.dataRead
     }
   }
 

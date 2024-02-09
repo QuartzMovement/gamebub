@@ -195,7 +195,7 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
 
   // Cartridge access signals
   io.cartridge.enable := busMemEnable && (cartRomSelect || cartRamSelect)
-  io.cartridge.deadline := clockControl.io.clocker.tCycle === 3.U
+  io.cartridge.deadline := clockControl.io.lastClockCycle
   io.cartridge.write := busMemWrite
   io.cartridge.chipSelect := cartRomSelect
   io.cartridge.dataWrite := busDataWrite

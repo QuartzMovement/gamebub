@@ -58,12 +58,13 @@ class EmuCartridge(clockRate: Int) extends Module {
   val waitingForAccess = RegInit(false.B)
   val accessEnable = Wire(Bool())
 
-  when (accessEnable && io.tCycle === 1.U) {
+  when (io.dataAccess.enable && !RegNext(io.dataAccess.enable) && !io.dataAccess.valid) {
     waitingForAccess := true.B
   }
-  when (waitingForAccess && io.dataAccess.valid) {
+  when(waitingForAccess && io.dataAccess.valid) {
     waitingForAccess := false.B
   }
+
   io.waitingForAccess := waitingForAccess
   io.dataAccess.enable := accessEnable && io.tCycle > 0.U
 
