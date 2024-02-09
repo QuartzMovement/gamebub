@@ -20,6 +20,8 @@ class HandheldGameboy extends Module with HandheldModule {
   val configRegRomMask = RegInit(0.U(23.W))
   val configRegRamAddress = RegInit(0.U(19.W))
   val configRegRamMask = RegInit(0.U(17.W))
+  val statRegStalls = RegInit(0.U(32.W))
+  val statRegCycles = RegInit(0.U(32.W))
   io.mcuInterface <> RegisterMap(
     addressWidth = 16,
     dataWidth = 32,
@@ -29,6 +31,8 @@ class HandheldGameboy extends Module with HandheldModule {
       0x08 -> configRegRomMask,
       0x0C -> configRegRamAddress,
       0x10 -> configRegRamMask,
+      0x14 -> statRegStalls,
+      0x18 -> statRegCycles,
     )
   )
 
@@ -43,7 +47,15 @@ class HandheldGameboy extends Module with HandheldModule {
   // Gameboy clock control
   val waitingForCart = Wire(Bool())
   val cartStall = gameboy.io.cartridge.deadline && waitingForCart
-  gameboy.io.clockConfig.enable := io.enable && !cartStall
+  gameboy.io.clockConfig.enable := false.B
+  when (io.enable) {
+    when (cartStall) {
+      statRegStalls := statRegStalls + 1.U
+    }.otherwise {
+      gameboy.io.clockConfig.enable := true.B
+      statRegCycles := statRegCycles + 1.U
+    }
+  }
   gameboy.io.clockConfig.provide8Mhz := true.B
 
   gameboy.io.joypad.a := io.buttons.a
@@ -154,7 +166,7 @@ class HandheldGameboy extends Module with HandheldModule {
   val daRegBusy = RegInit(false.B)
   val daValid = WireDefault(false.B)
   val daDataRead = WireDefault(0.U(8.W))
-
+  
   emuCart.io.dataAccess.valid := false.B
   emuCart.io.dataAccess.dataRead := daRegDataRead
   when (!daRegBusy) {
