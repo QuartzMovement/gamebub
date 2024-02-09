@@ -65,7 +65,7 @@ class EmuCartridge(clockRate: Int) extends Module {
     waitingForAccess := false.B
   }
 
-  io.waitingForAccess := waitingForAccess
+  io.waitingForAccess := waitingForAccess && !io.dataAccess.valid
   io.dataAccess.enable := accessEnable && io.tCycle > 0.U
 
   val mbc = Module(new EmuMbc(clockRate))
