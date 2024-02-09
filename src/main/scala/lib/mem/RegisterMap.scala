@@ -11,6 +11,12 @@ object RegisterMap {
   def apply (addressWidth: Int, dataWidth: Int, entries: Seq[(Int, Data)]): MemoryInterface = {
     val byteWidth = dataWidth / 8
 
+    // Ensure registers are not too big.
+    for ((reg, i) <- entries.map(_._2).zipWithIndex) {
+      if (reg.getWidth > dataWidth) {
+        throw new IllegalArgumentException(f"entry $i (width ${reg.getWidth}) is larger than data width $dataWidth")
+      }
+    }
     // Ensure addresses are word-aligned.
     for ((addr, i) <- entries.map(_._1).zipWithIndex) {
       if (addr % byteWidth != 0) {
