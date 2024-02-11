@@ -138,7 +138,12 @@ class HandheldLink extends Bundle {
  * e.g. 8.3886 MHz for Gameboy.
  */
 class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
-  val sdramConfig = SdramConfig()
+  val sdramConfig = SdramController.Config(
+    clockFrequency = 8 * 1024 * 1024,
+    burstLength = 2,
+    timeRsc = 238, /* 2 clocks */
+    timeWr = 238, /* 2 clocks */
+  )
   val io = IO(new Bundle {
     /** Audio/video clock: 12.288 MHz */
     val clock_av = Input(Clock())
@@ -184,7 +189,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
     // SDRAM
     val sdramClock = Output(Clock()) // TODO: phase shift, faster?
-    val sdram = new SdramSignals(sdramConfig)
+    val sdram = new SdramController.Signals(sdramConfig)
   })
   val moduleReset = WireDefault(false.B)
   val module = withReset(moduleReset) {

@@ -133,6 +133,27 @@ def do_sram_test(max_address = 2**4, seed = 1234):
         if data != actual:
             print(f"mismatch at addr={i}, actual={actual}, expected={data}")
 
+
+def do_sdram_test(max_address = 1024, seed = 1234):
+    start_time = time.time_ns()
+    random.seed(seed)
+    chunk_size = 1024
+    for address in range(0, max_address, chunk_size):
+        data = bytes(random.getrandbits(8) for _ in range(chunk_size))
+        fpga.sdram_write(address, data)
+    duration = time.time_ns() - start_time
+    print(f"writing time(s)={duration / 1_000_000_000}")
+    start_time = time.time_ns()
+    random.seed(seed)
+    for address in range(0, max_address, chunk_size):
+        expected = bytes(random.getrandbits(8) for _ in range(chunk_size))
+        actual = fpga.sdram_read(address, chunk_size)
+        if expected != actual:
+            print(f"mismatch at addr={address}, actual={actual}, expected={expected}")
+    duration = time.time_ns() - start_time
+    print(f"reading time(s)={duration / 1_000_000_000}")
+
+
 class RomHeader:
     def __init__(self, rom_data: bytes) -> None:
         self.mbc = 0

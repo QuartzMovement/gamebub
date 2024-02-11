@@ -129,3 +129,15 @@ class FPGA:
         command = self._spi_command(read=True, word_size=16, byte_swap=True, auto_increment=True)
         return self.spi_read(command, mem_address, nbytes)
 
+    def sdram_write(self, address: int, data: bytes) -> None:
+        """Write a sequence of bytes to DRAM. Address is relative to DRAM start."""
+        mem_address = 0x2000_0000 | address
+        command = self._spi_command(read=False, word_size=32, byte_swap=True, auto_increment=True)
+        self.spi_write(command, mem_address, data)
+
+    def sdram_read(self, address: int, nbytes: int) -> bytes:
+        """Read a sequence of bytes from DRAM. Address is relative to DRAM start."""
+        mem_address = 0x2000_0000 | address
+        command = self._spi_command(read=True, word_size=32, byte_swap=True, auto_increment=True)
+        return self.spi_read(command, mem_address, nbytes)
+
