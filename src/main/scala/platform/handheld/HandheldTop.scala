@@ -208,8 +208,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   spi.io.signals.serialIn := io.mcuSpiDataIn(0)
   spi.io.signals.chipSelect := io.mcuSpiChipSelect
 
-  val tempRegister = RegInit(0.U(16.W))
-  val countRegister = RegInit(0.U(16.W))
   val controlRegister = RegInit(0.U(3.W))
   val buttonRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
 
@@ -217,10 +215,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     addressWidth = 16,
     dataWidth = 32,
     entries = Seq(
-      0x0 -> tempRegister,
-      0x4 -> controlRegister,
-      0x8 -> countRegister,
-      0xC -> buttonRegister,
+      0x0 -> controlRegister,
+      0x4 -> buttonRegister,
     )
   )
 

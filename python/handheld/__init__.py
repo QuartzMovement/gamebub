@@ -85,7 +85,7 @@ fpga = FPGA(
 )
 fpga.program()
 # Set FPGA submodule to running and out of reset.
-fpga.spi_write_u16(0x0000_0004, 0b11)
+fpga.spi_write_u32(0x0000_0000, 0b11)
 
 
 
@@ -204,7 +204,7 @@ class RomHeader:
 
 def load_rom(path = '/Tetris.gb', chunk_size=1024):
     # bit 0: pause, bit 1: reset
-    fpga.spi_write_u32(0x0000_0004, 0b00)
+    fpga.spi_write_u32(0x0000_0000, 0b00)
 
     rom_header = None
     print("Transferring ROM...")
@@ -251,7 +251,7 @@ def load_rom(path = '/Tetris.gb', chunk_size=1024):
             fpga.sram_write(i, b"\xFF" * 1024)
 
     # take out of reset, leave paused
-    fpga.spi_write_u32(0x0000_0004, 0b10)
+    fpga.spi_write_u32(0x0000_0000, 0b10)
 
     # configure emu cart
     config = rom_header.get_emu_cart_config()
@@ -262,7 +262,7 @@ def load_rom(path = '/Tetris.gb', chunk_size=1024):
     fpga.spi_write_u32(0xC000_0010, rom_header.ram_size - 1)  # ram mask
 
     # then go...
-    fpga.spi_write_u32(0x0000_0004, 0b11)
+    fpga.spi_write_u32(0x0000_0000, 0b11)
 
     return rom_header
 
