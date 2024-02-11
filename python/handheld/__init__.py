@@ -230,9 +230,9 @@ def load_fpga_sram(path = '/Tetris.gb', chunk_size=1024):
     config = rom_header.get_emu_cart_config()
     fpga.spi_write_u32(0xC000_0000, config)
     fpga.spi_write_u32(0xC000_0004, 0)  # rom address
-    fpga.spi_write_u32(0xC000_0008, rom_size - 1)  # rom mask
+    fpga.spi_write_u32(0xC000_0008, rom_header.rom_size - 1)  # rom mask
     fpga.spi_write_u32(0xC000_000C, ram_address_start)  # ram address
-    fpga.spi_write_u32(0xC000_0010, ram_size - 1)  # ram mask
+    fpga.spi_write_u32(0xC000_0010, rom_header.ram_size - 1)  # ram mask
 
     # then go...
     fpga.spi_write_u32(0x0000_0004, 0b11)
