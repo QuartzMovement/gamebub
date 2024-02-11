@@ -241,6 +241,9 @@ def load_fpga_sdram(path = '/Tetris.gb', chunk_size=1024):
             print(f"Done. len=${ram_size}")
     except:
         print("Not loading RAM.")
+        # Clear SRAM to 0s.
+        for i in range(ram_address_start, ram_address_start + rom_header.ram_size, 1024):
+            fpga.sram_write(i, b"\xFF" * 1024)
 
     # take out of reset, leave paused
     fpga.spi_write_u32(0x0000_0004, 0b10)
