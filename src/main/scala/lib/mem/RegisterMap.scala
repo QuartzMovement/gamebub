@@ -17,16 +17,20 @@ object RegisterMap {
         throw new IllegalArgumentException(f"entry $i (width ${reg.getWidth}) is larger than data width $dataWidth")
       }
     }
-    // Ensure addresses are word-aligned.
+    // Ensure addresses are word-aligned and in bounds.
     for ((addr, i) <- entries.map(_._1).zipWithIndex) {
       if (addr % byteWidth != 0) {
         throw new IllegalArgumentException(f"entry $i (at 0x$addr%x) is not aligned to $byteWidth bytes")
+      }
+      if (addr >= (1 << addressWidth)) {
+        throw new IllegalArgumentException(f"entry $i (at 0x$addr%x) is larger than address width $addressWidth")
       }
     }
     // Ensure addresses are unique.
     entries.map(_._1).groupBy(identity).collect { case (x, List(_, _, _*)) => x }.foreach(addr => {
       throw new IllegalArgumentException(f"address 0x$addr%x is used multiple times")
     })
+
 
     val interface = Wire(new MemoryInterface(addressWidth, dataWidth))
 

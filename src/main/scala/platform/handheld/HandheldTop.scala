@@ -209,13 +209,13 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val buttonRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
 
   val registerMap = RegisterMap(
-    addressWidth = 32,
-    dataWidth = 16,
+    addressWidth = 16,
+    dataWidth = 32,
     entries = Seq(
       0x0 -> tempRegister,
-      0x2 -> controlRegister,
-      0x4 -> countRegister,
-      0x6 -> buttonRegister,
+      0x4 -> controlRegister,
+      0x8 -> countRegister,
+      0xC -> buttonRegister,
     )
   )
 
