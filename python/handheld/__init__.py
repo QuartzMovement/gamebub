@@ -202,7 +202,7 @@ class RomHeader:
         value |= int(self.has_rumble) << 6
         return value
 
-def load_fpga_sdram(path = '/Tetris.gb', chunk_size=1024):
+def load_rom(path = '/Tetris.gb', chunk_size=1024):
     # bit 0: pause, bit 1: reset
     fpga.spi_write_u32(0x0000_0004, 0b00)
 
@@ -227,7 +227,12 @@ def load_fpga_sdram(path = '/Tetris.gb', chunk_size=1024):
     ram_address_start = 0b110_0000_0000_0000_0000
     ram_size = 0
     try:
-        with open(path[:-3] + ".sav", 'rb') as f:
+        ram_path = None
+        if path[-3:] == ".gb":
+            ram_path = path[:-3] + ".sav"
+        elif path[-4:] == ".gbc":
+            ram_path = path[:-4] + ".sav"
+        with open(ram_path, 'rb') as f:
             print("Loading RAM.")
             chunk_size = 256
             address = ram_address_start
@@ -238,7 +243,7 @@ def load_fpga_sdram(path = '/Tetris.gb', chunk_size=1024):
                 fpga.sram_write(address, data)
                 address += len(data)
                 ram_size += len(data)
-            print(f"Done. len=${ram_size}")
+            print(f"Done. len={ram_size}")
     except:
         print("Not loading RAM.")
         # Clear SRAM to 0s.
