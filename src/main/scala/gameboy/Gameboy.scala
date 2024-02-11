@@ -179,6 +179,7 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
     busDataWrite := DontCare
     oamDmaData := busDataRead
   }
+  io.cartridge.deadline := clockControl.io.lastClockCycle
   if (config.model.isCgb) {
     when (vramDma.io.active) {
       busAddress := vramDma.io.addressSource
@@ -195,7 +196,6 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
 
   // Cartridge access signals
   io.cartridge.enable := busMemEnable && (cartRomSelect || cartRamSelect)
-  io.cartridge.deadline := clockControl.io.lastClockCycle
   io.cartridge.write := busMemWrite
   io.cartridge.chipSelect := cartRomSelect
   io.cartridge.dataWrite := busDataWrite

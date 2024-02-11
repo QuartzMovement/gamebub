@@ -77,5 +77,6 @@ class ClockControl extends Module {
   io.clocker.pulseVramDma := io.clocker.enable && (counter(1, 0) === 3.U)
   io.clocker.counter8Mhz := counter(1, 0)
 
-  io.lastClockCycle := nextCounter === 0.U
+  // Should be true when the tCycle from the next counter wrap would go from 3 -> 0
+  io.lastClockCycle := (io.clocker.tCycle === 3.U) && (Mux(io.doubleSpeed, nextCounter(1, 0), nextCounter(2, 1)) === 0.U)
 }
