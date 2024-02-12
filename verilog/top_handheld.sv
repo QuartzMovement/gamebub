@@ -88,6 +88,9 @@ module top_handheld (
     logic clk_8mhz;
     logic pll0_locked;
     logic pll1_locked;
+    logic clk_sdram;
+
+    assign sdram_clk = clk_sdram;
 
     // Manually construct IBUF for 50Mhz input clock to share between two clocking wizards.
     wire clk_in_50mhz;
@@ -104,7 +107,8 @@ module top_handheld (
         .reset(pll_reset),
         .locked(pll0_locked),
         .clk_in_50mhz(clk_in_50mhz),
-        .clk_out_8mhz(clk_8mhz)
+        .clk_out_8mhz(clk_8mhz),
+        .clk_out_sdram(clk_sdram)
     );
 
     logic [7:0] inner_cart_bank0_in;
@@ -229,7 +233,7 @@ module top_handheld (
         .io_sramUbN(sram_ub_n),
         .io_sramLbN(sram_lb_n),
 
-        .io_sdramClock(sdram_clk),
+        .io_sdramClock(clk_sdram),
         .io_sdram_cke(sdram_cke),
         .io_sdram_cs(sdram_cs_n),
         .io_sdram_ras(sdram_ras_n),
@@ -553,7 +557,8 @@ endmodule
 //  Output     Output      Phase    Duty Cycle   Pk-to-Pk     Phase
 //   Clock     Freq (MHz)  (degrees)    (%)     Jitter (ps)  Error (ps)
 //----------------------------------------------------------------------------
-// clk_out_8mhz___8.38821______0.000______50.0______909.008____863.115
+// clk_out_8mhz___8.38816______0.000______50.0______343.098____147.672
+// clk_out_sdram__33.55263______0.000______50.0______259.466____147.672
 //
 //----------------------------------------------------------------------------
 // Input Clock   Freq (MHz)    Input Jitter (UI)
@@ -567,6 +572,7 @@ module clk_wiz_1_clk_wiz
  (// Clock in ports
   // Clock out ports
   output        clk_out_8mhz,
+  output        clk_out_sdram,
   // Status and control signals
   input         reset,
   output        locked,
@@ -576,7 +582,7 @@ module clk_wiz_1_clk_wiz
   //------------------------------------
 wire clk_in_50mhz_clk_wiz_1;
 wire clk_in2_clk_wiz_1;
-assign clk_in_50mhz_clk_wiz_1 = clk_in_50mhz;
+  assign clk_in_50mhz_clk_wiz_1 = clk_in_50mhz;
 
 
 
@@ -589,8 +595,8 @@ assign clk_in_50mhz_clk_wiz_1 = clk_in_50mhz;
   //    * Unused outputs are labeled unused
 
   wire        clk_out_8mhz_clk_wiz_1;
-  wire        clk_out2_clk_wiz_1;
-  wire        clk_out3_clk_wiz_1;
+  wire        clk_out_sdram_clk_wiz_1;
+  wire        clk_out_sdram90_clk_wiz_1;
   wire        clk_out4_clk_wiz_1;
   wire        clk_out5_clk_wiz_1;
   wire        clk_out6_clk_wiz_1;
@@ -604,7 +610,6 @@ assign clk_in_50mhz_clk_wiz_1 = clk_in_50mhz;
   wire        clkfbout_buf_clk_wiz_1;
   wire        clkfboutb_unused;
     wire clkout0b_unused;
-   wire clkout1_unused;
    wire clkout1b_unused;
    wire clkout2_unused;
    wire clkout2b_unused;
@@ -622,14 +627,18 @@ assign clk_in_50mhz_clk_wiz_1 = clk_in_50mhz;
     .CLKOUT4_CASCADE      ("FALSE"),
     .COMPENSATION         ("ZHOLD"),
     .STARTUP_WAIT         ("FALSE"),
-    .DIVCLK_DIVIDE        (5),
-    .CLKFBOUT_MULT_F      (60.500),
+    .DIVCLK_DIVIDE        (1),
+    .CLKFBOUT_MULT_F      (12.750),
     .CLKFBOUT_PHASE       (0.000),
     .CLKFBOUT_USE_FINE_PS ("FALSE"),
-    .CLKOUT0_DIVIDE_F     (72.125),
+    .CLKOUT0_DIVIDE_F     (76.000),
     .CLKOUT0_PHASE        (0.000),
     .CLKOUT0_DUTY_CYCLE   (0.5),
     .CLKOUT0_USE_FINE_PS  ("FALSE"),
+    .CLKOUT1_DIVIDE       (19),
+    .CLKOUT1_PHASE        (0.000),
+    .CLKOUT1_DUTY_CYCLE   (0.5),
+    .CLKOUT1_USE_FINE_PS  ("FALSE"),
     .CLKIN1_PERIOD        (20.000))
   mmcm_adv_inst
     // Output clocks
@@ -638,7 +647,7 @@ assign clk_in_50mhz_clk_wiz_1 = clk_in_50mhz;
     .CLKFBOUTB           (clkfboutb_unused),
     .CLKOUT0             (clk_out_8mhz_clk_wiz_1),
     .CLKOUT0B            (clkout0b_unused),
-    .CLKOUT1             (clkout1_unused),
+    .CLKOUT1             (clk_out_sdram_clk_wiz_1),
     .CLKOUT1B            (clkout1b_unused),
     .CLKOUT2             (clkout2_unused),
     .CLKOUT2B            (clkout2b_unused),
@@ -693,6 +702,10 @@ assign clk_in_50mhz_clk_wiz_1 = clk_in_50mhz;
    (.O   (clk_out_8mhz),
     .I   (clk_out_8mhz_clk_wiz_1));
 
+
+  BUFG clkout2_buf
+   (.O   (clk_out_sdram),
+    .I   (clk_out_sdram_clk_wiz_1));
 
 
 

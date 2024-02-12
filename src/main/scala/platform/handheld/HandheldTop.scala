@@ -2,7 +2,7 @@ package platform.handheld
 
 import chisel3._
 import chisel3.util._
-import lib.mem.{MemoryArbiter, MemoryInterface, MemoryMap, RegisterMap}
+import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, RegisterMap}
 import xilinx.xpm_cdc_handshake
 
 object HandheldTop extends App {
@@ -139,10 +139,10 @@ class HandheldLink extends Bundle {
  */
 class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val sdramConfig = SdramController.Config(
-    clockFrequency = 8 * 1024 * 1024,
+    clockFrequency = 32 * 1024 * 1024,
     burstLength = 2,
-    timeRsc = 238, /* 2 clocks */
-    timeWr = 238, /* 2 clocks */
+    timeRsc = 60, /* 2 clocks */
+    timeWr = 60, /* 2 clocks */
   )
   val io = IO(new Bundle {
     /** Audio/video clock: 12.288 MHz */
@@ -188,7 +188,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val sramLbN = Output(Bool())
 
     // SDRAM
-    val sdramClock = Output(Clock()) // TODO: phase shift, faster?
+    val sdramClock = Input(Clock())
     val sdram = new SdramController.Signals(sdramConfig)
   })
   val moduleReset = WireDefault(false.B)
@@ -274,10 +274,18 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // SDRAM
   val sdramArbiter = Module(new MemoryArbiter(addressWidth = 25, dataWidth = 32, n = 2))
   sdramArbiter.io.initiator(0) <> sdramSpiInterface
-  val sdram = Module(new SdramController(sdramConfig))
-  sdram.io.mem <> sdramArbiter.io.target
-  io.sdramClock := clock // TODO
+
+  val sdram = withClock(io.sdramClock) {
+    Module(new SdramController(sdramConfig))
+  }
   io.sdram <> sdram.io.signals
+
+  withClock(io.sdramClock) {
+    val cdc = Module(new MemoryCdc(addressWidth = 25, dataWidth = 32))
+    cdc.io.slowClock := clock
+    cdc.io.initiator <> sdramArbiter.io.target
+    cdc.io.target <> sdram.io.mem
+  }
 
   //////////////////////////////////
   // Video
