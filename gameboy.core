@@ -21,20 +21,20 @@ filesets:
 
   pynq_z2:
     files:
-      - verilog/pynq_z2.xdc : {file_type : xdc}
-      - verilog/zynq_ps.tcl : {file_type : tclSource}
-      - verilog/top_pynq_z2.sv : {file_type : systemVerilogSource}
+      - verilog/pynq_z2/pynq_z2.xdc : {file_type : xdc}
+      - verilog/pynq_z2/zynq_ps.tcl : {file_type : tclSource}
+      - verilog/pynq_z2/top_pynq_z2.sv : {file_type : systemVerilogSource}
 
   pynq_cartridge_access:
     files:
-      - verilog/pynq_z2.xdc : {file_type : xdc}
-      - verilog/pynq_cartridge_access_ps.tcl : {file_type : tclSource}
-      - verilog/top_pynq_cartridge_access.sv : {file_type : systemVerilogSource}
+      - verilog/pynq_z2/pynq_z2.xdc : {file_type : xdc}
+      - verilog/pynq_z2/pynq_cartridge_access_ps.tcl : {file_type : tclSource}
+      - verilog/pynq_z2/top_pynq_cartridge_access.sv : {file_type : systemVerilogSource}
 
   handheld:
     files:
-      - verilog/handheld_rev_a.xdc : {file_type : xdc}
-      - verilog/top_handheld.sv : {file_type : systemVerilogSource}
+      - verilog/handheld/rev_a.xdc : {file_type : xdc}
+      - verilog/handheld/top.sv : {file_type : systemVerilogSource}
 
 generate:
   gameboy:
