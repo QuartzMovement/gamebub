@@ -16,6 +16,12 @@ class SpiReceiverFifo(
 
     /** Interface for SPI receiver to access device memory. */
     val mem = Flipped(new MemoryInterface(addressWidth, dataWidth))
+
+    /** Whether a request FIFO overflow happened in the current transaction. */
+    val debugRequestOverflow = Output(Bool())
+
+    /** Whether a response FIFO underflow happened in the current transaction. */
+    val debugResponseUnderflow = Output(Bool())
   })
 
   class FifoRequest extends Bundle {
@@ -54,6 +60,7 @@ class SpiReceiverFifo(
   fifoRequest.io.readEnable := false.B
   fifoRequest.io.dataIn := DontCare
   fifoRequest.io.reset := false.B
+  val fifoRequestOverflow = RegInit(false.B)
   val fifoResponse = Module(new XpmFifoAsync(UInt(32.W), depth = 512))
   fifoResponse.io.writeClock := systemClock
   fifoResponse.io.readClock := spiClock
@@ -61,6 +68,7 @@ class SpiReceiverFifo(
   fifoResponse.io.readEnable := false.B
   fifoResponse.io.dataIn := DontCare
   fifoResponse.io.reset := false.B
+  val fifoResponseUnderflow = RegInit(false.B)
 
   // Synchronized signals
   val serialClock = RegNext(RegNext(io.signals.serialClock))
@@ -92,6 +100,8 @@ class SpiReceiverFifo(
     when(RegNext(chipSelect)) {
       state := State.writeCommand
       shiftInCounter := commandWidth.U
+      fifoRequestOverflow := false.B
+      fifoResponseUnderflow := false.B
     }
 
     // Rising clock: sample data
@@ -111,22 +121,32 @@ class SpiReceiverFifo(
         request.data := DontCare
         fifoRequest.io.dataIn.isStart := false.B
         fifoRequest.io.dataIn.inner := request.asUInt
-        fifoRequest.io.writeEnable := true.B
+        when (fifoRequest.io.full) {
+          fifoRequestOverflow := true.B
+        } .otherwise {
+          fifoRequest.io.writeEnable := true.B
+        }
 
         when (regDummyTimer === 0.U) {
-          // XXX: maybe do something if it's empty? indicate an error?
-          fifoResponse.io.readEnable := true.B
-          val data = fifoResponse.io.dataOut
+          // Read a real word.
+          when (fifoResponse.io.empty) {
+            shiftOutReg := "hFFFFFFFF".U
+            fifoResponseUnderflow := true.B
+          } .otherwise {
+            // There's a response word present.
+            fifoResponse.io.readEnable := true.B
+            val data = fifoResponse.io.dataOut
 
-          shiftOutReg := Mux(regCommand.byteSwap,
-            VecInit(Seq(
-              data(7, 0),
-              Cat(data(7, 0), data(15, 8)),
-              Cat(data(7, 0), data(15, 8), data(23, 16), data(31, 24)),
-              data, // XXX: 64-bit not implemented
-            ))(regCommand.wordSize),
-            data
-          )
+            shiftOutReg := Mux(regCommand.byteSwap,
+              VecInit(Seq(
+                data(7, 0),
+                Cat(data(7, 0), data(15, 8)),
+                Cat(data(7, 0), data(15, 8), data(23, 16), data(31, 24)),
+                data, // XXX: 64-bit not implemented
+              ))(regCommand.wordSize),
+              data
+            )
+          }
         } .otherwise {
           shiftOutReg := "hFFFFFFFF".U
           regDummyTimer := regDummyTimer - 1.U
@@ -160,7 +180,11 @@ class SpiReceiverFifo(
           request.address := address
           fifoRequest.io.dataIn.isStart := true.B
           fifoRequest.io.dataIn.inner := request.asUInt
-          fifoRequest.io.writeEnable := true.B
+          when (fifoRequest.io.full) {
+            fifoRequestOverflow := true.B
+          } .otherwise {
+            fifoRequest.io.writeEnable := true.B
+          }
 
           when(regCommand.read) {
             state := State.readData
@@ -187,7 +211,11 @@ class SpiReceiverFifo(
           )
           fifoRequest.io.dataIn.isStart := false.B
           fifoRequest.io.dataIn.inner := request.asUInt
-          fifoRequest.io.writeEnable := true.B
+          when (fifoRequest.io.full) {
+            fifoRequestOverflow := true.B
+          } .otherwise {
+            fifoRequest.io.writeEnable := true.B
+          }
 
           shiftInCounter := wordSizeInBits
         }
@@ -260,4 +288,7 @@ class SpiReceiverFifo(
     fifoResponse.io.reset := true.B
     regSysPendingReset := false.B
   }
+
+  io.debugRequestOverflow := RegNext(RegNext(fifoRequestOverflow))
+  io.debugResponseUnderflow := RegNext(RegNext(fifoResponseUnderflow))
 }

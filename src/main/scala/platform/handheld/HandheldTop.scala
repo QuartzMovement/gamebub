@@ -210,6 +210,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
   val controlRegister = RegInit(0.U(3.W))
   val buttonRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
+  val spiStatusRegister = RegInit(0.U.asTypeOf(new Bundle() {
+    val requestFifoOverflow = Bool()
+    val responseFifoUnderflow = Bool()
+  }))
 
   val registerMap = RegisterMap(
     addressWidth = 16,
@@ -217,13 +221,13 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     entries = Seq(
       0x0 -> controlRegister,
       0x4 -> buttonRegister,
+      0x8 -> spiStatusRegister,
     )
   )
 
   val sramSpiInterface = Wire(new MemoryInterface(addressWidth = 19, dataWidth = 16))
   val sdramSpiInterface = Wire(new MemoryInterface(addressWidth = 25, dataWidth = 32))
   val moduleMcuInterface = Wire(new MemoryInterface(addressWidth = 30, dataWidth = 32))
-
   spi.io.mem <> MemoryMap(
     addressWidth = 32,
     dataWidth = 32,
@@ -235,6 +239,12 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     ))
 
   moduleReset := !controlRegister(1)
+  when (spi.io.debugRequestOverflow) {
+    spiStatusRegister.requestFifoOverflow := true.B
+  }
+  when (spi.io.debugResponseUnderflow) {
+    spiStatusRegister.responseFifoUnderflow := true.B
+  }
 
   //////////////////////////////////
   // Memory
