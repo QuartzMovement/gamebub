@@ -35,6 +35,7 @@ filesets:
     files:
       - verilog/handheld/rev_a.xdc : {file_type : xdc}
       - verilog/handheld/top.sv : {file_type : systemVerilogSource}
+      - verilog/handheld/clk_wiz_system_clk_wiz.v : {file_type : verilogSource}
 
 generate:
   gameboy:
