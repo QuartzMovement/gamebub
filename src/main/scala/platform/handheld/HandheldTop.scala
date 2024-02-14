@@ -201,6 +201,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     Module(genT)
   }
 
+  io.pmod.dir := "b1111".U
+  io.pmod.out := Cat(clock.asBool, io.mcuSpiChipSelect, io.clockSpiPowerDown, io.clockSpiLocked)
+
   //////////////////////////////////
   // MCU Communication
   //////////////////////////////////
@@ -395,7 +398,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   module.io.enable := controlRegister(0)
   io.vibrate := (module.io.enable && module.io.vibrate) || controlRegister(2)
   io.link <> module.io.link
-  io.pmod <> module.io.pmod
+//  io.pmod <> module.io.pmod
+  module.io.pmod.in := 0.U
   module.io.mcuInterface <> moduleMcuInterface
 
   // Buttons must be synchronized and inverted.

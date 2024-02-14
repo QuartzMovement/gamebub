@@ -3,6 +3,7 @@ package platform.handheld
 import chisel3._
 import chisel3.util._
 import lib.mem.MemoryInterface
+import lib.util.ResetSynchronizer
 import xilinx.{XpmCdcSingle, XpmFifoAsync}
 
 class SpiReceiverFifo(
@@ -55,10 +56,11 @@ class SpiReceiverFifo(
     val readData = Value
   }
 
-  // FIFOs
-  // Request is SPI -> System, Response is System -> SPI
   val spiClock = io.clockSpi
   val systemClock = clock
+
+  // FIFOs
+  // Request is SPI -> System, Response is System -> SPI
   val fifoRequest = Module(new XpmFifoAsync(new FifoRequest, 512))
   fifoRequest.io.writeClock := spiClock
   fifoRequest.io.readClock := systemClock
@@ -77,74 +79,145 @@ class SpiReceiverFifo(
   val fifoRequestOverflow = withClock(spiClock)(Reg(Bool()))
 
   withClock(spiClock) {
-    // Synchronized signals
-    val serialClock = RegNext(RegNext(io.signals.serialClock))
-    val serialIn = RegNext(RegNext(io.signals.serialIn))
-    val chipSelect = RegNext(RegNext(io.signals.chipSelect))
 
-    // SPI State
-    val shiftRegisterLength = commandWidth.max(addressWidth).max(dataWidth)
-    val state = RegInit(State.init)
-    val shiftInReg = Reg(UInt(shiftRegisterLength.W))
-    val shiftInCounter = Reg(UInt((log2Ceil(shiftRegisterLength) + 1).W))
-    val shiftOutReg = Reg(UInt(shiftRegisterLength.W))
-    val shiftOutCounter = Reg(UInt((log2Ceil(shiftRegisterLength) + 1).W))
-    val regCommand = Reg(new SpiCommand)
-    val regDummyTimer = Reg(UInt((log2Ceil(dummyBytes) + 1).W))
+    val spiReset = ResetSynchronizer((!io.clockSpiLocked).asAsyncReset)
+    withReset(spiReset) {
+      // Synchronized signals
+      val serialClock = RegNext(RegNext(io.signals.serialClock))
+      val serialIn = RegNext(RegNext(io.signals.serialIn))
+      val chipSelect = RegNext(RegNext(io.signals.chipSelect))
 
-    val wordSizeInBits = (8.U << regCommand.wordSize).asUInt
+      // SPI State
+      val shiftRegisterLength = commandWidth.max(addressWidth).max(dataWidth)
+      val state = RegInit(State.init)
+      val shiftInReg = Reg(UInt(shiftRegisterLength.W))
+      val shiftInCounter = Reg(UInt((log2Ceil(shiftRegisterLength) + 1).W))
+      val shiftOutReg = Reg(UInt(shiftRegisterLength.W))
+      val shiftOutCounter = Reg(UInt((log2Ceil(shiftRegisterLength) + 1).W))
+      val regCommand = Reg(new SpiCommand)
+      val regDummyTimer = Reg(UInt((log2Ceil(dummyBytes) + 1).W))
 
-    // SPI I/O
-    io.signals.serialOut := VecInit(Seq(
-      shiftOutReg(7), shiftOutReg(15), shiftOutReg(31), shiftOutReg(31),
-    ))(regCommand.wordSize)
+      val wordSizeInBits = (8.U << regCommand.wordSize).asUInt
 
-    val prevSerialClock = RegNext(serialClock)
-    val risingClock = serialClock && !prevSerialClock
-    val fallingClock = !serialClock && prevSerialClock
-    when (!chipSelect) {
-      // Chip activation: nCS falling edge
-      when(RegNext(chipSelect)) {
-        state := State.writeCommand
-        shiftInCounter := commandWidth.U
-        fifoRequestOverflow := false.B
-        fifoResponseUnderflow := false.B
-      }
+      // When true, keeps the fast clock powered up even if nCS goes high.
+      val keepAlive = RegInit(false.B)
+      io.clockSpiPowerDown := io.signals.chipSelect && !keepAlive
 
-      // Rising clock: sample data
-      when(risingClock) {
-        shiftInReg := Cat(shiftInReg, serialIn)
-        shiftInCounter := shiftInCounter - 1.U
-      }
-      // Falling clock: shift out data
-      when (fallingClock) {
-        when (state === State.readData && shiftOutCounter === 0.U) {
-          // Read the next data.
+      // SPI I/O
+      io.signals.serialOut := VecInit(Seq(
+        shiftOutReg(7), shiftOutReg(15), shiftOutReg(31), shiftOutReg(31),
+      ))(regCommand.wordSize)
 
-          // Push read request to FIFO.
-          val request = Wire(new FifoRequestContinue)
-          request.unused := DontCare
-          request.autoincrement := regCommand.autoIncrement
-          request.data := DontCare
-          fifoRequest.io.dataIn.isStart := false.B
-          fifoRequest.io.dataIn.inner := request.asUInt
-          when (fifoRequest.io.full) {
-            fifoRequestOverflow := true.B
-          } .otherwise {
-            fifoRequest.io.writeEnable := true.B
-          }
+      val prevSerialClock = RegNext(serialClock)
+      val risingClock = serialClock && !prevSerialClock
+      val fallingClock = !serialClock && prevSerialClock
+      when(!chipSelect) {
+        // Chip activation: nCS falling edge
+        when(RegNext(chipSelect, true.B)) {
+          state := State.writeCommand
+          shiftInCounter := commandWidth.U
+          fifoRequestOverflow := false.B
+          fifoResponseUnderflow := false.B
+          keepAlive := true.B
+        }
 
-          when (regDummyTimer === 0.U) {
-            // Read a real word.
-            when (fifoResponse.io.empty) {
+        // Rising clock: sample data
+        when(risingClock) {
+          shiftInReg := Cat(shiftInReg, serialIn)
+          shiftInCounter := shiftInCounter - 1.U
+        }
+        // Falling clock: shift out data
+        when(fallingClock) {
+          when(state === State.readData && shiftOutCounter === 0.U) {
+            // Read the next data.
+
+            // Push read request to FIFO.
+            val request = Wire(new FifoRequestContinue)
+            request.unused := DontCare
+            request.autoincrement := regCommand.autoIncrement
+            request.data := DontCare
+            fifoRequest.io.dataIn.isStart := false.B
+            fifoRequest.io.dataIn.inner := request.asUInt
+            when(fifoRequest.io.full) {
+              fifoRequestOverflow := true.B
+            }.otherwise {
+              fifoRequest.io.writeEnable := true.B
+            }
+
+            when(regDummyTimer === 0.U) {
+              // Read a real word.
+              when(fifoResponse.io.empty) {
+                shiftOutReg := "hFFFFFFFF".U
+                fifoResponseUnderflow := true.B
+              }.otherwise {
+                // There's a response word present.
+                fifoResponse.io.readEnable := true.B
+                val data = fifoResponse.io.dataOut
+
+                shiftOutReg := Mux(regCommand.byteSwap,
+                  VecInit(Seq(
+                    data(7, 0),
+                    Cat(data(7, 0), data(15, 8)),
+                    Cat(data(7, 0), data(15, 8), data(23, 16), data(31, 24)),
+                    data, // XXX: 64-bit not implemented
+                  ))(regCommand.wordSize),
+                  data
+                )
+              }
+            }.otherwise {
               shiftOutReg := "hFFFFFFFF".U
-              fifoResponseUnderflow := true.B
-            } .otherwise {
-              // There's a response word present.
-              fifoResponse.io.readEnable := true.B
-              val data = fifoResponse.io.dataOut
+              regDummyTimer := regDummyTimer - 1.U
+            }
 
-              shiftOutReg := Mux(regCommand.byteSwap,
+            shiftOutCounter := wordSizeInBits - 1.U
+          }.otherwise {
+            shiftOutReg := shiftOutReg << 1
+            shiftOutCounter := shiftOutCounter - 1.U
+          }
+        }
+
+        when(shiftInCounter === 0.U) {
+          switch(state) {
+            is(State.writeCommand) {
+              // Finished writing command
+              regCommand := shiftInReg.asTypeOf(new SpiCommand)
+              state := State.writeAddress
+              shiftInCounter := addressWidth.U
+            }
+            is(State.writeAddress) {
+              // Finished writing address.
+              val address = shiftInReg
+              shiftInCounter := wordSizeInBits
+              shiftOutCounter := 0.U
+
+              // Push start transfer to request FIFO.
+              val request = Wire(new FifoRequestStart)
+              request.write := !regCommand.read
+              request.wordSize := regCommand.wordSize
+              request.address := address
+              fifoRequest.io.dataIn.isStart := true.B
+              fifoRequest.io.dataIn.inner := request.asUInt
+              when(fifoRequest.io.full) {
+                fifoRequestOverflow := true.B
+              }.otherwise {
+                fifoRequest.io.writeEnable := true.B
+              }
+
+              when(regCommand.read) {
+                state := State.readData
+                regDummyTimer := (dummyBytes.U >> regCommand.wordSize)
+              }.otherwise {
+                state := State.writeData
+              }
+            }
+            is(State.writeData) {
+              // Finished writing data.
+              val data = shiftInReg
+
+              val request = Wire(new FifoRequestContinue)
+              request.unused := DontCare
+              request.autoincrement := regCommand.autoIncrement
+              request.data := Mux(regCommand.byteSwap,
                 VecInit(Seq(
                   data(7, 0),
                   Cat(data(7, 0), data(15, 8)),
@@ -153,87 +226,34 @@ class SpiReceiverFifo(
                 ))(regCommand.wordSize),
                 data
               )
+              fifoRequest.io.dataIn.isStart := false.B
+              fifoRequest.io.dataIn.inner := request.asUInt
+              when(fifoRequest.io.full) {
+                fifoRequestOverflow := true.B
+              }.otherwise {
+                fifoRequest.io.writeEnable := true.B
+              }
+
+              shiftInCounter := wordSizeInBits
             }
-          } .otherwise {
-            shiftOutReg := "hFFFFFFFF".U
-            regDummyTimer := regDummyTimer - 1.U
-          }
-
-          shiftOutCounter := wordSizeInBits - 1.U
-        } .otherwise {
-          shiftOutReg := shiftOutReg << 1
-          shiftOutCounter := shiftOutCounter - 1.U
-        }
-      }
-
-      when(shiftInCounter === 0.U) {
-        switch(state) {
-          is(State.writeCommand) {
-            // Finished writing command
-            regCommand := shiftInReg.asTypeOf(new SpiCommand)
-            state := State.writeAddress
-            shiftInCounter := addressWidth.U
-          }
-          is(State.writeAddress) {
-            // Finished writing address.
-            val address = shiftInReg
-            shiftInCounter := wordSizeInBits
-            shiftOutCounter := 0.U
-
-            // Push start transfer to request FIFO.
-            val request = Wire(new FifoRequestStart)
-            request.write := !regCommand.read
-            request.wordSize := regCommand.wordSize
-            request.address := address
-            fifoRequest.io.dataIn.isStart := true.B
-            fifoRequest.io.dataIn.inner := request.asUInt
-            when (fifoRequest.io.full) {
-              fifoRequestOverflow := true.B
-            } .otherwise {
-              fifoRequest.io.writeEnable := true.B
-            }
-
-            when(regCommand.read) {
-              state := State.readData
-              regDummyTimer := (dummyBytes.U >> regCommand.wordSize)
-            } .otherwise {
-              state := State.writeData
-            }
-          }
-          is(State.writeData) {
-            // Finished writing data.
-            val data = shiftInReg
-
-            val request = Wire(new FifoRequestContinue)
-            request.unused := DontCare
-            request.autoincrement := regCommand.autoIncrement
-            request.data := Mux(regCommand.byteSwap,
-              VecInit(Seq(
-                data(7, 0),
-                Cat(data(7, 0), data(15, 8)),
-                Cat(data(7, 0), data(15, 8), data(23, 16), data(31, 24)),
-                data, // XXX: 64-bit not implemented
-              ))(regCommand.wordSize),
-              data
-            )
-            fifoRequest.io.dataIn.isStart := false.B
-            fifoRequest.io.dataIn.inner := request.asUInt
-            when (fifoRequest.io.full) {
-              fifoRequestOverflow := true.B
-            } .otherwise {
-              fifoRequest.io.writeEnable := true.B
-            }
-
-            shiftInCounter := wordSizeInBits
           }
         }
+      }.otherwise {
+        state := State.init
+
+        // Start resetting request FIFO before turning off keepAlive.
+        // TODO don't do this until giving request FIFO a chance to drain (send a bit signal back?)
+        val startedReset = RegInit(false.B)
+        when(!startedReset || !fifoRequest.io.writeResetBusy) {
+          fifoRequest.io.reset := true.B
+          startedReset := true.B
+        }
+        when(startedReset && !fifoRequest.io.writeResetBusy) {
+          // Reset complete, turn off clock.
+          keepAlive := false.B
+        }
       }
-    } .otherwise {
-      state := State.init
     }
-
-    // TODO handle power down
-    io.clockSpiPowerDown := false.B
   }
 
   /**
@@ -252,7 +272,7 @@ class SpiReceiverFifo(
   io.mem.dataWrite := DontCare
   io.mem.writeStrobe := DontCare
 
-  when (!fifoRequest.io.empty) {
+  when (!fifoRequest.io.empty && !fifoRequest.io.readResetBusy) {
     when (fifoRequest.io.dataOut.isStart) {
       val request = fifoRequest.io.dataOut.inner.asTypeOf(new FifoRequestStart)
       regSysAddress := request.address
