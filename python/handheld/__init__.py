@@ -50,6 +50,11 @@ fuel_gauge = MAX17048(i2c)
 # P0: [R, X, Y, A, B, nHDMI_HPD, n/a, n/a]
 # P1: [n/a, L, Up, Right, Left, Down, Select, Start]
 io_expander = TCA9535(i2c)
+io_expander._read_reg(0)
+io_expander._read_reg(1)
+
+# On IMU, change IRQ to active-low open-drain.
+i2c.writeto_mem(0x6A, 0x12, b"\x00\x10")
 
 print("Initializing LCD")
 lcd = ILI9488(lambda: spi(10_000_000), pin_rst=lcd_reset, pin_cs=lcd_cs, pin_dc=lcd_dc)
