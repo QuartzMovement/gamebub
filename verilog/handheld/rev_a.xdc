@@ -14,6 +14,7 @@ set_property CONFIG_VOLTAGE 3.3 [current_design]
 # Clock signal
 set_property -dict { PACKAGE_PIN E3     IOSTANDARD LVCMOS33 } [get_ports { clk_50mhz }];
 create_clock -add -name sys_clk_pin -period 20.00 -waveform {0 10} [get_ports { clk_50mhz }];
+set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets clk_in_50mhz]
 
 ########################################
 # Cartridge Slot

@@ -81,7 +81,7 @@ fpga = FPGA(
     fpga_init_b,
     fpga_spi_cs,
     program_spi = lambda: spi(80_000_000),
-    fpga_spi = lambda: spi(1_000_000),
+    fpga_spi = lambda: spi(20_000_000),
 )
 fpga.program()
 # Set FPGA submodule to running and out of reset.

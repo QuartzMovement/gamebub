@@ -87,6 +87,9 @@ module top_handheld (
     logic clk_sys;
     logic clk_sdram;
     logic clk_av;
+    logic clk_spi;
+    logic clk_spi_locked;
+    logic clk_spi_power_down;
 
     assign sdram_clk = clk_sdram;
 
@@ -102,6 +105,13 @@ module top_handheld (
         .clk_out_sys(clk_sys),
         .clk_out_sdram(clk_sdram),
         .clk_out_av(clk_av)
+    );
+    clk_wiz_spi_clk_wiz clk_wiz_spi(
+        .reset(pll_reset),
+        .locked(clk_spi_locked),
+        .power_down(clk_spi_power_down),
+        .clk_in_50mhz(clk_in_50mhz),
+        .clk_out_spi(clk_spi)
     );
 
     logic [7:0] inner_cart_bank0_in;
@@ -148,6 +158,10 @@ module top_handheld (
         .clock(clk_sys),
         .reset(reset),
         .io_clock_av(clk_av),
+
+        .io_clockSpi(clk_spi),
+        .io_clockSpiLocked(clk_spi_locked),
+        .io_clockSpiPowerDown(clk_spi_power_down),
 
         .io_mcuIrq(inner_mcu_irq),
         .io_mcuSpiChipSelect(mcu_spi_cs_n),

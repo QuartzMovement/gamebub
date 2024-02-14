@@ -8,8 +8,8 @@ import xilinx.xpm_cdc_handshake
 object HandheldTop extends App {
 
   emitVerilog(new HandheldTop(
-    new HandheldGameboy
-//    new HandheldTester
+//    new HandheldGameboy
+    new HandheldTester
   ), args)
 }
 
@@ -148,6 +148,11 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     /** Audio/video clock: 12.288 MHz */
     val clock_av = Input(Clock())
 
+    /** SPI clocking */
+    val clockSpi = Input(Clock())
+    val clockSpiLocked = Input(Bool())
+    val clockSpiPowerDown = Output(Bool())
+
     /** MCU interrupt: true to pull it low (active) */
     val mcuIrq = Output(Bool())
     val mcuSpiChipSelect = Input(Bool())
@@ -201,6 +206,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   //////////////////////////////////
   // D0: PICO, D1: POCI
   val spi = Module(new SpiReceiverFifo())
+  spi.io.clockSpi := io.clockSpi
+  spi.io.clockSpiLocked := io.clockSpiLocked
+  io.clockSpiPowerDown := spi.io.clockSpiPowerDown
   io.mcuIrq := false.B
   io.mcuSpiDataDir := Mux(io.mcuSpiChipSelect, 0.U, "b0010".U)
   io.mcuSpiDataOut := Cat(0.U(2.W), spi.io.signals.serialOut, 0.U(1.W))
