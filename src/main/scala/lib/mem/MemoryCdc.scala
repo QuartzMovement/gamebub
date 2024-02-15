@@ -32,8 +32,7 @@ class MemoryCdc(addressWidth: Int, dataWidth: Int) extends Module {
   when (io.target.done) {
     regDone := true.B
     // TODO should we register dataRead too?
-  }
-  when (slowEdge) {
+  } .elsewhen (slowEdge) {
     // The slow domain has seen the "done" signal.
     regDone := false.B
   }
