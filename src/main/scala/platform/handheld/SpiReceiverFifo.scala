@@ -241,15 +241,9 @@ class SpiReceiverFifo(
       }.otherwise {
         state := State.init
 
-        // Start resetting request FIFO before turning off keepAlive.
-        // TODO don't do this until giving request FIFO a chance to drain (send a bit signal back?)
-        val startedReset = RegInit(false.B)
-        when(!startedReset || !fifoRequest.io.writeResetBusy) {
-          fifoRequest.io.reset := true.B
-          startedReset := true.B
-        }
-        when(startedReset && !fifoRequest.io.writeResetBusy) {
-          // Reset complete, turn off clock.
+        // Don't turn off the SPI clock PLL until the request FIFO has been drained.
+        val fifoRequestEmpty = XpmCdcSingle(clock, fifoRequest.io.empty)
+        when (fifoRequestEmpty) {
           keepAlive := false.B
         }
       }
