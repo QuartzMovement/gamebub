@@ -9,11 +9,16 @@ from .tlv320dac3101 import TLV320DAC3101
 from .fpga import FPGA
 from .tca9535 import TCA9535
 
+pin_btn_home = Pin(0, Pin.IN)
+pin_power_switch_n = Pin(1, Pin.IN)  # in/out
+mcu_irq = Pin(2, Pin.IN)
+status_led = Pin(3, Pin.OUT)
+pin_btn_vol_up = Pin(4, Pin.IN)
+pin_btn_vol_down = Pin(5, Pin.IN)
 lcd_backlight = Pin(6, Pin.OUT)
 lcd_reset = Pin(7, Pin.OUT)
 lcd_cs = Pin(15, Pin.OUT)
 lcd_dc = Pin(16, Pin.OUT)
-status_led = Pin(3, Pin.OUT)
 dac_reset = Pin(40, Pin.OUT)
 fpga_power = Pin(46, Pin.OUT)
 fpga_done = Pin(17, Pin.IN)
@@ -21,8 +26,13 @@ fpga_program_b = Pin(18, Pin.OPEN_DRAIN, value=1)
 fpga_init_b = Pin(8, Pin.IN)
 fpga_spi_cs = Pin(10, Pin.OUT)
 pin_vbus_pgood_n = Pin(41, Pin.IN)
-pin_chg = Pin(42, Pin.IN)
-mcu_irq = Pin(2, Pin.IN)
+pin_batt_chg = Pin(42, Pin.IN)
+pin_sd_detect = Pin(37, Pin.IN)
+
+pin_btn_home.irq(handler = lambda _: print("IRQ: home"))
+pin_btn_vol_up.irq(handler = lambda _: print("IRQ: volume up"))
+pin_btn_vol_down.irq(handler = lambda _: print("IRQ: volume down"))
+pin_power_switch_n.irq(handler = lambda _: print("IRQ: power"))
 
 # BUG (Rev A): FPGA can interfere with LCD SPI, also using LCD SPI while FPGA is unpowered probably isn't great
 fpga_power.value(1)
