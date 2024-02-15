@@ -201,9 +201,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     Module(genT)
   }
 
-  io.pmod.dir := "b1111".U
-  io.pmod.out := Cat(clock.asBool, io.mcuSpiChipSelect, io.clockSpiPowerDown, io.clockSpiLocked)
-
   //////////////////////////////////
   // MCU Communication
   //////////////////////////////////
@@ -256,6 +253,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   when (spi.io.debugResponseUnderflow) {
     spiStatusRegister.responseFifoUnderflow := true.B
   }
+
+
+  io.pmod.dir := "b1111".U
+  io.pmod.out := Cat(clock.asBool, spi.io.mem.read || spi.io.mem.write, spi.io.mem.done, spiStatusRegister.requestFifoOverflow || spiStatusRegister.responseFifoUnderflow)
 
   //////////////////////////////////
   // Memory
