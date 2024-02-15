@@ -342,12 +342,13 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val videoScale = 2
     val videoOffsetX = (screenWidth - (videoWidth * videoScale)) / 2
     val videoOffsetY = (screenHeight - (videoHeight * videoScale)) / 2
-    val framebufferReadDelay = 2 // 2 cycles to read from the framebuffer
+    val framebufferReadDelay = 3 // 3 cycles to read from the framebuffer
     val framebufferReadAddress =
       (((dpiY - videoOffsetY.U(16.W) + framebufferReadDelay.U(16.W)) / videoScale.U(16.W)) * videoWidth.U(16.W)) +
         ((dpiX - videoOffsetX.U(16.W)) / videoScale.U)
     // Buffering the read allows this to be a block ram instead of distributed ram
-    val framebufferRead = RegNext(framebuffer.read(framebufferReadAddress, io.clock_av))
+    // and an additional output buffer allows Vivado to improve timing.
+    val framebufferRead = RegNext(RegNext(framebuffer.read(framebufferReadAddress, io.clock_av)))
     when (
       dpiX >= videoOffsetX.U(16.W) &&
         dpiX < (videoOffsetX + (videoWidth * videoScale)).U(16.W) &&
