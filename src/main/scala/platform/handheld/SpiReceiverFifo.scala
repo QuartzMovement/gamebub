@@ -10,7 +10,7 @@ class SpiReceiverFifo(
   commandWidth: Int = 8,
   addressWidth: Int = 32,
   dataWidth: Int = 32,
-  dummyBytes: Int = 4,
+  dummyBytes: Int = 8,
 ) extends Module {
   val io = IO(new Bundle {
     val signals = new SpiSignals

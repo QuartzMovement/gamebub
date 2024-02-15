@@ -4,7 +4,7 @@ import deflate
 from machine import Pin, SPI
 
 class FPGA:
-    SPI_DUMMY_BYTES: int = 4
+    SPI_DUMMY_BYTES: int = 8
 
     def __init__(
         self,
