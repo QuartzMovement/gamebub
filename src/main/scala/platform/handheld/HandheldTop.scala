@@ -3,7 +3,7 @@ package platform.handheld
 import chisel3._
 import chisel3.util._
 import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, RegisterMap}
-import xilinx.xpm_cdc_handshake
+import xilinx.{XpmCdcSingle, xpm_cdc_handshake}
 
 object HandheldTop extends App {
 
@@ -216,7 +216,16 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   spi.io.signals.serialIn := io.mcuSpiDataIn(0)
   spi.io.signals.chipSelect := io.mcuSpiChipSelect
 
-  val controlRegister = RegInit(0.U(3.W))
+  val controlRegister = RegInit(0.U.asTypeOf(new Bundle() {
+    /** 1 if the framebuffer overlay is enabled. */
+    val overlayEnable = Bool()
+    /** 1 to activate the vibration motor (TODO change to enable, not activate) */
+    val vibrate = Bool()
+    /** Active-low reset for the inner module. */
+    val moduleReset = Bool()
+    /** Active-high enable for the inner module. */
+    val moduleEnable = Bool()
+  }))
   val buttonRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
   val spiStatusRegister = RegInit(0.U.asTypeOf(new Bundle() {
     val requestFifoOverflow = Bool()
@@ -236,6 +245,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val sramSpiInterface = Wire(new MemoryInterface(addressWidth = 19, dataWidth = 16))
   val sdramSpiInterface = Wire(new MemoryInterface(addressWidth = 25, dataWidth = 32))
   val moduleMcuInterface = Wire(new MemoryInterface(addressWidth = 30, dataWidth = 32))
+  val overlayInterface = Wire(new MemoryInterface(addressWidth = 18, dataWidth = 16))
   spi.io.mem <> MemoryMap(
     addressWidth = 32,
     dataWidth = 32,
@@ -243,10 +253,11 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       "b0000".U(4.W) -> registerMap,
       "b0001".U(4.W) -> sramSpiInterface,
       "b0010".U(4.W) -> sdramSpiInterface,
+      "b00111".U(5.W) -> overlayInterface,
       "b11".U(2.W) -> moduleMcuInterface,
     ))
 
-  moduleReset := !controlRegister(1)
+  moduleReset := !controlRegister.moduleReset
   when (spi.io.debugRequestOverflow) {
     spiStatusRegister.requestFifoOverflow := true.B
   }
@@ -317,6 +328,11 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val videoWidth = module.framebufferW
   val videoHeight = module.framebufferH
   val framebuffer = SyncReadMem(videoWidth * videoHeight, UInt(15.W))
+
+  val overlayScale = 2
+  val overlayWidth = screenWidth / overlayScale
+  val overlayHeight = screenHeight / overlayScale
+  val overlayFramebuffer = SyncReadMem(overlayWidth * overlayHeight, UInt(16.W))
   withClock (io.clock_av) {
     /**
      * DPI video signal output
@@ -338,7 +354,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val dpiX = dpiDriver.io.pixelY
     val dpiY = dpiDriver.io.pixelX
 
-    // 160x144 to 480x320 -- scale by 2, and center
+    // Scale and center framebuffer within output video.
     val videoScale = 2
     val videoOffsetX = (screenWidth - (videoWidth * videoScale)) / 2
     val videoOffsetY = (screenHeight - (videoHeight * videoScale)) / 2
@@ -349,22 +365,54 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     // Buffering the read allows this to be a block ram instead of distributed ram
     // and an additional output buffer allows Vivado to improve timing.
     val framebufferRead = RegNext(RegNext(framebuffer.read(framebufferReadAddress, io.clock_av)))
+
+    // Similar for overlay framebuffer.
+    val overlayReadDelay = 3
+    val overlayReadAddress =
+      (((dpiY + overlayReadDelay.U(16.W)) / overlayScale.U(16.W)) * overlayWidth.U(16.W)) +
+        ((dpiX) / overlayScale.U)
+    val overlayRead = RegNext(RegNext(overlayFramebuffer.read(overlayReadAddress, io.clock_av)))
+
+    val videoOutput = WireDefault(0.U(15.W))
     when (
       dpiX >= videoOffsetX.U(16.W) &&
         dpiX < (videoOffsetX + (videoWidth * videoScale)).U(16.W) &&
         dpiY >= videoOffsetY.U(16.W) &&
         dpiY < (videoOffsetY + (videoHeight * videoScale)).U(16.W)) {
-      val framebufferReadR = framebufferRead(14, 10)
-      val framebufferReadG = framebufferRead(9, 5)
-      val framebufferReadB = framebufferRead(4, 0)
-      io.lcdData := Cat(
-        Cat(framebufferReadR, 0.U(1.W)),
-        Cat(framebufferReadG, 0.U(1.W)),
-        Cat(framebufferReadB, 0.U(1.W)),
-      )
-    } .otherwise {
-      io.lcdData := 0.U(15.W)
+      videoOutput := framebufferRead
     }
+    val overlayEnable = XpmCdcSingle(clock, controlRegister.overlayEnable)
+    when (overlayEnable && !overlayRead(15)) {
+      // Top bit is transparency
+      videoOutput := overlayRead(14, 0)
+    }
+    // Pad to 18-bit RGB.
+    io.lcdData := Cat(
+      Cat(videoOutput(14, 10), 0.U(1.W)),
+      Cat(videoOutput(9, 5), 0.U(1.W)),
+      Cat(videoOutput(4, 0), 0.U(1.W)),
+    )
+  }
+
+  // Overlay access.
+  // TODO: consider switching to (or adding) a method of writing where
+  // there's a "target x" and "target y" register, and you write to a single
+  // memory location, which auto-increments the x. Then, have registers for
+  // minX (where it wraps to) and maxX (when it wraps), which allows for easy
+  // partial rectangular updates.
+  //
+  // TODO support a way to scroll the overlay -- that is, position
+  // it at a given X and Y coordinate on the screen, and set a specific
+  // maximum x and y coordinate (beyond which it won't be drawn).
+  overlayInterface.dataRead := DontCare
+  overlayInterface.done := false.B
+  when (overlayInterface.read) {
+    // Reads are not supported.
+    overlayInterface.done := true.B
+  }
+  when (overlayInterface.write) {
+    overlayFramebuffer.write(overlayInterface.address, overlayInterface.dataWrite)
+    overlayInterface.done := true.B
   }
 
   //////////////////////////////////
@@ -397,8 +445,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   //////////////////////////////////
   // Submodule Connections
   //////////////////////////////////
-  module.io.enable := controlRegister(0)
-  io.vibrate := (module.io.enable && module.io.vibrate) || controlRegister(2)
+  module.io.enable := controlRegister.moduleEnable
+  io.vibrate := (module.io.enable && module.io.vibrate) || controlRegister.vibrate
   io.link <> module.io.link
 //  io.pmod <> module.io.pmod
   module.io.pmod.in := 0.U
