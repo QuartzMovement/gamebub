@@ -9,8 +9,8 @@ import xilinx.XpmCdcHandshake
 object HandheldTop extends App {
 
   emitVerilog(new HandheldTop(
-    new HandheldGameboy
-//    new HandheldTester
+//    new HandheldGameboy
+    new HandheldTester
   ), args)
 }
 
@@ -337,12 +337,12 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val screenHeight = 320
   val videoWidth = module.framebufferW
   val videoHeight = module.framebufferH
-  val framebuffer = SyncReadMem(videoWidth * videoHeight, ColorARGB.rgb555())
+  val framebuffer = SyncReadMem(videoWidth * videoHeight, UInt(ColorARGB.rgb555().getWidth.W))
 
   val overlayScale = 2
   val overlayWidth = screenWidth / overlayScale
   val overlayHeight = screenHeight / overlayScale
-  val overlayFramebuffer = SyncReadMem(overlayWidth * overlayHeight, ColorARGB.argb1555())
+  val overlayFramebuffer = SyncReadMem(overlayWidth * overlayHeight, UInt(ColorARGB.argb1555().getWidth.W))
   withClock (io.clock_av) {
     /**
      * DPI video signal output
@@ -374,7 +374,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
         ((dpiX - videoOffsetX.U(16.W)) / videoScale.U)
     // Buffering the read allows this to be a block ram instead of distributed ram
     // and an additional output buffer allows Vivado to improve timing.
-    val framebufferRead = RegNext(RegNext(framebuffer.read(framebufferReadAddress, io.clock_av)))
+    val framebufferRead = RegNext(RegNext(framebuffer.read(framebufferReadAddress, io.clock_av))).asTypeOf(ColorARGB.rgb555())
 
     // Similar for overlay framebuffer.
     val overlayXControl = XpmCdcHandshake.continuous(clock, overlayXControlRegister)
@@ -383,7 +383,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val overlayReadAddress =
       ((((dpiY + overlayReadDelay.U(16.W)) / overlayScale.U(16.W)) + overlayYControl.scroll)(7, 0) * overlayWidth.U(16.W)) +
         ((dpiX / overlayScale.U) + overlayXControl.scroll)(7, 0)
-    val overlayRead = RegNext(RegNext(overlayFramebuffer.read(overlayReadAddress, io.clock_av)))
+    val overlayRead = RegNext(RegNext(overlayFramebuffer.read(overlayReadAddress, io.clock_av))).asTypeOf(ColorARGB.argb1555())
 
     val videoOutput = ColorARGB.rgb555().makeBlack()
     when (
@@ -425,7 +425,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   when (overlayInterface.write) {
     overlayFramebuffer.write(
       (overlayInterface.address >> 1.U).asUInt,
-      overlayInterface.dataWrite.asTypeOf(ColorARGB.argb1555())
+      overlayInterface.dataWrite
     )
     overlayInterface.done := true.B
   }
@@ -465,7 +465,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // Framebuffer writes
   when (module.io.framebufferWriteEnable) {
     val address = (module.io.framebufferY * videoWidth.U(8.W)) + module.io.framebufferX
-    framebuffer.write(address, module.io.framebufferData)
+    framebuffer.write(address, module.io.framebufferData.asUInt)
   }
 
   // N.B. Audio synchronization happens above.
