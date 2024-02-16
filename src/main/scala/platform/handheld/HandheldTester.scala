@@ -41,20 +41,21 @@ class HandheldTester extends Module with HandheldModule {
     io.framebufferX := x
     io.framebufferY := y
     io.framebufferWriteEnable := y < framebufferH.U
-    io.framebufferDataR := 0.U
-    io.framebufferDataG := 0.U
-    io.framebufferDataB := 0.U
+    io.framebufferData.a := DontCare
+    io.framebufferData.r := 0.U
+    io.framebufferData.g := 0.U
+    io.framebufferData.b := 0.U
 
     // Generate test video pattern
     // XOR test pattern -- moves to left
     // X and Y are flipped: columns are R, G, B
     val color = (offX + x)(4, 0) ^ (offY + y)(4, 0)
     when (x < 80.U) {
-        io.framebufferDataR := color
+        io.framebufferData.r := color
     }.elsewhen(x < 160.U) {
-        io.framebufferDataG := color
+        io.framebufferData.g := color
     }.otherwise {
-        io.framebufferDataB := color
+        io.framebufferData.b := color
     }
 
     // Movement

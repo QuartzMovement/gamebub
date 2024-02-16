@@ -2,6 +2,7 @@ import machine
 from machine import SPI, I2C, Pin
 import time
 import random
+import framebuf
 
 from .ili9488 import ILI9488
 from .max17048 import MAX17048
@@ -102,6 +103,14 @@ fpga.program()
 # Set FPGA submodule to running and out of reset.
 fpga.spi_write_u32(0x0000_0000, 0b11)
 
+
+# Overlay Framebuffer
+framebuf_storage = bytearray(240 * 160 * 2)
+fb = framebuf.FrameBuffer(framebuf_storage, 240, 160, framebuf.RGB565)
+fb.fill(0x7FFF) # full white
+def update_overlay():
+    fpga.spi_write(26, 0x38000000, framebuf_storage)
+    fpga.show_overlay()
 
 
 # # 1-bit SPI

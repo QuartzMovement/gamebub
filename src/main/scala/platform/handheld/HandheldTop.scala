@@ -3,6 +3,7 @@ package platform.handheld
 import chisel3._
 import chisel3.util._
 import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, RegisterMap}
+import lib.video.ColorARGB
 import xilinx.XpmCdcHandshake
 
 object HandheldTop extends App {
@@ -22,9 +23,7 @@ class HandheldIo extends Bundle {
   // Video output
   val framebufferX = Output(UInt(8.W))
   val framebufferY = Output(UInt(8.W))
-  val framebufferDataR = Output(UInt(5.W))
-  val framebufferDataG = Output(UInt(5.W))
-  val framebufferDataB = Output(UInt(5.W))
+  val framebufferData = Output(ColorARGB.rgb555())
   val framebufferWriteEnable = Output(Bool())
 
   // Audio output
@@ -338,12 +337,12 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val screenHeight = 320
   val videoWidth = module.framebufferW
   val videoHeight = module.framebufferH
-  val framebuffer = SyncReadMem(videoWidth * videoHeight, UInt(15.W))
+  val framebuffer = SyncReadMem(videoWidth * videoHeight, ColorARGB.rgb555())
 
   val overlayScale = 2
   val overlayWidth = screenWidth / overlayScale
   val overlayHeight = screenHeight / overlayScale
-  val overlayFramebuffer = SyncReadMem(overlayWidth * overlayHeight, UInt(16.W))
+  val overlayFramebuffer = SyncReadMem(overlayWidth * overlayHeight, ColorARGB.argb1555())
   withClock (io.clock_av) {
     /**
      * DPI video signal output
@@ -386,7 +385,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
         ((dpiX / overlayScale.U) + overlayXControl.scroll)(7, 0)
     val overlayRead = RegNext(RegNext(overlayFramebuffer.read(overlayReadAddress, io.clock_av)))
 
-    val videoOutput = WireDefault(0.U(15.W))
+    val videoOutput = ColorARGB.rgb555().makeBlack()
     when (
       dpiX >= videoOffsetX.U(16.W) &&
         dpiX < (videoOffsetX + (videoWidth * videoScale)).U(16.W) &&
@@ -395,19 +394,19 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       videoOutput := framebufferRead
     }
     when (
-      !overlayRead(15) &&
+      !overlayRead.a &&
         dpiX >= (overlayXControl.start * overlayScale.U) &&
         dpiX < (overlayXControl.end * overlayScale.U) &&
         dpiY >= (overlayYControl.start * overlayScale.U) &&
         dpiY < (overlayYControl.end * overlayScale.U)
     ) {
-      videoOutput := overlayRead(14, 0)
+      videoOutput := overlayRead
     }
     // Pad to 18-bit RGB.
     io.lcdData := Cat(
-      Cat(videoOutput(14, 10), 0.U(1.W)),
-      Cat(videoOutput(9, 5), 0.U(1.W)),
-      Cat(videoOutput(4, 0), 0.U(1.W)),
+      Cat(videoOutput.r, 0.U(1.W)),
+      Cat(videoOutput.g, 0.U(1.W)),
+      Cat(videoOutput.b, 0.U(1.W)),
     )
   }
 
@@ -424,7 +423,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     overlayInterface.done := true.B
   }
   when (overlayInterface.write) {
-    overlayFramebuffer.write((overlayInterface.address >> 1.U).asUInt, overlayInterface.dataWrite)
+    overlayFramebuffer.write(
+      (overlayInterface.address >> 1.U).asUInt,
+      overlayInterface.dataWrite.asTypeOf(ColorARGB.argb1555())
+    )
     overlayInterface.done := true.B
   }
 
@@ -463,8 +465,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // Framebuffer writes
   when (module.io.framebufferWriteEnable) {
     val address = (module.io.framebufferY * videoWidth.U(8.W)) + module.io.framebufferX
-    val data = Cat(module.io.framebufferDataR, module.io.framebufferDataG, module.io.framebufferDataB)
-    framebuffer.write(address, data)
+    framebuffer.write(address, module.io.framebufferData)
   }
 
   // N.B. Audio synchronization happens above.

@@ -95,9 +95,10 @@ class HandheldGameboy extends Module with HandheldModule {
   io.framebufferX := framebufferX
   io.framebufferY := framebufferY
   io.framebufferWriteEnable := false.B
-  io.framebufferDataR := DontCare
-  io.framebufferDataG := DontCare
-  io.framebufferDataB := DontCare
+  io.framebufferData.a := DontCare
+  io.framebufferData.r := DontCare
+  io.framebufferData.g := DontCare
+  io.framebufferData.b := DontCare
 
   val prevHblank = RegInit(false.B)
   val prevLcdEnable = RegInit(false.B)
@@ -107,9 +108,9 @@ class HandheldGameboy extends Module with HandheldModule {
     when (!gameboy.io.ppu.lcdEnable) {
       // Clear the screen (to write) if LCD is disabled.
       io.framebufferWriteEnable := true.B
-      io.framebufferDataR := 0x1F.U(5.W)
-      io.framebufferDataG := 0x1F.U(5.W)
-      io.framebufferDataB := 0x1F.U(5.W)
+      io.framebufferData.r := 0x1F.U(5.W)
+      io.framebufferData.g := 0x1F.U(5.W)
+      io.framebufferData.b := 0x1F.U(5.W)
       when (prevLcdEnable) {
         framebufferX := 0.U
         framebufferY := 0.U
@@ -127,9 +128,9 @@ class HandheldGameboy extends Module with HandheldModule {
       framebufferY := framebufferY + 1.U
     } .elsewhen (gameboy.io.ppu.valid) {
       io.framebufferWriteEnable := true.B
-      io.framebufferDataR := gameboy.io.ppu.pixel(4, 0)
-      io.framebufferDataG := gameboy.io.ppu.pixel(9, 5)
-      io.framebufferDataB := gameboy.io.ppu.pixel(14, 10)
+      io.framebufferData.r := gameboy.io.ppu.pixel(4, 0)
+      io.framebufferData.g := gameboy.io.ppu.pixel(9, 5)
+      io.framebufferData.b := gameboy.io.ppu.pixel(14, 10)
       framebufferX := framebufferX + 1.U
     }
   }
