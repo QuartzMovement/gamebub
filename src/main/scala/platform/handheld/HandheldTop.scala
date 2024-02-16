@@ -3,7 +3,7 @@ package platform.handheld
 import chisel3._
 import chisel3.util._
 import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, RegisterMap}
-import xilinx.{XpmCdcSingle, xpm_cdc_handshake}
+import xilinx.{XpmCdcHandshake, XpmCdcSingle, xpm_cdc_handshake}
 
 object HandheldTop extends App {
 
@@ -217,8 +217,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   spi.io.signals.chipSelect := io.mcuSpiChipSelect
 
   val controlRegister = RegInit(0.U.asTypeOf(new Bundle() {
-    /** 1 if the framebuffer overlay is enabled. */
-    val overlayEnable = Bool()
     /** 1 to activate the vibration motor (TODO change to enable, not activate) */
     val vibrate = Bool()
     /** Active-low reset for the inner module. */
@@ -232,6 +230,17 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val responseFifoUnderflow = Bool()
   }))
 
+  val overlayXControlRegister = RegInit(0.U.asTypeOf(new Bundle() {
+    val start = UInt(8.W)
+    val end = UInt(8.W)
+    val scroll = UInt(8.W)
+  }))
+  val overlayYControlRegister = RegInit(0.U.asTypeOf(new Bundle() {
+    val start = UInt(8.W)
+    val end = UInt(8.W)
+    val scroll = UInt(8.W)
+  }))
+
   val registerMap = RegisterMap(
     addressWidth = 16,
     dataWidth = 32,
@@ -239,6 +248,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       0x0 -> controlRegister,
       0x4 -> buttonRegister,
       0x8 -> spiStatusRegister,
+      0x100 -> overlayXControlRegister,
+      0x104 -> overlayYControlRegister,
     )
   )
 
@@ -367,10 +378,12 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val framebufferRead = RegNext(RegNext(framebuffer.read(framebufferReadAddress, io.clock_av)))
 
     // Similar for overlay framebuffer.
+    val overlayXControl = XpmCdcHandshake.continuous(clock, overlayXControlRegister)
+    val overlayYControl = XpmCdcHandshake.continuous(clock, overlayYControlRegister)
     val overlayReadDelay = 3
     val overlayReadAddress =
-      (((dpiY + overlayReadDelay.U(16.W)) / overlayScale.U(16.W)) * overlayWidth.U(16.W)) +
-        ((dpiX) / overlayScale.U)
+      ((((dpiY + overlayReadDelay.U(16.W)) / overlayScale.U(16.W)) + overlayYControl.scroll)(7, 0) * overlayWidth.U(16.W)) +
+        ((dpiX / overlayScale.U) + overlayXControl.scroll)(7, 0)
     val overlayRead = RegNext(RegNext(overlayFramebuffer.read(overlayReadAddress, io.clock_av)))
 
     val videoOutput = WireDefault(0.U(15.W))
@@ -381,9 +394,13 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
         dpiY < (videoOffsetY + (videoHeight * videoScale)).U(16.W)) {
       videoOutput := framebufferRead
     }
-    val overlayEnable = XpmCdcSingle(clock, controlRegister.overlayEnable)
-    when (overlayEnable && !overlayRead(15)) {
-      // Top bit is transparency
+    when (
+      !overlayRead(15) &&
+        dpiX >= (overlayXControl.start * overlayScale.U) &&
+        dpiX < (overlayXControl.end * overlayScale.U) &&
+        dpiY >= (overlayYControl.start * overlayScale.U) &&
+        dpiY < (overlayYControl.end * overlayScale.U)
+    ) {
       videoOutput := overlayRead(14, 0)
     }
     // Pad to 18-bit RGB.
@@ -400,10 +417,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // memory location, which auto-increments the x. Then, have registers for
   // minX (where it wraps to) and maxX (when it wraps), which allows for easy
   // partial rectangular updates.
-  //
-  // TODO support a way to scroll the overlay -- that is, position
-  // it at a given X and Y coordinate on the screen, and set a specific
-  // maximum x and y coordinate (beyond which it won't be drawn).
   overlayInterface.dataRead := DontCare
   overlayInterface.done := false.B
   when (overlayInterface.read) {
@@ -411,7 +424,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     overlayInterface.done := true.B
   }
   when (overlayInterface.write) {
-    overlayFramebuffer.write(overlayInterface.address, overlayInterface.dataWrite)
+    overlayFramebuffer.write((overlayInterface.address >> 1.U).asUInt, overlayInterface.dataWrite)
     overlayInterface.done := true.B
   }
 

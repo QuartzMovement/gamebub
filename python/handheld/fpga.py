@@ -141,3 +141,27 @@ class FPGA:
         command = self._spi_command(read=True, word_size=32, byte_swap=True, auto_increment=True)
         return self.spi_read(command, mem_address, nbytes)
 
+    def show_overlay(
+        self,
+        start_x: int = 0x00,
+        end_x: int = 0xFF,
+        scroll_x: int = 0x00,
+        start_y: int = 0x00,
+        end_y: int = 0xFF,
+        scroll_y: int = 0x00
+    ) -> None:
+        config_x = (
+            (start_x & 0xFF) << 16 |
+            (end_x & 0xFF) << 8 |
+            (scroll_x & 0xFF)
+        )
+        config_y = (
+            (start_y & 0xFF) << 16 |
+            (end_y & 0xFF) << 8 |
+            (scroll_y & 0xFF)
+        )
+        self.spi_write_u32(0x100, config_x)
+        self.spi_write_u32(0x104, config_y)
+
+    def hide_overlay(self) -> None:
+        self.show_overlay(start_x = 0, end_x = 0, start_y = 0, end_y = 0)
