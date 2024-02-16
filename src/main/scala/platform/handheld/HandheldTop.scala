@@ -3,13 +3,13 @@ package platform.handheld
 import chisel3._
 import chisel3.util._
 import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, RegisterMap}
-import xilinx.{XpmCdcHandshake, XpmCdcSingle, xpm_cdc_handshake}
+import xilinx.XpmCdcHandshake
 
 object HandheldTop extends App {
 
   emitVerilog(new HandheldTop(
-//    new HandheldGameboy
-    new HandheldTester
+    new HandheldGameboy
+//    new HandheldTester
   ), args)
 }
 
@@ -431,13 +431,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   //////////////////////////////////
   // Audio
   //////////////////////////////////
-  val audioDataHandshake = Module(new xpm_cdc_handshake(
-    width = 32,
-    destExtHsk = false,
-  ))
-  audioDataHandshake.io.src_clk := clock
-  audioDataHandshake.io.dest_clk := io.clock_av
-  audioDataHandshake.io.dest_ack := true.B // unused when destExtHsk = false
   withClock (io.clock_av) {
     val i2sTransmitter =
       Module(new I2sTransmitter(
@@ -447,10 +440,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       ))
     io.dac := i2sTransmitter.io.signals
 
-    val audioData = RegInit(0.U(32.W))
-    when (audioDataHandshake.io.dest_req) {
-      audioData := audioDataHandshake.io.dest_out
-    }
+    val audioData = XpmCdcHandshake.continuous(clock,
+      Cat(module.io.audioLeft.asUInt, module.io.audioRight.asUInt))
     i2sTransmitter.io.dataLeft := audioData(31, 16)
     i2sTransmitter.io.dataRight := audioData(15, 0)
   }
@@ -476,16 +467,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     framebuffer.write(address, data)
   }
 
-  // Audio sample synchronization
-  val audioDataSend = RegInit(false.B)
-  audioDataHandshake.io.src_in := Cat(module.io.audioLeft.asUInt, module.io.audioRight.asUInt)
-  audioDataHandshake.io.src_send := audioDataSend
-  when (!audioDataHandshake.io.src_rcv && !audioDataSend) {
-    audioDataSend := true.B
-  }
-  when (audioDataHandshake.io.src_rcv && audioDataSend) {
-    audioDataSend := false.B
-  }
+  // N.B. Audio synchronization happens above.
 
   // Cartridge
   io.cartridge <> module.io.cartridge
