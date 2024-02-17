@@ -256,7 +256,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       0x4 -> RegisterMap.Entry.rw(buttonRegister),
       0x8 -> RegisterMap.Entry.rw(spiStatusRegister),
       0xC -> RegisterMap.Entry.rw(interruptEnable),
-      0x10 -> RegisterMap.Entry.apply(
+      0x10 -> RegisterMap.Entry(
         interruptFlags.getWidth,
         read = RegisterMap.ReadFn((_: Bool) => interruptFlags.asUInt),
         write = RegisterMap.WriteFn((write: Bool, data: UInt) =>

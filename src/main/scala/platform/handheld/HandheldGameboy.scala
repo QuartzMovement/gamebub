@@ -3,7 +3,7 @@ package platform.handheld
 import chisel3._
 import chisel3.util._
 import gameboy.Gameboy
-import gameboy.cart.{EmuCartConfig, EmuCartridge}
+import gameboy.cart.{EmuCartConfig, EmuCartridge, Mbc3RtcAccess, RtcState}
 import lib.mem.RegisterMap
 
 /**
@@ -22,17 +22,42 @@ class HandheldGameboy extends Module with HandheldModule {
   val configRegRamMask = RegInit(0.U(17.W))
   val statRegStalls = RegInit(0.U(32.W))
   val statRegCycles = RegInit(0.U(32.W))
+
+  val emuCartRtcAccess = Wire(new Mbc3RtcAccess)
+  emuCartRtcAccess.writeEnable := false.B
+  emuCartRtcAccess.writeState := DontCare
+  emuCartRtcAccess.latchSelect := DontCare
+  private def makeRtcAccess(latched: Boolean): RegisterMap.Entry = {
+    RegisterMap.Entry(
+      (new RtcState).getWidth,
+      read = RegisterMap.ReadFn((read: Bool) => {
+        when (read) { emuCartRtcAccess.latchSelect := latched.B }
+        emuCartRtcAccess.readState.asUInt
+      }),
+      write = RegisterMap.WriteFn((write: Bool, data: UInt) =>
+        when (write) {
+          emuCartRtcAccess.latchSelect := latched.B
+          emuCartRtcAccess.writeState := data.asTypeOf(new RtcState)
+          emuCartRtcAccess.writeEnable := true.B
+        }
+      ),
+    )
+  }
+
   io.mcuInterface <> RegisterMap(
     addressWidth = 16,
     dataWidth = 32,
     entries = Seq(
-      0x00 -> RegisterMap.Entry.rw(configRegEmuCart),
-      0x04 -> RegisterMap.Entry.rw(configRegRomAddress),
-      0x08 -> RegisterMap.Entry.rw(configRegRomMask),
-      0x0C -> RegisterMap.Entry.rw(configRegRamAddress),
-      0x10 -> RegisterMap.Entry.rw(configRegRamMask),
-      0x14 -> RegisterMap.Entry.rw(statRegStalls),
-      0x18 -> RegisterMap.Entry.rw(statRegCycles),
+      0x0000 -> RegisterMap.Entry.rw(configRegEmuCart),
+      0x0004 -> RegisterMap.Entry.rw(configRegRomAddress),
+      0x0008 -> RegisterMap.Entry.rw(configRegRomMask),
+      0x000C -> RegisterMap.Entry.rw(configRegRamAddress),
+      0x0010 -> RegisterMap.Entry.rw(configRegRamMask),
+      0x0014 -> makeRtcAccess(latched = false),
+      0x0018 -> makeRtcAccess(latched = true),
+
+      0x1000 -> RegisterMap.Entry.rw(statRegStalls),
+      0x1004 -> RegisterMap.Entry.rw(statRegCycles),
     )
   )
 
@@ -142,9 +167,7 @@ class HandheldGameboy extends Module with HandheldModule {
   val emuCart = Module(new EmuCartridge(8 * 1024 * 1024))
   emuCart.io.config := configRegEmuCart
   emuCart.io.tCycle := gameboy.io.tCycle
-  emuCart.io.rtcAccess.writeEnable := false.B
-  emuCart.io.rtcAccess.writeState := DontCare
-  emuCart.io.rtcAccess.latchSelect := DontCare
+  emuCart.io.rtcAccess <> emuCartRtcAccess
 
   io.sdram.read := false.B
   io.sdram.write := false.B
