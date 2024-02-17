@@ -80,6 +80,26 @@ dac.set_mute(False)
 dac.set_headphones_enabled(True)
 dac.set_speakers_enabled(False)
 
+print("Initializing MCU IRQ")
+def irq_handler(_pin):
+    print("IRQ fall at time(ms) ", (time.time_ns() // 1_000_000))
+
+    # FPGA irqs. Read and ack.
+    fpga_irq = fpga.spi_read_u32(0x10)
+    fpga.spi_write_u32(0x10, 0xFFFFFFFF)
+    print("  FPGA: ", hex(fpga_irq))
+
+    # I/O expander
+    io_0 = io_expander._read_reg(0)
+    io_1 = io_expander._read_reg(1)
+    print("  I/O expander: ", hex(io_0), hex(io_1))
+
+    if mcu_irq.value() == 0:
+        print("ERROR: nIRQ is still low!")
+
+    # TODO others...
+mcu_irq.irq(handler = irq_handler, trigger = Pin.IRQ_FALLING)
+
 print("Passing control of display to FPGA")
 # BPGRAM=0 (write to mem), RM=1 (RGB interface), DM=1 (DOTCLK), RCM=0 (DE mode), 
 # lcd._write_cmd(0xB6, bytes([0x32]))

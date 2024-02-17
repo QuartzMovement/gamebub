@@ -131,6 +131,10 @@ class HandheldLink extends Bundle {
   val scDir = Output(Bool())
 }
 
+class HandheldInterrupts extends Bundle {
+  val moduleVblank = Bool()
+}
+
 /**
  * Top-level Chisel module for the handheld.
  *
@@ -209,8 +213,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   spi.io.clockSpi := io.clockSpi
   spi.io.clockSpiLocked := io.clockSpiLocked
   io.clockSpiPowerDown := spi.io.clockSpiPowerDown
-  // TODO: support interrupts (e.g. for vblank)
-  io.mcuIrq := false.B
   io.mcuSpiDataDir := Mux(io.mcuSpiChipSelect, 0.U, "b0010".U)
   io.mcuSpiDataOut := Cat(0.U(2.W), spi.io.signals.serialOut, 0.U(1.W))
   spi.io.signals.serialClock := io.mcuSpiClock
@@ -232,6 +234,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val requestFifoOverflow = Bool()
     val responseFifoUnderflow = Bool()
   }))
+  val interruptEnable = RegInit(0.U.asTypeOf(new HandheldInterrupts))
+  val interruptFlags = RegInit(0.U.asTypeOf(new HandheldInterrupts))
 
   val overlayXControlRegister = RegInit(0.U.asTypeOf(new Bundle() {
     val start = UInt(8.W)
@@ -251,6 +255,18 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       0x0 -> RegisterMap.Entry.rw(controlRegister),
       0x4 -> RegisterMap.Entry.rw(buttonRegister),
       0x8 -> RegisterMap.Entry.rw(spiStatusRegister),
+      0xC -> RegisterMap.Entry.rw(interruptEnable),
+      0x10 -> RegisterMap.Entry.apply(
+        interruptFlags.getWidth,
+        read = RegisterMap.ReadFn((_: Bool) => interruptFlags.asUInt),
+        write = RegisterMap.WriteFn((write: Bool, data: UInt) =>
+          when (write) {
+            // Write set bits to ack interrupts.
+            interruptFlags := (interruptFlags.asUInt & ~data.asUInt).asTypeOf(interruptFlags)
+          }
+        ),
+      ),
+      // Overlay control
       0x100 -> RegisterMap.Entry.rw(overlayXControlRegister),
       0x104 -> RegisterMap.Entry.rw(overlayYControlRegister),
       // Framebuffer dimensions
@@ -283,6 +299,14 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   }
   when (spi.io.debugResponseUnderflow) {
     spiStatusRegister.responseFifoUnderflow := true.B
+  }
+
+  //////////////////////////////////
+  // Interrupts
+  //////////////////////////////////
+  io.mcuIrq := (interruptFlags.asUInt & interruptEnable.asUInt).orR
+  when (module.io.vblank) {
+    interruptFlags.moduleVblank := true.B
   }
 
 
