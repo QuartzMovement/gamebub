@@ -31,8 +31,6 @@ pin_batt_chg = Pin(42, Pin.IN)
 pin_sd_detect = Pin(37, Pin.IN)
 
 pin_btn_home.irq(handler = lambda _: print("IRQ: home"))
-pin_btn_vol_up.irq(handler = lambda _: print("IRQ: volume up"))
-pin_btn_vol_down.irq(handler = lambda _: print("IRQ: volume down"))
 pin_power_switch_n.irq(handler = lambda _: print("IRQ: power"))
 
 # BUG (Rev A): FPGA can interfere with LCD SPI, also using LCD SPI while FPGA is unpowered probably isn't great
@@ -79,6 +77,23 @@ dac.set_volume(100)
 dac.set_mute(False)
 dac.set_headphones_enabled(True)
 dac.set_speakers_enabled(False)
+
+audio_muted = True
+def volume_btn_handler(pin):
+    # TODO improve
+    global dac
+    global audio_muted
+    if pin is pin_btn_vol_down:
+        print("IRQ: volume down", pin_btn_vol_down.value())
+        if pin_btn_vol_down.value() == 0:
+            dac.set_speakers_enabled(audio_muted)
+            audio_muted = not audio_muted
+            print("Toggling speaker mute: ", audio_muted)
+    if pin is pin_btn_vol_up:
+        print("IRQ: volume up", pin_btn_vol_up.value())
+
+pin_btn_vol_up.irq(handler = volume_btn_handler)
+pin_btn_vol_down.irq(handler = volume_btn_handler)
 
 print("Initializing MCU IRQ")
 def irq_handler(_pin):
