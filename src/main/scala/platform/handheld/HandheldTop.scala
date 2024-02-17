@@ -9,8 +9,8 @@ import xilinx.XpmCdcHandshake
 object HandheldTop extends App {
 
   emitVerilog(new HandheldTop(
-//    new HandheldGameboy
-    new HandheldTester
+    new HandheldGameboy
+//    new HandheldTester
   ), args)
 }
 
@@ -25,6 +25,7 @@ class HandheldIo extends Bundle {
   val framebufferY = Output(UInt(8.W))
   val framebufferData = Output(ColorARGB.rgb555())
   val framebufferWriteEnable = Output(Bool())
+  val vblank = Output(Bool())
 
   // Audio output
   val audioLeft = Output(SInt(16.W))
@@ -208,6 +209,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   spi.io.clockSpi := io.clockSpi
   spi.io.clockSpiLocked := io.clockSpiLocked
   io.clockSpiPowerDown := spi.io.clockSpiPowerDown
+  // TODO: support interrupts (e.g. for vblank)
   io.mcuIrq := false.B
   io.mcuSpiDataDir := Mux(io.mcuSpiChipSelect, 0.U, "b0010".U)
   io.mcuSpiDataOut := Cat(0.U(2.W), spi.io.signals.serialOut, 0.U(1.W))
@@ -218,6 +220,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val controlRegister = RegInit(0.U.asTypeOf(new Bundle() {
     /** 1 to activate the vibration motor (TODO change to enable, not activate) */
     val vibrate = Bool()
+    /** Whether the module is currently in vblank. (TODO make read-only) */
+    val moduleVblank = Bool()
     /** Active-low reset for the inner module. */
     val moduleReset = Bool()
     /** Active-high enable for the inner module. */
@@ -273,6 +277,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     ))
 
   moduleReset := !controlRegister.moduleReset
+  controlRegister.moduleVblank := module.io.vblank
   when (spi.io.debugRequestOverflow) {
     spiStatusRegister.requestFifoOverflow := true.B
   }

@@ -99,6 +99,7 @@ class HandheldGameboy extends Module with HandheldModule {
   io.framebufferData.r := DontCare
   io.framebufferData.g := DontCare
   io.framebufferData.b := DontCare
+  io.vblank := gameboy.io.ppu.vblank
 
   val prevHblank = RegInit(false.B)
   val prevLcdEnable = RegInit(false.B)
@@ -119,6 +120,8 @@ class HandheldGameboy extends Module with HandheldModule {
       } .elsewhen (framebufferY < 143.U) {
         framebufferX := 0.U
         framebufferY := framebufferY + 1.U
+      } .otherwise {
+        io.vblank := true.B
       }
     } .elsewhen (gameboy.io.ppu.vblank) {
       framebufferX := 0.U

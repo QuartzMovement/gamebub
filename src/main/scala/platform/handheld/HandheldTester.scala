@@ -41,6 +41,7 @@ class HandheldTester extends Module with HandheldModule {
     io.framebufferX := x
     io.framebufferY := y
     io.framebufferWriteEnable := y < framebufferH.U
+    io.vblank := !io.framebufferWriteEnable
     io.framebufferData.a := DontCare
     io.framebufferData.r := 0.U
     io.framebufferData.g := 0.U
