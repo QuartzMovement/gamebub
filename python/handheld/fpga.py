@@ -165,3 +165,15 @@ class FPGA:
 
     def hide_overlay(self) -> None:
         self.show_overlay(start_x = 0, end_x = 0, start_y = 0, end_y = 0)
+
+    def read_framebuffer(self) -> Tuple[bytes, int, int]:
+        """
+        Read the framebuffer from the device, used for screenshots.
+
+        Returns a tuple of (data, width, height)
+        """
+        width = 240
+        height = 160
+        command = self._spi_command(read=True, word_size=16, byte_swap=True, auto_increment=True)
+        data = handheld.fpga.spi_read(command, 0x3c000000, width * height * 2)
+        return (data, width, height)

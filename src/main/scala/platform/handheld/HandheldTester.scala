@@ -59,7 +59,7 @@ class HandheldTester extends Module with HandheldModule {
     }
 
     // Movement
-    when (frame) {
+    when (io.enable && frame) {
         val speed = Mux(io.buttons.a, 2.U, 1.U)
         when (io.buttons.left) {
             offX := offX - speed

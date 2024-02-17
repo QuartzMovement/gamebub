@@ -256,6 +256,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val sdramSpiInterface = Wire(new MemoryInterface(addressWidth = 25, dataWidth = 32))
   val moduleMcuInterface = Wire(new MemoryInterface(addressWidth = 30, dataWidth = 32))
   val overlayInterface = Wire(new MemoryInterface(addressWidth = 18, dataWidth = 16))
+  val framebufferInterface = Wire(new MemoryInterface(addressWidth = 18, dataWidth = 16))
   spi.io.mem <> MemoryMap(
     addressWidth = 32,
     dataWidth = 32,
@@ -263,7 +264,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       "b0000".U(4.W) -> registerMap,
       "b0001".U(4.W) -> sramSpiInterface,
       "b0010".U(4.W) -> sdramSpiInterface,
-      "b00111".U(5.W) -> overlayInterface,
+      "b001110".U(6.W) -> overlayInterface,
+      "b001111".U(6.W) -> framebufferInterface,
       "b11".U(2.W) -> moduleMcuInterface,
     ))
 
@@ -430,6 +432,16 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     overlayInterface.done := true.B
   }
 
+  // Framebuffer read via memory.
+  framebufferInterface.dataRead := RegNext(RegNext(
+    framebuffer.read((framebufferInterface.address >> 1.U).asUInt, framebufferInterface.read)
+  ))
+  framebufferInterface.done := RegNext(RegNext(framebufferInterface.read))
+  when (framebufferInterface.write) {
+    // Writes are not supported.
+    framebufferInterface.done := true.B
+  }
+
   //////////////////////////////////
   // Audio
   //////////////////////////////////
@@ -464,8 +476,12 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
   // Framebuffer writes
   when (module.io.framebufferWriteEnable) {
-    val address = (module.io.framebufferY * videoWidth.U(8.W)) + module.io.framebufferX
-    framebuffer.write(address, module.io.framebufferData.asUInt)
+    // Module framebuffer write and SPI framebuffer read share the same read/write port,
+    // so ensure that they're not activated at the same time (so they can be inferred correctly).
+    when (!framebufferInterface.read) {
+      val address = (module.io.framebufferY * videoWidth.U(8.W)) + module.io.framebufferX
+      framebuffer.write(address, module.io.framebufferData.asUInt)
+    }
   }
 
   // N.B. Audio synchronization happens above.
