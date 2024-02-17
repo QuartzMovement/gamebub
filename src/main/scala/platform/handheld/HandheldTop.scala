@@ -305,7 +305,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // Interrupts
   //////////////////////////////////
   io.mcuIrq := (interruptFlags.asUInt & interruptEnable.asUInt).orR
-  when (module.io.vblank) {
+  when (module.io.vblank && !RegNext(module.io.vblank)) {
     interruptFlags.moduleVblank := true.B
   }
 
