@@ -26,13 +26,13 @@ class HandheldGameboy extends Module with HandheldModule {
     addressWidth = 16,
     dataWidth = 32,
     entries = Seq(
-      0x00 -> configRegEmuCart,
-      0x04 -> configRegRomAddress,
-      0x08 -> configRegRomMask,
-      0x0C -> configRegRamAddress,
-      0x10 -> configRegRamMask,
-      0x14 -> statRegStalls,
-      0x18 -> statRegCycles,
+      0x00 -> RegisterMap.Entry.rw(configRegEmuCart),
+      0x04 -> RegisterMap.Entry.rw(configRegRomAddress),
+      0x08 -> RegisterMap.Entry.rw(configRegRomMask),
+      0x0C -> RegisterMap.Entry.rw(configRegRamAddress),
+      0x10 -> RegisterMap.Entry.rw(configRegRamMask),
+      0x14 -> RegisterMap.Entry.rw(statRegStalls),
+      0x18 -> RegisterMap.Entry.rw(statRegCycles),
     )
   )
 

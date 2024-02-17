@@ -20,8 +20,8 @@ class HandheldTester extends Module with HandheldModule {
         addressWidth = 8,
         dataWidth = 32,
         entries = Seq(
-            0x0 -> offX,
-            0x4 -> offY,
+            0x0 -> RegisterMap.Entry.rw(offX),
+            0x4 -> RegisterMap.Entry.rw(offY),
         )
     )
 

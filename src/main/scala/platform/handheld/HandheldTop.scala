@@ -244,11 +244,14 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     addressWidth = 16,
     dataWidth = 32,
     entries = Seq(
-      0x0 -> controlRegister,
-      0x4 -> buttonRegister,
-      0x8 -> spiStatusRegister,
-      0x100 -> overlayXControlRegister,
-      0x104 -> overlayYControlRegister,
+      0x0 -> RegisterMap.Entry.rw(controlRegister),
+      0x4 -> RegisterMap.Entry.rw(buttonRegister),
+      0x8 -> RegisterMap.Entry.rw(spiStatusRegister),
+      0x100 -> RegisterMap.Entry.rw(overlayXControlRegister),
+      0x104 -> RegisterMap.Entry.rw(overlayYControlRegister),
+      // Framebuffer dimensions
+      0x200 -> RegisterMap.Entry.r(
+        Cat(module.framebufferW.U(16.W), module.framebufferH.U(16.W))),
     )
   )
 
