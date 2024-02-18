@@ -1,19 +1,23 @@
-__pycache__
-/test/sim_build
-results.xml
-*.vcd
 *.gb
-/rtl/obj_dir
-/rtl/**/*.inc
-/sim/obj_pc
-/sim/main
-/build
-fusesoc_libraries
-/roms
+*.vcd
+
 /.vscode
+/build
+/fpga/.bsp
+/fpga/out
+/fpga/build
+/fpga/fusesoc_libraries
+/fpga/sim/main
+/fpga/sim/obj_pc
+/fpga/test/sim_build
+/fpga/test_run_dir/*
+/roms
+__pycache__
+results.xml
 
 ### Project Specific stuff
-test_run_dir/*
+
+
 ### XilinxISE template
 # intermediate build files
 *.bgn
