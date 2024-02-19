@@ -1,6 +1,5 @@
 use std::time::Duration;
 
-use embedded_hal::pwm::SetDutyCycle;
 use esp_idf_svc::hal::gpio::*;
 use esp_idf_svc::hal::ledc::{self, *};
 use esp_idf_svc::hal::peripherals::Peripherals;
@@ -8,6 +7,7 @@ use esp_idf_svc::hal::spi::{self, *};
 use esp_idf_svc::hal::units::FromValueType;
 
 mod lcd;
+mod sdcard;
 
 fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
@@ -57,6 +57,13 @@ fn main() -> anyhow::Result<()> {
     let mut lcd = lcd::ILI9488::new(lcd_reset, lcd_dc, lcd_spi);
     lcd.init()?;
     log::info!("Done initializing LCD");
+
+    // Mount sdcard to /sdcard
+    sdcard::mount_sdcard()?;
+    let paths = std::fs::read_dir("/sdcard").unwrap();
+    for path in paths {
+        println!("sdcard: {}", path.unwrap().path().display())
+    }
 
     loop {
         std::thread::sleep(Duration::from_secs(1));
