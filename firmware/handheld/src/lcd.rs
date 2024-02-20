@@ -117,14 +117,10 @@ where
         self.write_cmd(0x29, &[])?;
         std::thread::sleep(Duration::from_millis(10));
 
-        // Testing: write some magenta to the screen.
-        self.write_cmd(0x2A, &[0, 0, 1, 64])?;
-        self.write_cmd(0x2B, &[0, 0, 1, 223])?;
-        self.write_cmd(0x2C, &[])?;
-        self.pin_dc.set_high().map_err(|_| Error::DcError)?;
-        for _ in 0..(480 * 320) {
-            self.spi.write(&[0xFF, 0x00, 0xFF]).unwrap();
-        }
+        // Testing: pass control of LCD to FPGA.
+        self.write_cmd(0xB0, &[0x0E])?;
+        self.write_cmd(0xB6, &[0xB2, 0x62])?;
+        self.write_cmd(0xB4, &[0x00])?;
 
         Ok(())
     }
