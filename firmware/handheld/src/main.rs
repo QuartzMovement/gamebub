@@ -40,13 +40,6 @@ fn main() -> anyhow::Result<()> {
         Some(spi_sdi),
         &SpiDriverConfig::new(),
     )?;
-    let lcd_spi_config = spi::config::Config::new().baudrate(10.MHz().into());
-    let lcd_spi_shared = Box::leak(Box::new(SpiSharedDeviceDriver::new(
-        &spi_driver,
-        &lcd_spi_config,
-    )?));
-
-    let lcd_spi = SpiSoftCsDeviceDriver::new(lcd_spi_shared, lcd_cs, Level::High)?;
 
     let mut ledc_channel = LedcDriver::new(
         peripherals.ledc.channel0,
@@ -60,6 +53,12 @@ fn main() -> anyhow::Result<()> {
 
     // Setup LCD
     log::info!("Initializing LCD");
+    let lcd_spi_config = spi::config::Config::new().baudrate(10.MHz().into());
+    let lcd_spi_shared = Box::leak(Box::new(SpiSharedDeviceDriver::new(
+        &spi_driver,
+        &lcd_spi_config,
+    )?));
+    let lcd_spi = SpiSoftCsDeviceDriver::new(lcd_spi_shared, lcd_cs, Level::High)?;
     let mut lcd = lcd::ILI9488::new(lcd_reset, lcd_dc, lcd_spi);
     lcd.init()?;
     log::info!("Done initializing LCD");
@@ -75,19 +74,27 @@ fn main() -> anyhow::Result<()> {
     let fpga_pin_done = PinDriver::input(peripherals.pins.gpio17)?;
     let fpga_pin_program_b = PinDriver::output_od(peripherals.pins.gpio18)?;
     let fpga_pin_init_b = PinDriver::input(peripherals.pins.gpio8)?;
-    let fpga_pin_spi_cs = PinDriver::output(peripherals.pins.gpio10)?;
+    let fpga_pin_spi_cs = peripherals.pins.gpio10;
+    let fpga_spi_config = spi::config::Config::new().baudrate(20.MHz().into());
+    let fpga_spi_shared = Box::leak(Box::new(SpiSharedDeviceDriver::new(
+        &spi_driver,
+        &fpga_spi_config,
+    )?));
+    let fpga_spi = SpiSoftCsDeviceDriver::new(fpga_spi_shared, fpga_pin_spi_cs, Level::High)?;
     let mut fpga = fpga::Fpga::new(
         fpga_power,
         fpga_pin_done,
         fpga_pin_program_b,
         fpga_pin_init_b,
-        fpga_pin_spi_cs,
+        fpga_spi,
     );
 
     let fpga_program_config = spi::config::Config::new().baudrate(80.MHz().into());
     let fpga_program_driver = SpiSharedDeviceDriver::new(&spi_driver, &fpga_program_config)?;
     let mut bitstream = File::open("/sdcard/top_handheld_cgb.bit")?;
     fpga.program(&fpga_program_driver, &mut bitstream)?;
+
+    fpga.write_u32(0x0000_0000, 0b11)?;
 
     log::info!("Done, sleeping in a loop.");
     loop {
