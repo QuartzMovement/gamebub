@@ -4,7 +4,7 @@ use embedded_hal::{
     digital::{InputPin, OutputPin},
     spi::{Operation, SpiDevice},
 };
-use esp_idf_svc::hal::spi::{SpiDriver, SpiError, SpiSharedDeviceDriver};
+use esp_idf_svc::hal::spi::{SpiDriver, SpiSharedDeviceDriver};
 
 #[derive(Debug)]
 pub enum Error {

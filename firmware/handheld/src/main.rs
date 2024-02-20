@@ -1,12 +1,15 @@
 use std::fs::File;
+use std::sync::Mutex;
 use std::time::Duration;
 
 use esp_idf_svc::hal::gpio::*;
+use esp_idf_svc::hal::i2c::*;
 use esp_idf_svc::hal::ledc::{self, *};
 use esp_idf_svc::hal::peripherals::Peripherals;
 use esp_idf_svc::hal::spi::{self, *};
 use esp_idf_svc::hal::units::FromValueType;
 
+mod dac;
 mod fpga;
 mod lcd;
 mod sdcard;
@@ -29,9 +32,16 @@ fn main() -> anyhow::Result<()> {
     let lcd_dc = PinDriver::output(peripherals.pins.gpio16)?;
     let lcd_backlight = peripherals.pins.gpio6;
     let lcd_cs = peripherals.pins.gpio15;
+    let dac_reset = PinDriver::output(peripherals.pins.gpio40)?;
     let spi_clk = peripherals.pins.gpio12;
     let spi_sdo = peripherals.pins.gpio11;
     let spi_sdi = peripherals.pins.gpio13;
+    let i2c_scl = peripherals.pins.gpio39;
+    let i2c_sda = peripherals.pins.gpio38;
+
+    let i2c_config = I2cConfig::new().baudrate(400.kHz().into());
+    let i2c = I2cDriver::new(peripherals.i2c0, i2c_sda, i2c_scl, &i2c_config)?;
+    let i2c = Mutex::new(i2c);
 
     let spi_driver = SpiDriver::new(
         peripherals.spi2,
@@ -62,6 +72,15 @@ fn main() -> anyhow::Result<()> {
     let mut lcd = lcd::ILI9488::new(lcd_reset, lcd_dc, lcd_spi);
     lcd.init()?;
     log::info!("Done initializing LCD");
+
+    // Setup DAC
+    log::info!("Initializing DAC");
+    let mut dac = dac::TLV320DAC3101::new(dac_reset, embedded_hal_bus::i2c::MutexDevice::new(&i2c));
+    dac.init()?;
+    dac.set_volume(100)?;
+    dac.set_mute(false)?;
+    dac.set_headphones_enabled(true)?;
+    dac.set_speakers_enabled(false)?;
 
     // Mount sdcard to /sdcard
     sdcard::mount_sdcard()?;
