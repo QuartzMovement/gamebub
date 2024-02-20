@@ -8,6 +8,7 @@ use esp_idf_svc::hal::ledc::{self, *};
 use esp_idf_svc::hal::peripherals::Peripherals;
 use esp_idf_svc::hal::spi::{self, *};
 use esp_idf_svc::hal::units::FromValueType;
+use flate2::read::GzDecoder;
 
 mod dac;
 mod fpga;
@@ -110,8 +111,10 @@ fn main() -> anyhow::Result<()> {
 
     let fpga_program_config = spi::config::Config::new().baudrate(80.MHz().into());
     let fpga_program_driver = SpiSharedDeviceDriver::new(&spi_driver, &fpga_program_config)?;
-    let mut bitstream = File::open("/sdcard/top_handheld_cgb.bit")?;
-    fpga.program(&fpga_program_driver, &mut bitstream)?;
+    {
+        let mut bitstream = GzDecoder::new(File::open("/sdcard/top_handheld_cgb.bit.gz")?);
+        fpga.program(&fpga_program_driver, &mut bitstream)?;
+    }
 
     fpga.write_u32(0x0000_0000, 0b11)?;
 
