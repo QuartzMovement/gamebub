@@ -165,10 +165,59 @@ where
         let mut data = [0u8; 4];
         let command = Self::spi_command(true, FpgaSpiWordSize::Bits32, false, true);
         self.spi_read(command, address, &mut data)?;
-        Ok(u32::from_le_bytes(data))
+        Ok(u32::from_be_bytes(data))
+    }
+
+    pub fn sram_write(&mut self, address: u32, data: &[u8]) -> Result<(), Error> {
+        let address = 0x1000_0000 | address;
+        let command = Self::spi_command(false, FpgaSpiWordSize::Bits16, true, true);
+        self.spi_write(command, address, data)
+    }
+
+    pub fn sram_read(&mut self, address: u32, data: &mut [u8]) -> Result<(), Error> {
+        let address = 0x1000_0000 | address;
+        let command = Self::spi_command(true, FpgaSpiWordSize::Bits16, true, true);
+        self.spi_read(command, address, data)
+    }
+
+    pub fn sdram_write(&mut self, address: u32, data: &[u8]) -> Result<(), Error> {
+        let address = 0x2000_0000 | address;
+        let command = Self::spi_command(false, FpgaSpiWordSize::Bits32, true, true);
+        self.spi_write(command, address, data)
+    }
+
+    pub fn sdram_read(&mut self, address: u32, data: &mut [u8]) -> Result<(), Error> {
+        let address = 0x2000_0000 | address;
+        let command = Self::spi_command(true, FpgaSpiWordSize::Bits32, true, true);
+        self.spi_read(command, address, data)
+    }
+
+    pub fn show_overlay(
+        &mut self,
+        start_x: u8,
+        end_x: u8,
+        scroll_x: u8,
+        start_y: u8,
+        end_y: u8,
+        scroll_y: u8,
+    ) -> Result<(), Error> {
+        let config_x = ((start_x as u32) & 0xFF) << 16
+            | ((end_x as u32) & 0xFF) << 8
+            | ((scroll_x as u32) & 0xFF);
+        let config_y = ((start_y as u32) & 0xFF) << 16
+            | ((end_y as u32) & 0xFF) << 8
+            | ((scroll_y as u32) & 0xFF);
+        self.write_u32(0x100, config_x)?;
+        self.write_u32(0x104, config_y)?;
+        Ok(())
+    }
+
+    pub fn hide_overlay(&mut self) -> Result<(), Error> {
+        self.show_overlay(0, 0, 0, 0, 0, 0)
     }
 }
 
+#[allow(unused)]
 #[derive(Copy, Clone)]
 enum FpgaSpiWordSize {
     Bits8 = 0,

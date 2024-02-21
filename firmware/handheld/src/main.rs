@@ -1,4 +1,5 @@
 use std::fs::File;
+use std::io::Read;
 use std::sync::Mutex;
 use std::time::Duration;
 
@@ -95,12 +96,13 @@ fn main() -> anyhow::Result<()> {
     let fpga_pin_program_b = PinDriver::output_od(peripherals.pins.gpio18)?;
     let fpga_pin_init_b = PinDriver::input(peripherals.pins.gpio8)?;
     let fpga_pin_spi_cs = peripherals.pins.gpio10;
-    let fpga_spi_config = spi::config::Config::new().baudrate(20.MHz().into());
+    let fpga_spi_config = spi::config::Config::new().baudrate(32.MHz().into());
     let fpga_spi_shared = Box::leak(Box::new(SpiSharedDeviceDriver::new(
         &spi_driver,
         &fpga_spi_config,
     )?));
-    let fpga_spi = SpiSoftCsDeviceDriver::new(fpga_spi_shared, fpga_pin_spi_cs, Level::High)?;
+    let mut fpga_spi = SpiSoftCsDeviceDriver::new(fpga_spi_shared, fpga_pin_spi_cs, Level::High)?;
+    fpga_spi.cs_pre_delay_us(100); // FPGA spi requires >35uS or so to stabilize after nCS.
     let mut fpga = fpga::Fpga::new(
         fpga_power,
         fpga_pin_done,
@@ -114,6 +116,38 @@ fn main() -> anyhow::Result<()> {
     {
         let mut bitstream = GzDecoder::new(File::open("/sdcard/top_handheld_cgb.bit.gz")?);
         fpga.program(&fpga_program_driver, &mut bitstream)?;
+    }
+
+    // testing
+    {
+        log::info!("transferring rom");
+        let mut data = File::open("/sdcard/roms/Pokemon Silver.gbc")?;
+
+        fpga.write_u32(0x0000_0000, 0b00)?;
+
+        const CHUNK_SIZE: usize = 16 * 1024;
+        let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
+        let mut total = 0u32;
+        loop {
+            let n = data.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            fpga.sdram_write(total, &buf[..n])?;
+            total += n as u32;
+        }
+
+        // Take out of reset, leave paused.
+        fpga.write_u32(0x0000_0000, 0b10)?;
+
+        let emu_cart_config = 55;
+        fpga.write_u32(0xC000_0000, emu_cart_config)?;
+        fpga.write_u32(0xC000_0004, 0)?;
+        fpga.write_u32(0xC000_0008, total - 1)?;
+        fpga.write_u32(0xC000_000C, 0)?;
+        fpga.write_u32(0xC000_0010, 0)?;
+
+        log::info!("done transferring rom");
     }
 
     fpga.write_u32(0x0000_0000, 0b11)?;
