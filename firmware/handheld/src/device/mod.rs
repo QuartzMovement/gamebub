@@ -14,8 +14,10 @@ use esp_idf_svc::hal::{i2c::*, ledc};
 mod dac;
 mod fpga;
 mod lcd;
+mod sdcard;
 
 /// Time it may take for FPGA power rails to stabilize after enable.
+/// TODO: actually measure this
 const FPGA_POWER_DELAY: Duration = Duration::from_millis(100);
 
 /// Main container for device hardware.
@@ -86,7 +88,7 @@ impl Device<'_> {
         let pin_sdio_d1 = peripherals.pins.gpio36.downgrade();
         let pin_sdio_d2 = peripherals.pins.gpio21.downgrade();
         let pin_sdio_d3 = peripherals.pins.gpio47.downgrade();
-        let pin_sd_detect = peripherals.pins.gpio37.downgrade();
+        let pin_sd_detect = peripherals.pins.gpio37.downgrade_input();
         let pin_dac_reset = peripherals.pins.gpio40.downgrade_output();
 
         // Status LED
@@ -178,6 +180,18 @@ impl Device<'_> {
             fpga_program_spi,
         );
 
+        // Mount sdcard to /sdcard
+        sdcard::mount_sdcard(
+            "/sdcard",
+            pin_sdio_clk,
+            pin_sdio_cmd,
+            pin_sdio_d0,
+            pin_sdio_d1,
+            pin_sdio_d2,
+            pin_sdio_d3,
+            Some(pin_sd_detect),
+        )?;
+
         Ok(Device {
             led,
             fpga_power,
@@ -193,6 +207,7 @@ impl Device<'_> {
     ///
     /// Note that it may take around 100ms to stabilize.
     pub fn set_fpga_power(&mut self, enable: bool) -> Result<(), anyhow::Error> {
+        // TODO: maybe return a Future that completes after it's stable?
         self.fpga_power.set_level(enable.into())?;
         Ok(())
     }

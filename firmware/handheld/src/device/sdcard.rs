@@ -1,19 +1,32 @@
-use esp_idf_svc::sys::{self as esp_idf_sys, EspError};
 use core::ffi::{c_int, c_void};
+use esp_idf_svc::{
+    hal::gpio::{AnyIOPin, AnyInputPin, AnyOutputPin, Pin},
+    sys::{self as esp_idf_sys, EspError},
+};
+use std::ffi::CString;
+
+const SDMMC_HOST_FLAG_1BIT: u32 = 1 << 0;
+const SDMMC_HOST_FLAG_4BIT: u32 = 1 << 1;
+const SDMMC_HOST_FLAG_8BIT: u32 = 1 << 2;
+const SDMMC_HOST_FLAG_SPI: u32 = 1 << 3;
+const SDMMC_HOST_FLAG_DDR: u32 = 1 << 4;
+const SDMMC_HOST_FLAG_DEINIT_ARG: u32 = 1 << 5;
+
+const SDMMC_SLOT_NO_CD: esp_idf_sys::gpio_num_t = esp_idf_sys::gpio_num_t_GPIO_NUM_NC;
+const SDMMC_SLOT_NO_WP: esp_idf_sys::gpio_num_t = esp_idf_sys::gpio_num_t_GPIO_NUM_NC;
+const SDMMC_SLOT_WIDTH_DEFAULT: u8 = 0;
 
 #[allow(unused)]
-pub fn mount_sdcard() -> Result<(), EspError> {
-    const SDMMC_HOST_FLAG_1BIT: u32 = 1 << 0;
-    const SDMMC_HOST_FLAG_4BIT: u32 = 1 << 1;
-    const SDMMC_HOST_FLAG_8BIT: u32 = 1 << 2; 
-    const SDMMC_HOST_FLAG_SPI: u32 = 1 << 3;
-    const SDMMC_HOST_FLAG_DDR: u32 = 1 << 4;
-    const SDMMC_HOST_FLAG_DEINIT_ARG: u32 = 1 << 5;
-    
-    const SDMMC_SLOT_NO_CD: esp_idf_sys::gpio_num_t = esp_idf_sys::gpio_num_t_GPIO_NUM_NC;
-    const SDMMC_SLOT_NO_WP: esp_idf_sys::gpio_num_t = esp_idf_sys::gpio_num_t_GPIO_NUM_NC;
-    const SDMMC_SLOT_WIDTH_DEFAULT: u8 = 0;
-
+pub fn mount_sdcard(
+    path: &str,
+    pin_clk: AnyOutputPin,
+    pin_cmd: AnyIOPin,
+    pin_d0: AnyIOPin,
+    pin_d1: AnyIOPin,
+    pin_d2: AnyIOPin,
+    pin_d3: AnyIOPin,
+    pin_cd: Option<AnyInputPin>,
+) -> Result<(), EspError> {
     let host_config = esp_idf_sys::sdmmc_host_t {
         flags: SDMMC_HOST_FLAG_1BIT | SDMMC_HOST_FLAG_4BIT | SDMMC_HOST_FLAG_DDR,
         slot: 1,
@@ -37,19 +50,19 @@ pub fn mount_sdcard() -> Result<(), EspError> {
 
     let slot_config = esp_idf_sys::sdmmc_slot_config_t {
         __bindgen_anon_1: esp_idf_sys::sdmmc_slot_config_t__bindgen_ty_1 {
-            gpio_cd: SDMMC_SLOT_NO_CD,
+            gpio_cd: pin_cd.map(|p| p.pin()).unwrap_or(SDMMC_SLOT_NO_CD),
         },
         __bindgen_anon_2: esp_idf_sys::sdmmc_slot_config_t__bindgen_ty_2 {
             gpio_wp: SDMMC_SLOT_NO_WP,
         },
         width: 4,
         flags: 0,
-        clk: esp_idf_sys::gpio_num_t_GPIO_NUM_45,
-        cmd: esp_idf_sys::gpio_num_t_GPIO_NUM_48,
-        d0: esp_idf_sys::gpio_num_t_GPIO_NUM_35,
-        d1: esp_idf_sys::gpio_num_t_GPIO_NUM_36,
-        d2: esp_idf_sys::gpio_num_t_GPIO_NUM_21,
-        d3: esp_idf_sys::gpio_num_t_GPIO_NUM_47,
+        clk: pin_clk.pin(),
+        cmd: pin_cmd.pin(),
+        d0: pin_d0.pin(),
+        d1: pin_d1.pin(),
+        d2: pin_d2.pin(),
+        d3: pin_d3.pin(),
         d4: esp_idf_sys::gpio_num_t_GPIO_NUM_NC,
         d5: esp_idf_sys::gpio_num_t_GPIO_NUM_NC,
         d6: esp_idf_sys::gpio_num_t_GPIO_NUM_NC,
@@ -63,13 +76,14 @@ pub fn mount_sdcard() -> Result<(), EspError> {
         disk_status_check_enable: false,
     };
 
-    const MOUNT_POINT: &[u8] = b"/sdcard\0";
+    let mount_point = CString::new(path)
+        .map_err(|_| EspError::from_infallible::<{ esp_idf_sys::ESP_ERR_INVALID_ARG }>())?;
 
     log::info!("Mounting sdcard on slot {}", host_config.slot);
     let mut card: *mut esp_idf_sys::sdmmc_card_t = std::ptr::null_mut();
     let sdmmc_mount_result = unsafe {
         esp_idf_sys::esp_vfs_fat_sdmmc_mount(
-            MOUNT_POINT.as_ptr() as *const i8,
+            mount_point.as_ptr(),
             &host_config,
             &slot_config as *const esp_idf_sys::sdmmc_slot_config_t as *const c_void,
             &mount_config,

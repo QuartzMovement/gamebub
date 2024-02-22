@@ -1,6 +1,5 @@
 use std::fs::File;
 use std::io::Read;
-use std::time::Duration;
 
 use esp_idf_svc::hal::peripherals::Peripherals;
 use flate2::read::GzDecoder;
@@ -8,7 +7,6 @@ use flate2::read::GzDecoder;
 use device::Device;
 
 mod device;
-mod sdcard;
 
 fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
@@ -18,8 +16,6 @@ fn main() -> anyhow::Result<()> {
     let peripherals = Peripherals::take()?;
     let mut device = Device::init(peripherals)?;
 
-    // Mount sdcard to /sdcard
-    sdcard::mount_sdcard()?;
     let paths = std::fs::read_dir("/sdcard").unwrap();
     for path in paths {
         println!("sdcard: {}", path.unwrap().path().display())
