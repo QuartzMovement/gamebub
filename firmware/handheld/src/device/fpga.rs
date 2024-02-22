@@ -1,10 +1,9 @@
-use std::{borrow::Borrow, fmt::Display, io::Read, time::Duration};
+use std::{fmt::Display, io::Read, time::Duration};
 
 use embedded_hal::{
     digital::{InputPin, OutputPin},
     spi::{Operation, SpiDevice},
 };
-use esp_idf_svc::hal::spi::{SpiDriver, SpiSharedDeviceDriver};
 
 #[derive(Debug)]
 pub enum Error {
@@ -23,99 +22,87 @@ impl Display for Error {
 impl std::error::Error for Error {}
 
 pub struct Fpga<
-    PinPower: OutputPin,
     PinDone: InputPin,
     PinProgramB: OutputPin,
     PinInitB: InputPin,
     Spi: SpiDevice,
+    ProgramSpi: SpiDevice,
 > {
-    pin_power: PinPower,
     pin_done: PinDone,
     pin_program_b: PinProgramB,
     pin_init_b: PinInitB,
     spi: Spi,
+    program_spi: ProgramSpi,
 }
 
-impl<PinPower, PinDone, PinProgramB, PinInitB, Spi>
-    Fpga<PinPower, PinDone, PinProgramB, PinInitB, Spi>
+impl<PinDone, PinProgramB, PinInitB, Spi, ProgramSpi>
+    Fpga<PinDone, PinProgramB, PinInitB, Spi, ProgramSpi>
 where
-    PinPower: OutputPin,
     PinDone: InputPin,
     PinProgramB: OutputPin,
     PinInitB: InputPin,
     Spi: SpiDevice,
+    ProgramSpi: SpiDevice,
 {
     pub fn new(
-        pin_power: PinPower,
         pin_done: PinDone,
         pin_program_b: PinProgramB,
         pin_init_b: PinInitB,
         spi: Spi,
+        program_spi: ProgramSpi,
     ) -> Self {
         Fpga {
-            pin_power,
             pin_done,
             pin_program_b,
             pin_init_b,
             spi,
+            program_spi,
         }
     }
 
-    // SpiSharedDeviceDriver
-    pub fn program<'d, Driver>(
-        &mut self,
-        spi: &SpiSharedDeviceDriver<'d, Driver>,
-        bitstream: &mut dyn Read,
-    ) -> Result<(), Error>
-    where
-        Driver: Borrow<SpiDriver<'d>> + 'd,
-    {
-        self.pin_power.set_high().map_err(|_| Error::PinError)?;
+    /// Program the FPGA with a new bitstream.
+    pub fn program(&mut self, bitstream: &mut dyn Read) -> Result<(), Error> {
+        // Pull PROGRAM_B low, hold it for at least 250ns.
+        self.pin_program_b.set_low().map_err(|_| Error::PinError)?;
+        std::thread::sleep(Duration::from_millis(1));
+        if self.pin_init_b.is_high().map_err(|_| Error::PinError)? {
+            return Err(Error::ProgramError);
+        }
+        self.pin_program_b.set_high().map_err(|_| Error::PinError)?;
 
-        // Wait 100ms after power on.
-        std::thread::sleep(Duration::from_millis(100));
+        // INIT_B will go high at most 5ms after PROGRAM_B release.
+        std::thread::sleep(Duration::from_millis(5));
+        if self.pin_init_b.is_low().map_err(|_| Error::PinError)? {
+            return Err(Error::ProgramError);
+        }
 
-        spi.lock(|spi| {
-            // Pull PROGRAM_B low, hold it for at least 250ns.
-            self.pin_program_b.set_low().map_err(|_| Error::PinError)?;
-            std::thread::sleep(Duration::from_millis(1));
-            if self.pin_init_b.is_high().map_err(|_| Error::PinError)? {
-                return Err(Error::ProgramError);
-            }
-            self.pin_program_b.set_high().map_err(|_| Error::PinError)?;
+        log::info!("FPGA is in program mode");
 
-            // INIT_B will go high at most 5ms after PROGRAM_B release.
-            std::thread::sleep(Duration::from_millis(5));
-            if self.pin_init_b.is_low().map_err(|_| Error::PinError)? {
-                return Err(Error::ProgramError);
-            }
+        let mut bitstream_header = [0u8; 129];
+        bitstream
+            .read(&mut bitstream_header)
+            .map_err(|_| Error::BitstreamError)?;
 
-            log::info!("FPGA is in program mode");
-
-            let mut bitstream_header = [0u8; 129];
-            bitstream
-                .read(&mut bitstream_header)
+        const CHUNK_SIZE: usize = 16 * 1024;
+        let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
+        loop {
+            let n = bitstream
+                .read(&mut buf)
                 .map_err(|_| Error::BitstreamError)?;
-
-            const CHUNK_SIZE: usize = 16 * 1024;
-            let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
-            loop {
-                let n = bitstream
-                    .read(&mut buf)
-                    .map_err(|_| Error::BitstreamError)?;
-                if n == 0 {
-                    break;
-                }
-                spi.write(&buf[..n]).map_err(|_| Error::ProgramError)?;
+            if n == 0 {
+                break;
             }
+            self.program_spi
+                .write(&buf[..n])
+                .map_err(|_| Error::ProgramError)?;
+        }
 
-            log::info!(
-                "Programmed FPGA, done={}",
-                self.pin_done.is_high().map_err(|_| Error::PinError)?
-            );
+        log::info!(
+            "Programmed FPGA, done={}",
+            self.pin_done.is_high().map_err(|_| Error::PinError)?
+        );
 
-            Ok(())
-        })
+        Ok(())
     }
 
     const fn spi_command(
