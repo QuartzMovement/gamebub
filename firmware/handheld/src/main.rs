@@ -1,6 +1,5 @@
 use std::fs::File;
 use std::io::Read;
-use std::time::Duration;
 
 use esp_idf_svc::hal::peripherals::Peripherals;
 use flate2::read::GzDecoder;
@@ -20,6 +19,18 @@ fn main() -> anyhow::Result<()> {
     let paths = std::fs::read_dir("/sdcard").unwrap();
     for path in paths {
         println!("sdcard: {}", path.unwrap().path().display())
+    }
+
+    // Test RTC
+    let datetime = device.rtc.read_datetime()?;
+    match datetime {
+        Some(datetime) => log::info!("Current datetime: {:?}", datetime),
+        None => {
+            log::info!("No date set, resetting");
+            device
+                .rtc
+                .write_datetime(device::rtc::Datetime::default())?;
+        }
     }
 
     // Program FPGA
@@ -64,7 +75,6 @@ fn main() -> anyhow::Result<()> {
 
     log::info!("Done");
     loop {
-        std::thread::sleep(Duration::from_secs(1));
-        log::info!("{:?}", device.read_buttons().unwrap());
+        std::thread::park();
     }
 }

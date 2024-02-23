@@ -1,6 +1,7 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
 use esp_idf_svc::hal::gpio::{
     self, AnyIOPin, AnyInputPin, IOPin, Input, InputOutput, InputPin, OutputPin,
 };
@@ -17,6 +18,7 @@ mod dac;
 mod fpga;
 mod io_expander;
 mod lcd;
+pub mod rtc;
 mod sdcard;
 
 /// Time it may take for FPGA power rails to stabilize after enable.
@@ -45,10 +47,7 @@ pub struct Device<'a> {
     >,
 
     /// DAC driver
-    dac: dac::TLV320DAC3101<
-        PinDriver<'a, AnyOutputPin, Output>,
-        embedded_hal_bus::i2c::MutexDevice<'a, I2cDriver<'a>>,
-    >,
+    dac: dac::TLV320DAC3101<PinDriver<'a, AnyOutputPin, Output>, MutexI2C<'a, I2cDriver<'a>>>,
 
     /// FPGA driver
     pub fpga: fpga::Fpga<
@@ -59,7 +58,10 @@ pub struct Device<'a> {
         SpiDeviceDriver<'a, &'a SpiDriver<'a>>,
     >,
 
-    io_expander: io_expander::TCA9535<embedded_hal_bus::i2c::MutexDevice<'a, I2cDriver<'a>>>,
+    /// RTC driver
+    pub rtc: rtc::PCF8563<MutexI2C<'a, I2cDriver<'a>>>,
+
+    io_expander: io_expander::TCA9535<MutexI2C<'a, I2cDriver<'a>>>,
     button_home: PinDriver<'a, AnyInputPin, Input>,
     button_vol_up: PinDriver<'a, AnyInputPin, Input>,
     button_vol_down: PinDriver<'a, AnyInputPin, Input>,
@@ -151,8 +153,7 @@ impl Device<'_> {
         lcd.init()?;
 
         // Setup I/O expander
-        let mut io_expander =
-            io_expander::TCA9535::new(embedded_hal_bus::i2c::MutexDevice::new(&i2c));
+        let mut io_expander = io_expander::TCA9535::new(MutexI2C::new(&i2c));
         io_expander.get_pins()?;
 
         // Direct buttons
@@ -162,6 +163,9 @@ impl Device<'_> {
         let mut button_power = PinDriver::input_output_od(pin_power_switch)?;
         button_power.set_high()?;
 
+        // Setup RTC
+        let rtc = rtc::PCF8563::new(MutexI2C::new(&i2c));
+
         // Ensure fpga power has stabilized.
         let time_since_fpga_power = Instant::now().duration_since(fpga_power_time);
         std::thread::sleep(FPGA_POWER_DELAY.saturating_sub(time_since_fpga_power));
@@ -169,8 +173,7 @@ impl Device<'_> {
         // Setup DAC (requires fpga_power on)
         log::info!("Initializing DAC");
         let dac_reset = PinDriver::output(pin_dac_reset)?;
-        let mut dac =
-            dac::TLV320DAC3101::new(dac_reset, embedded_hal_bus::i2c::MutexDevice::new(&i2c));
+        let mut dac = dac::TLV320DAC3101::new(dac_reset, MutexI2C::new(&i2c));
         dac.init()?;
         dac.set_volume(100)?;
         dac.set_mute(false)?;
@@ -227,6 +230,7 @@ impl Device<'_> {
             button_power,
             button_vol_up,
             button_vol_down,
+            rtc,
         })
     }
 
