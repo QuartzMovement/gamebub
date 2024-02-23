@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::Read;
+use std::time::Duration;
 
 use esp_idf_svc::hal::peripherals::Peripherals;
 use flate2::read::GzDecoder;
@@ -63,6 +64,7 @@ fn main() -> anyhow::Result<()> {
 
     log::info!("Done");
     loop {
-        std::thread::park();
+        std::thread::sleep(Duration::from_secs(1));
+        log::info!("{:?}", device.read_buttons().unwrap());
     }
 }

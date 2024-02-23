@@ -1,7 +1,9 @@
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use esp_idf_svc::hal::gpio::{self, AnyIOPin, AnyInputPin, IOPin, Input, InputPin, OutputPin};
+use esp_idf_svc::hal::gpio::{
+    self, AnyIOPin, AnyInputPin, IOPin, Input, InputOutput, InputPin, OutputPin,
+};
 use esp_idf_svc::hal::gpio::{AnyOutputPin, Output, PinDriver};
 use esp_idf_svc::hal::ledc::{LedcDriver, LedcTimerDriver};
 use esp_idf_svc::hal::peripherals::Peripherals;
@@ -13,6 +15,7 @@ use esp_idf_svc::hal::{i2c::*, ledc};
 
 mod dac;
 mod fpga;
+mod io_expander;
 mod lcd;
 mod sdcard;
 
@@ -55,12 +58,19 @@ pub struct Device<'a> {
         SpiSoftCsDeviceDriver<'a, SpiSharedDeviceDriver<'a, &'a SpiDriver<'a>>, &'a SpiDriver<'a>>,
         SpiDeviceDriver<'a, &'a SpiDriver<'a>>,
     >,
+
+    io_expander: io_expander::TCA9535<embedded_hal_bus::i2c::MutexDevice<'a, I2cDriver<'a>>>,
+    button_home: PinDriver<'a, AnyInputPin, Input>,
+    button_vol_up: PinDriver<'a, AnyInputPin, Input>,
+    button_vol_down: PinDriver<'a, AnyInputPin, Input>,
+    button_power: PinDriver<'a, AnyIOPin, InputOutput>,
 }
 
 impl Device<'_> {
     pub fn init(peripherals: Peripherals) -> Result<Self, anyhow::Error> {
         let pin_led = peripherals.pins.gpio3.downgrade_output();
         let pin_irq = peripherals.pins.gpio2.downgrade_input();
+        let pin_home = peripherals.pins.gpio0.downgrade_input();
         let pin_vol_up = peripherals.pins.gpio4.downgrade_input();
         let pin_vol_down = peripherals.pins.gpio5.downgrade_input();
         let pin_power_switch = peripherals.pins.gpio1.downgrade();
@@ -140,6 +150,18 @@ impl Device<'_> {
         let mut lcd = lcd::ILI9488::new(lcd_reset, lcd_dc, lcd_spi);
         lcd.init()?;
 
+        // Setup I/O expander
+        let mut io_expander =
+            io_expander::TCA9535::new(embedded_hal_bus::i2c::MutexDevice::new(&i2c));
+        io_expander.get_pins()?;
+
+        // Direct buttons
+        let button_home = PinDriver::input(pin_home)?;
+        let button_vol_up = PinDriver::input(pin_vol_up)?;
+        let button_vol_down = PinDriver::input(pin_vol_down)?;
+        let mut button_power = PinDriver::input_output_od(pin_power_switch)?;
+        button_power.set_high()?;
+
         // Ensure fpga power has stabilized.
         let time_since_fpga_power = Instant::now().duration_since(fpga_power_time);
         std::thread::sleep(FPGA_POWER_DELAY.saturating_sub(time_since_fpga_power));
@@ -200,6 +222,11 @@ impl Device<'_> {
             lcd,
             dac,
             fpga,
+            io_expander,
+            button_home,
+            button_power,
+            button_vol_up,
+            button_vol_down,
         })
     }
 
@@ -211,4 +238,46 @@ impl Device<'_> {
         self.fpga_power.set_level(enable.into())?;
         Ok(())
     }
+
+    pub fn read_buttons(&mut self) -> Result<Buttons, ()> {
+        let io_expander = self.io_expander.get_pins().map_err(|_| ())?;
+        Ok(Buttons {
+            a: !io_expander[3],
+            b: !io_expander[4],
+            x: !io_expander[1],
+            y: !io_expander[2],
+            up: !io_expander[10],
+            down: !io_expander[13],
+            left: !io_expander[12],
+            right: !io_expander[11],
+            start: !io_expander[15],
+            select: !io_expander[14],
+            l: !io_expander[9],
+            r: !io_expander[0],
+            home: self.button_home.is_low(),
+            vol_up: self.button_vol_up.is_low(),
+            vol_down: self.button_vol_down.is_low(),
+            power: self.button_power.is_low(),
+        })
+    }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct Buttons {
+    pub a: bool,
+    pub b: bool,
+    pub x: bool,
+    pub y: bool,
+    pub up: bool,
+    pub down: bool,
+    pub left: bool,
+    pub right: bool,
+    pub l: bool,
+    pub r: bool,
+    pub start: bool,
+    pub select: bool,
+    pub home: bool,
+    pub vol_up: bool,
+    pub vol_down: bool,
+    pub power: bool,
 }
