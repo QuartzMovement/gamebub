@@ -1,4 +1,4 @@
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
@@ -25,6 +25,8 @@ mod sdcard;
 /// Time it may take for FPGA power rails to stabilize after enable.
 /// TODO: actually measure this
 const FPGA_POWER_DELAY: Duration = Duration::from_millis(100);
+
+static DEVICE: OnceLock<Mutex<Device>> = OnceLock::new();
 
 /// Main container for device hardware.
 pub struct Device<'a> {
@@ -70,7 +72,12 @@ pub struct Device<'a> {
 }
 
 impl Device<'_> {
-    pub fn init(peripherals: Peripherals) -> Result<Self, anyhow::Error> {
+    pub fn init() -> Result<(), anyhow::Error> {
+        if let Some(_) = DEVICE.get() {
+            panic!("Device already initialized.");
+        }
+
+        let peripherals = Peripherals::take()?;
         let pin_led = peripherals.pins.gpio3.downgrade_output();
         let pin_irq = peripherals.pins.gpio2.downgrade_input();
         let pin_home = peripherals.pins.gpio0.downgrade_input();
@@ -218,7 +225,7 @@ impl Device<'_> {
             Some(pin_sd_detect),
         )?;
 
-        Ok(Device {
+        let device = Device {
             led,
             fpga_power,
             i2c,
@@ -232,7 +239,16 @@ impl Device<'_> {
             button_vol_up,
             button_vol_down,
             rtc,
-        })
+        };
+        DEVICE
+            .set(Mutex::new(device))
+            .map_err(|_| ())
+            .expect("Device already initialized");
+        Ok(())
+    }
+
+    pub fn get() -> &'static Mutex<Device<'static>> {
+        DEVICE.get().unwrap()
     }
 
     /// Enable or disable FPGA power.

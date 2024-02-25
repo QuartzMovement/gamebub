@@ -1,9 +1,7 @@
 use std::fs::File;
 use std::io::Read;
-use std::ops::Add;
 
 use embedded_graphics::pixelcolor::Rgb555;
-use esp_idf_svc::hal::peripherals::Peripherals;
 use flate2::read::GzDecoder;
 
 use device::Device;
@@ -17,8 +15,8 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     log::info!("Initializing device");
-    let peripherals = Peripherals::take()?;
-    let mut device = Device::init(peripherals)?;
+    Device::init()?;
+    let mut device = Device::get().lock().unwrap();
 
     let paths = std::fs::read_dir("/sdcard").unwrap();
     for path in paths {
