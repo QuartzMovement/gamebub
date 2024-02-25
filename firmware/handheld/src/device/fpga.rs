@@ -117,24 +117,36 @@ where
             | ((auto_increment as u8) << 4)
     }
 
-    fn spi_write(&mut self, command: u8, address: u32, data: &[u8]) -> Result<(), Error> {
+    /// Generic SPI write function.
+    pub fn spi_write(
+        &mut self,
+        command: SpiCommand,
+        address: u32,
+        data: &[u8],
+    ) -> Result<(), Error> {
         let address = address.to_be_bytes();
         self.spi
             .transaction(&mut [
-                Operation::Write(&[command]),
+                Operation::Write(&[command.as_write_command()]),
                 Operation::Write(&address),
                 Operation::Write(&data),
             ])
             .map_err(|_| Error::SpiError)
     }
 
-    fn spi_read(&mut self, command: u8, address: u32, buffer: &mut [u8]) -> Result<(), Error> {
+    /// Generic SPI read function.
+    fn spi_read(
+        &mut self,
+        command: SpiCommand,
+        address: u32,
+        buffer: &mut [u8],
+    ) -> Result<(), Error> {
         const DUMMY_BYTES: usize = 8;
         let address = address.to_be_bytes();
         let mut dummy = [0u8; DUMMY_BYTES];
         self.spi
             .transaction(&mut [
-                Operation::Write(&[command]),
+                Operation::Write(&[command.as_read_command()]),
                 Operation::Write(&address),
                 Operation::Read(&mut dummy),
                 Operation::Read(buffer),
@@ -143,43 +155,68 @@ where
     }
 
     pub fn write_u32(&mut self, address: u32, data: u32) -> Result<(), Error> {
-        let command = Self::spi_command(false, FpgaSpiWordSize::Bits32, false, true);
+        let command = SpiCommand {
+            word_size: FpgaSpiWordSize::Bits32,
+            byte_swap: false,
+            increment_address: true,
+        };
         let data = data.to_be_bytes();
         self.spi_write(command, address, &data)
     }
 
     pub fn read_u32(&mut self, address: u32) -> Result<u32, Error> {
         let mut data = [0u8; 4];
-        let command = Self::spi_command(true, FpgaSpiWordSize::Bits32, false, true);
+        let command = SpiCommand {
+            word_size: FpgaSpiWordSize::Bits32,
+            byte_swap: false,
+            increment_address: true,
+        };
         self.spi_read(command, address, &mut data)?;
         Ok(u32::from_be_bytes(data))
     }
 
     pub fn sram_write(&mut self, address: u32, data: &[u8]) -> Result<(), Error> {
         let address = 0x1000_0000 | address;
-        let command = Self::spi_command(false, FpgaSpiWordSize::Bits16, true, true);
+        let command = SpiCommand {
+            word_size: FpgaSpiWordSize::Bits16,
+            byte_swap: true,
+            increment_address: true,
+        };
         self.spi_write(command, address, data)
     }
 
     pub fn sram_read(&mut self, address: u32, data: &mut [u8]) -> Result<(), Error> {
         let address = 0x1000_0000 | address;
-        let command = Self::spi_command(true, FpgaSpiWordSize::Bits16, true, true);
+        let command = SpiCommand {
+            word_size: FpgaSpiWordSize::Bits16,
+            byte_swap: true,
+            increment_address: true,
+        };
         self.spi_read(command, address, data)
     }
 
     pub fn sdram_write(&mut self, address: u32, data: &[u8]) -> Result<(), Error> {
         let address = 0x2000_0000 | address;
-        let command = Self::spi_command(false, FpgaSpiWordSize::Bits32, true, true);
+        let command = SpiCommand {
+            word_size: FpgaSpiWordSize::Bits32,
+            byte_swap: true,
+            increment_address: true,
+        };
         self.spi_write(command, address, data)
     }
 
     pub fn sdram_read(&mut self, address: u32, data: &mut [u8]) -> Result<(), Error> {
         let address = 0x2000_0000 | address;
-        let command = Self::spi_command(true, FpgaSpiWordSize::Bits32, true, true);
+        let command = SpiCommand {
+            word_size: FpgaSpiWordSize::Bits32,
+            byte_swap: true,
+            increment_address: true,
+        };
         self.spi_read(command, address, data)
     }
 
-    pub fn show_overlay(
+    /// Configure the drawing bounds of the overlay.
+    pub fn set_overlay_bounds(
         &mut self,
         start_x: u8,
         end_x: u8,
@@ -199,16 +236,50 @@ where
         Ok(())
     }
 
+    /// Hide the overlay by setting drawing bounds to invisible.
     pub fn hide_overlay(&mut self) -> Result<(), Error> {
-        self.show_overlay(0, 0, 0, 0, 0, 0)
+        self.set_overlay_bounds(0, 0, 0, 0, 0, 0)
+    }
+
+    /// Write overlay framebuffer.
+    pub fn write_overlay(&mut self, offset: u32, data: &[u8]) -> Result<(), Error> {
+        let command = SpiCommand {
+            word_size: FpgaSpiWordSize::Bits16,
+            byte_swap: true,
+            increment_address: true,
+        };
+        self.spi_write(command, 0x38000000 | offset, data)
     }
 }
 
 #[allow(unused)]
 #[derive(Copy, Clone)]
-enum FpgaSpiWordSize {
+pub enum FpgaSpiWordSize {
     Bits8 = 0,
     Bits16 = 1,
     Bits32 = 2,
     Bits64 = 3,
+}
+
+#[derive(Copy, Clone)]
+pub struct SpiCommand {
+    pub word_size: FpgaSpiWordSize,
+    pub byte_swap: bool,
+    pub increment_address: bool,
+}
+
+impl SpiCommand {
+    fn as_read_command(self) -> u8 {
+        (1u8)
+            | ((self.word_size as u8) << 1)
+            | ((self.byte_swap as u8) << 3)
+            | ((self.increment_address as u8) << 4)
+    }
+
+    fn as_write_command(self) -> u8 {
+        (0u8)
+            | ((self.word_size as u8) << 1)
+            | ((self.byte_swap as u8) << 3)
+            | ((self.increment_address as u8) << 4)
+    }
 }

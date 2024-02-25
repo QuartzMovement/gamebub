@@ -16,6 +16,7 @@ use esp_idf_svc::hal::{i2c::*, ledc};
 
 mod dac;
 mod fpga;
+pub mod graphics;
 mod io_expander;
 mod lcd;
 pub mod rtc;
@@ -40,14 +41,14 @@ pub struct Device<'a> {
     lcd_backlight: LedcDriver<'a>,
 
     /// LCD driver
-    lcd: lcd::ILI9488<
+    pub lcd: lcd::ILI9488<
         PinDriver<'a, AnyOutputPin, Output>,
         PinDriver<'a, AnyOutputPin, Output>,
         SpiSoftCsDeviceDriver<'a, SpiSharedDeviceDriver<'a, &'a SpiDriver<'a>>, &'a SpiDriver<'a>>,
     >,
 
     /// DAC driver
-    dac: dac::TLV320DAC3101<PinDriver<'a, AnyOutputPin, Output>, MutexI2C<'a, I2cDriver<'a>>>,
+    pub dac: dac::TLV320DAC3101<PinDriver<'a, AnyOutputPin, Output>, MutexI2C<'a, I2cDriver<'a>>>,
 
     /// FPGA driver
     pub fpga: fpga::Fpga<
@@ -243,6 +244,7 @@ impl Device<'_> {
         Ok(())
     }
 
+    /// Get the current state of the buttons.
     pub fn read_buttons(&mut self) -> Result<Buttons, ()> {
         let io_expander = self.io_expander.get_pins().map_err(|_| ())?;
         Ok(Buttons {
@@ -263,6 +265,14 @@ impl Device<'_> {
             vol_down: self.button_vol_down.is_low(),
             power: self.button_power.is_low(),
         })
+    }
+
+    /// Display a framebuffer.
+    ///
+    /// Currently always an FPGA overlay.
+    pub fn display_framebuffer(&mut self, framebuffer: &graphics::Framebuffer) {
+        let _ = self.fpga.write_overlay(0, framebuffer.data());
+        let _ = self.fpga.set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
     }
 }
 

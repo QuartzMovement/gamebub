@@ -1,10 +1,14 @@
 use std::fs::File;
 use std::io::Read;
+use std::ops::Add;
 
+use embedded_graphics::pixelcolor::Rgb555;
 use esp_idf_svc::hal::peripherals::Peripherals;
 use flate2::read::GzDecoder;
 
 use device::Device;
+
+use crate::device::graphics::Argb1555;
 
 mod device;
 
@@ -37,6 +41,49 @@ fn main() -> anyhow::Result<()> {
     {
         let mut bitstream = GzDecoder::new(File::open("/sdcard/top_handheld_cgb.bit.gz")?);
         device.fpga.program(&mut bitstream)?;
+        device.lcd.enable_fpga_control()?;
+    }
+
+    // Testing graphics: draw a frame around the game
+    {
+        use embedded_graphics::{
+            geometry::AnchorPoint,
+            mono_font::{ascii::FONT_6X10, MonoTextStyle},
+            prelude::*,
+            primitives::{PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
+            text::{Alignment, Text, TextStyleBuilder},
+        };
+
+        let mut framebuffer = Box::new(device::graphics::Framebuffer::new());
+        log::info!("Drawing framebuffer");
+
+        // Draw some text.
+        let text = "this\nis\na\nframe";
+        let text_style = TextStyleBuilder::new().alignment(Alignment::Left).build();
+        let character_style = MonoTextStyle::new(&FONT_6X10, Rgb555::CSS_LIGHT_CORAL.into());
+        Text::with_text_style(
+            text,
+            framebuffer
+                .bounding_box()
+                .anchor_point(AnchorPoint::CenterLeft),
+            character_style,
+            text_style,
+        )
+        .draw(framebuffer.as_mut())?;
+
+        // Cut out area for the game.
+        let frame_style = PrimitiveStyleBuilder::new()
+            .stroke_color(Rgb555::WHITE.into())
+            .stroke_width(2)
+            .stroke_alignment(StrokeAlignment::Outside)
+            .fill_color(Argb1555::transparent())
+            .build();
+        Rectangle::with_center(framebuffer.bounding_box().center(), Size::new(160, 144))
+            .into_styled(frame_style)
+            .draw(framebuffer.as_mut())?;
+
+        log::info!("Displaying framebuffer");
+        device.display_framebuffer(&framebuffer);
     }
 
     // testing

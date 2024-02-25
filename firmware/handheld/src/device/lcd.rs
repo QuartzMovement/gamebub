@@ -65,7 +65,8 @@ where
         //    because ILI9488 does *NOT* tri-state SDO when CS is high,
         //    meaning it screws up the SPI bus. It should be *disconnected*
         //    (or in a board revision, a tri-state buffer added.)
-        self.write_cmd(0xB0, &[0x00])?;
+        // also configure enable/dotclk/hsync/vsync polarity (for FPGA)
+        self.write_cmd(0xB0, &[0x0E])?;
 
         // Display Inversion Control: 2-dot (from vendor)
         self.write_cmd(0xB4, &[0x02])?;
@@ -117,11 +118,6 @@ where
         self.write_cmd(0x29, &[])?;
         std::thread::sleep(Duration::from_millis(10));
 
-        // Testing: pass control of LCD to FPGA.
-        self.write_cmd(0xB0, &[0x0E])?;
-        self.write_cmd(0xB6, &[0xB2, 0x62])?;
-        self.write_cmd(0xB4, &[0x00])?;
-
         Ok(())
     }
 
@@ -132,6 +128,29 @@ where
             self.pin_dc.set_high().map_err(|_| Error::DcError)?;
             self.spi.write(params).map_err(|_| Error::SpiError)?;
         }
+        Ok(())
+    }
+
+    /// Set the LCD to be controlled by the FPGA.
+    pub fn enable_fpga_control(&mut self) -> Result<(), Error> {
+        // Display Function Control: enable RGB interface, bypassing memory
+        self.write_cmd(0xB6, &[0xB2, 0x62])
+            .map_err(|_| Error::SpiError)?;
+
+        // Display Inversion Control: setup column inversion
+        self.write_cmd(0xB4, &[0x00])?;
+
+        Ok(())
+    }
+
+    /// Set the LCD to be controlled by MCU.
+    pub fn enable_mcu_control(&mut self) -> Result<(), Error> {
+        // Display Function Control
+        self.write_cmd(0xB6, &[0x02, 0x02, 0x3B])?;
+
+        // Display Inversion Control: 2-dot (from vendor)
+        self.write_cmd(0xB4, &[0x02])?;
+
         Ok(())
     }
 
