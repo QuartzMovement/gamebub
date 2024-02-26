@@ -7,6 +7,7 @@ use flate2::read::GzDecoder;
 use device::Device;
 
 use crate::device::graphics::Argb1555;
+use crate::ui::ButtonEvent;
 
 mod device;
 pub mod ui;
@@ -17,7 +18,7 @@ fn main() -> anyhow::Result<()> {
 
     log::info!("Initializing device");
     Device::init()?;
-    let mut device = Device::get().lock().unwrap();
+    let mut device = Device::lock();
 
     let paths = std::fs::read_dir("/sdcard").unwrap();
     for path in paths {
@@ -131,6 +132,16 @@ fn main() -> anyhow::Result<()> {
             device::Event::Button(state) => {
                 for button_event in button_event_detector.update(state) {
                     log::info!("event: {:?}", button_event);
+
+                    match button_event {
+                        ButtonEvent::Pressed(ui::Button::VolUp) => {
+                            Device::lock().dac.set_speakers_enabled(true).unwrap();
+                        }
+                        ButtonEvent::Pressed(ui::Button::VolDown) => {
+                            Device::lock().dac.set_speakers_enabled(false).unwrap();
+                        }
+                        _ => {}
+                    }
                 }
             }
             device::Event::FpgaIrq => log::info!("event: fpga irq"),

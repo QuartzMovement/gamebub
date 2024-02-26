@@ -1,4 +1,4 @@
-use std::sync::mpsc;
+use std::sync::{mpsc, MutexGuard};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -268,6 +268,10 @@ impl Device<'_> {
 
     pub fn get() -> &'static Mutex<Device<'static>> {
         DEVICE.get().unwrap()
+    }
+
+    pub fn lock() -> MutexGuard<'static, Device<'static>> {
+        Device::get().lock().unwrap()
     }
 
     /// Enable or disable FPGA power.
