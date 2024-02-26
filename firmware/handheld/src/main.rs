@@ -116,10 +116,15 @@ fn main() -> anyhow::Result<()> {
         log::info!("done transferring rom");
     }
 
+    // Start the FPGA submodule
     device.fpga.write_u32(0x0000_0000, 0b11)?;
 
     log::info!("Done");
-    loop {
-        std::thread::park();
+    let event_queue = device.take_event_receiver().unwrap();
+    std::mem::drop(device); // Drop the lock
+
+    while let Ok(event) = event_queue.recv() {
+        log::info!("event: {:?}", event);
     }
+    panic!("Queue empty");
 }

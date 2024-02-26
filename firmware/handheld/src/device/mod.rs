@@ -1,3 +1,4 @@
+use std::num::NonZeroU32;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -13,10 +14,12 @@ use esp_idf_svc::hal::spi::{
 };
 use esp_idf_svc::hal::units::FromValueType;
 use esp_idf_svc::hal::{i2c::*, ledc};
+use std::sync::mpsc;
 
 mod dac;
 mod fpga;
 pub mod graphics;
+mod interrupt;
 mod io_expander;
 mod lcd;
 pub mod rtc;
@@ -69,6 +72,11 @@ pub struct Device<'a> {
     button_vol_up: PinDriver<'a, AnyInputPin, Input>,
     button_vol_down: PinDriver<'a, AnyInputPin, Input>,
     button_power: PinDriver<'a, AnyIOPin, InputOutput>,
+    pin_irq: PinDriver<'a, AnyInputPin, Input>,
+
+    /// Event queue
+    event_sender: mpsc::Sender<Event>,
+    event_receiver: Option<mpsc::Receiver<Event>>,
 }
 
 impl Device<'_> {
@@ -123,8 +131,12 @@ impl Device<'_> {
         // Initialize I2C
         // TODO: see if there's a good way to do this without making and leaking a Box
         let i2c_config = I2cConfig::new().baudrate(400.kHz().into());
-        let i2c = I2cDriver::new(peripherals.i2c0, pin_i2c_sda, pin_i2c_scl, &i2c_config)?;
+        let mut i2c = I2cDriver::new(peripherals.i2c0, pin_i2c_sda, pin_i2c_scl, &i2c_config)?;
+        // On IMU, change IRQ to active-low open-drain.
+        embedded_hal::i2c::I2c::write(&mut i2c, 0x6A, &[0x12, 0x00, 0x10])?;
         let i2c = &*Box::leak(Box::new(Mutex::new(i2c)));
+
+        let pin_irq = PinDriver::input(pin_irq)?;
 
         // LCD backlight
         let mut lcd_backlight = LedcDriver::new(
@@ -225,6 +237,8 @@ impl Device<'_> {
             Some(pin_sd_detect),
         )?;
 
+        let (event_sender, event_receiver) = mpsc::channel();
+
         let device = Device {
             led,
             fpga_power,
@@ -238,12 +252,18 @@ impl Device<'_> {
             button_power,
             button_vol_up,
             button_vol_down,
+            pin_irq,
             rtc,
+            event_sender,
+            event_receiver: Some(event_receiver),
         };
         DEVICE
             .set(Mutex::new(device))
             .map_err(|_| ())
             .expect("Device already initialized");
+
+        Device::setup_interrupts();
+
         Ok(())
     }
 
@@ -290,6 +310,11 @@ impl Device<'_> {
         let _ = self.fpga.write_overlay(0, framebuffer.data());
         let _ = self.fpga.set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
     }
+
+    /// Take the event queue receiver.
+    pub fn take_event_receiver(&mut self) -> Option<mpsc::Receiver<Event>> {
+        self.event_receiver.take()
+    }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -310,4 +335,10 @@ pub struct Buttons {
     pub vol_up: bool,
     pub vol_down: bool,
     pub power: bool,
+}
+
+#[derive(Clone, Debug)]
+pub enum Event {
+    Button(Buttons),
+    FpgaIrq,
 }
