@@ -31,7 +31,7 @@ fn main() -> anyhow::Result<()> {
             log::info!("No date set, resetting");
             device
                 .rtc
-                .write_datetime(device::rtc::Datetime::default())?;
+                .write_datetime(device::drivers::rtc::Datetime::default())?;
         }
     }
 

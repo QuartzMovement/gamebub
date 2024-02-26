@@ -1,4 +1,3 @@
-use std::num::NonZeroU32;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
@@ -16,14 +15,9 @@ use esp_idf_svc::hal::units::FromValueType;
 use esp_idf_svc::hal::{i2c::*, ledc};
 use std::sync::mpsc;
 
-mod dac;
-mod fpga;
+pub mod drivers;
 pub mod graphics;
 mod interrupt;
-mod io_expander;
-mod lcd;
-pub mod rtc;
-mod sdcard;
 
 /// Time it may take for FPGA power rails to stabilize after enable.
 /// TODO: actually measure this
@@ -46,17 +40,20 @@ pub struct Device<'a> {
     lcd_backlight: LedcDriver<'a>,
 
     /// LCD driver
-    pub lcd: lcd::ILI9488<
+    pub lcd: drivers::lcd::ILI9488<
         PinDriver<'a, AnyOutputPin, Output>,
         PinDriver<'a, AnyOutputPin, Output>,
         SpiSoftCsDeviceDriver<'a, SpiSharedDeviceDriver<'a, &'a SpiDriver<'a>>, &'a SpiDriver<'a>>,
     >,
 
     /// DAC driver
-    pub dac: dac::TLV320DAC3101<PinDriver<'a, AnyOutputPin, Output>, MutexI2C<'a, I2cDriver<'a>>>,
+    pub dac: drivers::dac::TLV320DAC3101<
+        PinDriver<'a, AnyOutputPin, Output>,
+        MutexI2C<'a, I2cDriver<'a>>,
+    >,
 
     /// FPGA driver
-    pub fpga: fpga::Fpga<
+    pub fpga: drivers::fpga::Fpga<
         PinDriver<'a, AnyInputPin, Input>,
         PinDriver<'a, AnyOutputPin, Output>,
         PinDriver<'a, AnyIOPin, Input>,
@@ -65,9 +62,9 @@ pub struct Device<'a> {
     >,
 
     /// RTC driver
-    pub rtc: rtc::PCF8563<MutexI2C<'a, I2cDriver<'a>>>,
+    pub rtc: drivers::rtc::PCF8563<MutexI2C<'a, I2cDriver<'a>>>,
 
-    io_expander: io_expander::TCA9535<MutexI2C<'a, I2cDriver<'a>>>,
+    io_expander: drivers::io_expander::TCA9535<MutexI2C<'a, I2cDriver<'a>>>,
     button_home: PinDriver<'a, AnyInputPin, Input>,
     button_vol_up: PinDriver<'a, AnyInputPin, Input>,
     button_vol_down: PinDriver<'a, AnyInputPin, Input>,
@@ -169,11 +166,11 @@ impl Device<'_> {
         )?;
         let lcd_reset = PinDriver::output(pin_lcd_reset)?;
         let lcd_dc = PinDriver::output(pin_lcd_dc)?;
-        let mut lcd = lcd::ILI9488::new(lcd_reset, lcd_dc, lcd_spi);
+        let mut lcd = drivers::lcd::ILI9488::new(lcd_reset, lcd_dc, lcd_spi);
         lcd.init()?;
 
         // Setup I/O expander
-        let mut io_expander = io_expander::TCA9535::new(MutexI2C::new(&i2c));
+        let mut io_expander = drivers::io_expander::TCA9535::new(MutexI2C::new(&i2c));
         io_expander.get_pins()?;
 
         // Direct buttons
@@ -184,7 +181,7 @@ impl Device<'_> {
         button_power.set_high()?;
 
         // Setup RTC
-        let rtc = rtc::PCF8563::new(MutexI2C::new(&i2c));
+        let rtc = drivers::rtc::PCF8563::new(MutexI2C::new(&i2c));
 
         // Ensure fpga power has stabilized.
         let time_since_fpga_power = Instant::now().duration_since(fpga_power_time);
@@ -193,7 +190,7 @@ impl Device<'_> {
         // Setup DAC (requires fpga_power on)
         log::info!("Initializing DAC");
         let dac_reset = PinDriver::output(pin_dac_reset)?;
-        let mut dac = dac::TLV320DAC3101::new(dac_reset, MutexI2C::new(&i2c));
+        let mut dac = drivers::dac::TLV320DAC3101::new(dac_reset, MutexI2C::new(&i2c));
         dac.init()?;
         dac.set_volume(100)?;
         dac.set_mute(false)?;
@@ -217,7 +214,7 @@ impl Device<'_> {
             Option::<AnyOutputPin>::None,
             &fpga_program_config,
         )?;
-        let fpga = fpga::Fpga::new(
+        let fpga = drivers::fpga::Fpga::new(
             fpga_done,
             fpga_program_b,
             fpga_init_b,
@@ -226,7 +223,7 @@ impl Device<'_> {
         );
 
         // Mount sdcard to /sdcard
-        sdcard::mount_sdcard(
+        drivers::sdcard::mount_sdcard(
             "/sdcard",
             pin_sdio_clk,
             pin_sdio_cmd,

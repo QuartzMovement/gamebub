@@ -2,7 +2,7 @@ use std::{num::NonZeroU32, sync::Arc};
 
 use esp_idf_svc::{
     hal::{
-        gpio::{self, AnyInputPin, Input, InputMode, InterruptType, Pin, PinDriver},
+        gpio::{InputMode, InterruptType, Pin, PinDriver},
         task::notification::{Notification, Notifier},
     },
     sys::EspError,
