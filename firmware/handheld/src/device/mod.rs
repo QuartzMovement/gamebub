@@ -1,6 +1,8 @@
+use std::sync::mpsc;
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
+use crate::ui::ButtonState;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
 use esp_idf_svc::hal::gpio::{
     self, AnyIOPin, AnyInputPin, IOPin, Input, InputOutput, InputPin, OutputPin,
@@ -13,10 +15,10 @@ use esp_idf_svc::hal::spi::{
 };
 use esp_idf_svc::hal::units::FromValueType;
 use esp_idf_svc::hal::{i2c::*, ledc};
-use std::sync::mpsc;
 
 pub mod drivers;
 pub mod graphics;
+mod input;
 mod interrupt;
 
 /// Time it may take for FPGA power rails to stabilize after enable.
@@ -277,29 +279,6 @@ impl Device<'_> {
         Ok(())
     }
 
-    /// Get the current state of the buttons.
-    pub fn read_buttons(&mut self) -> Result<Buttons, ()> {
-        let io_expander = self.io_expander.get_pins().map_err(|_| ())?;
-        Ok(Buttons {
-            a: !io_expander[3],
-            b: !io_expander[4],
-            x: !io_expander[1],
-            y: !io_expander[2],
-            up: !io_expander[10],
-            down: !io_expander[13],
-            left: !io_expander[12],
-            right: !io_expander[11],
-            start: !io_expander[15],
-            select: !io_expander[14],
-            l: !io_expander[9],
-            r: !io_expander[0],
-            home: self.button_home.is_low(),
-            vol_up: self.button_vol_up.is_low(),
-            vol_down: self.button_vol_down.is_low(),
-            power: self.button_power.is_low(),
-        })
-    }
-
     /// Display a framebuffer.
     ///
     /// Currently always an FPGA overlay.
@@ -314,28 +293,8 @@ impl Device<'_> {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct Buttons {
-    pub a: bool,
-    pub b: bool,
-    pub x: bool,
-    pub y: bool,
-    pub up: bool,
-    pub down: bool,
-    pub left: bool,
-    pub right: bool,
-    pub l: bool,
-    pub r: bool,
-    pub start: bool,
-    pub select: bool,
-    pub home: bool,
-    pub vol_up: bool,
-    pub vol_down: bool,
-    pub power: bool,
-}
-
 #[derive(Clone, Debug)]
 pub enum Event {
-    Button(Buttons),
+    Button(ButtonState),
     FpgaIrq,
 }

@@ -9,6 +9,7 @@ use device::Device;
 use crate::device::graphics::Argb1555;
 
 mod device;
+pub mod ui;
 
 fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
@@ -123,8 +124,17 @@ fn main() -> anyhow::Result<()> {
     let event_queue = device.take_event_receiver().unwrap();
     std::mem::drop(device); // Drop the lock
 
+    let mut button_event_detector = ui::ButtonEventDetector::new();
+
     while let Ok(event) = event_queue.recv() {
-        log::info!("event: {:?}", event);
+        match event {
+            device::Event::Button(state) => {
+                for button_event in button_event_detector.update(state) {
+                    log::info!("event: {:?}", button_event);
+                }
+            }
+            device::Event::FpgaIrq => log::info!("event: fpga irq"),
+        }
     }
     panic!("Queue empty");
 }

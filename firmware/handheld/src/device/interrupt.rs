@@ -105,7 +105,7 @@ impl Device<'_> {
                     let _ = device.button_vol_down.enable_interrupt();
                 }
 
-                let buttons = device.read_buttons().unwrap();
+                let buttons = device.read_button_state().unwrap();
                 let _ = event_sender.send(super::Event::Button(buttons));
 
                 if (flags & FLAG_MCU_IRQ.get()) != 0 {
