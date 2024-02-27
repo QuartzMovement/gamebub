@@ -1,5 +1,5 @@
 use super::Device;
-use crate::ui::ButtonState;
+use crate::ui::buttons::ButtonState;
 
 impl Device<'_> {
     /// Get the current state of the buttons.

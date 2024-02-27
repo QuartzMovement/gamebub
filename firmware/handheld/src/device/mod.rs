@@ -2,7 +2,7 @@ use std::sync::{mpsc, MutexGuard};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use crate::ui::ButtonState;
+use crate::ui::buttons::ButtonState;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
 use esp_idf_svc::hal::gpio::{
     self, AnyIOPin, AnyInputPin, IOPin, Input, InputOutput, InputPin, OutputPin,

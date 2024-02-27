@@ -1,5 +1,4 @@
 use std::fs::File;
-use std::io::Read;
 
 use embedded_graphics::pixelcolor::Rgb555;
 use flate2::read::GzDecoder;
@@ -10,6 +9,7 @@ use crate::device::graphics::Argb1555;
 use crate::ui::ButtonEvent;
 
 mod device;
+mod gameboy;
 pub mod ui;
 
 fn main() -> anyhow::Result<()> {
@@ -86,46 +86,14 @@ fn main() -> anyhow::Result<()> {
         device.display_framebuffer(&framebuffer);
     }
 
-    // testing
-    {
-        log::info!("transferring rom");
-        let mut data = File::open("/sdcard/roms/Pokemon Silver.gbc")?;
+    log::info!("transferring rom");
+    gameboy::set_emulated_cartridge(&mut device, "/sdcard/roms/Pokemon Silver.gbc")?;
+    log::info!("done transferring rom");
 
-        device.fpga.write_u32(0x0000_0000, 0b00)?;
-
-        const CHUNK_SIZE: usize = 16 * 1024;
-        let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
-        let mut total = 0u32;
-        loop {
-            let n = data.read(&mut buf)?;
-            if n == 0 {
-                break;
-            }
-            device.fpga.sdram_write(total, &buf[..n])?;
-            total += n as u32;
-        }
-
-        // Take out of reset, leave paused.
-        device.fpga.write_u32(0x0000_0000, 0b10)?;
-
-        let emu_cart_config = 55;
-        device.fpga.write_u32(0xC000_0000, emu_cart_config)?;
-        device.fpga.write_u32(0xC000_0004, 0)?;
-        device.fpga.write_u32(0xC000_0008, total - 1)?;
-        device.fpga.write_u32(0xC000_000C, 0)?;
-        device.fpga.write_u32(0xC000_0010, 0)?;
-
-        log::info!("done transferring rom");
-    }
-
-    // Start the FPGA submodule
-    device.fpga.write_u32(0x0000_0000, 0b11)?;
-
-    log::info!("Done");
     let event_queue = device.take_event_receiver().unwrap();
     std::mem::drop(device); // Drop the lock
 
-    let mut button_event_detector = ui::ButtonEventDetector::new();
+    let mut button_event_detector = ui::buttons::ButtonEventDetector::new();
 
     while let Ok(event) = event_queue.recv() {
         match event {
