@@ -428,7 +428,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       videoOutput := framebufferRead
     }
     when (
-      !overlayRead.a &&
+      overlayRead.a.asBool &&
         dpiX >= (overlayXControl.start * overlayScale.U) &&
         dpiX < (overlayXControl.end * overlayScale.U) &&
         dpiY >= (overlayYControl.start * overlayScale.U) &&

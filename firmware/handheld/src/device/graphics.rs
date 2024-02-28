@@ -1,7 +1,7 @@
 use embedded_graphics::framebuffer::buffer_size;
 use embedded_graphics::pixelcolor::raw::LittleEndian;
-use embedded_graphics::pixelcolor::Rgb555;
 use embedded_graphics::pixelcolor::{raw::RawU16, PixelColor};
+use embedded_graphics::pixelcolor::{Rgb555, RgbColor};
 
 pub type Framebuffer = embedded_graphics::framebuffer::Framebuffer<
     Argb1555,
@@ -17,9 +17,8 @@ pub struct Argb1555(RawU16);
 
 impl Argb1555 {
     pub const fn new(alpha: bool, red: u8, green: u8, blue: u8) -> Self {
-        // TODO: fix this so that alpha true means opaque
         Self(RawU16::new(
-            (((!alpha) as u16) << 15)
+            ((alpha as u16) << 15)
                 | (((red as u16) & 0x1F) << 10)
                 | (((green as u16) & 0x1F) << 5)
                 | ((blue as u16) & 0x1F),
@@ -49,6 +48,6 @@ impl From<RawU16> for Argb1555 {
 
 impl From<Rgb555> for Argb1555 {
     fn from(color: Rgb555) -> Self {
-        Self(color.into())
+        Self::new(true, color.r(), color.g(), color.b())
     }
 }
