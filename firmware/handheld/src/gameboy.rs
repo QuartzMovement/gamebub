@@ -161,6 +161,32 @@ pub fn set_emulated_cartridge(
         total += n as u32;
     }
 
+    // Load RAM
+    let ram_path = rom_path
+        .strip_suffix(".gb")
+        .or_else(|| rom_path.strip_suffix(".gbc"))
+        .map(|p| p.to_string() + ".sav");
+    if let Some(ram_path) = ram_path.as_ref() {
+        match File::open(ram_path) {
+            Ok(mut ram_file) => {
+                log::info!("Loading RAM");
+
+                let mut i = 0u32;
+                loop {
+                    let n = ram_file.read(&mut buf)?;
+                    if n == 0 {
+                        break;
+                    }
+                    device.fpga.sram_write(i, &buf[..n])?;
+                    i += n as u32;
+                }
+            }
+            Err(_) => {
+                log::info!("Not loading RAM");
+            }
+        }
+    }
+
     // Take out of reset, leave paused.
     device.fpga.write_u32(0x0000_0000, 0b10)?;
 
