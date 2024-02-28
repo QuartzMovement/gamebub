@@ -207,7 +207,7 @@ class HandheldGameboy extends Module with HandheldModule {
       io.sram.read := !emuCart.io.dataAccess.write
       io.sram.write := emuCart.io.dataAccess.write
       io.sram.address := configRegRamAddress + (Cat(emuCart.io.dataAccess.address(16, 1), "b0".U(1.W)) & configRegRamMask)
-      io.sram.dataWrite := emuCart.io.dataAccess.dataWrite
+      io.sram.dataWrite := Fill(2, emuCart.io.dataAccess.dataWrite)
       io.sram.writeStrobe := Mux(emuCart.io.dataAccess.address(0), "b10".U(2.W), "b01".U(2.W))
       emuCart.io.dataAccess.valid := io.sram.done
       emuCart.io.dataAccess.dataRead := Mux(
