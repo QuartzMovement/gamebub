@@ -1,21 +1,14 @@
-use std::fmt::Display;
+use thiserror::Error;
 
 use embedded_hal::i2c::I2c;
 
 const ADDRESS: u8 = 0x51;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("i2c error")]
     I2cError,
 }
-
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl std::error::Error for Error {}
 
 pub struct PCF8563<I2C: I2c> {
     i2c: I2C,

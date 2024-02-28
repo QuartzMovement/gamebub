@@ -1,21 +1,13 @@
-use std::fmt::Display;
-
 use embedded_hal::i2c::I2c;
+use thiserror::Error;
 
 const ADDRESS: u8 = 0x20;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("i2c error")]
     I2cError,
 }
-
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl std::error::Error for Error {}
 
 pub struct TCA9535<I2C: I2c> {
     i2c: I2C,

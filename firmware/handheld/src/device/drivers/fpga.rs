@@ -1,25 +1,22 @@
-use std::{fmt::Display, io::Read, time::Duration};
+use std::{io::Read, time::Duration};
 
 use embedded_hal::{
     digital::{InputPin, OutputPin},
     spi::{Operation, SpiDevice},
 };
+use thiserror::Error;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("gpio error")]
     PinError,
+    #[error("error programming fpga")]
     ProgramError,
+    #[error("error reading bitstream")]
     BitstreamError,
+    #[error("spi error")]
     SpiError,
 }
-
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl std::error::Error for Error {}
 
 pub struct Fpga<
     PinDone: InputPin,

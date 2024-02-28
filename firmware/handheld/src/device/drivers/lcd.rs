@@ -1,23 +1,18 @@
-use std::fmt::Display;
 use std::time::Duration;
+use thiserror::Error;
 
 use embedded_hal::digital::OutputPin;
 use embedded_hal::spi::SpiDevice;
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("reset error")]
     ResetError,
+    #[error("dc pin error")]
     DcError,
+    #[error("spi error")]
     SpiError,
 }
-
-impl Display for Error {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}", self)
-    }
-}
-
-impl std::error::Error for Error {}
 
 pub struct ILI9488<PinReset: OutputPin, PinDc: OutputPin, Spi: SpiDevice> {
     pin_reset: PinReset,
