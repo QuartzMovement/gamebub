@@ -1,7 +1,7 @@
 use embedded_graphics::framebuffer::buffer_size;
 use embedded_graphics::pixelcolor::raw::LittleEndian;
 use embedded_graphics::pixelcolor::{raw::RawU16, PixelColor};
-use embedded_graphics::pixelcolor::{Rgb555, RgbColor};
+use embedded_graphics::pixelcolor::{Rgb555, Rgb888, RgbColor};
 
 pub type Framebuffer = embedded_graphics::framebuffer::Framebuffer<
     Argb1555,
@@ -49,5 +49,11 @@ impl From<RawU16> for Argb1555 {
 impl From<Rgb555> for Argb1555 {
     fn from(color: Rgb555) -> Self {
         Self::new(true, color.r(), color.g(), color.b())
+    }
+}
+
+impl From<Rgb888> for Argb1555 {
+    fn from(color: Rgb888) -> Self {
+        Self::new(true, color.r() >> 3, color.g() >> 3, color.b() >> 3)
     }
 }

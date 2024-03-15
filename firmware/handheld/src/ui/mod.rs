@@ -1,4 +1,5 @@
 pub mod buttons;
+mod resources;
 
 pub use crate::device::graphics::Argb1555;
 use crate::device::{self, Device};
@@ -8,7 +9,8 @@ pub use buttons::{Button, ButtonEvent};
 use embedded_graphics::{
     draw_target::DrawTarget,
     geometry::{AnchorPoint, Dimensions, OriginDimensions, Size},
-    mono_font::{ascii::FONT_6X10, iso_8859_10::FONT_10X20, MonoTextStyle},
+    image::Image,
+    mono_font::{ascii::FONT_6X10, MonoTextStyle},
     pixelcolor::{Rgb555, WebColors},
     prelude::*,
     primitives::{Primitive, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
@@ -99,13 +101,19 @@ pub trait Screen {
     fn render(&self, target: &mut Surface<'_>);
 }
 
+const BACKGROUND_COLOR: Argb1555 = Argb1555::new(true, 0x1D, 0x1D, 0x1D);
+
 pub struct MainMenuScreen {
+    logo: resources::ResourceImage<'static>,
     needs_redraw: bool,
 }
 
 impl MainMenuScreen {
     pub fn new() -> Self {
-        MainMenuScreen { needs_redraw: true }
+        MainMenuScreen {
+            logo: resources::logo(),
+            needs_redraw: true,
+        }
     }
 }
 
@@ -131,17 +139,14 @@ impl Screen for MainMenuScreen {
     fn render(&self, target: &mut Surface<'_>) {
         let _ = target
             .bounding_box()
-            .into_styled(PrimitiveStyle::with_fill(Rgb555::CSS_DARK_GRAY.into()))
+            .into_styled(PrimitiveStyle::with_fill(BACKGROUND_COLOR))
             .draw(target);
 
-        // "Game Bub!" text at the top.
-        let text_style = TextStyleBuilder::new().alignment(Alignment::Center).build();
-        let character_style = MonoTextStyle::new(&FONT_10X20, Rgb555::CSS_PURPLE.into());
-        let _ = Text::with_text_style(
-            "Game Bub!",
-            target.bounding_box().anchor_point(AnchorPoint::Center),
-            character_style,
-            text_style,
+        // Logo at the top.
+        let _ = Image::new(
+            &self.logo,
+            target.bounding_box().anchor_point(AnchorPoint::TopCenter)
+                + Point::new(-(self.logo.size().width as i32) / 2, 16),
         )
         .draw(target);
 
