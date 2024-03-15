@@ -1,13 +1,19 @@
 pub mod buttons;
 
 pub use crate::device::graphics::Argb1555;
+use crate::device::{self, Device};
 use std::convert::Infallible;
 
 pub use buttons::{Button, ButtonEvent};
 use embedded_graphics::{
     draw_target::DrawTarget,
-    geometry::{OriginDimensions, Size},
-    pixelcolor::Rgb555,
+    geometry::{AnchorPoint, Dimensions, OriginDimensions, Size},
+    mono_font::{ascii::FONT_6X10, iso_8859_10::FONT_10X20, MonoTextStyle},
+    pixelcolor::{Rgb555, WebColors},
+    prelude::*,
+    primitives::{Primitive, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
+    text::{Alignment, Text, TextStyleBuilder},
+    Drawable,
 };
 
 #[derive(Copy, Clone, Debug)]
@@ -45,32 +51,148 @@ impl<'a> OriginDimensions for Surface<'a> {
     }
 }
 
+pub struct UI {
+    framebuffer: Box<device::graphics::Framebuffer>,
+    screen: Option<Box<dyn Screen>>,
+}
+
+impl UI {
+    pub fn new() -> Self {
+        UI {
+            framebuffer: Box::new(device::graphics::Framebuffer::new()),
+            screen: None,
+        }
+    }
+
+    pub fn handle_event(&mut self, event: Event) {
+        if let Some(mut screen) = self.screen.take() {
+            screen.handle_event(self, event);
+            self.screen.get_or_insert(screen);
+        }
+    }
+
+    pub fn render(&mut self) -> bool {
+        if let Some(screen) = self.screen.as_mut() {
+            let mut surface = Surface::new(&mut self.framebuffer);
+            if screen.needs_redraw() {
+                screen.render(&mut surface);
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn set_screen(&mut self, screen: Box<dyn Screen>) {
+        self.screen = Some(screen);
+    }
+
+    pub fn framebuffer(&self) -> &device::graphics::Framebuffer {
+        &self.framebuffer
+    }
+}
+
 pub trait Screen {
-    fn handle_event(&mut self, event: Event);
+    fn handle_event(&mut self, ui: &mut UI, event: Event);
 
     fn needs_redraw(&self) -> bool;
 
     fn render(&self, target: &mut Surface<'_>);
 }
 
-pub struct DemoScreen {
+pub struct MainMenuScreen {
+    needs_redraw: bool,
+}
+
+impl MainMenuScreen {
+    pub fn new() -> Self {
+        MainMenuScreen { needs_redraw: true }
+    }
+}
+
+impl Screen for MainMenuScreen {
+    fn handle_event(&mut self, ui: &mut UI, event: Event) {
+        match event {
+            Event::ButtonPressed(Button::A) => {
+                log::info!("A pressed!");
+                let rom_path = "/sdcard/roms/Pokemon Crystal.gbc".to_string();
+                ui.set_screen(Box::new(GameScreen::new(Some(rom_path))));
+            }
+            Event::ButtonPressed(Button::B) => {
+                ui.set_screen(Box::new(GameScreen::new(None)));
+            }
+            _ => {}
+        }
+    }
+
+    fn needs_redraw(&self) -> bool {
+        self.needs_redraw
+    }
+
+    fn render(&self, target: &mut Surface<'_>) {
+        let _ = target
+            .bounding_box()
+            .into_styled(PrimitiveStyle::with_fill(Rgb555::CSS_DARK_GRAY.into()))
+            .draw(target);
+
+        // "Game Bub!" text at the top.
+        let text_style = TextStyleBuilder::new().alignment(Alignment::Center).build();
+        let character_style = MonoTextStyle::new(&FONT_10X20, Rgb555::CSS_PURPLE.into());
+        let _ = Text::with_text_style(
+            "Game Bub!",
+            target.bounding_box().anchor_point(AnchorPoint::Center),
+            character_style,
+            text_style,
+        )
+        .draw(target);
+
+        // Press A to continue
+        let text_style = TextStyleBuilder::new().alignment(Alignment::Center).build();
+        let character_style = MonoTextStyle::new(&FONT_6X10, Rgb555::CSS_PURPLE.into());
+        let _ = Text::with_text_style(
+            "Press A for ROM\nPress B for cartridge",
+            target
+                .bounding_box()
+                .anchor_point(AnchorPoint::BottomCenter)
+                + Point::new(0, -40),
+            character_style,
+            text_style,
+        )
+        .draw(target);
+    }
+}
+
+pub struct GameScreen {
+    #[allow(unused)]
+    rom_path: Option<String>,
     needs_redraw: bool,
     value: u32,
 }
 
-impl DemoScreen {
-    pub fn new() -> Self {
-        DemoScreen {
+impl GameScreen {
+    pub fn new(rom_path: Option<String>) -> Self {
+        // Transfer ROM.
+        let mut device = Device::lock();
+        match rom_path.as_ref() {
+            Some(rom_path) => {
+                log::info!("Transferring rom");
+                crate::gameboy::set_emulated_cartridge(&mut device, rom_path).unwrap();
+                log::info!("Done transferring rom");
+            }
+            None => {
+                crate::gameboy::set_physical_cartridge(&mut device).unwrap();
+            }
+        }
+
+        GameScreen {
+            rom_path,
             needs_redraw: true,
             value: 0,
         }
     }
 }
 
-impl Screen for DemoScreen {
-    fn handle_event(&mut self, event: Event) {
-        log::info!("DemoScreen event {:?}", event);
-
+impl Screen for GameScreen {
+    fn handle_event(&mut self, _ui: &mut UI, event: Event) {
         match event {
             Event::ButtonPressed(Button::Up) => {
                 self.value = self.value.saturating_add(1);
@@ -85,22 +207,13 @@ impl Screen for DemoScreen {
     }
 
     fn render(&self, target: &mut Surface<'_>) {
-        use embedded_graphics::{
-            geometry::AnchorPoint,
-            mono_font::{ascii::FONT_6X10, MonoTextStyle},
-            prelude::*,
-            primitives::{PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
-            text::{Alignment, Text, TextStyleBuilder},
-        };
-
-        log::info!("Drawing DemoScreen");
         let _ = target
             .bounding_box()
             .into_styled(PrimitiveStyle::with_fill(Rgb555::BLACK.into()))
             .draw(target);
 
         // Draw some text.
-        let text = format!("Demo\nScreen\n{}", self.value);
+        let text = format!("Game\nScreen\n{}", self.value);
         let text_style = TextStyleBuilder::new().alignment(Alignment::Left).build();
         let character_style = MonoTextStyle::new(&FONT_6X10, Rgb555::CSS_LIGHT_CORAL.into());
         let _ = Text::with_text_style(
