@@ -44,48 +44,15 @@ fn main() -> anyhow::Result<()> {
         device.lcd.enable_fpga_control()?;
     }
 
-    // Testing graphics: draw a frame around the game
-    {
-        use embedded_graphics::{
-            geometry::AnchorPoint,
-            mono_font::{ascii::FONT_6X10, MonoTextStyle},
-            prelude::*,
-            primitives::{PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
-            text::{Alignment, Text, TextStyleBuilder},
-        };
+    let mut current_screen: Box<dyn ui::Screen> = Box::new(ui::DemoScreen::new());
+    let mut framebuffer = Box::new(device::graphics::Framebuffer::new());
 
-        let mut framebuffer = Box::new(device::graphics::Framebuffer::new());
-        log::info!("Drawing framebuffer");
+    // Initial UI render
+    let mut surface = ui::Surface::new(&mut framebuffer);
+    current_screen.render(&mut surface);
+    device.display_framebuffer(&framebuffer);
 
-        // Draw some text.
-        let text = "this\nis\na\nframe";
-        let text_style = TextStyleBuilder::new().alignment(Alignment::Left).build();
-        let character_style = MonoTextStyle::new(&FONT_6X10, Rgb555::CSS_LIGHT_CORAL.into());
-        Text::with_text_style(
-            text,
-            framebuffer
-                .bounding_box()
-                .anchor_point(AnchorPoint::CenterLeft),
-            character_style,
-            text_style,
-        )
-        .draw(framebuffer.as_mut())?;
-
-        // Cut out area for the game.
-        let frame_style = PrimitiveStyleBuilder::new()
-            .stroke_color(Rgb555::WHITE.into())
-            .stroke_width(2)
-            .stroke_alignment(StrokeAlignment::Outside)
-            .fill_color(Argb1555::transparent())
-            .build();
-        Rectangle::with_center(framebuffer.bounding_box().center(), Size::new(160, 144))
-            .into_styled(frame_style)
-            .draw(framebuffer.as_mut())?;
-
-        log::info!("Displaying framebuffer");
-        device.display_framebuffer(&framebuffer);
-    }
-
+    // Transfer ROM
     log::info!("transferring rom");
     gameboy::set_emulated_cartridge(&mut device, "/sdcard/roms/Pokemon Silver.gbc")?;
     log::info!("done transferring rom");
@@ -95,6 +62,7 @@ fn main() -> anyhow::Result<()> {
 
     let mut button_event_detector = ui::buttons::ButtonEventDetector::new();
 
+    // Main event loop.
     while let Ok(event) = event_queue.recv() {
         match event {
             device::Event::Button(state) => {
@@ -110,9 +78,25 @@ fn main() -> anyhow::Result<()> {
                         }
                         _ => {}
                     }
+
+                    match button_event {
+                        ButtonEvent::Pressed(button) => {
+                            current_screen.handle_event(ui::Event::ButtonPressed(button))
+                        }
+                        ButtonEvent::Released(button) => {
+                            current_screen.handle_event(ui::Event::ButtonReleased(button))
+                        }
+                    }
                 }
             }
             device::Event::FpgaIrq => log::info!("event: fpga irq"),
+        }
+
+        // TODO handle multiple events before rendering (if multiple are available)
+        if current_screen.needs_redraw() {
+            let mut surface = ui::Surface::new(&mut framebuffer);
+            current_screen.render(&mut surface);
+            Device::lock().display_framebuffer(&framebuffer);
         }
     }
     panic!("Queue empty");
