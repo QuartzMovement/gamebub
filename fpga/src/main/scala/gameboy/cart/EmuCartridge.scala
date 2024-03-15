@@ -48,8 +48,10 @@ class EmuCartridge(clockRate: Int) extends Module {
     /** Whether we're waiting on the results of a data access */
     val waitingForAccess = Output(Bool())
 
-    /** Direct access to MBC3 RTC registes */
+    /** Direct access to MBC3 RTC registers */
     val rtcAccess = new Mbc3RtcAccess
+    /** Rumble activation signal */
+    val rumble = Output(Bool())
   })
 
   // True if we're accessing ROM (rather than RAM)
@@ -76,6 +78,7 @@ class EmuCartridge(clockRate: Int) extends Module {
   mbc.io.mbc.memDataWrite := io.cartridgeIo.dataWrite
   mbc.io.mbc.selectRom := selectRom
   io.rtcAccess <> mbc.io.rtcAccess
+  io.rumble := mbc.io.rumble
 
   // We cannot write to ROM
   io.dataAccess.write := io.cartridgeIo.write && !selectRom

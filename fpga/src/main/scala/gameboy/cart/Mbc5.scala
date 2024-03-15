@@ -5,7 +5,10 @@ import chisel3.util._
 
 /** MBC5 */
 class Mbc5 extends Module {
-  val io = IO(new MbcIo())
+  val io = IO(new MbcIo {
+    val hasRumble = Input(Bool())
+    val rumble = Output(Bool())
+  })
 
   val ramEnable = RegInit(false.B)
   val bankRomLo = RegInit(1.U(8.W))
@@ -28,7 +31,7 @@ class Mbc5 extends Module {
     }
   }
 
-  // TODO support rumble somehow
+  io.rumble := io.hasRumble && bankRam(3)
 
   io.bankRom1 := 0.U
   io.bankRom2 := Cat(bankRomHi, bankRomLo)

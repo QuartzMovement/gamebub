@@ -38,10 +38,11 @@ class EmuMbc(clockRate: Int) extends Module {
   val io = IO(new Bundle {
     val config = Input(new EmuCartConfig())
     val mbc = new MbcIo()
-    /** Direct access to MBC3 RTC registes */
+    /** Direct access to MBC3 RTC registers */
     val rtcAccess = new Mbc3RtcAccess
+    /** Rumble activation signal */
+    val rumble = Output(Bool())
   })
-
   val mbcNone = Module(new MbcNone())
   val mbc1 = Module(new Mbc1())
   val mbc2 = Module(new Mbc2())
@@ -49,6 +50,8 @@ class EmuMbc(clockRate: Int) extends Module {
   mbc3.io.hasRtc := io.config.hasRtc
   io.rtcAccess <> mbc3.io.rtcAccess
   val mbc5 = Module(new Mbc5())
+  mbc5.io.hasRumble := io.config.hasRumble
+
 
   val mbcs = Seq(
     MbcType.None -> mbcNone.io,
@@ -77,5 +80,10 @@ class EmuMbc(clockRate: Int) extends Module {
       io.mbc.bankRam := mbc.bankRam
       io.mbc.ramReadMbc := mbc.ramReadMbc
     }
+  }
+
+  io.rumble := false.B
+  when (io.config.mbcType === MbcType.Mbc5) {
+    io.rumble := mbc5.io.rumble
   }
 }
