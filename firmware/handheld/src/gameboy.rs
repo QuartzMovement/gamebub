@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     io::{Read, Seek},
+    path::Path,
 };
 use thiserror::Error;
 
@@ -145,7 +146,7 @@ pub fn set_physical_cartridge(device: &mut Device<'_>) -> Result<(), GameboyErro
 
 pub fn set_emulated_cartridge(
     device: &mut Device<'_>,
-    rom_path: &str,
+    rom_path: &Path,
 ) -> Result<RomHeader, GameboyError> {
     // TODO: only Fpga is required, but all the type parameters make it really annoying
 
@@ -176,28 +177,23 @@ pub fn set_emulated_cartridge(
     }
 
     // Load RAM
-    let ram_path = rom_path
-        .strip_suffix(".gb")
-        .or_else(|| rom_path.strip_suffix(".gbc"))
-        .map(|p| p.to_string() + ".sav");
-    if let Some(ram_path) = ram_path.as_ref() {
-        match File::open(ram_path) {
-            Ok(mut ram_file) => {
-                log::info!("Loading RAM");
+    let ram_path = rom_path.with_extension("sav");
+    match File::open(ram_path) {
+        Ok(mut ram_file) => {
+            log::info!("Loading RAM");
 
-                let mut i = 0u32;
-                loop {
-                    let n = ram_file.read(&mut buf)?;
-                    if n == 0 {
-                        break;
-                    }
-                    device.fpga.sram_write(i, &buf[..n])?;
-                    i += n as u32;
+            let mut i = 0u32;
+            loop {
+                let n = ram_file.read(&mut buf)?;
+                if n == 0 {
+                    break;
                 }
+                device.fpga.sram_write(i, &buf[..n])?;
+                i += n as u32;
             }
-            Err(_) => {
-                log::info!("Not loading RAM");
-            }
+        }
+        Err(_) => {
+            log::info!("Not loading RAM");
         }
     }
 

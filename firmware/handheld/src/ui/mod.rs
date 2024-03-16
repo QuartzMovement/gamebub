@@ -6,17 +6,26 @@ use crate::{
     device::{self, Device},
     gameboy,
 };
-use std::convert::Infallible;
+use std::{
+    convert::Infallible,
+    path::{Path, PathBuf},
+};
 
 pub use buttons::{Button, ButtonEvent};
 use embedded_graphics::{
     draw_target::DrawTarget,
-    geometry::{AnchorPoint, Dimensions, OriginDimensions, Size},
+    geometry::{AnchorPoint, AnchorX, Dimensions, OriginDimensions, Size},
     image::Image,
-    mono_font::{ascii::FONT_6X10, MonoTextStyle},
+    mono_font::{
+        ascii::{FONT_6X10, FONT_7X13_BOLD},
+        MonoTextStyle,
+    },
     pixelcolor::Rgb555,
     prelude::*,
-    primitives::{Primitive, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
+    primitives::{
+        Primitive, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment,
+        StyledDrawable, Triangle,
+    },
     text::{Alignment, Baseline, Text, TextStyleBuilder},
     Drawable,
 };
@@ -141,8 +150,8 @@ impl Screen for MainMenuScreen {
                     }
                     1 => {
                         // Load ROM
-                        let rom_path = "/sdcard/roms/Pokemon Crystal.gbc".to_string();
-                        ui.set_screen(Box::new(GameScreen::new(Some(rom_path))));
+                        let root_path = "/sdcard/roms";
+                        ui.set_screen(Box::new(RomSelectScreen::new(root_path.as_ref())));
                     }
                     3 => {
                         // Shutdown
@@ -180,7 +189,7 @@ impl Screen for MainMenuScreen {
 
 pub struct GameScreen {
     #[allow(unused)]
-    rom_path: Option<String>,
+    rom_path: Option<PathBuf>,
     needs_redraw: bool,
 
     menu: SelectWidget<'static>,
@@ -188,7 +197,7 @@ pub struct GameScreen {
 }
 
 impl GameScreen {
-    pub fn new(rom_path: Option<String>) -> Self {
+    pub fn new(rom_path: Option<PathBuf>) -> Self {
         // Transfer ROM.
         let mut device = Device::lock();
         match rom_path.as_ref() {
@@ -343,6 +352,209 @@ impl<'a> SelectWidget<'a> {
                 .draw(target);
             }
             y += text_height as i32 + 7;
+        }
+    }
+}
+
+pub struct RomSelectScreen {
+    root_path: PathBuf,
+    needs_redraw: bool,
+    widget: ListWidget,
+}
+
+impl RomSelectScreen {
+    pub fn new(root_path: &Path) -> RomSelectScreen {
+        let files = Self::get_files(root_path).unwrap();
+
+        RomSelectScreen {
+            root_path: root_path.to_owned(),
+            needs_redraw: true,
+            widget: ListWidget::new(files, 10),
+        }
+    }
+
+    fn get_files(path: &Path) -> std::io::Result<Vec<String>> {
+        let mut files = path
+            .read_dir()?
+            .filter_map(|e| e.ok())
+            .filter(|f| f.metadata().is_ok_and(|m| m.is_file()))
+            .filter(|f| {
+                f.file_name().to_str().is_some_and(|n| {
+                    !n.starts_with(".") && (n.ends_with(".gbc") || n.ends_with(".gb"))
+                })
+            })
+            .filter_map(|f| f.file_name().into_string().ok())
+            .collect::<Vec<_>>();
+        files.sort();
+        Ok(files)
+    }
+}
+
+impl Screen for RomSelectScreen {
+    fn handle_event(&mut self, ui: &mut UI, event: Event) {
+        match event {
+            Event::ButtonPressed(Button::Up) => {
+                self.widget.move_up();
+                self.needs_redraw = true;
+            }
+            Event::ButtonPressed(Button::Down) => {
+                self.widget.move_down();
+                self.needs_redraw = true;
+            }
+            Event::ButtonPressed(Button::A) => {
+                let item = self.widget.selected();
+                let path = self.root_path.join(item);
+                log::info!("Selected ROM {}", path.display());
+                ui.set_screen(Box::new(GameScreen::new(Some(path))));
+            }
+            Event::ButtonPressed(Button::B) => ui.set_screen(Box::new(MainMenuScreen::new())),
+            _ => {}
+        }
+    }
+
+    fn needs_redraw(&self) -> bool {
+        self.needs_redraw
+    }
+
+    fn render(&mut self, target: &mut Surface<'_>) {
+        self.needs_redraw = false;
+        let _ = target
+            .bounding_box()
+            .into_styled(PrimitiveStyle::with_fill(BACKGROUND_COLOR))
+            .draw(target);
+
+        let text_heading = MonoTextStyle::new(&FONT_7X13_BOLD, Rgb555::BLACK.into());
+        let text_body = MonoTextStyle::new(&FONT_6X10, Rgb555::BLACK.into());
+
+        // Heading and instructions
+        let _ = Text::with_baseline(
+            "Load ROM file...",
+            Point::new(8, 4),
+            text_heading,
+            Baseline::Top,
+        )
+        .draw(target);
+        let _ = Text::with_baseline(
+            "A: Select                     B: Back",
+            target.bounding_box().anchor_point(AnchorPoint::BottomLeft) + Point::new(8, -2),
+            text_body,
+            Baseline::Bottom,
+        )
+        .draw(target);
+
+        let list_rect =
+            Rectangle::with_corners(Point::new(4, 20), Point::new(-4, -16) + target.size());
+        self.widget.render(target, list_rect);
+    }
+}
+
+pub struct ListWidget {
+    items: Vec<String>,
+    pos: usize,
+    start: usize,
+    num_lines: usize,
+}
+
+impl ListWidget {
+    pub fn new(items: Vec<String>, num_lines: usize) -> Self {
+        ListWidget {
+            items,
+            pos: 0,
+            start: 0,
+            num_lines,
+        }
+    }
+
+    pub fn selected(&self) -> &str {
+        &self.items[self.pos]
+    }
+
+    pub fn move_up(&mut self) {
+        if self.pos > 0 {
+            self.pos -= 1;
+            if self.pos < self.start {
+                self.start -= 1;
+            }
+        } else {
+            self.pos = self.items.len() - 1;
+            self.start = self.items.len().saturating_sub(self.num_lines)
+        }
+    }
+    pub fn move_down(&mut self) {
+        if self.pos < self.items.len() - 1 {
+            self.pos += 1;
+            if self.pos >= (self.start + self.num_lines) {
+                self.start += 1;
+            }
+        } else {
+            self.pos = 0;
+            self.start = 0;
+        }
+    }
+
+    pub fn render(&self, target: &mut Surface<'_>, bounds: Rectangle) {
+        let text_style = TextStyleBuilder::new()
+            .alignment(Alignment::Left)
+            .baseline(Baseline::Top)
+            .build();
+        let character_style = MonoTextStyle::new(&FONT_6X10, Rgb555::BLACK.into());
+        let line_pitch = character_style.font.character_size.height + 2;
+        let lines = (bounds.size.height / line_pitch) as usize;
+
+        let outline_style = PrimitiveStyle::with_stroke(Rgb555::BLACK.into(), 1);
+        let fill_style = PrimitiveStyle::with_fill(Rgb555::BLACK.into());
+
+        let pointer = Triangle::new(Point::new(0, 0), Point::new(-4, -4), Point::new(-4, 4))
+            .translate(Point::new(
+                -3,
+                (character_style.font.character_size.height as i32 / 2) - 1,
+            ))
+            .into_styled(fill_style);
+
+        // Draw outline
+        let _ = bounds
+            .resized_width(bounds.size.width - 4, AnchorX::Left)
+            .draw_styled(&outline_style, target);
+
+        // Draw list
+        let mut text_position = bounds.top_left + Point::new(10, 4);
+        for i in self.start..(self.start + lines) {
+            if i == self.pos {
+                let _ = pointer.translate(text_position).draw(target);
+            }
+
+            let line = &self.items[i];
+            let text = Text::with_text_style(line, text_position, character_style, text_style);
+
+            let max_width = bounds.size.width - 12;
+            if text.bounding_box().size.width > max_width {
+                // Ellipsis
+                let length = ((max_width / character_style.font.character_size.width) as usize)
+                    .min(line.len())
+                    - 3;
+                let _ = Text::with_text_style(
+                    &format!("{}...", &line[..length]),
+                    text_position,
+                    character_style,
+                    text_style,
+                )
+                .draw(target);
+            } else {
+                let _ = text.draw(target);
+            }
+            text_position.y += line_pitch as i32;
+        }
+
+        // Draw scroll bar
+        if self.items.len() > self.num_lines {
+            let unit = (bounds.size.height as f32) / (self.items.len() as f32);
+            let y = (unit * self.start as f32) as i32;
+            let h = (unit * self.num_lines as f32) as u32;
+            let _ = Rectangle::new(
+                bounds.anchor_point(AnchorPoint::TopRight) + Point::new(-2, y),
+                Size::new(2, h),
+            )
+            .draw_styled(&fill_style, target);
         }
     }
 }
