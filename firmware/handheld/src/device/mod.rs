@@ -295,6 +295,17 @@ impl Device<'_> {
     pub fn take_event_receiver(&mut self) -> Option<mpsc::Receiver<Event>> {
         self.event_receiver.take()
     }
+
+    /// Turn the device off.
+    pub fn power_off(&mut self) -> ! {
+        let _ = self.lcd_backlight.set_duty(0);
+        let _ = self.dac.reset();
+        let _ = self.set_fpga_power(false);
+        let _ = self.button_power.set_low();
+        loop {
+            std::thread::park();
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

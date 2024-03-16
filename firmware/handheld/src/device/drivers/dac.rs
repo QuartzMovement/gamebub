@@ -33,6 +33,15 @@ where
         }
     }
 
+    /// Reset the device without configuring it.
+    pub fn reset(&mut self) -> Result<(), Error> {
+        self.pin_reset.set_low().map_err(|_| Error::PinError)?;
+        std::thread::sleep(Duration::from_micros(1));
+        self.pin_reset.set_high().map_err(|_| Error::PinError)?;
+        std::thread::sleep(Duration::from_millis(1));
+        Ok(())
+    }
+
     /// Sets up the DAC with both channels muted, and speakers and headphones
     /// both disabled.
     ///
@@ -74,10 +83,7 @@ where
     ///     We'll go with 1.5V
     pub fn init(&mut self) -> Result<(), Error> {
         // 1. Set up device.
-        self.pin_reset.set_low().map_err(|_| Error::PinError)?;
-        std::thread::sleep(Duration::from_micros(1));
-        self.pin_reset.set_high().map_err(|_| Error::PinError)?;
-        std::thread::sleep(Duration::from_millis(1));
+        self.reset()?;
 
         // Do software reset?
         // self.write_reg(0,  0x01, 0x01);

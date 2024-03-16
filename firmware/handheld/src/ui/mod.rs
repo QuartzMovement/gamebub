@@ -144,6 +144,10 @@ impl Screen for MainMenuScreen {
                         let rom_path = "/sdcard/roms/Pokemon Crystal.gbc".to_string();
                         ui.set_screen(Box::new(GameScreen::new(Some(rom_path))));
                     }
+                    3 => {
+                        // Shutdown
+                        Device::lock().power_off();
+                    }
                     _ => {}
                 }
             }
