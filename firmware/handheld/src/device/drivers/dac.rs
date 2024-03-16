@@ -212,6 +212,7 @@ where
             .map_err(|_| Error::I2cError)
     }
 
+    #[allow(unused)]
     fn read_reg(&mut self, page: u8, reg: u8) -> Result<u8, Error> {
         self.set_page(page)?;
         let mut data = [0u8; 1];

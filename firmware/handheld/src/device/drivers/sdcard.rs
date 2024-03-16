@@ -5,18 +5,23 @@ use esp_idf_svc::{
 };
 use std::ffi::CString;
 
-const SDMMC_HOST_FLAG_1BIT: u32 = 1 << 0;
-const SDMMC_HOST_FLAG_4BIT: u32 = 1 << 1;
-const SDMMC_HOST_FLAG_8BIT: u32 = 1 << 2;
-const SDMMC_HOST_FLAG_SPI: u32 = 1 << 3;
-const SDMMC_HOST_FLAG_DDR: u32 = 1 << 4;
-const SDMMC_HOST_FLAG_DEINIT_ARG: u32 = 1 << 5;
-
-const SDMMC_SLOT_NO_CD: esp_idf_sys::gpio_num_t = esp_idf_sys::gpio_num_t_GPIO_NUM_NC;
-const SDMMC_SLOT_NO_WP: esp_idf_sys::gpio_num_t = esp_idf_sys::gpio_num_t_GPIO_NUM_NC;
-const SDMMC_SLOT_WIDTH_DEFAULT: u8 = 0;
-
 #[allow(unused)]
+mod constants {
+    use esp_idf_svc::sys;
+
+    pub const SDMMC_HOST_FLAG_1BIT: u32 = 1 << 0;
+    pub const SDMMC_HOST_FLAG_4BIT: u32 = 1 << 1;
+    pub const SDMMC_HOST_FLAG_8BIT: u32 = 1 << 2;
+    pub const SDMMC_HOST_FLAG_SPI: u32 = 1 << 3;
+    pub const SDMMC_HOST_FLAG_DDR: u32 = 1 << 4;
+    pub const SDMMC_HOST_FLAG_DEINIT_ARG: u32 = 1 << 5;
+
+    pub const SDMMC_SLOT_NO_CD: sys::gpio_num_t = sys::gpio_num_t_GPIO_NUM_NC;
+    pub const SDMMC_SLOT_NO_WP: sys::gpio_num_t = sys::gpio_num_t_GPIO_NUM_NC;
+    pub const SDMMC_SLOT_WIDTH_DEFAULT: u8 = 0;
+}
+use constants::*;
+
 pub fn mount_sdcard(
     path: &str,
     pin_clk: AnyOutputPin,

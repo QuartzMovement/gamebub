@@ -1,11 +1,9 @@
 use std::fs::File;
 
-use embedded_graphics::pixelcolor::Rgb555;
 use flate2::read::GzDecoder;
 
 use device::Device;
 
-use crate::device::graphics::Argb1555;
 use crate::ui::ButtonEvent;
 
 mod device;

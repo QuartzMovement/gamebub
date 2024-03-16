@@ -59,7 +59,7 @@ impl RomHeader {
         let mut has_battery = false;
         let mut has_rtc = false;
         let mut has_rumble = false;
-        let mut has_sensor = false;
+        let has_sensor = false;
         let mbc = match cartridge_type {
             0x00 => cart_type!(MbcType::None,),
             0x01 => cart_type!(MbcType::Mbc1,),

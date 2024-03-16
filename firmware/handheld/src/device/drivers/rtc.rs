@@ -86,11 +86,13 @@ pub struct Datetime {
 }
 
 impl Datetime {
+    #[allow(unused)]
     pub fn to_timestamp(self) -> u64 {
         todo!()
     }
 
-    pub fn from_timestamp(timestamp: u64) -> Self {
+    #[allow(unused)]
+    pub fn from_timestamp(_timestamp: u64) -> Self {
         todo!()
     }
 }

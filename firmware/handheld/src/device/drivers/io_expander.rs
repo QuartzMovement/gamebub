@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use embedded_hal::i2c::I2c;
 use thiserror::Error;
 

@@ -14,10 +14,10 @@ use embedded_graphics::{
     geometry::{AnchorPoint, Dimensions, OriginDimensions, Size},
     image::Image,
     mono_font::{ascii::FONT_6X10, MonoTextStyle},
-    pixelcolor::{Rgb555, WebColors},
+    pixelcolor::Rgb555,
     prelude::*,
     primitives::{Primitive, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
-    text::{renderer::CharacterStyle, Alignment, Baseline, Text, TextStyle, TextStyleBuilder},
+    text::{Alignment, Baseline, Text, TextStyleBuilder},
     Drawable,
 };
 

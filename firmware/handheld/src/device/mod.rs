@@ -31,12 +31,14 @@ static DEVICE: OnceLock<Mutex<Device>> = OnceLock::new();
 /// Main container for device hardware.
 pub struct Device<'a> {
     /// Status led, active-high.
+    #[allow(unused)]
     led: PinDriver<'a, AnyOutputPin, Output>,
 
     /// FPGA power in, active-high.
     fpga_power: PinDriver<'a, AnyOutputPin, Output>,
 
     /// The I2C bus.
+    #[allow(unused)]
     i2c: &'a Mutex<I2cDriver<'a>>,
 
     /// LCD backlight PWM driver.
@@ -92,7 +94,9 @@ impl Device<'_> {
         let pin_vol_up = peripherals.pins.gpio4.downgrade_input();
         let pin_vol_down = peripherals.pins.gpio5.downgrade_input();
         let pin_power_switch = peripherals.pins.gpio1.downgrade();
+        #[allow(unused)]
         let pin_vbus_pgood = peripherals.pins.gpio41.downgrade_input();
+        #[allow(unused)]
         let pin_batt_chg = peripherals.pins.gpio42.downgrade_input();
         let pin_lcd_backlight = peripherals.pins.gpio6.downgrade_output();
         let pin_lcd_reset = peripherals.pins.gpio7.downgrade_output();
@@ -106,7 +110,9 @@ impl Device<'_> {
         let pin_spi_clk = peripherals.pins.gpio12.downgrade_output();
         let pin_spi_d0 = peripherals.pins.gpio11.downgrade();
         let pin_spi_d1 = peripherals.pins.gpio13.downgrade();
+        #[allow(unused)]
         let pin_spi_d2 = peripherals.pins.gpio14.downgrade();
+        #[allow(unused)]
         let pin_spi_d3 = peripherals.pins.gpio9.downgrade();
         let pin_i2c_scl = peripherals.pins.gpio39.downgrade();
         let pin_i2c_sda = peripherals.pins.gpio38.downgrade();
@@ -316,6 +322,7 @@ impl Device<'_> {
     }
 }
 
+#[allow(unused)]
 #[derive(Clone, Debug)]
 pub enum Event {
     Button(ButtonState),
