@@ -3,6 +3,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use crate::ui::buttons::ButtonState;
+use embedded_hal::pwm::SetDutyCycle;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
 use esp_idf_svc::hal::gpio::{
     self, AnyIOPin, AnyInputPin, IOPin, Input, InputOutput, InputPin, OutputPin,
@@ -146,7 +147,7 @@ impl Device<'_> {
             )?,
             pin_lcd_backlight,
         )?;
-        lcd_backlight.set_duty(lcd_backlight.get_max_duty() / 4)?; // TODO configure
+        lcd_backlight.set_duty_cycle_fully_off().unwrap();
 
         // Setup SPI
         // TODO: see if there's a good way to do this without making and leaking a Box
@@ -305,6 +306,13 @@ impl Device<'_> {
         loop {
             std::thread::park();
         }
+    }
+
+    /// Set the LCD brightness.
+    pub fn set_brightness(&mut self, brightness: u16) {
+        self.lcd_backlight
+            .set_duty_cycle_fraction(brightness, u16::MAX)
+            .unwrap();
     }
 }
 

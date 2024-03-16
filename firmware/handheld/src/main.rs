@@ -45,10 +45,13 @@ fn main() -> anyhow::Result<()> {
     }
 
     // Create UI and do initial render.
+    log::info!("Initializing UI");
     let mut ui = ui::UI::new();
     ui.set_screen(Box::new(ui::MainMenuScreen::new()));
     ui.render();
     device.display_framebuffer(ui.framebuffer());
+    log::info!("Turning on LCD backlight");
+    device.set_brightness(u16::MAX / 4);
 
     let event_queue = device.take_event_receiver().unwrap();
     std::mem::drop(device); // Drop the lock
