@@ -4,7 +4,7 @@ mod resources;
 pub use crate::device::graphics::Argb1555;
 use crate::{
     device::{self, Device},
-    gameboy,
+    gameboy::Gameboy,
 };
 use std::{
     convert::Infallible,
@@ -146,7 +146,9 @@ impl Screen for MainMenuScreen {
                 match self.menu.pos {
                     0 => {
                         // Run cartridge
-                        ui.set_screen(Box::new(GameScreen::new(None)));
+                        let mut gameboy = Gameboy::new();
+                        gameboy.set_physical_cartridge().unwrap();
+                        ui.set_screen(Box::new(GameScreen::new(gameboy)));
                     }
                     1 => {
                         // Load ROM
@@ -188,31 +190,17 @@ impl Screen for MainMenuScreen {
 }
 
 pub struct GameScreen {
-    #[allow(unused)]
-    rom_path: Option<PathBuf>,
     needs_redraw: bool,
 
+    gameboy: Gameboy,
     menu: SelectWidget<'static>,
     playing: bool,
 }
 
 impl GameScreen {
-    pub fn new(rom_path: Option<PathBuf>) -> Self {
-        // Transfer ROM.
-        let mut device = Device::lock();
-        match rom_path.as_ref() {
-            Some(rom_path) => {
-                log::info!("Transferring rom");
-                gameboy::set_emulated_cartridge(&mut device, rom_path).unwrap();
-                log::info!("Done transferring rom");
-            }
-            None => {
-                gameboy::set_physical_cartridge(&mut device).unwrap();
-            }
-        }
-
+    pub fn new(gameboy: Gameboy) -> Self {
         GameScreen {
-            rom_path,
+            gameboy,
             needs_redraw: true,
             menu: SelectWidget::new(&["Resume", "Reset", "Main Menu"]),
             playing: true,
@@ -227,7 +215,9 @@ impl Screen for GameScreen {
                 self.playing = false;
                 self.needs_redraw = true;
 
-                gameboy::set_paused(&mut Device::lock(), true).unwrap();
+                self.gameboy.set_paused(true).unwrap();
+                // TODO handle error more gracefully
+                self.gameboy.persist_ram().unwrap();
             }
             return;
         }
@@ -241,21 +231,20 @@ impl Screen for GameScreen {
                 self.menu.move_down();
             }
             Event::ButtonPressed(Button::Home) => {
-                gameboy::set_paused(&mut Device::lock(), false).unwrap();
+                self.gameboy.set_paused(false).unwrap();
                 self.playing = true;
             }
             Event::ButtonPressed(Button::A) => {
                 match self.menu.pos {
                     0 => {
                         // Resume
-                        gameboy::set_paused(&mut Device::lock(), false).unwrap();
+                        self.gameboy.set_paused(false).unwrap();
                         self.playing = true;
                     }
                     1 => {
                         // Reset
-                        let mut device = Device::lock();
-                        gameboy::reset(&mut device).unwrap();
-                        gameboy::set_paused(&mut device, false).unwrap();
+                        self.gameboy.reset().unwrap();
+                        self.gameboy.set_paused(false).unwrap();
                         self.playing = true;
                     }
                     2 => {
@@ -405,7 +394,17 @@ impl Screen for RomSelectScreen {
                 let item = self.widget.selected();
                 let path = self.root_path.join(item);
                 log::info!("Selected ROM {}", path.display());
-                ui.set_screen(Box::new(GameScreen::new(Some(path))));
+                let mut gameboy = Gameboy::new();
+                match gameboy.set_emulated_cartridge(path.as_path()) {
+                    Ok(_) => {
+                        ui.set_screen(Box::new(GameScreen::new(gameboy)));
+                    }
+                    Err(e) => {
+                        log::error!("Error loading ROM: {:?}", e);
+                        // TODO show an error message
+                        self.needs_redraw = true;
+                    }
+                }
             }
             Event::ButtonPressed(Button::B) => ui.set_screen(Box::new(MainMenuScreen::new())),
             _ => {}

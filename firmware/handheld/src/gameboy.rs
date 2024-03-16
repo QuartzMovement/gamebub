@@ -1,12 +1,13 @@
 use std::{
     fs::File,
     io::{Read, Seek},
-    path::Path,
+    path::{Path, PathBuf},
 };
 use thiserror::Error;
 
 use crate::device::Device;
 
+const REG_CONTROL: u32 = 0x0000_0000;
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
 
 #[derive(Debug, Error)]
@@ -114,106 +115,131 @@ impl RomHeader {
     }
 }
 
-pub fn set_paused(device: &mut Device<'_>, paused: bool) -> Result<(), GameboyError> {
-    device
-        .fpga
-        .write_u32(0x0000_0000, 0b10u32 | ((!paused) as u32))?;
-    Ok(())
+/// Driver for Gameboy FPGA module
+pub struct Gameboy {
+    /// Path to the RAM file, if this is an emulated cartridge.
+    ram_path: Option<PathBuf>,
 }
 
-/// Resets, leaving in a paused state.
-pub fn reset(device: &mut Device<'_>) -> Result<(), GameboyError> {
-    device.fpga.write_u32(0x0000_0000, 0b00)?;
-    device.fpga.write_u32(0x0000_0000, 0b10)?;
-    Ok(())
-}
-
-pub fn set_physical_cartridge(device: &mut Device<'_>) -> Result<(), GameboyError> {
-    // TODO: only Fpga is required, but all the type parameters make it really annoying
-
-    // Reset, leave paused.
-    device.fpga.write_u32(0x0000_0000, 0b00)?;
-    device.fpga.write_u32(0x0000_0000, 0b10)?;
-
-    // Switch to physical cartridge.
-    device.fpga.write_u32(REG_EMU_CART_CONFIG, 0)?;
-
-    // Resume
-    device.fpga.write_u32(0x0000_0000, 0b11)?;
-
-    Ok(())
-}
-
-pub fn set_emulated_cartridge(
-    device: &mut Device<'_>,
-    rom_path: &Path,
-) -> Result<RomHeader, GameboyError> {
-    // TODO: only Fpga is required, but all the type parameters make it really annoying
-
-    // Reset and pause.
-    device.fpga.write_u32(0x0000_0000, 0b00)?;
-
-    // Load ROM.
-    let mut rom_file = File::open(rom_path)?;
-    let mut rom_header = [0u8; 0x150];
-    rom_file.read(&mut rom_header)?;
-    let rom_header = RomHeader::parse(rom_header)?;
-    rom_file.seek(std::io::SeekFrom::Start(0))?;
-    log::info!("Loading rom: {:?}", rom_header);
-
-    // Take out of reset, leave paused.
-    device.fpga.write_u32(0x0000_0000, 0b00)?;
-
-    const CHUNK_SIZE: usize = 16 * 1024;
-    let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
-    let mut total = 0u32;
-    loop {
-        let n = rom_file.read(&mut buf)?;
-        if n == 0 {
-            break;
-        }
-        device.fpga.sdram_write(total, &buf[..n])?;
-        total += n as u32;
+impl Gameboy {
+    pub fn new() -> Self {
+        Gameboy { ram_path: None }
     }
 
-    // Load RAM
-    let ram_path = rom_path.with_extension("sav");
-    match File::open(ram_path) {
-        Ok(mut ram_file) => {
-            log::info!("Loading RAM");
+    pub fn set_paused(&mut self, paused: bool) -> Result<(), GameboyError> {
+        Device::lock()
+            .fpga
+            .write_u32(REG_CONTROL, 0b10u32 | ((!paused) as u32))?;
+        Ok(())
+    }
 
-            let mut i = 0u32;
-            loop {
-                let n = ram_file.read(&mut buf)?;
-                if n == 0 {
-                    break;
+    /// Resets, leaving in a paused state.
+    pub fn reset(&mut self) -> Result<(), GameboyError> {
+        let mut device = Device::lock();
+        device.fpga.write_u32(REG_CONTROL, 0b00)?;
+        device.fpga.write_u32(REG_CONTROL, 0b10)?;
+        Ok(())
+    }
+
+    pub fn set_physical_cartridge(&mut self) -> Result<(), GameboyError> {
+        self.ram_path = None;
+
+        let mut device = Device::lock();
+
+        // Reset, leave paused.
+        device.fpga.write_u32(REG_CONTROL, 0b00)?;
+        device.fpga.write_u32(REG_CONTROL, 0b10)?;
+
+        // Switch to physical cartridge.
+        device.fpga.write_u32(REG_EMU_CART_CONFIG, 0)?;
+
+        // Resume
+        device.fpga.write_u32(REG_CONTROL, 0b11)?;
+
+        Ok(())
+    }
+
+    pub fn set_emulated_cartridge(&mut self, rom_path: &Path) -> Result<RomHeader, GameboyError> {
+        let mut device = Device::lock();
+
+        // Reset and pause.
+        device.fpga.write_u32(REG_CONTROL, 0b00)?;
+
+        // Load ROM.
+        let mut rom_file = File::open(rom_path)?;
+        let mut rom_header = [0u8; 0x150];
+        rom_file.read(&mut rom_header)?;
+        let rom_header = RomHeader::parse(rom_header)?;
+        rom_file.seek(std::io::SeekFrom::Start(0))?;
+        log::info!("Loading rom: {:?}", rom_header);
+
+        // Take out of reset, leave paused.
+        device.fpga.write_u32(REG_CONTROL, 0b00)?;
+
+        const CHUNK_SIZE: usize = 16 * 1024;
+        let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
+        let mut total = 0u32;
+        loop {
+            let n = rom_file.read(&mut buf)?;
+            if n == 0 {
+                break;
+            }
+            device.fpga.sdram_write(total, &buf[..n])?;
+            total += n as u32;
+        }
+
+        // Load RAM
+        let ram_path = rom_path.with_extension("sav");
+        match File::open(ram_path.as_path()) {
+            Ok(mut ram_file) => {
+                log::info!("Loading RAM");
+
+                let mut i = 0u32;
+                loop {
+                    let n = ram_file.read(&mut buf)?;
+                    if n == 0 {
+                        break;
+                    }
+                    device.fpga.sram_write(i, &buf[..n])?;
+                    i += n as u32;
                 }
-                device.fpga.sram_write(i, &buf[..n])?;
-                i += n as u32;
+            }
+            Err(_) => {
+                log::info!("Not loading RAM");
             }
         }
-        Err(_) => {
-            log::info!("Not loading RAM");
-        }
+        self.ram_path = Some(ram_path);
+
+        // Take out of reset, leave paused.
+        device.fpga.write_u32(0x0000_0000, 0b10)?;
+
+        device
+            .fpga
+            .write_u32(REG_EMU_CART_CONFIG, rom_header.as_emu_cart_config())?;
+        device.fpga.write_u32(0xC000_0004, 0)?;
+        device
+            .fpga
+            .write_u32(0xC000_0008, rom_header.rom_size - 1)?;
+        device.fpga.write_u32(0xC000_000C, 0)?;
+        device
+            .fpga
+            .write_u32(0xC000_0010, rom_header.ram_size - 1)?;
+
+        // Resume
+        device.fpga.write_u32(0x0000_0000, 0b11)?;
+
+        Ok(rom_header)
     }
 
-    // Take out of reset, leave paused.
-    device.fpga.write_u32(0x0000_0000, 0b10)?;
-
-    device
-        .fpga
-        .write_u32(REG_EMU_CART_CONFIG, rom_header.as_emu_cart_config())?;
-    device.fpga.write_u32(0xC000_0004, 0)?;
-    device
-        .fpga
-        .write_u32(0xC000_0008, rom_header.rom_size - 1)?;
-    device.fpga.write_u32(0xC000_000C, 0)?;
-    device
-        .fpga
-        .write_u32(0xC000_0010, rom_header.ram_size - 1)?;
-
-    // Resume
-    device.fpga.write_u32(0x0000_0000, 0b11)?;
-
-    Ok(rom_header)
+    /// Persists the game save RAM to disk, if using an emulated cartridge.
+    pub fn persist_ram(&mut self) -> Result<(), GameboyError> {
+        match self.ram_path.as_ref() {
+            Some(ram_path) => {
+                // TODO persist ram
+                log::info!("Saving RAM: {}", ram_path.display());
+                Ok(())
+            }
+            None => Ok(()),
+        }
+    }
 }
