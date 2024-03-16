@@ -113,6 +113,20 @@ impl RomHeader {
     }
 }
 
+pub fn set_paused(device: &mut Device<'_>, paused: bool) -> Result<(), GameboyError> {
+    device
+        .fpga
+        .write_u32(0x0000_0000, 0b10u32 | ((!paused) as u32))?;
+    Ok(())
+}
+
+/// Resets, leaving in a paused state.
+pub fn reset(device: &mut Device<'_>) -> Result<(), GameboyError> {
+    device.fpga.write_u32(0x0000_0000, 0b00)?;
+    device.fpga.write_u32(0x0000_0000, 0b10)?;
+    Ok(())
+}
+
 pub fn set_physical_cartridge(device: &mut Device<'_>) -> Result<(), GameboyError> {
     // TODO: only Fpga is required, but all the type parameters make it really annoying
 

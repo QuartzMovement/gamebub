@@ -2,7 +2,10 @@ pub mod buttons;
 mod resources;
 
 pub use crate::device::graphics::Argb1555;
-use crate::device::{self, Device};
+use crate::{
+    device::{self, Device},
+    gameboy,
+};
 use std::convert::Infallible;
 
 pub use buttons::{Button, ButtonEvent};
@@ -167,7 +170,7 @@ impl Screen for MainMenuScreen {
         )
         .draw(target);
 
-        self.menu.render(target, 120, 80, 100, 50);
+        self.menu.render(target, 120, 80, 100);
     }
 }
 
@@ -175,7 +178,9 @@ pub struct GameScreen {
     #[allow(unused)]
     rom_path: Option<String>,
     needs_redraw: bool,
-    value: u32,
+
+    menu: SelectWidget<'static>,
+    playing: bool,
 }
 
 impl GameScreen {
@@ -185,66 +190,96 @@ impl GameScreen {
         match rom_path.as_ref() {
             Some(rom_path) => {
                 log::info!("Transferring rom");
-                crate::gameboy::set_emulated_cartridge(&mut device, rom_path).unwrap();
+                gameboy::set_emulated_cartridge(&mut device, rom_path).unwrap();
                 log::info!("Done transferring rom");
             }
             None => {
-                crate::gameboy::set_physical_cartridge(&mut device).unwrap();
+                gameboy::set_physical_cartridge(&mut device).unwrap();
             }
         }
 
         GameScreen {
             rom_path,
             needs_redraw: true,
-            value: 0,
+            menu: SelectWidget::new(&["Resume", "Reset", "Main Menu"]),
+            playing: true,
         }
     }
 }
 
 impl Screen for GameScreen {
-    fn handle_event(&mut self, _ui: &mut UI, event: Event) {
+    fn handle_event(&mut self, ui: &mut UI, event: Event) {
+        if self.playing {
+            if matches!(event, Event::ButtonPressed(Button::Home)) {
+                self.playing = false;
+                self.needs_redraw = true;
+
+                gameboy::set_paused(&mut Device::lock(), true).unwrap();
+            }
+            return;
+        }
+
+        self.needs_redraw = true;
         match event {
             Event::ButtonPressed(Button::Up) => {
-                self.value = self.value.saturating_add(1);
-                self.needs_redraw = true;
+                self.menu.move_up();
             }
             Event::ButtonPressed(Button::Down) => {
-                self.value = self.value.saturating_sub(1);
-                self.needs_redraw = true;
+                self.menu.move_down();
             }
-            _ => {}
+            Event::ButtonPressed(Button::Home) => {
+                gameboy::set_paused(&mut Device::lock(), false).unwrap();
+                self.playing = true;
+            }
+            Event::ButtonPressed(Button::A) => {
+                match self.menu.pos {
+                    0 => {
+                        // Resume
+                        gameboy::set_paused(&mut Device::lock(), false).unwrap();
+                        self.playing = true;
+                    }
+                    1 => {
+                        // Reset
+                        let mut device = Device::lock();
+                        gameboy::reset(&mut device).unwrap();
+                        gameboy::set_paused(&mut device, false).unwrap();
+                        self.playing = true;
+                    }
+                    2 => {
+                        // Main Menu
+                        ui.set_screen(Box::new(MainMenuScreen::new()))
+                    }
+                    _ => {}
+                }
+            }
+            _ => self.needs_redraw = false,
         }
     }
 
     fn render(&mut self, target: &mut Surface<'_>) {
+        // Clear background.
         self.needs_redraw = false;
         let _ = target
             .bounding_box()
-            .into_styled(PrimitiveStyle::with_fill(Rgb555::BLACK.into()))
+            .into_styled(PrimitiveStyle::with_fill(Argb1555::transparent()))
             .draw(target);
 
-        // Draw some text.
-        let text = format!("Game\nScreen\n{}", self.value);
-        let text_style = TextStyleBuilder::new().alignment(Alignment::Left).build();
-        let character_style = MonoTextStyle::new(&FONT_6X10, Rgb555::CSS_LIGHT_CORAL.into());
-        let _ = Text::with_text_style(
-            &text,
-            target.bounding_box().anchor_point(AnchorPoint::CenterLeft),
-            character_style,
-            text_style,
-        )
-        .draw(target);
+        if self.playing {
+            return;
+        }
 
-        // Cut out area for the game.
+        // Draw menu style
         let frame_style = PrimitiveStyleBuilder::new()
-            .stroke_color(Rgb555::WHITE.into())
-            .stroke_width(2)
+            .stroke_color(Rgb555::BLACK.into())
+            .stroke_width(1)
             .stroke_alignment(StrokeAlignment::Outside)
-            .fill_color(Argb1555::transparent())
+            .fill_color(BACKGROUND_COLOR)
             .build();
-        let _ = Rectangle::with_center(target.bounding_box().center(), Size::new(160, 144))
-            .into_styled(frame_style)
-            .draw(target);
+        let menu_box = Rectangle::with_center(target.bounding_box().center(), Size::new(80, 65));
+        let _ = menu_box.into_styled(frame_style).draw(target);
+
+        let menu_pos = menu_box.anchor_point(AnchorPoint::TopCenter);
+        self.menu.render(target, menu_pos.x, menu_pos.y + 12, 72);
     }
 
     fn needs_redraw(&self) -> bool {
@@ -273,7 +308,7 @@ impl<'a> SelectWidget<'a> {
         }
     }
 
-    pub fn render(&self, target: &mut Surface<'a>, x: i32, y: i32, w: u32, h: u32) {
+    pub fn render(&self, target: &mut Surface<'a>, x: i32, y: i32, w: u32) {
         let mut y = y + 4;
         let text_style = MonoTextStyle::new(&FONT_6X10, Rgb555::BLACK.into());
         let select_outline_style = PrimitiveStyleBuilder::new()
@@ -298,12 +333,12 @@ impl<'a> SelectWidget<'a> {
             if self.pos == i {
                 let _ = Rectangle::with_center(
                     Point::new(x, y + (text_height / 2) as i32 - 6),
-                    Size::new(w, text_height + 3),
+                    Size::new(w, text_height + 4),
                 )
                 .into_styled(select_outline_style)
                 .draw(target);
             }
-            y += text_height as i32 + 6;
+            y += text_height as i32 + 7;
         }
     }
 }

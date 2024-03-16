@@ -197,7 +197,7 @@ impl Device<'_> {
         dac.set_volume(100)?;
         dac.set_mute(false)?;
         dac.set_headphones_enabled(true)?;
-        dac.set_speakers_enabled(false)?;
+        dac.set_speakers_enabled(true)?;
 
         // Setup FPGA (without programming)
         let fpga_done = PinDriver::input(pin_fpga_done)?;

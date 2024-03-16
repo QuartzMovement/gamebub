@@ -64,10 +64,10 @@ fn main() -> anyhow::Result<()> {
 
                     match button_event {
                         ButtonEvent::Pressed(ui::Button::VolUp) => {
-                            Device::lock().dac.set_speakers_enabled(true).unwrap();
+                            Device::lock().dac.set_mute(false).unwrap();
                         }
                         ButtonEvent::Pressed(ui::Button::VolDown) => {
-                            Device::lock().dac.set_speakers_enabled(false).unwrap();
+                            Device::lock().dac.set_mute(true).unwrap();
                         }
                         _ => {}
                     }
