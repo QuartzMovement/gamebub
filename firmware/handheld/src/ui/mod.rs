@@ -14,7 +14,7 @@ use embedded_graphics::{
     pixelcolor::{Rgb555, WebColors},
     prelude::*,
     primitives::{Primitive, PrimitiveStyle, PrimitiveStyleBuilder, Rectangle, StrokeAlignment},
-    text::{Alignment, Text, TextStyleBuilder},
+    text::{renderer::CharacterStyle, Alignment, Baseline, Text, TextStyle, TextStyleBuilder},
     Drawable,
 };
 
@@ -98,13 +98,14 @@ pub trait Screen {
 
     fn needs_redraw(&self) -> bool;
 
-    fn render(&self, target: &mut Surface<'_>);
+    fn render(&mut self, target: &mut Surface<'_>);
 }
 
 const BACKGROUND_COLOR: Argb1555 = Argb1555::new(true, 0x1D, 0x1D, 0x1D);
 
 pub struct MainMenuScreen {
     logo: resources::ResourceImage<'static>,
+    menu: SelectWidget<'static>,
     needs_redraw: bool,
 }
 
@@ -112,6 +113,7 @@ impl MainMenuScreen {
     pub fn new() -> Self {
         MainMenuScreen {
             logo: resources::logo(),
+            menu: SelectWidget::new(&["Run cartridge", "Load ROM file", "Options", "Shutdown"]),
             needs_redraw: true,
         }
     }
@@ -120,13 +122,27 @@ impl MainMenuScreen {
 impl Screen for MainMenuScreen {
     fn handle_event(&mut self, ui: &mut UI, event: Event) {
         match event {
-            Event::ButtonPressed(Button::A) => {
-                log::info!("A pressed!");
-                let rom_path = "/sdcard/roms/Pokemon Crystal.gbc".to_string();
-                ui.set_screen(Box::new(GameScreen::new(Some(rom_path))));
+            Event::ButtonPressed(Button::Up) => {
+                self.menu.move_up();
+                self.needs_redraw = true;
             }
-            Event::ButtonPressed(Button::B) => {
-                ui.set_screen(Box::new(GameScreen::new(None)));
+            Event::ButtonPressed(Button::Down) => {
+                self.menu.move_down();
+                self.needs_redraw = true;
+            }
+            Event::ButtonPressed(Button::A) => {
+                match self.menu.pos {
+                    0 => {
+                        // Run cartridge
+                        ui.set_screen(Box::new(GameScreen::new(None)));
+                    }
+                    1 => {
+                        // Load ROM
+                        let rom_path = "/sdcard/roms/Pokemon Crystal.gbc".to_string();
+                        ui.set_screen(Box::new(GameScreen::new(Some(rom_path))));
+                    }
+                    _ => {}
+                }
             }
             _ => {}
         }
@@ -136,7 +152,8 @@ impl Screen for MainMenuScreen {
         self.needs_redraw
     }
 
-    fn render(&self, target: &mut Surface<'_>) {
+    fn render(&mut self, target: &mut Surface<'_>) {
+        self.needs_redraw = false;
         let _ = target
             .bounding_box()
             .into_styled(PrimitiveStyle::with_fill(BACKGROUND_COLOR))
@@ -146,23 +163,11 @@ impl Screen for MainMenuScreen {
         let _ = Image::new(
             &self.logo,
             target.bounding_box().anchor_point(AnchorPoint::TopCenter)
-                + Point::new(-(self.logo.size().width as i32) / 2, 16),
+                + Point::new(-(self.logo.size().width as i32) / 2, 32),
         )
         .draw(target);
 
-        // Press A to continue
-        let text_style = TextStyleBuilder::new().alignment(Alignment::Center).build();
-        let character_style = MonoTextStyle::new(&FONT_6X10, Rgb555::CSS_PURPLE.into());
-        let _ = Text::with_text_style(
-            "Press A for ROM\nPress B for cartridge",
-            target
-                .bounding_box()
-                .anchor_point(AnchorPoint::BottomCenter)
-                + Point::new(0, -40),
-            character_style,
-            text_style,
-        )
-        .draw(target);
+        self.menu.render(target, 120, 80, 100, 50);
     }
 }
 
@@ -211,7 +216,8 @@ impl Screen for GameScreen {
         }
     }
 
-    fn render(&self, target: &mut Surface<'_>) {
+    fn render(&mut self, target: &mut Surface<'_>) {
+        self.needs_redraw = false;
         let _ = target
             .bounding_box()
             .into_styled(PrimitiveStyle::with_fill(Rgb555::BLACK.into()))
@@ -243,5 +249,61 @@ impl Screen for GameScreen {
 
     fn needs_redraw(&self) -> bool {
         self.needs_redraw
+    }
+}
+
+pub struct SelectWidget<'a> {
+    items: &'a [&'a str],
+    pos: usize,
+}
+
+impl<'a> SelectWidget<'a> {
+    pub fn new(items: &'a [&'a str]) -> Self {
+        SelectWidget { items, pos: 0 }
+    }
+
+    pub fn move_up(&mut self) {
+        if self.pos > 0 {
+            self.pos -= 1;
+        }
+    }
+    pub fn move_down(&mut self) {
+        if self.pos < self.items.len() - 1 {
+            self.pos += 1
+        }
+    }
+
+    pub fn render(&self, target: &mut Surface<'a>, x: i32, y: i32, w: u32, h: u32) {
+        let mut y = y + 4;
+        let text_style = MonoTextStyle::new(&FONT_6X10, Rgb555::BLACK.into());
+        let select_outline_style = PrimitiveStyleBuilder::new()
+            .stroke_color(Rgb555::BLACK.into())
+            .stroke_width(1)
+            .stroke_alignment(StrokeAlignment::Outside)
+            .build();
+
+        for (i, &item) in self.items.iter().enumerate() {
+            let text_pos = Point::new(x, y);
+            let text = Text::with_text_style(
+                item,
+                text_pos,
+                text_style,
+                TextStyleBuilder::new()
+                    .alignment(Alignment::Center)
+                    .baseline(Baseline::Middle)
+                    .build(),
+            );
+            let text_height = text.bounding_box().size.height;
+            let _ = text.draw(target);
+            if self.pos == i {
+                let _ = Rectangle::with_center(
+                    Point::new(x, y + (text_height / 2) as i32 - 6),
+                    Size::new(w, text_height + 3),
+                )
+                .into_styled(select_outline_style)
+                .draw(target);
+            }
+            y += text_height as i32 + 6;
+        }
     }
 }
