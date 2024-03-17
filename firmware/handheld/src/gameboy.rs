@@ -1,6 +1,6 @@
 use std::{
     fs::File,
-    io::{Read, Seek},
+    io::{Read, Seek, Write},
     path::{Path, PathBuf},
 };
 use thiserror::Error;
@@ -117,13 +117,18 @@ impl RomHeader {
 
 /// Driver for Gameboy FPGA module
 pub struct Gameboy {
+    /// Rom header, if this is an emulated cartridge
+    rom_header: Option<RomHeader>,
     /// Path to the RAM file, if this is an emulated cartridge.
     ram_path: Option<PathBuf>,
 }
 
 impl Gameboy {
     pub fn new() -> Self {
-        Gameboy { ram_path: None }
+        Gameboy {
+            rom_header: None,
+            ram_path: None,
+        }
     }
 
     pub fn set_paused(&mut self, paused: bool) -> Result<(), GameboyError> {
@@ -159,7 +164,7 @@ impl Gameboy {
         Ok(())
     }
 
-    pub fn set_emulated_cartridge(&mut self, rom_path: &Path) -> Result<RomHeader, GameboyError> {
+    pub fn set_emulated_cartridge(&mut self, rom_path: &Path) -> Result<(), GameboyError> {
         let mut device = Device::lock();
 
         // Reset and pause.
@@ -208,7 +213,6 @@ impl Gameboy {
                 log::info!("Not loading RAM");
             }
         }
-        self.ram_path = Some(ram_path);
 
         // Take out of reset, leave paused.
         device.fpga.write_u32(0x0000_0000, 0b10)?;
@@ -228,18 +232,37 @@ impl Gameboy {
         // Resume
         device.fpga.write_u32(0x0000_0000, 0b11)?;
 
-        Ok(rom_header)
+        self.ram_path = Some(ram_path);
+        self.rom_header = Some(rom_header);
+        Ok(())
     }
 
     /// Persists the game save RAM to disk, if using an emulated cartridge.
     pub fn persist_ram(&mut self) -> Result<(), GameboyError> {
-        match self.ram_path.as_ref() {
-            Some(ram_path) => {
-                // TODO persist ram
-                log::info!("Saving RAM: {}", ram_path.display());
-                Ok(())
-            }
-            None => Ok(()),
+        let ram_path = match self.ram_path.as_ref() {
+            Some(ram_path) => ram_path,
+            None => return Ok(()),
+        };
+
+        let ram_size = self.rom_header.as_ref().map_or(0, |h| h.ram_size);
+        log::info!("Saving RAM: {}", ram_path.display());
+
+        let mut file = File::create(ram_path)?;
+        const CHUNK_SIZE: usize = 8 * 1024;
+        let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
+        let mut address: u32 = 0;
+        let mut bytes_left = ram_size as usize;
+
+        let mut device = Device::lock();
+        while bytes_left > 0 {
+            let to_read = CHUNK_SIZE.min(bytes_left);
+            let data = &mut buf[0..to_read];
+            device.fpga.sram_read(address, data)?;
+            file.write(data)?;
+            address += to_read as u32;
+            bytes_left -= to_read;
         }
+
+        Ok(())
     }
 }
