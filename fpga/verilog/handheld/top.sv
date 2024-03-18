@@ -85,6 +85,7 @@ module top_handheld (
     logic reset = 1'd0;
 
     logic clk_sys;
+    logic clk_sys_locked;
     logic clk_sdram;
     logic clk_av;
     logic clk_spi;
@@ -101,6 +102,7 @@ module top_handheld (
     );
     clk_wiz_system_clk_wiz clk_wiz_system(
         .reset(pll_reset),
+        .locked(clk_sys_locked),
         .clk_in_50mhz(clk_in_50mhz),
         .clk_out_sys(clk_sys),
         .clk_out_sdram(clk_sdram),
@@ -153,6 +155,20 @@ module top_handheld (
     logic [15:0] inner_sdram_dq_in;
     logic [15:0] inner_sdram_dq_out;
     logic inner_sdram_dq_dir;
+
+    ///// BEGIN Reset synchronizer
+    logic [1:0] reset_sync;
+    initial reset_sync = 2'b11;
+    initial reset = 1'b1;
+
+    always @(posedge clk_sys or negedge clk_sys_locked) begin
+        if (!clk_sys_locked) begin
+            {reset, reset_sync} <= 3'b111;
+        end else begin
+            {reset, reset_sync} <= {reset_sync, 1'b0};
+        end
+    end
+    //////////////////////////////
 
     HandheldTop handheld_top(
         .clock(clk_sys),
