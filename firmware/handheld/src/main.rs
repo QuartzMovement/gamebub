@@ -1,4 +1,7 @@
-use std::fs::File;
+use std::{
+    fs::File,
+    time::{Duration, Instant},
+};
 
 use flate2::read::GzDecoder;
 
@@ -57,45 +60,62 @@ fn main() -> anyhow::Result<()> {
     let mut button_event_detector = ui::buttons::ButtonEventDetector::new();
 
     // Main event loop.
-    while let Ok(event) = event_queue.recv() {
-        match event {
-            device::Event::Button(state) => {
-                for button_event in button_event_detector.update(state) {
-                    log::info!("event: {:?}", button_event);
+    let mut next_timeout = Duration::MAX;
+    loop {
+        let event = event_queue.recv_timeout(next_timeout);
 
-                    match button_event {
-                        ButtonEvent::Pressed(ui::Button::VolUp) => {
-                            let dac = &mut Device::lock().dac;
-                            let new_volume = dac.get_volume().saturating_add(16);
-                            log::info!("Setting volume to {}", new_volume);
-                            dac.set_volume(new_volume).unwrap();
-                        }
-                        ButtonEvent::Pressed(ui::Button::VolDown) => {
-                            let dac = &mut Device::lock().dac;
-                            let new_volume = dac.get_volume().saturating_sub(16);
-                            log::info!("Setting volume to {}", new_volume);
-                            dac.set_volume(new_volume).unwrap();
-                        }
-                        _ => {}
+        // First, handle button events.
+        if let Some(button_events) = match event {
+            Ok(device::Event::Button(state)) => Some(button_event_detector.update(Some(state))),
+            Err(_) => Some(button_event_detector.update(None)),
+            _ => None,
+        } {
+            for button_event in button_events {
+                log::info!("Button event: {:?}", button_event);
+
+                // temporary: handle volume buttons here
+                match button_event {
+                    ButtonEvent::Pressed(ui::Button::VolUp, _) => {
+                        let dac = &mut Device::lock().dac;
+                        let new_volume = dac.get_volume().saturating_add(16);
+                        log::info!("Setting volume to {}", new_volume);
+                        dac.set_volume(new_volume).unwrap();
                     }
+                    ButtonEvent::Pressed(ui::Button::VolDown, _) => {
+                        let dac = &mut Device::lock().dac;
+                        let new_volume = dac.get_volume().saturating_sub(16);
+                        log::info!("Setting volume to {}", new_volume);
+                        dac.set_volume(new_volume).unwrap();
+                    }
+                    _ => {}
+                }
 
-                    match button_event {
-                        ButtonEvent::Pressed(button) => {
-                            ui.handle_event(ui::Event::ButtonPressed(button))
-                        }
-                        ButtonEvent::Released(button) => {
-                            ui.handle_event(ui::Event::ButtonReleased(button))
-                        }
+                match button_event {
+                    ButtonEvent::Pressed(button, _) => {
+                        ui.handle_event(ui::Event::ButtonPressed(button))
+                    }
+                    ButtonEvent::Released(button) => {
+                        ui.handle_event(ui::Event::ButtonReleased(button))
                     }
                 }
             }
-            device::Event::FpgaIrq => log::info!("event: fpga irq"),
+        }
+
+        // Other events.
+        match event {
+            Ok(device::Event::FpgaIrq) => log::info!("event: fpga irq"),
+            _ => {}
         }
 
         // TODO handle multiple events before rendering (if multiple are available)
         if ui.render() {
             Device::lock().display_framebuffer(ui.framebuffer());
         }
+
+        next_timeout = button_event_detector
+            .next_wakeup_time()
+            .map_or(Duration::MAX, |t| {
+                t.saturating_duration_since(Instant::now())
+            });
     }
-    panic!("Queue empty");
 }
