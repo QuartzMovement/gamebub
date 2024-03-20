@@ -2,7 +2,7 @@ use std::sync::{mpsc, MutexGuard};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use crate::ui::buttons::ButtonState;
+use crate::ui::buttons::ButtonMap;
 use embedded_hal::pwm::SetDutyCycle;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
 use esp_idf_svc::hal::gpio::{
@@ -325,6 +325,6 @@ impl Device<'_> {
 #[allow(unused)]
 #[derive(Clone, Debug)]
 pub enum Event {
-    Button(ButtonState),
+    Button(ButtonMap),
     FpgaIrq,
 }
