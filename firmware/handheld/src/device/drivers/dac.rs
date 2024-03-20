@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::time::Duration;
 
 use embedded_hal::digital::OutputPin;
@@ -18,6 +20,9 @@ pub struct TLV320DAC3101<PinReset: OutputPin, I2C: I2c> {
     pin_reset: PinReset,
     i2c: I2C,
     page: u8,
+
+    volume: u8,
+    mute: bool,
 }
 
 impl<PinReset, I2C> TLV320DAC3101<PinReset, I2C>
@@ -30,6 +35,9 @@ where
             pin_reset,
             i2c,
             page: 0,
+
+            volume: 0,
+            mute: false,
         }
     }
 
@@ -170,9 +178,15 @@ where
         Ok(())
     }
 
+    /// Get the volume level
+    pub fn get_volume(&self) -> u8 {
+        self.volume
+    }
+
     /// Sets DAC volume for left and right.
     /// Mapped to DAC's volume range of -63.5 dB to 24dB.
     pub fn set_volume(&mut self, volume: u8) -> Result<(), Error> {
+        self.volume = volume;
         // map 0 -> -127, 255 -> 48
         // range = 175
         let value = ((((volume as i32) * 175) / 255) - 127) as u8;
@@ -182,8 +196,13 @@ where
     }
 
     pub fn set_mute(&mut self, mute: bool) -> Result<(), Error> {
-        // Left and right are individually controllabe, but this sets them together.
+        // Left and right are individually controllable, but this sets them together.
+        self.mute = mute;
         self.write_reg(0, 0x40, if mute { 0xC } else { 0x0 })
+    }
+
+    pub fn get_mute(&mut self) -> bool {
+        self.mute
     }
 
     pub fn set_headphones_enabled(&mut self, enabled: bool) -> Result<(), Error> {

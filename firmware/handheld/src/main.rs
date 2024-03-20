@@ -65,10 +65,16 @@ fn main() -> anyhow::Result<()> {
 
                     match button_event {
                         ButtonEvent::Pressed(ui::Button::VolUp) => {
-                            Device::lock().dac.set_mute(false).unwrap();
+                            let dac = &mut Device::lock().dac;
+                            let new_volume = dac.get_volume().saturating_add(16);
+                            log::info!("Setting volume to {}", new_volume);
+                            dac.set_volume(new_volume).unwrap();
                         }
                         ButtonEvent::Pressed(ui::Button::VolDown) => {
-                            Device::lock().dac.set_mute(true).unwrap();
+                            let dac = &mut Device::lock().dac;
+                            let new_volume = dac.get_volume().saturating_sub(16);
+                            log::info!("Setting volume to {}", new_volume);
+                            dac.set_volume(new_volume).unwrap();
                         }
                         _ => {}
                     }
