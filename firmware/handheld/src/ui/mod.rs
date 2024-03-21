@@ -32,7 +32,7 @@ use embedded_graphics::{
 
 #[derive(Copy, Clone, Debug)]
 pub enum Event {
-    ButtonPressed(Button),
+    ButtonPressed(Button, bool),
     ButtonReleased(Button),
 }
 
@@ -134,15 +134,15 @@ impl MainMenuScreen {
 impl Screen for MainMenuScreen {
     fn handle_event(&mut self, ui: &mut UI, event: Event) {
         match event {
-            Event::ButtonPressed(Button::Up) => {
+            Event::ButtonPressed(Button::Up, _) => {
                 self.menu.move_up();
                 self.needs_redraw = true;
             }
-            Event::ButtonPressed(Button::Down) => {
+            Event::ButtonPressed(Button::Down, _) => {
                 self.menu.move_down();
                 self.needs_redraw = true;
             }
-            Event::ButtonPressed(Button::A) => {
+            Event::ButtonPressed(Button::A, false) => {
                 match self.menu.pos {
                     0 => {
                         // Run cartridge
@@ -211,7 +211,7 @@ impl GameScreen {
 impl Screen for GameScreen {
     fn handle_event(&mut self, ui: &mut UI, event: Event) {
         if self.playing {
-            if matches!(event, Event::ButtonPressed(Button::Home)) {
+            if matches!(event, Event::ButtonPressed(Button::Home, false)) {
                 self.playing = false;
                 self.needs_redraw = true;
 
@@ -224,17 +224,17 @@ impl Screen for GameScreen {
 
         self.needs_redraw = true;
         match event {
-            Event::ButtonPressed(Button::Up) => {
+            Event::ButtonPressed(Button::Up, _) => {
                 self.menu.move_up();
             }
-            Event::ButtonPressed(Button::Down) => {
+            Event::ButtonPressed(Button::Down, _) => {
                 self.menu.move_down();
             }
-            Event::ButtonPressed(Button::Home) => {
+            Event::ButtonPressed(Button::Home, false) => {
                 self.gameboy.set_paused(false).unwrap();
                 self.playing = true;
             }
-            Event::ButtonPressed(Button::A) => {
+            Event::ButtonPressed(Button::A, false) => {
                 match self.menu.pos {
                     0 => {
                         // Resume
@@ -382,15 +382,15 @@ impl RomSelectScreen {
 impl Screen for RomSelectScreen {
     fn handle_event(&mut self, ui: &mut UI, event: Event) {
         match event {
-            Event::ButtonPressed(Button::Up) => {
+            Event::ButtonPressed(Button::Up, _) => {
                 self.widget.move_up();
                 self.needs_redraw = true;
             }
-            Event::ButtonPressed(Button::Down) => {
+            Event::ButtonPressed(Button::Down, _) => {
                 self.widget.move_down();
                 self.needs_redraw = true;
             }
-            Event::ButtonPressed(Button::A) => {
+            Event::ButtonPressed(Button::A, false) => {
                 let item = self.widget.selected();
                 let path = self.root_path.join(item);
                 log::info!("Selected ROM {}", path.display());
@@ -406,7 +406,9 @@ impl Screen for RomSelectScreen {
                     }
                 }
             }
-            Event::ButtonPressed(Button::B) => ui.set_screen(Box::new(MainMenuScreen::new())),
+            Event::ButtonPressed(Button::B, false) => {
+                ui.set_screen(Box::new(MainMenuScreen::new()))
+            }
             _ => {}
         }
     }

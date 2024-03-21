@@ -91,8 +91,8 @@ fn main() -> anyhow::Result<()> {
                 }
 
                 match button_event {
-                    ButtonEvent::Pressed(button, _) => {
-                        ui.handle_event(ui::Event::ButtonPressed(button))
+                    ButtonEvent::Pressed(button, repeat) => {
+                        ui.handle_event(ui::Event::ButtonPressed(button, repeat))
                     }
                     ButtonEvent::Released(button) => {
                         ui.handle_event(ui::Event::ButtonReleased(button))
