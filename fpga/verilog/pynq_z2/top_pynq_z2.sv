@@ -478,10 +478,10 @@ module top_pynq_z2 (
     assign framebuffer_read_b = framebuffer_read_data[14:10];
     always @(posedge clk_pixel) begin
         // Frambuffer read is delayed by 2 cycles,  plus an additional cycle for HDMI, so read 3 pixels ahead.
-        framebuffer_read_addr <= ((cy - 10'd168) * 16'd160) + (cx - 10'd240 + 10'd3);
+        framebuffer_read_addr <= (((cy - 10'd24) / 10'd3) * 16'd160) + ((cx - 10'd120 + 10'd3) / 10'd3);
         framebuffer_read_en <= 1;
         framebuffer_output_en <= 1;
-        if (cx >= 10'd240 && cx < 10'd400 && cy >= 10'd168 && cy < 10'd312) begin
+        if (cx >= 10'd120 && cx < 10'd600 && cy >= 10'd24 && cy < 10'd456) begin
             rgb <= {
                 framebuffer_read_r, framebuffer_read_r[4:2],
                 framebuffer_read_g, framebuffer_read_g[4:2],
@@ -494,11 +494,11 @@ module top_pynq_z2 (
     end
 
     /////////////////////////////////////////////////
-    // HDMI Output: 640x480 @ 60.00Hz
+    // HDMI Output: 720x480 @ 60.00Hz, 27.027 MHz clock
     /////////////////////////////////////////////////
     logic [2:0] tmds;
     logic tmds_clock;
-    hdmi #(.VIDEO_ID_CODE(1), .VIDEO_REFRESH_RATE(60.00), .AUDIO_RATE(AUDIO_RATE), .AUDIO_BIT_WIDTH(AUDIO_BIT_WIDTH)) hdmi(
+    hdmi #(.VIDEO_ID_CODE(2), .VIDEO_REFRESH_RATE(60.00), .AUDIO_RATE(AUDIO_RATE), .AUDIO_BIT_WIDTH(AUDIO_BIT_WIDTH)) hdmi(
       .clk_pixel_x5(clk_pixel_x5),
       .clk_pixel(clk_pixel),
       .clk_audio(clk_audio),

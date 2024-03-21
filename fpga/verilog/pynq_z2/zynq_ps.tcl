@@ -255,11 +255,11 @@ proc create_root_design { parentCell } {
  ] $clk_axi_dram
   set clk_pixel [ create_bd_port -dir O -type clk clk_pixel ]
   set_property -dict [ list \
-   CONFIG.FREQ_HZ {25200000} \
+   CONFIG.FREQ_HZ {27031250} \
  ] $clk_pixel
   set clk_pixel_x5 [ create_bd_port -dir O -type clk clk_pixel_x5 ]
   set_property -dict [ list \
-   CONFIG.FREQ_HZ {126000000} \
+   CONFIG.FREQ_HZ {135156250} \
  ] $clk_pixel_x5
   set pll_0_locked [ create_bd_port -dir O pll_0_locked ]
   set pll_1_locked [ create_bd_port -dir O pll_1_locked ]
@@ -275,13 +275,13 @@ proc create_root_design { parentCell } {
   # Create instance: clk_wiz_0, and set properties
   set clk_wiz_0 [ create_bd_cell -type ip -vlnv xilinx.com:ip:clk_wiz:6.0 clk_wiz_0 ]
   set_property -dict [ list \
-   CONFIG.CLKOUT1_JITTER {470.476} \
-   CONFIG.CLKOUT1_PHASE_ERROR {347.350} \
-   CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {25.2} \
+   CONFIG.CLKOUT1_JITTER {200.512} \
+   CONFIG.CLKOUT1_PHASE_ERROR {159.389} \
+   CONFIG.CLKOUT1_REQUESTED_OUT_FREQ {27.027} \
    CONFIG.CLKOUT1_USED {true} \
-   CONFIG.CLKOUT2_JITTER {341.985} \
-   CONFIG.CLKOUT2_PHASE_ERROR {347.350} \
-   CONFIG.CLKOUT2_REQUESTED_OUT_FREQ {126} \
+   CONFIG.CLKOUT2_JITTER {139.710} \
+   CONFIG.CLKOUT2_PHASE_ERROR {159.389} \
+   CONFIG.CLKOUT2_REQUESTED_OUT_FREQ {135.135} \
    CONFIG.CLKOUT2_USED {true} \
    CONFIG.CLKOUT3_JITTER {240.572} \
    CONFIG.CLKOUT3_PHASE_ERROR {298.923} \
@@ -293,12 +293,12 @@ proc create_root_design { parentCell } {
    CONFIG.CLK_OUT1_PORT {clk_pixel} \
    CONFIG.CLK_OUT2_PORT {clk_pixel_x5} \
    CONFIG.CLK_OUT3_PORT {clk_out3} \
-   CONFIG.MMCM_CLKFBOUT_MULT_F {31.500} \
-   CONFIG.MMCM_CLKOUT0_DIVIDE_F {25.000} \
-   CONFIG.MMCM_CLKOUT1_DIVIDE {5} \
+   CONFIG.MMCM_CLKFBOUT_MULT_F {21.625} \
+   CONFIG.MMCM_CLKOUT0_DIVIDE_F {40.000} \
+   CONFIG.MMCM_CLKOUT1_DIVIDE {8} \
    CONFIG.MMCM_CLKOUT2_DIVIDE {1} \
    CONFIG.MMCM_CLKOUT3_DIVIDE {1} \
-   CONFIG.MMCM_DIVCLK_DIVIDE {5} \
+   CONFIG.MMCM_DIVCLK_DIVIDE {2} \
    CONFIG.NUM_OUT_CLKS {2} \
    CONFIG.RESET_TYPE {ACTIVE_LOW} \
  ] $clk_wiz_0
