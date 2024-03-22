@@ -38,6 +38,11 @@ fn main() -> anyhow::Result<()> {
         }
     }
 
+    match device.fuel_gauge.get_battery_level() {
+        Ok(level) => log::info!("Battery charge: {:.0}%", level),
+        Err(_) => log::info!("Unable to read battery charge"),
+    }
+
     // Program FPGA
     {
         let mut bitstream = GzDecoder::new(File::open("/sdcard/top_handheld_cgb.bit.gz")?);

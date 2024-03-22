@@ -1,5 +1,6 @@
 pub mod dac;
 pub mod fpga;
+pub mod fuel_gauge;
 pub mod io_expander;
 pub mod lcd;
 pub mod rtc;

@@ -69,6 +69,9 @@ pub struct Device<'a> {
     /// RTC driver
     pub rtc: drivers::rtc::PCF8563<MutexI2C<'a, I2cDriver<'a>>>,
 
+    /// Battery fuel gauge driver
+    pub fuel_gauge: drivers::fuel_gauge::MAX17048<MutexI2C<'a, I2cDriver<'a>>>,
+
     io_expander: drivers::io_expander::TCA9535<MutexI2C<'a, I2cDriver<'a>>>,
     button_home: PinDriver<'a, AnyInputPin, Input>,
     button_vol_up: PinDriver<'a, AnyInputPin, Input>,
@@ -192,6 +195,9 @@ impl Device<'_> {
         // Setup RTC
         let rtc = drivers::rtc::PCF8563::new(MutexI2C::new(&i2c));
 
+        // Setup battery fuel gauge
+        let fuel_gauge = drivers::fuel_gauge::MAX17048::new(MutexI2C::new(&i2c));
+
         // Ensure fpga power has stabilized.
         let time_since_fpga_power = Instant::now().duration_since(fpga_power_time);
         std::thread::sleep(FPGA_POWER_DELAY.saturating_sub(time_since_fpga_power));
@@ -253,6 +259,7 @@ impl Device<'_> {
             lcd,
             dac,
             fpga,
+            fuel_gauge,
             io_expander,
             button_home,
             button_power,
