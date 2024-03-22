@@ -220,7 +220,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   spi.io.signals.chipSelect := io.mcuSpiChipSelect
 
   val controlRegister = RegInit(0.U.asTypeOf(new Bundle() {
-    /** 1 to activate the vibration motor (TODO change to enable, not activate) */
+    /** True to enable vibration (if the module uses it) */
     val vibrate = Bool()
     /** Whether the module is currently in vblank. (TODO make read-only) */
     val moduleVblank = Bool()
@@ -496,7 +496,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // Submodule Connections
   //////////////////////////////////
   module.io.enable := controlRegister.moduleEnable
-  io.vibrate := (module.io.enable && module.io.vibrate) || controlRegister.vibrate
+  io.vibrate := (module.io.enable && module.io.vibrate) && controlRegister.vibrate
   io.link <> module.io.link
 //  io.pmod <> module.io.pmod
   module.io.pmod.in := 0.U
