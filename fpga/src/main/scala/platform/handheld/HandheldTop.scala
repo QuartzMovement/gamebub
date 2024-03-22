@@ -17,6 +17,7 @@ object HandheldTop extends App {
 /** IO bundle used for a handheld submodule. */
 class HandheldIo extends Bundle {
   val enable = Input(Bool())
+  val reset = Input(Bool())
 
   val buttons = Input(new HandheldButtons)
 
@@ -200,10 +201,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val sdramClock = Input(Clock())
     val sdram = new SdramController.Signals(sdramConfig)
   })
-  val moduleReset = WireDefault(false.B)
-  val module = withReset(moduleReset) {
-    Module(genT)
-  }
+  val module = Module(genT)
 
   //////////////////////////////////
   // MCU Communication
@@ -262,7 +260,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
         write = RegisterMap.WriteFn((write: Bool, data: UInt) =>
           when (write) {
             // Write set bits to ack interrupts.
-            interruptFlags := (interruptFlags.asUInt & ~data.asUInt).asTypeOf(interruptFlags)
+            interruptFlags := (interruptFlags.asUInt & (~data).asUInt).asTypeOf(interruptFlags)
           }
         ),
       ),
@@ -292,7 +290,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       "b11".U(2.W) -> moduleMcuInterface,
     ))
 
-  moduleReset := !controlRegister.moduleReset
   controlRegister.moduleVblank := module.io.vblank
   when (spi.io.debugRequestOverflow) {
     spiStatusRegister.requestFifoOverflow := true.B
@@ -496,6 +493,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // Submodule Connections
   //////////////////////////////////
   module.io.enable := controlRegister.moduleEnable
+  module.io.reset := !controlRegister.moduleReset
   io.vibrate := (module.io.enable && module.io.vibrate) && controlRegister.vibrate
   io.link <> module.io.link
 //  io.pmod <> module.io.pmod

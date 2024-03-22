@@ -68,6 +68,9 @@ class HandheldGameboy extends Module with HandheldModule {
     model = Gameboy.Model.Cgb,
   )
   val gameboy = Module(new Gameboy(gameboyConfig))
+  when (io.reset) {
+    gameboy.reset := true.B
+  }
 
   // Gameboy clock control
   val waitingForCart = Wire(Bool())

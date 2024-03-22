@@ -9,6 +9,7 @@ class HandheldTester extends Module with HandheldModule {
     def framebufferW = 240
     def framebufferH = 160
 
+    reset := io.reset
     val (_, frame) = Counter(true.B, 8 * 1024 * 1024 / 60)
 
     val offX = RegInit(0.U(5.W))
