@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use thiserror::Error;
 
 use embedded_hal::i2c::I2c;
@@ -29,20 +31,23 @@ where
             .write_read(ADDRESS, &[0x02], &mut data)
             .map_err(|_| Error::I2cError)?;
 
-        // TODO check the VL seconds flag and return None
+        let datetime = Datetime {
+            seconds: decode_bcd(data[0] & 0x7F),
+            minutes: decode_bcd(data[1] & 0x7F),
+            hours: decode_bcd(data[2] & 0x3F),
+            days: decode_bcd(data[3] & 0x3F),
+            weekdays: decode_bcd(data[4] & 0x07),
+            months: decode_bcd(data[5] & 0x1F),
+            years: (decode_bcd(data[6]) as u16) + (100 * (data[5] >> 7) as u16),
+        };
+
+        // Check the VL seconds flag and return None if it's invalid.
         let unreliable = (data[0] & 0x80) != 0;
-        if unreliable {
+
+        if unreliable || !datetime.is_valid() {
             Ok(None)
         } else {
-            Ok(Some(Datetime {
-                seconds: decode_bcd(data[0] & 0x7F),
-                minutes: decode_bcd(data[1] & 0x7F),
-                hours: decode_bcd(data[2] & 0x3F),
-                days: decode_bcd(data[3] & 0x3F),
-                weekdays: decode_bcd(data[4] & 0x07),
-                months: decode_bcd(data[5] & 0x1F),
-                years: (decode_bcd(data[6]) as u16) + (100 * (data[5] >> 7) as u16),
-            }))
+            Ok(Some(datetime))
         }
     }
 
@@ -74,7 +79,7 @@ fn encode_bcd(data: u8) -> u8 {
     (tens << 4) | ones
 }
 
-#[derive(Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug)]
 pub struct Datetime {
     pub seconds: u8,
     pub minutes: u8,
@@ -84,15 +89,83 @@ pub struct Datetime {
     pub months: u8,
     pub years: u16,
 }
+impl Default for Datetime {
+    fn default() -> Self {
+        Self {
+            seconds: 0,
+            minutes: 0,
+            hours: 0,
+            days: 1,
+            weekdays: 0,
+            months: 1,
+            years: 0,
+        }
+    }
+}
+
+/// Unix timestamp of Jan 1, 2000
+const TIMESTAMP_2000: u64 = 946684800;
 
 impl Datetime {
-    #[allow(unused)]
-    pub fn to_timestamp(self) -> u64 {
-        todo!()
+    /// Returns whether this is a valid datetime for the PCF8563.
+    pub fn is_valid(self) -> bool {
+        (self.seconds < 60)
+            && (self.minutes < 60)
+            && (self.hours < 24)
+            && (self.days >= 1)
+            && (self.days <= 31)
+            && (self.weekdays < 7)
+            && (self.months >= 1)
+            && (self.months <= 12)
+            && (self.years < 200)
     }
 
-    #[allow(unused)]
-    pub fn from_timestamp(_timestamp: u64) -> Self {
-        todo!()
+    /// Convert the Datetime to a Unix timestamp, assuming it starts at year 2000.
+    pub fn to_timestamp(self) -> Option<u64> {
+        if !self.is_valid() {
+            return None;
+        }
+
+        let mut timestamp = TIMESTAMP_2000;
+        timestamp += self.seconds as u64;
+        timestamp += (self.minutes as u64) * 60;
+        timestamp += (self.hours as u64) * 3600;
+
+        let month_lookup = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
+        let mut days = (self.days as u64) - 1;
+        days += month_lookup[(self.months - 1) as usize];
+        if self.months > 2 && ((self.years % 4) == 0) {
+            days += 1;
+        }
+        days += ((self.years as u64) * 365) + ((self.years as u64 + 3) / 4);
+        timestamp += days * 86400;
+
+        Some(timestamp)
+    }
+
+    pub fn from_timestamp(ts: u64) -> Option<Self> {
+        if ts < TIMESTAMP_2000 {
+            return None;
+        }
+        let ts = ts - TIMESTAMP_2000;
+
+        let second = (ts % 86400) as u32;
+        let mut day = (ts / 86400) as u32;
+
+        let mut dt = Self::default();
+        dt.seconds = (second % 60) as u8;
+        dt.minutes = ((second / 60) % 60) as u8;
+        dt.hours = (second / 3600) as u8;
+        dt.years = ((day * 4) / 1461) as u16;
+        day -= (((dt.years as u32) * 1461) + 3) / 4;
+
+        if (dt.years % 4) == 0 {
+            day += if day > 59 { 1 } else { 0 }
+        } else {
+            day += if day > 58 { 2 } else { 0 }
+        }
+        dt.months = ((((day * 12) + 6) / 367) + 1) as u8;
+        dt.days = (day + 1 - ((((dt.months as u32) - 1) * 367) + 5) / 12) as u8;
+        Some(dt)
     }
 }
