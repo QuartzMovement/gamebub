@@ -147,9 +147,6 @@ impl Gameboy {
         let mut device = Device::lock();
         device.fpga.write_u32(REG_CONTROL, 0b00)?;
         device.fpga.write_u32(REG_CONTROL, 0b10)?;
-        if let Some(rom_header) = self.rom_header.as_ref() {
-            Self::configure_emulated_cartridge(&mut device, rom_header)?;
-        }
         Ok(())
     }
 
@@ -158,9 +155,8 @@ impl Gameboy {
 
         let mut device = Device::lock();
 
-        // Reset, leave paused.
+        // Hold in reset
         device.fpga.write_u32(REG_CONTROL, 0b00)?;
-        device.fpga.write_u32(REG_CONTROL, 0b10)?;
 
         // Switch to physical cartridge.
         device.fpga.write_u32(REG_EMU_CART_CONFIG, 0)?;
@@ -174,10 +170,10 @@ impl Gameboy {
     pub fn set_emulated_cartridge(&mut self, rom_path: &Path) -> Result<(), GameboyError> {
         let mut device = Device::lock();
 
-        // Reset and pause.
+        // Hold in reset
         device.fpga.write_u32(REG_CONTROL, 0b00)?;
 
-        // Load ROM.
+        // Load ROM
         let mut rom_file = File::open(rom_path)?;
         let mut rom_header = [0u8; 0x150];
         rom_file.read(&mut rom_header)?;
@@ -218,10 +214,18 @@ impl Gameboy {
             }
         }
 
-        // Take out of reset, leave paused.
-        device.fpga.write_u32(REG_CONTROL, 0b10)?;
-
-        Self::configure_emulated_cartridge(&mut device, &rom_header)?;
+        // Configure emulated cartridge control registers
+        device
+            .fpga
+            .write_u32(REG_EMU_CART_CONFIG, rom_header.as_emu_cart_config())?;
+        device.fpga.write_u32(REG_EMU_CART_ROM_ADDR, 0)?;
+        device
+            .fpga
+            .write_u32(REG_EMU_CART_ROM_MASK, rom_header.rom_size - 1)?;
+        device.fpga.write_u32(REG_EMU_CART_RAM_ADDR, 0)?;
+        device
+            .fpga
+            .write_u32(REG_EMU_CART_RAM_MASK, rom_header.ram_size - 1)?;
 
         // Resume
         device.fpga.write_u32(REG_CONTROL, 0b11)?;
@@ -257,25 +261,6 @@ impl Gameboy {
             bytes_left -= to_read;
         }
 
-        Ok(())
-    }
-
-    /// Configures the emulator to use an emulated cartridge.
-    fn configure_emulated_cartridge(
-        device: &mut Device,
-        rom_header: &RomHeader,
-    ) -> Result<(), GameboyError> {
-        device
-            .fpga
-            .write_u32(REG_EMU_CART_CONFIG, rom_header.as_emu_cart_config())?;
-        device.fpga.write_u32(REG_EMU_CART_ROM_ADDR, 0)?;
-        device
-            .fpga
-            .write_u32(REG_EMU_CART_ROM_MASK, rom_header.rom_size - 1)?;
-        device.fpga.write_u32(REG_EMU_CART_RAM_ADDR, 0)?;
-        device
-            .fpga
-            .write_u32(REG_EMU_CART_RAM_MASK, rom_header.ram_size - 1)?;
         Ok(())
     }
 }
