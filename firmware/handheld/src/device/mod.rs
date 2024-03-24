@@ -305,6 +305,11 @@ impl Device<'_> {
         let _ = self.fpga.set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
     }
 
+    pub fn display_framebuffer_raw(&mut self, raw: &[u8]) {
+        let _ = self.fpga.write_overlay(0, raw);
+        let _ = self.fpga.set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
+    }
+
     /// Take the event queue receiver.
     pub fn take_event_receiver(&mut self) -> Option<mpsc::Receiver<Event>> {
         self.event_receiver.take()

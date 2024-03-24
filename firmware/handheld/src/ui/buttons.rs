@@ -1,6 +1,6 @@
-use std::time::{Duration, Instant};
-
 use enum_map::{Enum, EnumMap};
+use slint::platform::{Key, WindowEvent};
+use std::time::{Duration, Instant};
 
 const REPEAT_INITIAL_DELAY: Duration = Duration::from_millis(450);
 const REPEAT_DELAY: Duration = Duration::from_millis(50);
@@ -31,6 +31,38 @@ pub type ButtonMap = EnumMap<Button, bool>;
 pub enum ButtonEvent {
     Pressed(Button, bool),
     Released(Button),
+}
+
+impl Into<slint::platform::WindowEvent> for ButtonEvent {
+    fn into(self) -> slint::platform::WindowEvent {
+        let button = match self {
+            ButtonEvent::Pressed(b, _) => b,
+            ButtonEvent::Released(b) => b,
+        };
+        let text: slint::SharedString = match button {
+            Button::A => "A".into(),
+            Button::B => "B".into(),
+            Button::X => "X".into(),
+            Button::Y => "Y".into(),
+            Button::Up => Key::UpArrow.into(),
+            Button::Down => Key::DownArrow.into(),
+            Button::Left => Key::LeftArrow.into(),
+            Button::Right => Key::RightArrow.into(),
+            Button::L => "L".into(),
+            Button::R => "R".into(),
+            Button::Start => "Start".into(),
+            Button::Select => "Select".into(),
+            Button::Home => "Home".into(),
+            Button::VolUp => "VolUp".into(),
+            Button::VolDown => "VolDown".into(),
+            Button::Power => "Power".into(),
+        };
+        match self {
+            ButtonEvent::Pressed(_, false) => WindowEvent::KeyPressed { text },
+            ButtonEvent::Pressed(_, true) => WindowEvent::KeyPressRepeated { text },
+            ButtonEvent::Released(_) => WindowEvent::KeyReleased { text },
+        }
+    }
 }
 
 struct ButtonState {
