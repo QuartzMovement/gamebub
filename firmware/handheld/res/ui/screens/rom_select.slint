@@ -1,0 +1,38 @@
+import { Screen } from "../components/screen.slint";
+import { TextListView } from "../components/list_view.slint";
+
+export component RomSelectScreen inherits Screen {
+    private property <[string]> files;
+    callback on-selected(int);
+
+    title: "Load ROM...";
+    forward-focus: list;
+
+    files: [
+        "Parent directory",
+        "item a",
+        "item b",
+        "item c",
+        "item d",
+        "item e",
+        "item f",
+        "item g",
+        "item h",
+        "item i",
+        "item k",
+        "item l",
+        "item m",
+    ];
+
+    VerticalLayout {
+        height: 100%;
+        spacing: 8px;
+
+        list := TextListView {
+            model: root.files;
+            on-item-selected(i) => {
+                root.on-selected(i)
+            }
+        }
+    }
+}

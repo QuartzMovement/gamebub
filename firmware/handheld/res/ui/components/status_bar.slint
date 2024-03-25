@@ -1,0 +1,21 @@
+export component StatusBar inherits Rectangle {
+    in property <string> title;
+
+    x: 0;
+    y: 0;
+    width: 100%;
+    height: 16px;
+    background: #aaa;
+
+    title-text := Text {
+        text: root.title;
+        horizontal-alignment: left;
+        x: 4px;
+    }
+
+    battery-text := Text {
+        text: "50%";
+        horizontal-alignment: right;
+        x: parent.width - self.width - 4px;
+    }
+}

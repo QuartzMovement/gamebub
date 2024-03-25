@@ -1,0 +1,36 @@
+import "../fonts/pixelmix.ttf";
+import { StatusBar } from "components/status_bar.slint";
+import { TextListView } from "components/list_view.slint";
+import { RomSelectScreen } from "screens/rom_select.slint";
+
+export component MainWindow inherits Window {
+    width: 240px;
+    height: 160px;
+    background: #E8E8E8;
+    default-font-family: "pixelmix";
+    default-font-size: 8px;
+
+    property <int> counter: 0;
+
+    status-bar := StatusBar {
+        // TODO take title from current window
+        title: "Counter: \{counter}";
+    }
+
+    forward-focus: rom-select;
+    focus-scope := FocusScope {
+        y: status-bar.height;
+        height: parent.height - self.y;
+
+        VerticalLayout {
+            padding: 4px;
+            // main-menu := MainMenuScreen { }
+            rom-select := RomSelectScreen { }
+        }
+
+        key-pressed(event) => {
+            counter += 1;
+            accept
+        }
+    }
+}

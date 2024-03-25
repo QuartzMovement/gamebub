@@ -1,0 +1,140 @@
+export component ListItem {
+    in property <StandardListViewItem> item;
+    in property <bool> has-focus;
+    in property <int> index;
+
+    min-width: i-text.min-width;
+    min-height: i-text.min-height + 2px;
+    vertical-stretch: 0;
+    horizontal-stretch: 1;
+
+    i-background := Rectangle {
+        background: root.has-focus ? #ff0 : transparent;
+        width: root.width;
+        i-text := Text {
+            x: 2px;
+            text: root.item.text;
+            vertical-alignment: center;
+            horizontal-alignment: left;
+            overflow: elide;
+        }
+    }
+}
+
+export component ListViewBase inherits Rectangle {
+    in property <[string]> model;
+    in property <bool> wrap: false;
+    out property <int> focus-item: 0;
+
+    private property <bool> has-scrollbar: area.viewport-height > area.height;
+    private property <length> scrollbar-width: 2px;
+    private property <length> item-height: area.viewport-height / self.model.length;
+    private property <int> into-view-item: 0;
+    private property <length> into-view-item-y: root.item-y(root.into-view-item);
+    private property <bool> has-focus;
+
+    callback on-focus-item-changed(/* focus-item */ int);
+    callback on-item-selected(/* selected-item */ int);
+
+    public function set-focus-item(index: int){
+        if (index < 0 || index >= model.length) {
+            return;
+        }
+        bring-into-view(index);
+
+        focus-item = index;
+    }
+
+    pure function first-visible-item() -> int {
+        return min(root.model.length - 1, max(0, round(-area.viewport-y / root.item-height)));
+    }
+
+    pure function item-y(index: int) -> length {
+        return area.viewport-y + index * root.item-height;
+    }
+
+    function bring-into-view(index: int){
+        if (index < 0 || index >= model.length) {
+            return;
+        }
+        into-view-item = index;
+
+        if (into-view-item-y < 0) {
+            area.viewport-y += 0 - into-view-item-y;
+        }
+        if (into-view-item-y + item-height > area.height) {
+            area.viewport-y -= into-view-item-y + item-height - area.height;
+        }
+    }
+
+    protected function focus-up(){
+        root.set-focus-item(root.focus-item - 1);
+    }
+
+    protected function focus-down(){
+        root.set-focus-item(root.focus-item + 1);
+    }
+
+    protected function select-focus-item(){
+        root.on-item-selected(root.focus-item);
+    }
+
+    border-width: 1px;
+    border-color: black;
+
+    area := Flickable {
+        x: 2px;
+        y: 2px;
+        width: root.has-scrollbar ? scroll-bar.x - 1px : parent.width - 4px;
+        height: parent.height - 4px;
+        VerticalLayout {
+            alignment: start;
+            @children
+        }
+    }
+
+    scroll-bar := Rectangle {
+        visible: has-scrollbar;
+        x: parent.width - self.width - 2px;
+        y: 2px;
+        width: scrollbar-width;
+        height: parent.height - 4px;
+        inner := Rectangle {
+            y: (-area.viewport-y / area.viewport-height) * parent.height;
+            width: 100%;
+            height: (area.height / area.viewport-height) * parent.height;
+            background: black;
+        }
+    }
+
+    forward-focus: i-focus-scope;
+
+    i-focus-scope := FocusScope {
+        focus-changed-event => {
+            root.has-focus = self.has-focus;
+        }
+
+        key-pressed(event) => {
+            if (event.text == Key.UpArrow) {
+                root.focus-up();
+                return accept;
+            } else if (event.text == Key.DownArrow) {
+                root.focus-down();
+                return accept;
+            } else if (event.text == "A") {
+                root.on-item-selected(root.focus-item);
+                return accept;
+            }
+            reject
+        }
+    }
+}
+
+export component TextListView inherits ListViewBase {
+    for item[index] in root.model: ListItem {
+        item: { text: item };
+        has-focus: index == root.focus-item;
+        index: index;
+        height: self.min-height;
+    }
+}

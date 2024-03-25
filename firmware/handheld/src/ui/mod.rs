@@ -21,7 +21,7 @@ pub struct UI {
     framebuffer: Vec<Argb1555>,
     window: Rc<MinimalSoftwareWindow>,
     event_queue: Receiver<Event>,
-    _inner: slint::MyUI,
+    _inner: slint::MainWindow,
 }
 
 impl UI {
@@ -34,7 +34,7 @@ impl UI {
         }))
         .unwrap();
 
-        let ui = slint::MyUI::new().unwrap();
+        let ui = slint::MainWindow::new().unwrap();
 
         window.set_size(PhysicalSize::new(
             DISPLAY_WIDTH as u32,
