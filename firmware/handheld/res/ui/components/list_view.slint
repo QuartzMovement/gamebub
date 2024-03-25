@@ -9,7 +9,7 @@ export component ListItem {
     horizontal-stretch: 1;
 
     i-background := Rectangle {
-        background: root.has-focus ? #ff0 : transparent;
+        background: root.has-focus ? #bbb : transparent;
         width: root.width;
         i-text := Text {
             x: 2px;
@@ -37,12 +37,11 @@ export component ListViewBase inherits Rectangle {
     callback on-item-selected(/* selected-item */ int);
 
     public function set-focus-item(index: int){
-        if (index < 0 || index >= model.length) {
+        if (!wrap && (index < 0 || index >= model.length)) {
             return;
         }
-        bring-into-view(index);
-
-        focus-item = index;
+        focus-item = mod(model.length + index, model.length);
+        bring-into-view(focus-item);
     }
 
     pure function first-visible-item() -> int {

@@ -7,7 +7,7 @@ pub use buttons::{Button, ButtonEvent};
 
 use ::slint::{
     platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType, TargetPixel},
-    PhysicalSize,
+    ComponentHandle, PhysicalSize,
 };
 
 use crate::device::{self, Device, Event};
@@ -35,6 +35,12 @@ impl UI {
         .unwrap();
 
         let ui = slint::MainWindow::new().unwrap();
+        ui.global::<slint::Properties>().set_battery_level(
+            device
+                .fuel_gauge
+                .get_battery_level()
+                .map_or(0, |x| x.round() as i32),
+        );
 
         window.set_size(PhysicalSize::new(
             DISPLAY_WIDTH as u32,
@@ -42,7 +48,6 @@ impl UI {
         ));
 
         let event_queue = device.take_event_receiver().unwrap();
-
         UI {
             framebuffer,
             window,

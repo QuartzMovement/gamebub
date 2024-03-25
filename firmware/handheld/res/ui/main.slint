@@ -1,7 +1,15 @@
-import "../fonts/pixelmix.ttf";
 import { StatusBar } from "components/status_bar.slint";
 import { TextListView } from "components/list_view.slint";
 import { RomSelectScreen } from "screens/rom_select.slint";
+import { MainMenuScreen } from "screens/main_menu.slint";
+import { Properties } from "common.slint";
+
+export { Properties }
+
+export enum ScreenId {
+    MainMenu,
+    RomSelect,
+}
 
 export component MainWindow inherits Window {
     width: 240px;
@@ -10,25 +18,49 @@ export component MainWindow inherits Window {
     default-font-family: "pixelmix";
     default-font-size: 8px;
 
+    in-out property <ScreenId> current-screen: ScreenId.MainMenu;
     property <int> counter: 0;
+    private property <string> screen-title;
 
     status-bar := StatusBar {
-        // TODO take title from current window
-        title: "Counter: \{counter}";
+        title: "\{root.screen-title}: \{counter}";
     }
 
-    forward-focus: rom-select;
     focus-scope := FocusScope {
         y: status-bar.height;
         height: parent.height - self.y;
 
         VerticalLayout {
             padding: 4px;
-            // main-menu := MainMenuScreen { }
-            rom-select := RomSelectScreen { }
+            Rectangle {
+                if (root.current-screen == ScreenId.MainMenu): main-menu := MainMenuScreen {
+                    visible: root.current-screen == ScreenId.MainMenu;
+                    init => {
+                        self.focus();
+                        root.screen-title = self.title;
+                    }
+                }
+
+                if (root.current-screen == ScreenId.RomSelect): rom-select := RomSelectScreen {
+                    visible: root.current-screen == ScreenId.RomSelect;
+                    init => {
+                        self.focus();
+                        root.screen-title = self.title;
+                    }
+                }
+            }
         }
 
         key-pressed(event) => {
+            if (event.text == "X") {
+                if (root.current-screen == ScreenId.MainMenu) {
+                    root.current-screen = ScreenId.RomSelect;
+                    // rom-select.focus();
+                } else {
+                    root.current-screen = ScreenId.MainMenu;
+                    // main-menu.focus();
+                }
+            }
             counter += 1;
             accept
         }

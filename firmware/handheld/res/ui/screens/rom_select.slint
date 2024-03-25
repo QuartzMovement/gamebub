@@ -26,12 +26,23 @@ export component RomSelectScreen inherits Screen {
 
     VerticalLayout {
         height: 100%;
-        spacing: 8px;
 
         list := TextListView {
             model: root.files;
+            wrap: true;
             on-item-selected(i) => {
                 root.on-selected(i)
+            }
+        }
+
+        HorizontalLayout {
+            Text {
+                text: "A to select";
+            }
+
+            Text {
+                text: "B to cancel";
+                horizontal-alignment: right;
             }
         }
     }

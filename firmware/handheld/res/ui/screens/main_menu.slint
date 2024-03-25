@@ -2,71 +2,74 @@ import { Screen } from "../components/screen.slint";
 import { Button } from "../components/button.slint";
 
 export component MainMenuScreen inherits Screen {
-    VerticalLayout {
-        alignment: start;
-        height: 100%;
-        padding: 8px;
-        spacing: 8px;
+    forward-focus: btn-cart;
+    i-focus-scope := FocusScope {
+        VerticalLayout {
+            alignment: start;
+            height: 100%;
+            padding: 8px;
+            spacing: 8px;
 
-        Image {
-            source: @image-url("logo.png");
-            height: 22px;
-        }
-
-        GridLayout {
-            spacing: 4px;
-            Row {
-                btn_cart := Button {
-                    width: 50%;
-                    height: 32px;
-                    text: "Run Cartridge";
-                    on-right => {
-                        btn_rom.focus();
-                        accept
-                    }
-                    on-down => {
-                        btn_settings.focus();
-                        accept
-                    }
-                }
-
-                btn_rom := Button {
-                    width: 50%;
-                    height: 32px;
-                    text: "Load ROM";
-                    on-left => {
-                        btn_cart.focus();
-                        accept
-                    }
-                    on-down => {
-                        btn_tools.focus();
-                        accept
-                    }
-                }
+            Image {
+                source: @image-url("../../logo.png");
+                height: 22px;
             }
 
-            Row {
-                btn_settings := Button {
-                    text: "Settings";
-                    on-up => {
-                        btn_cart.focus();
-                        accept
+            GridLayout {
+                spacing: 4px;
+                Row {
+                    btn_cart := Button {
+                        width: 50%;
+                        height: 32px;
+                        text: "Run Cartridge";
+                        on-right => {
+                            btn_rom.focus();
+                            accept
+                        }
+                        on-down => {
+                            btn_settings.focus();
+                            accept
+                        }
                     }
-                    on-right => {
-                        btn_tools.focus();
-                        accept
+
+                    btn_rom := Button {
+                        width: 50%;
+                        height: 32px;
+                        text: "Load ROM";
+                        on-left => {
+                            btn_cart.focus();
+                            accept
+                        }
+                        on-down => {
+                            btn_tools.focus();
+                            accept
+                        }
                     }
                 }
 
-                btn_tools := Button {
-                    text: "Tools";
-                    on-up => {
-                        btn_rom.focus();
-                        accept
+                Row {
+                    btn_settings := Button {
+                        text: "Settings";
+                        on-up => {
+                            btn_cart.focus();
+                            accept
+                        }
+                        on-right => {
+                            btn_tools.focus();
+                            accept
+                        }
                     }
-                    on-left => {
-                        btn_settings.focus();
-                        accept
+
+                    btn_tools := Button {
+                        text: "Tools";
+                        on-up => {
+                            btn_rom.focus();
+                            accept
+                        }
+                        on-left => {
+                            btn_settings.focus();
+                            accept
+                        }
                     }
                 }
             }
