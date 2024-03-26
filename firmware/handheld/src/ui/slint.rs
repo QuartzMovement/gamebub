@@ -72,8 +72,9 @@ impl TargetPixel for Argb1555 {
         let c = c & 0b01111100000011111000001111100000;
 
         let res = expanded * a + c;
+        let res_a = (((color.alpha as u16) << 8) | self.0) & Self::A_MASK;
 
-        self.0 = Self::A_MASK
+        self.0 = res_a
             | ((res >> 21) as u16 & Self::G_MASK)
             | ((res >> 5) as u16 & (Self::R_MASK | Self::B_MASK));
     }
