@@ -2,6 +2,7 @@ import { StatusBar } from "components/status_bar.slint";
 import { TextListView } from "components/list_view.slint";
 import { RomSelectScreen } from "screens/rom_select.slint";
 import { MainMenuScreen } from "screens/main_menu.slint";
+import { GameScreen } from "screens/game.slint";
 import { Properties, ScreenId } from "common.slint";
 
 export { Properties, ScreenId }
@@ -9,7 +10,7 @@ export { Properties, ScreenId }
 export component MainWindow inherits Window {
     width: 240px;
     height: 160px;
-    background: #E8E8E8;
+    background: Properties.hide-ui ? transparent : #E8E8E8;
     default-font-family: "pixelmix";
     default-font-size: 8px;
 
@@ -17,6 +18,7 @@ export component MainWindow inherits Window {
     private property <string> screen-title;
 
     status-bar := StatusBar {
+        visible: !Properties.hide-ui;
         title: "\{root.screen-title} | \{counter}";
     }
 
@@ -34,8 +36,16 @@ export component MainWindow inherits Window {
                     }
                 }
 
-                if (Properties.current-screen == ScreenId.RomSelect):  RomSelectScreen {
+                if (Properties.current-screen == ScreenId.RomSelect): RomSelectScreen {
                     init => {
+                        self.focus();
+                        root.screen-title = self.title;
+                    }
+                }
+
+                if (Properties.current-screen == ScreenId.Game): GameScreen {
+                    init => {
+                        Properties.hide-ui = true;
                         self.focus();
                         root.screen-title = self.title;
                     }

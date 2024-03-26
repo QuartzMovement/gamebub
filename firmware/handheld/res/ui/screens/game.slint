@@ -1,0 +1,72 @@
+import { Properties, ScreenId } from "../common.slint";
+import { ScreenBase } from "../components/screen.slint";
+import { Button } from "../components/button.slint";
+
+export component GameScreen inherits ScreenBase {
+    forward-focus: i-focus-scope;
+
+    protected function resume(){
+        Properties.hide-ui = true;
+        i-focus-scope.focus();
+    }
+
+    i-focus-scope := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "z" || event.text == "Home") {
+                if (Properties.hide-ui) {
+                    Properties.hide-ui = false;
+                    btn-resume.focus();
+                } else {
+                    resume();
+                }
+            }
+            reject
+        }
+
+        menu := Rectangle {
+            visible: !Properties.hide-ui;
+            background: #FFF;
+            border-color: black;
+            border-width: 1px;
+            width: i-layout.min-width + 20px;
+            height: i-layout.min-height;
+            i-layout := VerticalLayout {
+                padding: 8px;
+                spacing: 4px;
+                btn-resume := Button {
+                    text: "Resume";
+                    on-down => {
+                        btn-reset.focus();
+                        accept
+                    }
+                    on-pressed => {
+                        resume();
+                    }
+                }
+
+                btn-reset := Button {
+                    text: "Reset";
+                    on-up => {
+                        btn-resume.focus();
+                        accept
+                    }
+                    on-down => {
+                        btn-main-menu.focus();
+                        accept
+                    }
+                }
+
+                btn-main-menu := Button {
+                    text: "Main Menu";
+                    on-up => {
+                        btn-reset.focus();
+                        accept
+                    }
+                    on-pressed => {
+                        Properties.set-screen(ScreenId.MainMenu);
+                    }
+                }
+            }
+        }
+    }
+}

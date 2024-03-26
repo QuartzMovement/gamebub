@@ -31,6 +31,9 @@ export component MainMenuScreen inherits ScreenBase {
                             btn_settings.focus();
                             accept
                         }
+                        on-pressed => {
+                            Properties.set-screen(ScreenId.Game);
+                        }
                     }
 
                     btn_rom := Button {
