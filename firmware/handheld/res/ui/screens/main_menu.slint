@@ -1,4 +1,4 @@
-import { Properties, ScreenId } from "../common.slint";
+import { Global, ScreenId } from "../common.slint";
 import { ScreenBase } from "../components/screen.slint";
 import { Button } from "../components/button.slint";
 
@@ -32,7 +32,7 @@ export component MainMenuScreen inherits ScreenBase {
                             accept
                         }
                         on-pressed => {
-                            Properties.set-screen(ScreenId.Game);
+                            Global.set-screen(ScreenId.Game);
                         }
                     }
 
@@ -49,7 +49,7 @@ export component MainMenuScreen inherits ScreenBase {
                             accept
                         }
                         on-pressed => {
-                            Properties.set-screen(ScreenId.RomSelect);
+                            Global.set-screen(ScreenId.RomSelect);
                         }
                     }
                 }

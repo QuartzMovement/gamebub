@@ -35,7 +35,7 @@ impl UI {
         .unwrap();
 
         let ui = slint::MainWindow::new().unwrap();
-        ui.global::<slint::Properties>().set_battery_level(
+        ui.global::<slint::Global>().set_battery_level(
             device
                 .fuel_gauge
                 .get_battery_level()

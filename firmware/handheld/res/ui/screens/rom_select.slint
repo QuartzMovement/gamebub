@@ -1,4 +1,4 @@
-import { Properties, ScreenId } from "../common.slint";
+import { Global, ScreenId } from "../common.slint";
 import { ScreenBase } from "../components/screen.slint";
 import { TextListView } from "../components/list_view.slint";
 
@@ -27,7 +27,7 @@ export component RomSelectScreen inherits ScreenBase {
     i-focus-scope := FocusScope {
         key-pressed(event) => {
             if (event.text == "b") {
-                Properties.set-screen(ScreenId.MainMenu);
+                Global.set-screen(ScreenId.MainMenu);
                 accept
             } else {
                 reject

@@ -1,4 +1,4 @@
-import { Properties, ScreenId } from "../common.slint";
+import { Global, ScreenId } from "../common.slint";
 import { ScreenBase } from "../components/screen.slint";
 import { Button } from "../components/button.slint";
 
@@ -6,15 +6,15 @@ export component GameScreen inherits ScreenBase {
     forward-focus: i-focus-scope;
 
     protected function resume(){
-        Properties.hide-ui = true;
+        Global.hide-ui = true;
         i-focus-scope.focus();
     }
 
     i-focus-scope := FocusScope {
         key-pressed(event) => {
             if (event.text == "z" || event.text == "Home") {
-                if (Properties.hide-ui) {
-                    Properties.hide-ui = false;
+                if (Global.hide-ui) {
+                    Global.hide-ui = false;
                     btn-resume.focus();
                 } else {
                     resume();
@@ -24,7 +24,7 @@ export component GameScreen inherits ScreenBase {
         }
 
         menu := Rectangle {
-            visible: !Properties.hide-ui;
+            visible: !Global.hide-ui;
             background: #FFF;
             border-color: black;
             border-width: 1px;
@@ -63,7 +63,7 @@ export component GameScreen inherits ScreenBase {
                         accept
                     }
                     on-pressed => {
-                        Properties.set-screen(ScreenId.MainMenu);
+                        Global.set-screen(ScreenId.MainMenu);
                     }
                 }
             }
