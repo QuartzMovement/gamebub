@@ -1,0 +1,31 @@
+import { Properties } from "../common.slint";
+
+export component VolumeBar inherits Rectangle {
+    in-out property <bool> show: false;
+    in property <percent> volume: 75%;
+
+    width: 8px;
+    height: 50%;
+    border-color: red;
+    border-width: 2px;
+    opacity: 0;
+
+    states [
+        visible when show: {
+            opacity: 1;
+            out {
+                animate opacity {
+                    delay: 1000ms;
+                    duration: 0ms;
+                }
+            }
+        }
+    ]
+
+    Rectangle {
+        background: purple;
+        width: 100%;
+        height: parent.height * volume;
+        y: parent.height - self.height;
+    }
+}

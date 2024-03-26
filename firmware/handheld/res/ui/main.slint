@@ -1,5 +1,6 @@
 import { StatusBar } from "components/status_bar.slint";
 import { TextListView } from "components/list_view.slint";
+import { VolumeBar } from "components/volume_bar.slint";
 import { RomSelectScreen } from "screens/rom_select.slint";
 import { MainMenuScreen } from "screens/main_menu.slint";
 import { GameScreen } from "screens/game.slint";
@@ -20,6 +21,11 @@ export component MainWindow inherits Window {
     status-bar := StatusBar {
         visible: !Properties.hide-ui;
         title: "\{root.screen-title} | \{counter}";
+    }
+
+    volume-bar := VolumeBar {
+        x: 4px;
+        y: parent.height * 0.25;
     }
 
     focus-scope := FocusScope {
@@ -54,6 +60,9 @@ export component MainWindow inherits Window {
         }
 
         key-pressed(event) => {
+            if (event.text == "l") {
+                volume-bar.show = !volume-bar.show;
+            }
             counter += 1;
             accept
         }
