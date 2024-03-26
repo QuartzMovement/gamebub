@@ -1,8 +1,9 @@
-import { Screen } from "../components/screen.slint";
+import { Properties, ScreenId } from "../common.slint";
+import { ScreenBase } from "../components/screen.slint";
 import { TextListView } from "../components/list_view.slint";
 
-export component RomSelectScreen inherits Screen {
-    private property <[string]> files;
+export component RomSelectScreen inherits ScreenBase {
+    in property <[string]> files;
     callback on-selected(int);
 
     title: "Load ROM...";
@@ -23,26 +24,35 @@ export component RomSelectScreen inherits Screen {
         "item l",
         "item m",
     ];
-
-    VerticalLayout {
-        height: 100%;
-
-        list := TextListView {
-            model: root.files;
-            wrap: true;
-            on-item-selected(i) => {
-                root.on-selected(i)
+    i-focus-scope := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "b") {
+                Properties.set-screen(ScreenId.MainMenu);
+                accept
+            } else {
+                reject
             }
         }
 
-        HorizontalLayout {
-            Text {
-                text: "A to select";
+        VerticalLayout {
+            height: 100%;
+            list := TextListView {
+                model: root.files;
+                wrap: true;
+                on-item-selected(i) => {
+                    root.on-selected(i)
+                }
             }
 
-            Text {
-                text: "B to cancel";
-                horizontal-alignment: right;
+            HorizontalLayout {
+                Text {
+                    text: "A: Select";
+                }
+
+                Text {
+                    text: "B: Cancel";
+                    horizontal-alignment: right;
+                }
             }
         }
     }

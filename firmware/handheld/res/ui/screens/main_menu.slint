@@ -1,7 +1,8 @@
-import { Screen } from "../components/screen.slint";
+import { Properties, ScreenId } from "../common.slint";
+import { ScreenBase } from "../components/screen.slint";
 import { Button } from "../components/button.slint";
 
-export component MainMenuScreen inherits Screen {
+export component MainMenuScreen inherits ScreenBase {
     forward-focus: btn-cart;
     i-focus-scope := FocusScope {
         VerticalLayout {
@@ -43,6 +44,9 @@ export component MainMenuScreen inherits Screen {
                         on-down => {
                             btn_tools.focus();
                             accept
+                        }
+                        on-pressed => {
+                            Properties.set-screen(ScreenId.RomSelect);
                         }
                     }
                 }

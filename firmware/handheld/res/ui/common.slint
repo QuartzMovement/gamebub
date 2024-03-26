@@ -1,7 +1,17 @@
 import "../fonts/pixelmix.ttf";
 
+export enum ScreenId {
+    MainMenu,
+    RomSelect,
+}
+
 export global Palette { }
 
 export global Properties {
     in-out property <int> battery-level: 11;
+    out property <ScreenId> current-screen: MainMenu;
+
+    public function set-screen(screen: ScreenId){
+        current-screen = screen;
+    }
 }
