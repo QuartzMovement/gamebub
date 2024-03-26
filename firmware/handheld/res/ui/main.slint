@@ -11,7 +11,7 @@ export { Global, ScreenId }
 export component MainWindow inherits Window {
     width: 240px;
     height: 160px;
-    background: Global.hide-ui ? transparent : #E8E8E8;
+    background: Global.ui-transparent ? transparent : #E8E8E8;
     default-font-family: "pixelmix";
     default-font-size: 8px;
 
@@ -19,7 +19,7 @@ export component MainWindow inherits Window {
     private property <string> screen-title;
 
     status-bar := StatusBar {
-        visible: !Global.hide-ui;
+        visible: Global.ui-status-bar;
         title: "\{root.screen-title} | \{counter}";
     }
 
@@ -51,7 +51,7 @@ export component MainWindow inherits Window {
 
                 if (Global.current-screen == ScreenId.Game): GameScreen {
                     init => {
-                        Global.hide-ui = true;
+                        Global.ui-status-bar = false;
                         self.focus();
                         root.screen-title = self.title;
                     }

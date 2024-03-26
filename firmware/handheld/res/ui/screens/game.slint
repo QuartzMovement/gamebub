@@ -3,28 +3,29 @@ import { ScreenBase } from "../components/screen.slint";
 import { Button } from "../components/button.slint";
 
 export component GameScreen inherits ScreenBase {
+    private property <bool> paused: false;
     forward-focus: i-focus-scope;
 
-    protected function resume(){
-        Global.hide-ui = true;
-        i-focus-scope.focus();
+    protected function set-paused(paused: bool){
+        Global.ui-status-bar = paused;
+        self.paused = paused;
+        if (paused) {
+            btn-resume.focus();
+        } else {
+            i-focus-scope.focus();
+        }
     }
 
     i-focus-scope := FocusScope {
         key-pressed(event) => {
             if (event.text == "z" || event.text == "Home") {
-                if (Global.hide-ui) {
-                    Global.hide-ui = false;
-                    btn-resume.focus();
-                } else {
-                    resume();
-                }
+                set-paused(!root.paused);
             }
             reject
         }
 
         menu := Rectangle {
-            visible: !Global.hide-ui;
+            visible: paused;
             background: #FFF;
             border-color: black;
             border-width: 1px;
@@ -40,7 +41,7 @@ export component GameScreen inherits ScreenBase {
                         accept
                     }
                     on-pressed => {
-                        resume();
+                        root.set-paused(false);
                     }
                 }
 

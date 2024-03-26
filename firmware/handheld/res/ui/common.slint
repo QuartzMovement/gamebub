@@ -11,9 +11,11 @@ export global Palette { }
 export global Global {
     in-out property <int> battery-level: 11;
     out property <ScreenId> current-screen: MainMenu;
-    in-out property <bool> hide-ui: false;
+    in-out property <bool> ui-transparent: false;
+    in-out property <bool> ui-status-bar: true;
 
     public function set-screen(screen: ScreenId){
         current-screen = screen;
+        ui-transparent = (screen == ScreenId.Game);
     }
 }
