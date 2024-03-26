@@ -10,22 +10,32 @@ export component VolumeBar inherits Rectangle {
     border-width: 2px;
     opacity: 0;
 
-    states [
-        visible when show: {
-            opacity: 1;
-            out {
-                animate opacity {
-                    delay: 1000ms;
-                    duration: 0ms;
-                }
-            }
-        }
-    ]
-
     Rectangle {
         background: purple;
         width: 100%;
         height: parent.height * volume;
         y: parent.height - self.height;
+    }
+
+    // When shown, the dummy Rectangle will immediately start
+    // to hide this. The `out` animation waits before actually
+    // hiding the element. If the element is shown again,
+    // the whole cycle repeats (keeping it visible as long
+    // as it's being actively used, and a short time after).
+    states [
+        visible when show: {
+            opacity: 1;
+            out {
+                animate opacity {
+                    delay: 1500ms;
+                    duration: 0ms;
+                }
+            }
+        }
+    ]
+    if (show): Rectangle {
+        init() => {
+            root.show = false;
+        }
     }
 }

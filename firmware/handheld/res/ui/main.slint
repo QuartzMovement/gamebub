@@ -60,8 +60,8 @@ export component MainWindow inherits Window {
         }
 
         key-pressed(event) => {
-            if (event.text == "l") {
-                volume-bar.show = !volume-bar.show;
+            if (event.text == "l" || event.text == "VolUp" || event.text == "VolDown") {
+                volume-bar.show = true;
             }
             counter += 1;
             accept
