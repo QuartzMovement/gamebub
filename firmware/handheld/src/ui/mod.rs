@@ -7,7 +7,7 @@ pub use buttons::{Button, ButtonEvent};
 
 use ::slint::{
     platform::software_renderer::{MinimalSoftwareWindow, RepaintBufferType, TargetPixel},
-    ComponentHandle, Model, ModelRc, PhysicalSize, VecModel,
+    ComponentHandle, Model, ModelRc, PhysicalSize, Timer, VecModel,
 };
 
 use crate::{
@@ -71,6 +71,9 @@ impl UI {
                 }
                 pending_event = self.event_queue.try_recv().ok();
             }
+            for button_event in button_event_detector.update(None) {
+                self.window.dispatch_event(button_event.into());
+            }
 
             ::slint::platform::update_timers_and_animations();
 
@@ -104,6 +107,11 @@ impl UI {
                 // TODO don't do this every time
                 device.set_brightness(u16::MAX / 4);
             });
+
+            // Trigger a timer to wake us up for button repeat events.
+            if let Some(wakeup) = button_event_detector.next_wakeup_time() {
+                Timer::single_shot(wakeup.saturating_duration_since(Instant::now()), || ());
+            }
 
             // Sleep until the next animation, timer, or event.
             if !self.window.has_active_animations() {
