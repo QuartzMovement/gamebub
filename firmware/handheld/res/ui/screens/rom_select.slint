@@ -1,29 +1,14 @@
-import { Global, ScreenId } from "../common.slint";
+import { Global, ScreenId, Backend } from "../common.slint";
 import { ScreenBase } from "../components/screen.slint";
 import { TextListView } from "../components/list_view.slint";
 
 export component RomSelectScreen inherits ScreenBase {
     in property <[string]> files;
-    callback on-selected(int);
 
     title: "Load ROM...";
     forward-focus: list;
 
-    files: [
-        "Parent directory",
-        "item a",
-        "item b",
-        "item c",
-        "item d",
-        "item e",
-        "item f",
-        "item g",
-        "item h",
-        "item i",
-        "item k",
-        "item l",
-        "item m",
-    ];
+    files: Global.rom-select-list;
     i-focus-scope := FocusScope {
         key-pressed(event) => {
             if (event.text == "b") {
@@ -40,7 +25,9 @@ export component RomSelectScreen inherits ScreenBase {
                 model: root.files;
                 wrap: true;
                 on-item-selected(i) => {
-                    root.on-selected(i)
+                    if Backend.rom-select-selected(i) {
+                        Global.set-screen(ScreenId.Game);
+                    }
                 }
             }
 

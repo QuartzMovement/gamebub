@@ -1,4 +1,4 @@
-import { Global, ScreenId } from "../common.slint";
+import { Global, ScreenId, Backend } from "../common.slint";
 import { ScreenBase } from "../components/screen.slint";
 import { Button } from "../components/button.slint";
 
@@ -8,6 +8,7 @@ export component GameScreen inherits ScreenBase {
 
     protected function set-paused(paused: bool){
         Global.ui-status-bar = paused;
+        Backend.game-set-paused(paused);
         self.paused = paused;
         if (paused) {
             btn-resume.focus();
@@ -54,6 +55,10 @@ export component GameScreen inherits ScreenBase {
                     on-down => {
                         btn-main-menu.focus();
                         accept
+                    }
+                    on-pressed => {
+                        Backend.game-reset();
+                        root.set-paused(false);
                     }
                 }
 
