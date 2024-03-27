@@ -18,7 +18,6 @@ use esp_idf_svc::hal::units::FromValueType;
 use esp_idf_svc::hal::{i2c::*, ledc};
 
 pub mod drivers;
-pub mod graphics;
 mod input;
 mod interrupt;
 
@@ -300,11 +299,6 @@ impl Device<'_> {
     /// Display a framebuffer.
     ///
     /// Currently always an FPGA overlay.
-    pub fn display_framebuffer(&mut self, framebuffer: &graphics::Framebuffer) {
-        let _ = self.fpga.write_overlay(0, framebuffer.data());
-        let _ = self.fpga.set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
-    }
-
     pub fn display_framebuffer_raw(&mut self, raw: &[u8]) {
         let _ = self.fpga.write_overlay(0, raw);
         let _ = self.fpga.set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
