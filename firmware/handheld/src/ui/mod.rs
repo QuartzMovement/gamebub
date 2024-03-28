@@ -209,5 +209,10 @@ impl UI {
         backend.on_game_reset(move || {
             gameboy.borrow_mut().reset().unwrap();
         });
+
+        backend.on_screen_enter(|screen| {
+            // Called when a new screen is entered, before the new frame is rendered.
+            log::info!("Screen enter: {:?}", screen);
+        })
     }
 }

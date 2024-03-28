@@ -15,12 +15,11 @@ export component MainWindow inherits Window {
     default-font-family: "pixelmix";
     default-font-size: 8px;
 
-    private property <int> counter: 0;
     private property <string> screen-title;
 
     status-bar := StatusBar {
         visible: Global.ui-status-bar;
-        title: "\{root.screen-title} | \{counter}";
+        title: root.screen-title;
     }
 
     volume-bar := VolumeBar {
@@ -63,7 +62,6 @@ export component MainWindow inherits Window {
             if (event.text == "l" || event.text == "VolUp" || event.text == "VolDown") {
                 volume-bar.show = true;
             }
-            counter += 1;
             accept
         }
     }

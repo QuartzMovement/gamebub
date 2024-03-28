@@ -19,6 +19,7 @@ export global Global {
     public function set-screen(screen: ScreenId){
         current-screen = screen;
         ui-transparent = (screen == ScreenId.Game);
+        Backend.screen-enter(screen);
     }
 }
 
@@ -28,4 +29,6 @@ export global Backend {
     callback rom-select-selected(int) -> bool;
     callback game-set-paused(bool);
     callback game-reset();
+
+    callback screen-enter(ScreenId);
 }
