@@ -138,15 +138,15 @@ impl Gameboy {
     pub fn set_paused(&mut self, paused: bool) -> Result<(), GameboyError> {
         Device::lock()
             .fpga
-            .write_u32(REG_CONTROL, 0b10u32 | ((!paused) as u32))?;
+            .write_u32(REG_CONTROL, 0b1010u32 | ((!paused) as u32))?;
         Ok(())
     }
 
     /// Resets, leaving in a paused state.
     pub fn reset(&mut self) -> Result<(), GameboyError> {
         let mut device = Device::lock();
-        device.fpga.write_u32(REG_CONTROL, 0b00)?;
-        device.fpga.write_u32(REG_CONTROL, 0b10)?;
+        device.fpga.write_u32(REG_CONTROL, 0b0000)?;
+        device.fpga.write_u32(REG_CONTROL, 0b1010)?;
         Ok(())
     }
 
@@ -156,13 +156,13 @@ impl Gameboy {
         let mut device = Device::lock();
 
         // Hold in reset
-        device.fpga.write_u32(REG_CONTROL, 0b00)?;
+        device.fpga.write_u32(REG_CONTROL, 0b0000)?;
 
         // Switch to physical cartridge.
         device.fpga.write_u32(REG_EMU_CART_CONFIG, 0)?;
 
         // Resume
-        device.fpga.write_u32(REG_CONTROL, 0b11)?;
+        device.fpga.write_u32(REG_CONTROL, 0b1011)?;
 
         Ok(())
     }
@@ -171,7 +171,7 @@ impl Gameboy {
         let mut device = Device::lock();
 
         // Hold in reset
-        device.fpga.write_u32(REG_CONTROL, 0b00)?;
+        device.fpga.write_u32(REG_CONTROL, 0b0000)?;
 
         // Load ROM
         let mut rom_file = File::open(rom_path)?;
@@ -228,7 +228,7 @@ impl Gameboy {
             .write_u32(REG_EMU_CART_RAM_MASK, rom_header.ram_size - 1)?;
 
         // Resume
-        device.fpga.write_u32(REG_CONTROL, 0b11)?;
+        device.fpga.write_u32(REG_CONTROL, 0b1011)?;
 
         self.ram_path = Some(ram_path);
         self.rom_header = Some(rom_header);
