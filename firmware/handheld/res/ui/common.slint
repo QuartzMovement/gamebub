@@ -21,8 +21,13 @@ export global Global {
 }
 
 export global Backend {
+    in-out property <bool> volume-show: false;
+    in-out property <int> volume-level: 50;
+    in-out property <int> volume-increment: 5;
     in-out property <int> battery-level: 11;
     in property <[string]> rom-select-list: ["a", "b", "c", "d", "e"];
+
+    callback volume-changed(int);
 
     callback main-menu-run-cartridge();
     callback main-menu-load-rom();

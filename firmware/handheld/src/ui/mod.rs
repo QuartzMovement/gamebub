@@ -1,7 +1,13 @@
 pub mod buttons;
 mod slint;
 
-use std::{cell::RefCell, path::Path, rc::Rc, sync::mpsc::Receiver, time::Instant};
+use std::{
+    cell::RefCell,
+    path::Path,
+    rc::Rc,
+    sync::mpsc::Receiver,
+    time::{Duration, Instant},
+};
 
 pub use buttons::{Button, ButtonEvent};
 
@@ -9,7 +15,7 @@ use ::slint::{
     platform::software_renderer::{
         LineBufferProvider, MinimalSoftwareWindow, RepaintBufferType, TargetPixel,
     },
-    ComponentHandle, Model, ModelRc, PhysicalSize, Timer, VecModel,
+    ComponentHandle, Model, ModelRc, PhysicalSize, Timer, TimerMode, VecModel,
 };
 
 use crate::{
@@ -233,6 +239,26 @@ impl UI {
         backend.on_screen_enter(|screen| {
             // Called when a new screen is entered, before the new frame is rendered.
             log::info!("Screen enter: {:?}", screen);
-        })
+        });
+
+        let root = self.root.as_weak();
+        let volume_timer = Timer::default();
+        backend.on_volume_changed(move |volume| {
+            Device::lock()
+                .dac
+                .set_volume(((volume * 255) / 100) as u8)
+                .unwrap();
+            // Start the timer to hide the volume bar.
+            let root = root.clone();
+            volume_timer.start(
+                TimerMode::SingleShot,
+                Duration::from_millis(1000),
+                move || {
+                    root.unwrap()
+                        .global::<slint::Backend>()
+                        .set_volume_show(false);
+                },
+            )
+        });
     }
 }

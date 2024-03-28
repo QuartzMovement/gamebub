@@ -22,11 +22,6 @@ export component MainWindow inherits Window {
         title: root.screen-title;
     }
 
-    volume-bar := VolumeBar {
-        x: 4px;
-        y: parent.height * 0.25;
-    }
-
     focus-scope := FocusScope {
         y: status-bar.height;
         height: parent.height - self.y;
@@ -59,10 +54,23 @@ export component MainWindow inherits Window {
         }
 
         key-pressed(event) => {
-            if (event.text == "l" || event.text == "VolUp" || event.text == "VolDown") {
-                volume-bar.show = true;
+            if (event.text == "VolUp" || event.text == "q") {
+                Backend.volume-show = true;
+                Backend.volume-level = clamp(Backend.volume-level + Backend.volume-increment, 0, 100);
+                Backend.volume-changed(Backend.volume-level);
+            }
+            if (event.text == "VolDown" || event.text == "e") {
+                Backend.volume-show = true;
+                Backend.volume-level = clamp(Backend.volume-level - Backend.volume-increment, 0, 100);
+                Backend.volume-changed(Backend.volume-level);
             }
             accept
         }
+    }
+
+    volume-bar := VolumeBar {
+        x: 8px;
+        y: parent.height * 0.25;
+        height: 50%;
     }
 }
