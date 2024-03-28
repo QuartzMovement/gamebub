@@ -1,4 +1,4 @@
-import { Global } from "../common.slint";
+import { Backend } from "../common.slint";
 
 export component StatusBar inherits Rectangle {
     in property <string> title;
@@ -16,7 +16,7 @@ export component StatusBar inherits Rectangle {
     }
 
     battery-text := Text {
-        text: "\{Global.battery-level}%";
+        text: "\{Backend.battery-level}%";
         horizontal-alignment: right;
         x: parent.width - self.width - 4px;
     }

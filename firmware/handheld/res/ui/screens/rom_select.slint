@@ -8,7 +8,7 @@ export component RomSelectScreen inherits ScreenBase {
     title: "Load ROM...";
     forward-focus: list;
 
-    files: Global.rom-select-list;
+    files: Backend.rom-select-list;
     i-focus-scope := FocusScope {
         key-pressed(event) => {
             if (event.text == "b") {

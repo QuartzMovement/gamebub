@@ -9,9 +9,6 @@ export enum ScreenId {
 export global Palette { }
 
 export global Global {
-    in-out property <int> battery-level: 11;
-    in property <[string]> rom-select-list: ["a", "b", "c", "d", "e"];
-
     out property <ScreenId> current-screen: MainMenu;
     in-out property <bool> ui-transparent: false;
     in-out property <bool> ui-status-bar: true;
@@ -24,6 +21,9 @@ export global Global {
 }
 
 export global Backend {
+    in-out property <int> battery-level: 11;
+    in property <[string]> rom-select-list: ["a", "b", "c", "d", "e"];
+
     callback main-menu-run-cartridge();
     callback main-menu-load-rom();
     callback rom-select-selected(int) -> bool;

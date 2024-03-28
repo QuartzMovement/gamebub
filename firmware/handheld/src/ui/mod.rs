@@ -167,7 +167,7 @@ impl UI {
         let backend = self.root.global::<slint::Backend>();
         let gameboy_ = Rc::new(RefCell::new(Gameboy::new()));
 
-        self.root.global::<slint::Global>().set_battery_level(
+        self.root.global::<slint::Backend>().set_battery_level(
             device
                 .fuel_gauge
                 .get_battery_level()
@@ -187,7 +187,7 @@ impl UI {
                 files.iter().map(|s| s.into()).collect::<Vec<_>>(),
             )));
             root.unwrap()
-                .global::<slint::Global>()
+                .global::<slint::Backend>()
                 .set_rom_select_list(files);
         });
 
@@ -196,7 +196,7 @@ impl UI {
         backend.on_rom_select_selected(move |index| {
             let list = root
                 .unwrap()
-                .global::<slint::Global>()
+                .global::<slint::Backend>()
                 .get_rom_select_list();
             if let Some(data) = list.row_data(index as usize) {
                 let path = rom_select_path.join(data.as_str());
