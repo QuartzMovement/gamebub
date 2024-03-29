@@ -19,16 +19,16 @@ export component MainMenuScreen inherits ScreenBase {
             GridLayout {
                 spacing: 4px;
                 Row {
-                    btn_cart := Button {
+                    btn-cart := Button {
                         width: 50%;
                         height: 32px;
                         text: "Run Cartridge";
                         on-right => {
-                            btn_rom.focus();
+                            btn-rom.focus();
                             accept
                         }
                         on-down => {
-                            btn_settings.focus();
+                            btn-settings.focus();
                             accept
                         }
                         on-pressed => {
@@ -37,16 +37,16 @@ export component MainMenuScreen inherits ScreenBase {
                         }
                     }
 
-                    btn_rom := Button {
+                    btn-rom := Button {
                         width: 50%;
                         height: 32px;
                         text: "Load ROM";
                         on-left => {
-                            btn_cart.focus();
+                            btn-cart.focus();
                             accept
                         }
                         on-down => {
-                            btn_tools.focus();
+                            btn-tools.focus();
                             accept
                         }
                         on-pressed => {
@@ -57,27 +57,49 @@ export component MainMenuScreen inherits ScreenBase {
                 }
 
                 Row {
-                    btn_settings := Button {
+                    btn-settings := Button {
                         text: "Settings";
                         on-up => {
-                            btn_cart.focus();
+                            btn-cart.focus();
                             accept
                         }
                         on-right => {
-                            btn_tools.focus();
+                            btn-tools.focus();
+                            accept
+                        }
+                        on-down => {
+                            btn-power-off.focus();
                             accept
                         }
                     }
 
-                    btn_tools := Button {
+                    btn-tools := Button {
                         text: "Tools";
                         on-up => {
-                            btn_rom.focus();
+                            btn-rom.focus();
                             accept
                         }
                         on-left => {
-                            btn_settings.focus();
+                            btn-settings.focus();
                             accept
+                        }
+                        on-down => {
+                            btn-power-off.focus();
+                            accept
+                        }
+                    }
+                }
+
+                Row {
+                    btn-power-off := Button {
+                        text: "Power Off";
+                        colspan: 2;
+                        on-up => {
+                            btn-settings.focus();
+                            accept
+                        }
+                        on-pressed => {
+                            Backend.power-off();
                         }
                     }
                 }

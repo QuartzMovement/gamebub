@@ -284,5 +284,9 @@ impl UI {
                 )
             }
         });
+
+        backend.on_power_off(|| {
+            Device::lock().power_off();
+        });
     }
 }

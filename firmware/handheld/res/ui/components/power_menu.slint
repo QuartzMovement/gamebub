@@ -1,0 +1,41 @@
+
+import { Button } from "../components/button.slint";
+import { Global, Backend } from "../common.slint";
+
+export component PowerMenu inherits Rectangle {
+    forward-focus: btn-close;
+    background: #FFF;
+    border-color: black;
+    border-width: 1px;
+    width: i-layout.min-width + 20px;
+    height: i-layout.min-height;
+
+    i-focus-scope := FocusScope {
+        i-layout := VerticalLayout {
+            padding: 8px;
+            spacing: 4px;
+            btn-power-off := Button {
+                text: "Power Off";
+                on-down => {
+                    btn-close.focus();
+                    accept
+                }
+                on-pressed => {
+                    Backend.power-off();
+                }
+            }
+
+            btn-close := Button {
+                text: "Close";
+                on-up => {
+                    btn-power-off.focus();
+                    accept
+                }
+                on-pressed => {
+                    Global.do-focus();
+                    Global.power-menu-visible = false;
+                }
+            }
+        }
+    }
+}
