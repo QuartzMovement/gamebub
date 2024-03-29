@@ -22,6 +22,9 @@ export component GameScreen inherits ScreenBase {
             if (event.text == "Home" || event.text == "h") && !Global.home-consumed {
                 set-paused(!root.paused);
             }
+            if (event.text == "Power") {
+                set-paused(true);
+            }
             reject
         }
 

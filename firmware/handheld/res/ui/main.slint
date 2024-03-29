@@ -5,6 +5,7 @@ import { RomSelectScreen } from "screens/rom_select.slint";
 import { MainMenuScreen } from "screens/main_menu.slint";
 import { GameScreen } from "screens/game.slint";
 import { Global, ScreenId, Backend } from "common.slint";
+import { PowerMenu } from "components/power_menu.slint";
 
 export { ScreenId, Backend }
 
@@ -95,6 +96,9 @@ export component MainWindow inherits Window {
             if (event.text == "Home" || event.text == "h") {
                 Global.home-pressed = false;
             }
+            if (event.text == "Power" || event.text == "p") {
+                Global.power-menu-visible = true;
+            }
             accept
         }
     }
@@ -113,5 +117,12 @@ export component MainWindow inherits Window {
         height: 50%;
         visible: Backend.brightness-visible;
         level: Backend.brightness-level;
+    }
+
+    if Global.power-menu-visible: power-menu := PowerMenu {
+        init => {
+            Backend.push-focus();
+            self.focus();
+        }
     }
 }

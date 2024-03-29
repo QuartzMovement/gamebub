@@ -15,6 +15,7 @@ use ::slint::{
     platform::software_renderer::{
         LineBufferProvider, MinimalSoftwareWindow, RepaintBufferType, TargetPixel,
     },
+    platform::WindowAdapter,
     ComponentHandle, Model, ModelRc, PhysicalSize, Timer, TimerMode, VecModel,
 };
 
@@ -287,6 +288,37 @@ impl UI {
 
         backend.on_power_off(|| {
             Device::lock().power_off();
+        });
+
+        // Focus stack: allowing dialogs to push and pop focus.
+        // Uses private, unstable APIs.
+        let focus_stack = Rc::new(RefCell::new(Vec::new()));
+        backend.on_push_focus({
+            let window = self.window.clone();
+            let stack = focus_stack.clone();
+            move || {
+                let window_inner = ::slint::private_unstable_api::re_exports::WindowInner::from_pub(
+                    window.window(),
+                );
+                let item = window_inner.focus_item.borrow();
+                stack.borrow_mut().push(item.clone());
+            }
+        });
+        backend.on_pop_focus({
+            let window = self.window.clone();
+            let stack = focus_stack.clone();
+            move || {
+                let window_inner = ::slint::private_unstable_api::re_exports::WindowInner::from_pub(
+                    window.window(),
+                );
+                let mut stack = stack.borrow_mut();
+                while let Some(item) = stack.pop() {
+                    if let Some(item) = item.upgrade() {
+                        window_inner.set_focus_item(&item);
+                        break;
+                    }
+                }
+            }
         });
     }
 }
