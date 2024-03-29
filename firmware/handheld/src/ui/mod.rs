@@ -91,6 +91,7 @@ impl UI {
     pub fn run(&mut self) -> ! {
         let mut button_event_detector = buttons::ButtonEventDetector::new();
 
+        let mut first_render = true;
         let mut pending_event = None;
         loop {
             // Process events.
@@ -126,12 +127,14 @@ impl UI {
 
                 log::info!("Render + display {}ms", render_duration.as_millis() as u32);
 
-                // TODO don't do this every time
-                let _ = line_buffer
-                    .device
-                    .fpga
-                    .set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
-                line_buffer.device.set_brightness(u16::MAX / 4);
+                if first_render {
+                    first_render = false;
+                    let _ = line_buffer
+                        .device
+                        .fpga
+                        .set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
+                    line_buffer.device.set_brightness(0.5);
+                }
             });
 
             // Trigger a timer to wake us up for button repeat events.
@@ -241,24 +244,45 @@ impl UI {
             log::info!("Screen enter: {:?}", screen);
         });
 
-        let root = self.root.as_weak();
-        let volume_timer = Timer::default();
-        backend.on_volume_changed(move |volume| {
-            Device::lock()
-                .dac
-                .set_volume(((volume * 255) / 100) as u8)
-                .unwrap();
-            // Start the timer to hide the volume bar.
-            let root = root.clone();
-            volume_timer.start(
-                TimerMode::SingleShot,
-                Duration::from_millis(1000),
-                move || {
-                    root.unwrap()
-                        .global::<slint::Backend>()
-                        .set_volume_show(false);
-                },
-            )
+        backend.on_volume_changed({
+            let root = self.root.as_weak();
+            let timer = Timer::default();
+            move |value| {
+                Device::lock()
+                    .dac
+                    .set_volume(((value * (u8::MAX as i32)) / 100) as u8)
+                    .unwrap();
+                // Start the timer to hide the bar.
+                let root = root.clone();
+                timer.start(
+                    TimerMode::SingleShot,
+                    Duration::from_millis(1000),
+                    move || {
+                        root.unwrap()
+                            .global::<slint::Backend>()
+                            .set_volume_visible(false);
+                    },
+                )
+            }
+        });
+
+        backend.on_brightness_changed({
+            let root = self.root.as_weak();
+            let timer = Timer::default();
+            move |value| {
+                Device::lock().set_brightness((value as f32) / 100.0);
+                // Start the timer to hide the bar.
+                let root = root.clone();
+                timer.start(
+                    TimerMode::SingleShot,
+                    Duration::from_millis(1000),
+                    move || {
+                        root.unwrap()
+                            .global::<slint::Backend>()
+                            .set_brightness_visible(false);
+                    },
+                )
+            }
         });
     }
 }

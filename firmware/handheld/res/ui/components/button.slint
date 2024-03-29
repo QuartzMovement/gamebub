@@ -21,7 +21,9 @@ export component Button inherits Rectangle {
 
     focus := FocusScope {
         key-pressed(event) => {
-            if (event.text == "a") {
+            if (event.repeat) {
+                reject
+            } else if (event.text == "a") {
                 on-pressed();
                 accept
             } else if (event.text == Key.UpArrow) {

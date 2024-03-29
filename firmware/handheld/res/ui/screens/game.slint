@@ -18,8 +18,8 @@ export component GameScreen inherits ScreenBase {
     }
 
     i-focus-scope := FocusScope {
-        key-pressed(event) => {
-            if (event.text == "z" || event.text == "Home") {
+        key-released(event) => {
+            if (event.text == "Home" || event.text == "h") && !Global.home-consumed {
                 set-paused(!root.paused);
             }
             reject

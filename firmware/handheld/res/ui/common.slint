@@ -9,6 +9,10 @@ export enum ScreenId {
 export global Palette { }
 
 export global Global {
+    // Whether Home is currently pressed.
+    in-out property <bool> home-pressed: false;
+    // Whether the current pressing of Home was used for a shortcut key combo.
+    in-out property <bool> home-consumed;
     out property <ScreenId> current-screen: MainMenu;
     in-out property <bool> ui-transparent: false;
     in-out property <bool> ui-status-bar: true;
@@ -21,13 +25,19 @@ export global Global {
 }
 
 export global Backend {
-    in-out property <bool> volume-show: false;
+    in-out property <bool> volume-visible: false;
     in-out property <int> volume-level: 50;
-    in-out property <int> volume-increment: 5;
-    in-out property <int> battery-level: 11;
+    in property <int> volume-increment: 5;
+
+    in-out property <bool> brightness-visible: false;
+    in-out property <int> brightness-level: 50;
+    in property <int> brightness-increment: 5;
+
+    in property <int> battery-level: 11;
     in property <[string]> rom-select-list: ["a", "b", "c", "d", "e"];
 
     callback volume-changed(int);
+    callback brightness-changed(int);
 
     callback main-menu-run-cartridge();
     callback main-menu-load-rom();

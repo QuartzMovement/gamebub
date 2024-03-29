@@ -1,20 +1,26 @@
 import { Global, Backend } from "../common.slint";
 
 export component VolumeBar inherits Rectangle {
+    in property <int> level;
+
     width: 16px;
-    visible: Backend.volume-show;
+
+    Rectangle {
+        background: lightgray;
+        border-radius: parent.width / 2;
+    }
 
     Rectangle {
         background: gray;
         width: 100%;
-        height: parent.height * (Backend.volume-level * 1%);
+        height: parent.height * (root.level * 1%);
         y: parent.height - self.height;
-        border-radius: 4px;
+        border-radius: parent.width / 2;
     }
 
     Rectangle {
         border-color: black;
         border-width: 1px;
-        border-radius: 4px;
+        border-radius: parent.width / 2;
     }
 }

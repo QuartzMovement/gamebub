@@ -151,7 +151,9 @@ impl Device<'_> {
             peripherals.ledc.channel0,
             LedcTimerDriver::new(
                 peripherals.ledc.timer0,
-                &ledc::config::TimerConfig::new().frequency(30.kHz().into()),
+                &ledc::config::TimerConfig::new()
+                    .frequency(25.kHz().into())
+                    .resolution(ledc::config::Resolution::Bits11),
             )?,
             pin_lcd_backlight,
         )?;
@@ -320,11 +322,21 @@ impl Device<'_> {
         }
     }
 
-    /// Set the LCD brightness.
-    pub fn set_brightness(&mut self, brightness: u16) {
-        self.lcd_backlight
-            .set_duty_cycle_fraction(brightness, u16::MAX)
-            .unwrap();
+    /// Set the LCD brightness. The input is a float in the range [0.0, 1.0].
+    pub fn set_brightness(&mut self, brightness: f32) {
+        // Brightness is perceived non-linearly -- 50% brightness is one step
+        // less bright than 100%, 25% is one step less than 50%, etc.
+        // Note that <1% duty cycle seems to be completely black. So we scale
+        // brightness appropriately such that 0.0 maps to 1%.
+        let max_duty = self.lcd_backlight.get_max_duty() as f32;
+        let duty = ((0.99 * max_duty.powf(brightness)) + (0.01 * max_duty)) as u16;
+        log::info!(
+            "Setting LCD brightness to {} ({} / {})",
+            brightness,
+            duty,
+            max_duty
+        );
+        self.lcd_backlight.set_duty_cycle(duty).unwrap();
     }
 }
 

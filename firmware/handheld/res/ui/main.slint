@@ -9,13 +9,27 @@ import { Global, ScreenId, Backend } from "common.slint";
 export { ScreenId, Backend }
 
 export component MainWindow inherits Window {
+    private property <string> screen-title;
+
+    protected function update-volume(amount: int){
+        Backend.volume-visible = true;
+        Backend.volume-level = clamp(Backend.volume-level + amount, 0, 100);
+        Backend.volume-changed(Backend.volume-level);
+        Backend.brightness-visible = false;
+    }
+
+    protected function update-brightness(amount: int){
+        Backend.brightness-visible = true;
+        Backend.brightness-level = clamp(Backend.brightness-level + amount, 0, 100);
+        Backend.brightness-changed(Backend.brightness-level);
+        Backend.volume-visible = false;
+    }
+
     width: 240px;
     height: 160px;
     background: Global.ui-transparent ? transparent : #E8E8E8;
     default-font-family: "pixelmix";
     default-font-size: 8px;
-
-    private property <string> screen-title;
 
     status-bar := StatusBar {
         visible: Global.ui-status-bar;
@@ -54,15 +68,32 @@ export component MainWindow inherits Window {
         }
 
         key-pressed(event) => {
-            if (event.text == "VolUp" || event.text == "q") {
-                Backend.volume-show = true;
-                Backend.volume-level = clamp(Backend.volume-level + Backend.volume-increment, 0, 100);
-                Backend.volume-changed(Backend.volume-level);
+            if event.text == "VolUp" || event.text == "q" {
+                if Global.home-pressed {
+                    Global.home-consumed = true;
+                    update-brightness(Backend.brightness-increment);
+                } else {
+                    update-volume(Backend.volume-increment);
+                }
             }
-            if (event.text == "VolDown" || event.text == "e") {
-                Backend.volume-show = true;
-                Backend.volume-level = clamp(Backend.volume-level - Backend.volume-increment, 0, 100);
-                Backend.volume-changed(Backend.volume-level);
+            if event.text == "VolDown" || event.text == "e" {
+                if Global.home-pressed {
+                    Global.home-consumed = true;
+                    update-brightness(-Backend.brightness-increment);
+                } else {
+                    update-volume(-Backend.volume-increment);
+                }
+            }
+            if (event.text == "Home" || event.text == "h") && !event.repeat {
+                Global.home-pressed = true;
+                Global.home-consumed = false;
+            }
+            accept
+        }
+
+        key-released(event) => {
+            if (event.text == "Home" || event.text == "h") {
+                Global.home-pressed = false;
             }
             accept
         }
@@ -72,5 +103,15 @@ export component MainWindow inherits Window {
         x: 8px;
         y: parent.height * 0.25;
         height: 50%;
+        visible: Backend.volume-visible;
+        level: Backend.volume-level;
+    }
+
+    brightness-bar := VolumeBar {
+        x: 8px;
+        y: parent.height * 0.25;
+        height: 50%;
+        visible: Backend.brightness-visible;
+        level: Backend.brightness-level;
     }
 }
