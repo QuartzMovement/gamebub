@@ -2,16 +2,16 @@ use embedded_svc::storage::RawStorage;
 use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsCustom};
 use serde::{de::DeserializeOwned, Serialize};
 use smallvec::SmallVec;
-use std::{
-    marker::PhantomData,
-    sync::{Mutex, MutexGuard, OnceLock},
-};
+use std::sync::{Mutex, MutexGuard, OnceLock, RwLock};
 
 pub mod keys;
 
 static KVS: OnceLock<Mutex<Kvs>> = OnceLock::new();
 static NAMESPACE: &'static str = "gb";
 
+/// TODO: a few possible changes:
+///  * Use a single global lock for all keys and all keys' caches?
+///  * use a macro when defining keys to ensure they're all in flush_all
 pub struct Kvs {
     nvs_main: EspNvs<NvsCustom>,
 }
@@ -44,10 +44,16 @@ impl Kvs {
 
 const SMALL_SIZE: usize = 128;
 
+pub struct CacheEntry<T> {
+    value: Option<T>,
+    dirty: bool,
+}
+
 pub struct KvsKey<T> {
     name: &'static str,
     read_only: bool,
-    _t: PhantomData<T>,
+
+    cache: RwLock<Option<CacheEntry<T>>>,
 }
 
 impl<T: Serialize + DeserializeOwned + Clone> KvsKey<T> {
@@ -55,11 +61,12 @@ impl<T: Serialize + DeserializeOwned + Clone> KvsKey<T> {
         KvsKey::<T> {
             name,
             read_only,
-            _t: PhantomData,
+            cache: RwLock::new(None),
         }
     }
 
-    pub fn get(&self) -> Option<T> {
+    /// Get the value directly from NVS, without going through the cache.
+    fn get_direct(&self) -> Option<T> {
         let mut kvs = Kvs::get();
         let nvs = kvs.nvs(self.read_only);
         let len = nvs.len(self.name).expect("error reading len")?;
@@ -68,17 +75,55 @@ impl<T: Serialize + DeserializeOwned + Clone> KvsKey<T> {
             .get_raw(self.name, &mut v)
             .expect("error reading value")?;
         Some(postcard::from_bytes(data).expect("error deserializing"))
-
-        // TODO cache
     }
 
-    pub fn set(&self, value: &T) {
+    pub fn get(&self) -> Option<T> {
+        // If it's in the cache, return it.
+        let cache = self.cache.read().unwrap();
+        if let Some(value) = cache.as_ref() {
+            return value.value.clone();
+        }
+
+        // Otherwise, fetch from storage.
+        let value = self.get_direct();
+
+        // Reload the cache.
+        std::mem::drop(cache);
+        let mut cache = self.cache.write().unwrap();
+        *cache = Some(CacheEntry {
+            value: value.clone(),
+            dirty: false,
+        });
+
+        value
+    }
+
+    fn set_direct(&self, value: &T) {
         let mut kvs = Kvs::get();
         let nvs = kvs.nvs(self.read_only);
         let mut v = SmallVec::<[u8; SMALL_SIZE]>::new();
         postcard::to_io(value, &mut v).expect("error serializing");
         nvs.set_raw(self.name, &v).expect("error writing");
+    }
 
-        // TODO cache
+    pub fn set(&self, value: &T) {
+        let mut cache = self.cache.write().unwrap();
+        *cache = Some(CacheEntry {
+            value: Some(value.clone()),
+            dirty: true,
+        });
+    }
+
+    pub fn flush(&self) {
+        let mut cache = self.cache.write().unwrap();
+        if let Some(cache) = cache.as_mut() {
+            if cache.dirty {
+                if let Some(value) = cache.value.as_ref() {
+                    log::info!("Flushing KVS: {}", self.name);
+                    self.set_direct(value);
+                }
+                cache.dirty = false;
+            }
+        }
     }
 }

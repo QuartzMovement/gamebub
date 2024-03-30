@@ -314,11 +314,15 @@ impl Device<'_> {
         self.event_receiver.take()
     }
 
-    /// Turn the device off.
+    /// Gracefully turn the device off.
     pub fn power_off(&mut self) -> ! {
-        let _ = self.lcd_backlight.set_duty(0);
+        log::info!("Powering off");
+        let _ = self.lcd_backlight.set_duty_cycle_fully_off();
         let _ = self.dac.reset();
         let _ = self.set_fpga_power(false);
+        kvs::keys::flush_all();
+
+        // Hold down the power button until the device shuts off.
         let _ = self.button_power.set_low();
         loop {
             std::thread::park();
