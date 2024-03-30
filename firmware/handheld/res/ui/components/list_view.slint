@@ -1,34 +1,11 @@
-export component ListItem {
-    in property <StandardListViewItem> item;
-    in property <bool> has-focus;
-    in property <int> index;
-
-    min-width: i-text.min-width;
-    min-height: i-text.min-height + 2px;
-    vertical-stretch: 0;
-    horizontal-stretch: 1;
-
-    i-background := Rectangle {
-        background: root.has-focus ? #bbb : transparent;
-        width: root.width;
-        i-text := Text {
-            x: 2px;
-            text: root.item.text;
-            vertical-alignment: center;
-            horizontal-alignment: left;
-            overflow: elide;
-        }
-    }
-}
-
 export component ListViewBase inherits Rectangle {
-    in property <[string]> model;
+    in property <int> num-items;
     in property <bool> wrap: false;
     out property <int> focus-item: 0;
 
     private property <bool> has-scrollbar: area.viewport-height > area.height;
     private property <length> scrollbar-width: 2px;
-    private property <length> item-height: area.viewport-height / self.model.length;
+    private property <length> item-height: area.viewport-height / self.num-items;
     private property <int> into-view-item: 0;
     private property <length> into-view-item-y: root.item-y(root.into-view-item);
     private property <bool> has-focus;
@@ -37,15 +14,15 @@ export component ListViewBase inherits Rectangle {
     callback on-item-selected(/* selected-item */ int);
 
     public function set-focus-item(index: int){
-        if (!wrap && (index < 0 || index >= model.length)) {
+        if (!wrap && (index < 0 || index >= num-items)) {
             return;
         }
-        focus-item = mod(model.length + index, model.length);
+        focus-item = mod(num-items + index, num-items);
         bring-into-view(focus-item);
     }
 
     pure function first-visible-item() -> int {
-        return min(root.model.length - 1, max(0, round(-area.viewport-y / root.item-height)));
+        return min(root.num-items - 1, max(0, round(-area.viewport-y / root.item-height)));
     }
 
     pure function item-y(index: int) -> length {
@@ -53,7 +30,7 @@ export component ListViewBase inherits Rectangle {
     }
 
     function bring-into-view(index: int){
-        if (index < 0 || index >= model.length) {
+        if (index < 0 || index >= num-items) {
             return;
         }
         into-view-item = index;
@@ -78,37 +55,22 @@ export component ListViewBase inherits Rectangle {
         root.on-item-selected(root.focus-item);
     }
 
+    forward-focus: i-focus-scope;
     border-width: 1px;
     border-color: black;
 
-    area := Flickable {
-        x: 2px;
-        y: 2px;
-        width: root.has-scrollbar ? scroll-bar.x - 1px : parent.width - 4px;
-        height: parent.height - 4px;
-        VerticalLayout {
-            alignment: start;
-            @children
-        }
-    }
-
-    scroll-bar := Rectangle {
-        visible: has-scrollbar;
-        x: parent.width - self.width - 2px;
-        y: 2px;
-        width: scrollbar-width;
-        height: parent.height - 4px;
-        inner := Rectangle {
-            y: (-area.viewport-y / area.viewport-height) * parent.height;
-            width: 100%;
-            height: (area.height / area.viewport-height) * parent.height;
-            background: black;
-        }
-    }
-
-    forward-focus: i-focus-scope;
-
     i-focus-scope := FocusScope {
+        area := Flickable {
+            x: 2px;
+            y: 2px;
+            width: root.has-scrollbar ? scroll-bar.x - scrollbar-width - 1px : parent.width - 4px;
+            height: parent.height - 4px;
+            VerticalLayout {
+                alignment: start;
+                @children
+            }
+        }
+
         focus-changed-event => {
             root.has-focus = self.has-focus;
         }
@@ -127,13 +89,53 @@ export component ListViewBase inherits Rectangle {
             reject
         }
     }
+
+    scroll-bar := Rectangle {
+        visible: has-scrollbar;
+        x: parent.width - self.width - 2px;
+        y: 2px;
+        width: scrollbar-width;
+        height: parent.height - 4px;
+        inner := Rectangle {
+            y: (-area.viewport-y / area.viewport-height) * parent.height;
+            width: 100%;
+            height: (area.height / area.viewport-height) * parent.height;
+            background: black;
+        }
+    }
+}
+
+component TextListItem {
+    in property <string> text;
+    in property <bool> has-focus;
+    in property <int> index;
+
+    min-width: i-text.min-width;
+    min-height: i-text.min-height + 2px;
+    vertical-stretch: 0;
+    horizontal-stretch: 1;
+
+    i-background := Rectangle {
+        background: root.has-focus ? #bbb : transparent;
+        width: root.width;
+        i-text := Text {
+            x: 2px;
+            text: root.text;
+            vertical-alignment: center;
+            horizontal-alignment: left;
+            overflow: elide;
+        }
+    }
 }
 
 export component TextListView inherits ListViewBase {
-    for item[index] in root.model: ListItem {
-        item: { text: item };
-        has-focus: index == root.focus-item;
+    in property <[string]> model;
+    num-items: model.length;
+
+    for item[index] in root.model: child-items := TextListItem {
         index: index;
+        text: item;
+        has-focus: index == root.focus-item;
         height: self.min-height;
     }
 }
