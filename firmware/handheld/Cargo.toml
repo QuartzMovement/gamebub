@@ -47,6 +47,12 @@ slint = { version = "1.5.1", default-features = false, features = [
     "libm",
     "renderer-software",
 ] }
+serde = "1.0.197"
+postcard = { version = "1.0.8", default-features = false, features = [
+    "use-std",
+] }
+embedded-svc = "0.27.1"
+smallvec = { version = "1.13.2", features = ["write"] }
 
 [build-dependencies]
 embuild = "0.31.3"

@@ -20,6 +20,7 @@ use esp_idf_svc::hal::{i2c::*, ledc};
 pub mod drivers;
 mod input;
 mod interrupt;
+pub mod kvs;
 
 /// Time it may take for FPGA power rails to stabilize after enable.
 /// TODO: actually measure this
@@ -130,6 +131,8 @@ impl Device<'_> {
         // Status LED
         let mut led = PinDriver::output(pin_led)?;
         led.set_low()?;
+
+        kvs::Kvs::init()?;
 
         // TODO: see if we can avoid keeping FPGA power on all the time
         let mut fpga_power = PinDriver::output(pin_fpga_power)?;

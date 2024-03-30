@@ -20,7 +20,7 @@ use ::slint::{
 };
 
 use crate::{
-    device::{self, Device, Event},
+    device::{self, kvs, Device, Event},
     gameboy::Gameboy,
 };
 
@@ -192,6 +192,9 @@ impl UI {
         let rom_select_path: &Path = "/sdcard/roms".as_ref();
         let root = self.root.as_weak();
         backend.on_main_menu_load_rom(move || {
+            let last_rom_select = kvs::keys::LAST_ROM_PATH.get();
+            log::info!("last rom select path: {:?}", last_rom_select);
+
             let files = Self::rom_select_get_files(rom_select_path).unwrap();
             let files = ModelRc::from(Rc::new(VecModel::from(
                 files.iter().map(|s| s.into()).collect::<Vec<_>>(),
@@ -211,6 +214,7 @@ impl UI {
             if let Some(data) = list.row_data(index as usize) {
                 let path = rom_select_path.join(data.as_str());
                 log::info!("Selected ROM {}", path.display());
+                kvs::keys::LAST_ROM_PATH.set(&path);
 
                 match gameboy.borrow_mut().set_emulated_cartridge(path.as_path()) {
                     Ok(_) => true,

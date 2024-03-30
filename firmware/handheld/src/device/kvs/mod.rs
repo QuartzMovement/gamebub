@@ -1,0 +1,84 @@
+use embedded_svc::storage::RawStorage;
+use esp_idf_svc::nvs::{EspNvs, EspNvsPartition, NvsCustom};
+use serde::{de::DeserializeOwned, Serialize};
+use smallvec::SmallVec;
+use std::{
+    marker::PhantomData,
+    sync::{Mutex, MutexGuard, OnceLock},
+};
+
+pub mod keys;
+
+static KVS: OnceLock<Mutex<Kvs>> = OnceLock::new();
+static NAMESPACE: &'static str = "gb";
+
+pub struct Kvs {
+    nvs_main: EspNvs<NvsCustom>,
+}
+
+impl Kvs {
+    pub fn init() -> Result<(), anyhow::Error> {
+        let nvs_main = EspNvs::new(EspNvsPartition::<NvsCustom>::take("nvs")?, NAMESPACE, true)?;
+        // TODO: support nvs_ro, when there's a way to pre-flash it with data
+
+        let kvs = Kvs { nvs_main };
+        KVS.set(Mutex::new(kvs))
+            .map_err(|_| ())
+            .expect("KVS already initialized");
+
+        Ok(())
+    }
+
+    pub fn get() -> MutexGuard<'static, Kvs> {
+        KVS.get().unwrap().lock().unwrap()
+    }
+
+    fn nvs(&mut self, read_only: bool) -> &mut EspNvs<NvsCustom> {
+        if read_only {
+            unimplemented!("nvs_ro is not yet implemented");
+        } else {
+            &mut self.nvs_main
+        }
+    }
+}
+
+const SMALL_SIZE: usize = 128;
+
+pub struct KvsKey<T> {
+    name: &'static str,
+    read_only: bool,
+    _t: PhantomData<T>,
+}
+
+impl<T: Serialize + DeserializeOwned + Clone> KvsKey<T> {
+    const fn new(name: &'static str, read_only: bool) -> Self {
+        KvsKey::<T> {
+            name,
+            read_only,
+            _t: PhantomData,
+        }
+    }
+
+    pub fn get(&self) -> Option<T> {
+        let mut kvs = Kvs::get();
+        let nvs = kvs.nvs(self.read_only);
+        let len = nvs.len(self.name).expect("error reading len")?;
+        let mut v = SmallVec::<[u8; SMALL_SIZE]>::from_elem(0, len);
+        let data = nvs
+            .get_raw(self.name, &mut v)
+            .expect("error reading value")?;
+        Some(postcard::from_bytes(data).expect("error deserializing"))
+
+        // TODO cache
+    }
+
+    pub fn set(&self, value: &T) {
+        let mut kvs = Kvs::get();
+        let nvs = kvs.nvs(self.read_only);
+        let mut v = SmallVec::<[u8; SMALL_SIZE]>::new();
+        postcard::to_io(value, &mut v).expect("error serializing");
+        nvs.set_raw(self.name, &v).expect("error writing");
+
+        // TODO cache
+    }
+}
