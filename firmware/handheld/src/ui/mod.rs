@@ -134,7 +134,10 @@ impl UI {
                         .device
                         .fpga
                         .set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
-                    line_buffer.device.set_brightness(0.5);
+
+                    line_buffer
+                        .device
+                        .set_brightness(kvs::keys::BRIGHTNESS.get().unwrap());
                 }
             });
 
@@ -177,12 +180,14 @@ impl UI {
         let backend = self.root.global::<slint::Backend>();
         let gameboy_ = Rc::new(RefCell::new(Gameboy::new()));
 
-        self.root.global::<slint::Backend>().set_battery_level(
+        backend.set_battery_level(
             device
                 .fuel_gauge
                 .get_battery_level()
                 .map_or(0, |x| x.round() as i32),
         );
+        backend.set_volume_level(((kvs::keys::VOLUME.get().unwrap() as i32) * 100) / 255);
+        backend.set_brightness_level((kvs::keys::BRIGHTNESS.get().unwrap() * 100.0) as i32);
 
         let gameboy = gameboy_.clone();
         backend.on_main_menu_run_cartridge(move || {
@@ -253,16 +258,15 @@ impl UI {
             let root = self.root.as_weak();
             let timer = Timer::default();
             move |value| {
-                Device::lock()
-                    .dac
-                    .set_volume(((value * (u8::MAX as i32)) / 100) as u8)
-                    .unwrap();
+                let volume = ((value * (u8::MAX as i32)) / 100) as u8;
+                Device::lock().dac.set_volume(volume).unwrap();
                 // Start the timer to hide the bar.
                 let root = root.clone();
                 timer.start(
                     TimerMode::SingleShot,
                     Duration::from_millis(1000),
                     move || {
+                        kvs::keys::VOLUME.set(&volume);
                         root.unwrap()
                             .global::<slint::Backend>()
                             .set_volume_visible(false);
@@ -275,13 +279,15 @@ impl UI {
             let root = self.root.as_weak();
             let timer = Timer::default();
             move |value| {
-                Device::lock().set_brightness((value as f32) / 100.0);
+                let brightness = (value as f32) / 100.0;
+                Device::lock().set_brightness(brightness);
                 // Start the timer to hide the bar.
                 let root = root.clone();
                 timer.start(
                     TimerMode::SingleShot,
                     Duration::from_millis(1000),
                     move || {
+                        kvs::keys::BRIGHTNESS.set(&brightness);
                         root.unwrap()
                             .global::<slint::Backend>()
                             .set_brightness_visible(false);

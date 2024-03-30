@@ -52,15 +52,25 @@ pub struct CacheEntry<T> {
 pub struct KvsKey<T> {
     name: &'static str,
     read_only: bool,
-
+    default: Option<T>,
     cache: RwLock<Option<CacheEntry<T>>>,
 }
 
 impl<T: Serialize + DeserializeOwned + Clone> KvsKey<T> {
-    const fn new(name: &'static str, read_only: bool) -> Self {
+    const fn new(name: &'static str) -> Self {
         KvsKey::<T> {
             name,
-            read_only,
+            read_only: false,
+            default: None,
+            cache: RwLock::new(None),
+        }
+    }
+
+    const fn new_with_default(name: &'static str, default: T) -> Self {
+        KvsKey::<T> {
+            name,
+            read_only: false,
+            default: Some(default),
             cache: RwLock::new(None),
         }
     }
@@ -81,7 +91,7 @@ impl<T: Serialize + DeserializeOwned + Clone> KvsKey<T> {
         // If it's in the cache, return it.
         let cache = self.cache.read().unwrap();
         if let Some(value) = cache.as_ref() {
-            return value.value.clone();
+            return value.value.as_ref().or(self.default.as_ref()).cloned();
         }
 
         // Otherwise, fetch from storage.
@@ -95,7 +105,7 @@ impl<T: Serialize + DeserializeOwned + Clone> KvsKey<T> {
             dirty: false,
         });
 
-        value
+        value.or_else(|| self.default.clone())
     }
 
     fn set_direct(&self, value: &T) {

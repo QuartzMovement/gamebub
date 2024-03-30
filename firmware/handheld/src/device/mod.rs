@@ -211,7 +211,7 @@ impl Device<'_> {
         let dac_reset = PinDriver::output(pin_dac_reset)?;
         let mut dac = drivers::dac::TLV320DAC3101::new(dac_reset, MutexI2C::new(&i2c));
         dac.init()?;
-        dac.set_volume(128)?;
+        dac.set_volume(kvs::keys::VOLUME.get().unwrap())?;
         dac.set_mute(false)?;
         dac.set_headphones_enabled(true)?;
         dac.set_speakers_enabled(true)?;
