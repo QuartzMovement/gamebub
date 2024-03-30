@@ -2,6 +2,7 @@ export component ListViewBase inherits Rectangle {
     in property <int> num-items;
     in property <bool> wrap: false;
     out property <int> focus-item: 0;
+    out property <bool> item-selected: false;
 
     private property <bool> has-scrollbar: area.viewport-height > area.height;
     private property <length> scrollbar-width: 2px;
@@ -17,6 +18,8 @@ export component ListViewBase inherits Rectangle {
         if (!wrap && (index < 0 || index >= num-items)) {
             return;
         }
+        item-selected = false;
+        root.focus();
         focus-item = mod(num-items + index, num-items);
         bring-into-view(focus-item);
     }
@@ -52,6 +55,7 @@ export component ListViewBase inherits Rectangle {
     }
 
     protected function select-focus-item(){
+        root.item-selected = true;
         root.on-item-selected(root.focus-item);
     }
 
@@ -83,7 +87,7 @@ export component ListViewBase inherits Rectangle {
                 root.focus-down();
                 return accept;
             } else if (event.text == "a") {
-                root.on-item-selected(root.focus-item);
+                root.select-focus-item();
                 return accept;
             }
             reject
@@ -107,7 +111,7 @@ export component ListViewBase inherits Rectangle {
 
 component TextListItem {
     in property <string> text;
-    in property <bool> has-focus;
+    in property <bool> highlighted;
     in property <int> index;
 
     min-width: i-text.min-width;
@@ -116,7 +120,7 @@ component TextListItem {
     horizontal-stretch: 1;
 
     i-background := Rectangle {
-        background: root.has-focus ? #bbb : transparent;
+        background: root.highlighted ? #bbb : transparent;
         width: root.width;
         i-text := Text {
             x: 2px;
@@ -126,6 +130,8 @@ component TextListItem {
             overflow: elide;
         }
     }
+
+    @children
 }
 
 export component TextListView inherits ListViewBase {
@@ -135,7 +141,7 @@ export component TextListView inherits ListViewBase {
     for item[index] in root.model: child-items := TextListItem {
         index: index;
         text: item;
-        has-focus: index == root.focus-item;
+        highlighted: index == root.focus-item;
         height: self.min-height;
     }
 }
