@@ -10,9 +10,9 @@ export component SettingsListViewItem {
 
     public function handle-selected() -> EventResult {
         if item.type == SettingType.checkbox {
-            Backend.settings-updated(index, { bool-value: !item.value.bool-value });
+            Backend.setting-changed(index, { bool-value: !item.value.bool-value });
         } else if item.type == SettingType.subpage {
-            Backend.settings-updated(index, { });
+            Backend.setting-changed(index, { });
         } else if item.type == SettingType.datetime {
             return accept;
         }

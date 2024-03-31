@@ -55,7 +55,7 @@ export global Backend {
     callback rom-select-selected(int) -> bool;
     callback game-set-paused(bool);
     callback game-reset();
-    callback settings-updated(int, SettingValue);
+    callback setting-changed(int, SettingValue);
 
     callback screen-enter(ScreenId);
 

@@ -11,8 +11,12 @@ pub static VOLUME: KvsKey<u8> = KvsKey::new_with_default("volume", 128);
 /// The last brightness level.
 pub static BRIGHTNESS: KvsKey<f32> = KvsKey::new_with_default("brightness", 0.50);
 
+/// Whether dark mode is enabled.
+pub static DARK_MODE: KvsKey<bool> = KvsKey::new_with_default("dark-mode", false);
+
 pub fn flush_all() {
     LAST_ROM_PATH.flush();
     VOLUME.flush();
     BRIGHTNESS.flush();
+    DARK_MODE.flush();
 }

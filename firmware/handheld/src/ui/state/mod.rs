@@ -8,7 +8,7 @@ use crate::{
     gameboy::Gameboy,
 };
 
-use super::slint::{Backend, MainWindow};
+use super::slint::{Backend, MainWindow, ScreenId, SettingEntry, SettingType, SettingValue};
 
 pub struct UiState {
     root: Weak<MainWindow>,
@@ -116,9 +116,15 @@ impl UiState {
             state_.borrow_mut().gameboy.reset().unwrap();
         });
 
-        backend.on_screen_enter(|screen| {
+        let state_ = state.clone();
+        backend.on_screen_enter(move |screen| {
+            let mut state = state_.borrow_mut();
             // Called when a new screen is entered, before the new frame is rendered.
             log::info!("Screen enter: {:?}", screen);
+            match screen {
+                ScreenId::Settings => state.on_settings_enter(),
+                _ => {}
+            }
         });
 
         backend.on_volume_changed({
@@ -163,8 +169,9 @@ impl UiState {
             Device::lock().power_off();
         });
 
-        backend.on_settings_updated(|a, b| {
-            log::info!("settings updated: {:?}, {:?}", a, b);
+        let state_ = state.clone();
+        backend.on_setting_changed(move |i, value| {
+            state_.borrow_mut().on_setting_changed(i, value);
         });
 
         // Focus stack: allowing dialogs to push and pop focus.
@@ -189,5 +196,39 @@ impl UiState {
                 }
             }
         });
+    }
+
+    fn on_settings_enter(&mut self) {
+        let root = self.root.unwrap();
+        let backend = Backend::get(&root);
+        backend.set_settings(ModelRc::from([
+            SettingEntry {
+                name: "Dark mode".into(),
+                r#type: SettingType::Checkbox,
+                value: SettingValue {
+                    bool_value: kvs::keys::DARK_MODE.get().unwrap(),
+                    ..SettingValue::default()
+                },
+            },
+            SettingEntry {
+                name: "Dark mode (but fake)".into(),
+                r#type: SettingType::Checkbox,
+                value: SettingValue {
+                    bool_value: kvs::keys::DARK_MODE.get().unwrap(),
+                    ..SettingValue::default()
+                },
+            },
+        ]));
+    }
+
+    fn on_setting_changed(&mut self, i: i32, value: SettingValue) {
+        log::info!("Setting changed: {} -> {:?}", i, value);
+
+        match i {
+            0 => kvs::keys::DARK_MODE.set(&value.bool_value),
+            _ => {}
+        }
+
+        self.on_settings_enter();
     }
 }
