@@ -255,7 +255,7 @@ impl Device<'_> {
 
         let (event_sender, event_receiver) = mpsc::channel();
 
-        let device = Device {
+        let mut device = Device {
             led,
             fpga_power,
             i2c,
@@ -274,6 +274,7 @@ impl Device<'_> {
             event_sender,
             event_receiver: Some(event_receiver),
         };
+        device.init_datetime();
         DEVICE
             .set(Mutex::new(device))
             .map_err(|_| ())
@@ -346,6 +347,32 @@ impl Device<'_> {
         self.lcd_backlight.set_duty_cycle(duty).unwrap();
     }
 
+    /// Initialize the system time (after boot).
+    ///
+    /// Reads the time from the RTC. Sets a default time if no time is set.
+    /// Then sets it in esp-idf (via libc settimeofday).
+    fn init_datetime(&mut self) {
+        if self.rtc.read_datetime().unwrap().is_none() {
+            log::warn!("No date set, resetting");
+            self.rtc
+                .write_datetime(drivers::rtc::Datetime::default())
+                .unwrap();
+        }
+        Device::set_esp_datetime(self.get_datetime());
+    }
+
+    /// Set the esp-idf system time.
+    fn set_esp_datetime(dt: time::OffsetDateTime) {
+        let timeval = esp_idf_svc::sys::timeval {
+            tv_sec: dt.unix_timestamp(),
+            tv_usec: 0,
+        };
+        unsafe {
+            // SAFETY: this is safe to call with valid or null pointers.
+            esp_idf_svc::sys::settimeofday(&timeval, std::ptr::null());
+        }
+    }
+
     /// Get the Device datetime.
     pub fn get_datetime(&mut self) -> time::OffsetDateTime {
         let rtc_time = self.rtc.read_datetime().unwrap();
@@ -358,6 +385,7 @@ impl Device<'_> {
     /// Set the Device datetime.
     pub fn set_datetime(&mut self, dt: time::OffsetDateTime) {
         log::info!("Setting system time: {:?}", dt);
+        Device::set_esp_datetime(dt);
         let ts = dt.unix_timestamp();
         let dt = drivers::rtc::Datetime::from_timestamp(ts as u64).unwrap_or_default();
         self.rtc.write_datetime(dt).unwrap();

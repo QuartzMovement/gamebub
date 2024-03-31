@@ -23,18 +23,6 @@ fn main() -> anyhow::Result<()> {
         println!("sdcard: {}", path.unwrap().path().display())
     }
 
-    // Test RTC
-    let datetime = device.rtc.read_datetime()?;
-    match datetime {
-        Some(datetime) => log::info!("Current datetime: {:?}", datetime),
-        None => {
-            log::info!("No date set, resetting");
-            device
-                .rtc
-                .write_datetime(device::drivers::rtc::Datetime::default())?;
-        }
-    }
-
     match device.fuel_gauge.get_battery_level() {
         Ok(level) => log::info!("Battery charge: {:.0}%", level),
         Err(_) => log::info!("Unable to read battery charge"),

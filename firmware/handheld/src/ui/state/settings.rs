@@ -28,7 +28,7 @@ impl Model for SettingsModel {
                 },
             }),
             1 => Some(SettingEntry {
-                name: "Date and Time".into(),
+                name: "Date and Time (UTC)".into(),
                 r#type: SettingType::Datetime,
                 value: SettingValue {
                     datetime_value: {
