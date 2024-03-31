@@ -6,7 +6,7 @@ export component MainMenuScreen inherits ScreenBase {
     forward-focus: btn-cart;
     i-focus-scope := FocusScope {
         VerticalLayout {
-            alignment: start;
+            alignment: space-around;
             height: 100%;
             padding: 8px;
             spacing: 8px;
@@ -67,10 +67,6 @@ export component MainMenuScreen inherits ScreenBase {
                             btn-tools.focus();
                             accept
                         }
-                        on-down => {
-                            btn-power-off.focus();
-                            accept
-                        }
                         on-pressed => {
                             Global.set-screen(ScreenId.Settings);
                         }
@@ -85,24 +81,6 @@ export component MainMenuScreen inherits ScreenBase {
                         on-left => {
                             btn-settings.focus();
                             accept
-                        }
-                        on-down => {
-                            btn-power-off.focus();
-                            accept
-                        }
-                    }
-                }
-
-                Row {
-                    btn-power-off := Button {
-                        text: "Power Off";
-                        colspan: 2;
-                        on-up => {
-                            btn-settings.focus();
-                            accept
-                        }
-                        on-pressed => {
-                            Backend.power-off();
                         }
                     }
                 }
