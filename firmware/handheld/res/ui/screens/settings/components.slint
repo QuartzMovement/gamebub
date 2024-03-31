@@ -1,0 +1,100 @@
+import { Backend } from "../../common.slint";
+import { ListViewBase } from "../../components/list_view.slint";
+import { SettingType, SettingValue, SettingEntry } from "types.slint";
+
+export component SettingsListViewItem {
+    in property <SettingEntry> item;
+    in property <bool> highlighted;
+    in property <bool> selected;
+    in property <int> index;
+
+    public function handle-selected() -> EventResult {
+        if item.type == SettingType.checkbox {
+            Backend.settings-updated(index, { bool-value: !item.value.bool-value });
+        } else if item.type == SettingType.subpage {
+            Backend.settings-updated(index, { });
+        } else if item.type == SettingType.datetime {
+            return accept;
+        }
+        reject
+    }
+
+    min-width: i-text.min-width;
+    min-height: i-text.min-height + 4px;
+    vertical-stretch: 0;
+    horizontal-stretch: 1;
+
+    Rectangle {
+        border-color: black;
+        border-width: root.selected ? 1px : 0px;
+        background: root.highlighted ? #bbb : transparent;
+        width: root.width;
+        i-text := Text {
+            x: 2px;
+            text: root.item.name;
+            vertical-alignment: center;
+            horizontal-alignment: left;
+            overflow: elide;
+        }
+
+        // Checkbox
+        if item.type == SettingType.checkbox: Rectangle {
+            background: white;
+            x: parent.width - self.width - 4px;
+            width: self.height;
+            height: parent.height - 2px;
+            border-color: black;
+            border-width: 1px;
+
+            if item.value.bool-value: Rectangle {
+                x: 2px;
+                y: 2px;
+                width: parent.width - 4px;
+                height: parent.height - 4px;
+                background: gray;
+            }
+        }
+        if item.type == SettingType.subpage: Text {
+            // TODO replace with icon
+            text: "->";
+            x: parent.width - self.width - 4px;
+        }
+    }
+
+    @children
+}
+
+export component SettingsListView inherits ListViewBase {
+    in property <[SettingEntry]> model;
+    num-items: model.length;
+
+    for item[index] in root.model: child-items := SettingsListViewItem {
+        index: index;
+        item: item;
+        highlighted: index == root.focus-item;
+        height: self.min-height;
+        selected: self.highlighted && root.item-selected;
+
+        if self.selected: FocusScope {
+            init => {
+                if parent.handle-selected() == EventResult.accept {
+                    self.focus();
+                } else {
+                    root.item-selected = false;
+                }
+            }
+
+            key-pressed(event) => {
+                if (event.text == Key.LeftArrow) {
+                    parent.x -= 5px;
+                    accept
+                } else if (event.text == Key.RightArrow) {
+                    parent.x += 5px;
+                    accept
+                } else {
+                    reject
+                }
+            }
+        }
+    }
+}

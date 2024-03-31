@@ -71,6 +71,9 @@ export component MainMenuScreen inherits ScreenBase {
                             btn-power-off.focus();
                             accept
                         }
+                        on-pressed => {
+                            Global.set-screen(ScreenId.Settings);
+                        }
                     }
 
                     btn-tools := Button {

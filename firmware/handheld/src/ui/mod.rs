@@ -300,6 +300,10 @@ impl UI {
             Device::lock().power_off();
         });
 
+        backend.on_settings_updated(|a, b| {
+            log::info!("settings updated: {:?}, {:?}", a, b);
+        });
+
         // Focus stack: allowing dialogs to push and pop focus.
         // Uses private, unstable APIs.
         let focus_stack = Rc::new(RefCell::new(Vec::new()));

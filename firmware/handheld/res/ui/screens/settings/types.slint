@@ -1,0 +1,15 @@
+export enum SettingType {
+    subpage,
+    checkbox,
+    datetime,
+}
+
+export struct SettingValue {
+    bool-value: bool,
+}
+
+export struct SettingEntry {
+    name: string,
+    type: SettingType,
+    value: SettingValue,
+}

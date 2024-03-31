@@ -2,7 +2,7 @@ export component ListViewBase inherits Rectangle {
     in property <int> num-items;
     in property <bool> wrap: false;
     out property <int> focus-item: 0;
-    out property <bool> item-selected: false;
+    in-out property <bool> item-selected: false;
 
     private property <bool> has-scrollbar: area.viewport-height > area.height;
     private property <length> scrollbar-width: 2px;
