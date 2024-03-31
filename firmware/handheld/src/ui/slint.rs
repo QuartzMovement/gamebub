@@ -58,7 +58,7 @@ impl Argb1555 {
 
 impl TargetPixel for Argb1555 {
     fn blend(&mut self, color: PremultipliedRgbaColor) {
-        let a = ((u8::MAX - color.alpha) as u32) >> 3;
+        let a = (((u8::MAX - color.alpha) as u32) + 4) >> 3;
 
         // NEW: 000000ggggg000000rrrrr00000bbbbb
         let expanded = (self.0 & (Self::R_MASK | Self::B_MASK)) as u32
