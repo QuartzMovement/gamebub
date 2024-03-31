@@ -90,14 +90,14 @@ export component ListViewBase inherits Rectangle {
             } else if (event.text == Key.DownArrow) {
                 root.focus-down();
                 return accept;
-            } else if (event.text == "a") {
+            } else if (event.text == "a" && !event.repeat) {
                 if root.item-selected {
                     root.unselect();
                 } else {
                     root.select-focus-item();
                 }
                 return accept;
-            } else if (event.text == "b" && root.item-selected) {
+            } else if (event.text == "b" && root.item-selected && !event.repeat) {
                 root.unselect();
                 return accept;
             }
