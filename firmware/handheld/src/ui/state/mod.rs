@@ -12,10 +12,14 @@ use super::slint::{
     Backend, MainWindow, ScreenId, SettingDatetime, SettingEntry, SettingType, SettingValue,
 };
 
+mod settings;
+
 pub struct UiState {
     root: Weak<MainWindow>,
     focus_stack: Vec<slint_re_exports::ItemWeak>,
+
     gameboy: Gameboy,
+    settings_model: Rc<settings::SettingsModel>,
 }
 
 impl UiState {
@@ -24,6 +28,7 @@ impl UiState {
             root: root.as_weak(),
             focus_stack: Vec::new(),
             gameboy: Gameboy::new(),
+            settings_model: Rc::new(settings::SettingsModel::new(device)),
         };
         let state = Rc::new(RefCell::new(state));
         state.borrow_mut().setup(state.clone(), device);
@@ -246,35 +251,7 @@ impl UiState {
     fn on_settings_enter(&mut self) {
         let root = self.root.unwrap();
         let backend = Backend::get(&root);
-        let mut device = Device::lock();
-        backend.set_settings(ModelRc::from([
-            SettingEntry {
-                name: "Dark mode".into(),
-                r#type: SettingType::Checkbox,
-                value: SettingValue {
-                    bool_value: kvs::keys::DARK_MODE.get().unwrap(),
-                    ..SettingValue::default()
-                },
-            },
-            SettingEntry {
-                name: "Date and Time".into(),
-                r#type: SettingType::Datetime,
-                value: SettingValue {
-                    datetime_value: {
-                        let dt = device.get_datetime();
-                        SettingDatetime {
-                            year: dt.year(),
-                            month: dt.month() as i32,
-                            day: dt.day() as i32,
-                            hour: dt.hour() as i32,
-                            min: dt.minute() as i32,
-                            sec: dt.second() as i32,
-                        }
-                    },
-                    ..SettingValue::default()
-                },
-            },
-        ]));
+        backend.set_settings(ModelRc::from(self.settings_model.clone()));
     }
 
     fn on_setting_changed(&mut self, i: i32, value: SettingValue) {
@@ -289,10 +266,7 @@ impl UiState {
             }
             _ => {}
         }
-
-        // TODO: update settings view. Calling on_settings_enter recreates everything,
-        // calling init again, and causing problems.
-        // self.on_settings_enter();
+        self.settings_model.changed(i as usize);
     }
 }
 
