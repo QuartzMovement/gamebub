@@ -1,6 +1,7 @@
 import { Backend } from "../../common.slint";
 import { ListViewBase } from "../../components/list_view.slint";
 import { SettingType, SettingValue, SettingEntry } from "types.slint";
+import { DatetimePicker } from "datetime.slint";
 
 export component SettingsListViewItem {
     in property <SettingEntry> item;
@@ -59,6 +60,15 @@ export component SettingsListViewItem {
             text: "->";
             x: parent.width - self.width - 4px;
         }
+        if item.type == SettingType.datetime: DatetimePicker {
+            selected: root.selected;
+            dt: item.value.datetime-value;
+            x: parent.width - self.width - 4px;
+            y: (parent.height - self.height) * 50%;
+            on-changed(delta) => {
+                Backend.setting-changed(index, { datetime-value: delta });
+            }
+        }
     }
 
     @children
@@ -77,22 +87,8 @@ export component SettingsListView inherits ListViewBase {
 
         if self.selected: FocusScope {
             init => {
-                if parent.handle-selected() == EventResult.accept {
-                    self.focus();
-                } else {
+                if parent.handle-selected() != EventResult.accept {
                     root.item-selected = false;
-                }
-            }
-
-            key-pressed(event) => {
-                if (event.text == Key.LeftArrow) {
-                    parent.x -= 5px;
-                    accept
-                } else if (event.text == Key.RightArrow) {
-                    parent.x += 5px;
-                    accept
-                } else {
-                    reject
                 }
             }
         }

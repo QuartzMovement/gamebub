@@ -18,8 +18,7 @@ export component ListViewBase inherits Rectangle {
         if (!wrap && (index < 0 || index >= num-items)) {
             return;
         }
-        item-selected = false;
-        root.focus();
+        root.unselect();
         focus-item = mod(num-items + index, num-items);
         bring-into-view(focus-item);
     }
@@ -59,6 +58,11 @@ export component ListViewBase inherits Rectangle {
         root.on-item-selected(root.focus-item);
     }
 
+    protected function unselect(){
+        root.item-selected = false;
+        root.focus();
+    }
+
     forward-focus: i-focus-scope;
     border-width: 1px;
     border-color: black;
@@ -87,7 +91,14 @@ export component ListViewBase inherits Rectangle {
                 root.focus-down();
                 return accept;
             } else if (event.text == "a") {
-                root.select-focus-item();
+                if root.item-selected {
+                    root.unselect();
+                } else {
+                    root.select-focus-item();
+                }
+                return accept;
+            } else if (event.text == "b" && root.item-selected) {
+                root.unselect();
                 return accept;
             }
             reject
