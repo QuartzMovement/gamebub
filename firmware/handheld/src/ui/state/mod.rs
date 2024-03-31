@@ -204,15 +204,9 @@ impl UiState {
             fn inner(
                 source: &SettingDatetime,
                 delta: SettingDatetime,
-            ) -> Result<time::PrimitiveDateTime, time::Error> {
-                let date = time::Date::from_calendar_date(
-                    source.year,
-                    (source.month as u8).try_into()?,
-                    1, // The day will be added later.
-                )?;
-                let time =
-                    time::Time::from_hms(source.hour as u8, source.min as u8, source.sec as u8)?;
-                let mut dt = time::PrimitiveDateTime::new(date, time);
+            ) -> time::Result<time::PrimitiveDateTime> {
+                let mut dt = convert_settings_datetime(source)?;
+                dt = dt.replace_day(1)?; // The day will be re-added later.
                 dt = dt.replace_year(((dt.year() as i32) + delta.year).min(2100).max(2000))?;
                 if delta.month < 0 {
                     dt = dt.replace_month(dt.month().nth_prev((-delta.month) as u8))?;
@@ -252,6 +246,7 @@ impl UiState {
     fn on_settings_enter(&mut self) {
         let root = self.root.unwrap();
         let backend = Backend::get(&root);
+        let mut device = Device::lock();
         backend.set_settings(ModelRc::from([
             SettingEntry {
                 name: "Dark mode".into(),
@@ -265,13 +260,16 @@ impl UiState {
                 name: "Date and Time".into(),
                 r#type: SettingType::Datetime,
                 value: SettingValue {
-                    datetime_value: SettingDatetime {
-                        year: 2024,
-                        month: 3,
-                        day: 15,
-                        hour: 9,
-                        min: 30,
-                        sec: 0,
+                    datetime_value: {
+                        let dt = device.get_datetime();
+                        SettingDatetime {
+                            year: dt.year(),
+                            month: dt.month() as i32,
+                            day: dt.day() as i32,
+                            hour: dt.hour() as i32,
+                            min: dt.minute() as i32,
+                            sec: dt.second() as i32,
+                        }
                     },
                     ..SettingValue::default()
                 },
@@ -284,9 +282,26 @@ impl UiState {
 
         match i {
             0 => kvs::keys::DARK_MODE.set(&value.bool_value),
+            1 => {
+                let dt = convert_settings_datetime(&value.datetime_value).unwrap();
+                let dt = dt.replace_second(0).unwrap();
+                Device::lock().set_datetime(dt.assume_utc());
+            }
             _ => {}
         }
 
-        self.on_settings_enter();
+        // TODO: update settings view. Calling on_settings_enter recreates everything,
+        // calling init again, and causing problems.
+        // self.on_settings_enter();
     }
+}
+
+fn convert_settings_datetime(source: &SettingDatetime) -> time::Result<time::PrimitiveDateTime> {
+    let date = time::Date::from_calendar_date(
+        source.year,
+        (source.month as u8).try_into()?,
+        source.day as u8,
+    )?;
+    let time = time::Time::from_hms(source.hour as u8, source.min as u8, source.sec as u8)?;
+    Ok(time::PrimitiveDateTime::new(date, time))
 }

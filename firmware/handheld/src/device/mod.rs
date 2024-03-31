@@ -345,6 +345,23 @@ impl Device<'_> {
         );
         self.lcd_backlight.set_duty_cycle(duty).unwrap();
     }
+
+    /// Get the Device datetime.
+    pub fn get_datetime(&mut self) -> time::OffsetDateTime {
+        let rtc_time = self.rtc.read_datetime().unwrap();
+        let ts = rtc_time
+            .and_then(|dt| dt.as_timestamp())
+            .unwrap_or(drivers::rtc::TIMESTAMP_2000);
+        time::OffsetDateTime::from_unix_timestamp(ts as i64).unwrap()
+    }
+
+    /// Set the Device datetime.
+    pub fn set_datetime(&mut self, dt: time::OffsetDateTime) {
+        log::info!("Setting system time: {:?}", dt);
+        let ts = dt.unix_timestamp();
+        let dt = drivers::rtc::Datetime::from_timestamp(ts as u64).unwrap_or_default();
+        self.rtc.write_datetime(dt).unwrap();
+    }
 }
 
 #[allow(unused)]

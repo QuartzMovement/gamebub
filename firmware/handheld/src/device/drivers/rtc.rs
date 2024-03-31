@@ -104,7 +104,7 @@ impl Default for Datetime {
 }
 
 /// Unix timestamp of Jan 1, 2000
-const TIMESTAMP_2000: u64 = 946684800;
+pub const TIMESTAMP_2000: u64 = 946684800;
 
 impl Datetime {
     /// Returns whether this is a valid datetime for the PCF8563.
@@ -121,7 +121,7 @@ impl Datetime {
     }
 
     /// Convert the Datetime to a Unix timestamp, assuming it starts at year 2000.
-    pub fn to_timestamp(self) -> Option<u64> {
+    pub fn as_timestamp(self) -> Option<u64> {
         if !self.is_valid() {
             return None;
         }
