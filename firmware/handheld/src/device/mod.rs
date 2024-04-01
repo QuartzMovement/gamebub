@@ -72,6 +72,9 @@ pub struct Device<'a> {
     /// Battery fuel gauge driver
     pub fuel_gauge: drivers::fuel_gauge::MAX17048<MutexI2C<'a, I2cDriver<'a>>>,
 
+    /// IMU driver
+    pub imu: drivers::imu::LSM6DS3TRC<MutexI2C<'a, I2cDriver<'a>>>,
+
     io_expander: drivers::io_expander::TCA9535<MutexI2C<'a, I2cDriver<'a>>>,
     button_home: PinDriver<'a, AnyInputPin, Input>,
     button_vol_up: PinDriver<'a, AnyInputPin, Input>,
@@ -142,9 +145,7 @@ impl Device<'_> {
         // Initialize I2C
         // TODO: see if there's a good way to do this without making and leaking a Box
         let i2c_config = I2cConfig::new().baudrate(400.kHz().into());
-        let mut i2c = I2cDriver::new(peripherals.i2c0, pin_i2c_sda, pin_i2c_scl, &i2c_config)?;
-        // On IMU, change IRQ to active-low open-drain.
-        embedded_hal::i2c::I2c::write(&mut i2c, 0x6A, &[0x12, 0x00, 0x10])?;
+        let i2c = I2cDriver::new(peripherals.i2c0, pin_i2c_sda, pin_i2c_scl, &i2c_config)?;
         let i2c = &*Box::leak(Box::new(Mutex::new(i2c)));
 
         let pin_irq = PinDriver::input(pin_irq)?;
@@ -201,6 +202,10 @@ impl Device<'_> {
 
         // Setup battery fuel gauge
         let fuel_gauge = drivers::fuel_gauge::MAX17048::new(MutexI2C::new(&i2c));
+
+        // Setup IMU
+        let mut imu = drivers::imu::LSM6DS3TRC::new(MutexI2C::new(&i2c));
+        imu.init()?;
 
         // Ensure fpga power has stabilized.
         let time_since_fpga_power = Instant::now().duration_since(fpga_power_time);
@@ -271,6 +276,7 @@ impl Device<'_> {
             button_vol_down,
             pin_irq,
             rtc,
+            imu,
             event_sender,
             event_receiver: Some(event_receiver),
         };
