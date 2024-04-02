@@ -15,6 +15,8 @@ const REG_EMU_CART_RAM_ADDR: u32 = 0xC000_000C;
 const REG_EMU_CART_RAM_MASK: u32 = 0xC000_0010;
 const REG_RTC_STATE: u32 = 0xC000_0014;
 const REG_RTC_LATCHED: u32 = 0xC000_0018;
+const REG_IMU_ACCEL_X: u32 = 0xC000_001C;
+const REG_IMU_ACCEL_Y: u32 = 0xC000_0020;
 
 #[derive(Debug, Error)]
 pub enum GameboyError {
@@ -33,6 +35,7 @@ enum MbcType {
     Mbc2 = 2,
     Mbc3 = 3,
     Mbc5 = 4,
+    Mbc7 = 5,
 }
 
 #[derive(Debug, Clone)]
@@ -67,7 +70,7 @@ impl RomHeader {
         let mut has_battery = false;
         let mut has_rtc = false;
         let mut has_rumble = false;
-        let has_sensor = false;
+        let mut has_sensor = false;
         let mbc = match cartridge_type {
             0x00 => cart_type!(MbcType::None,),
             0x01 => cart_type!(MbcType::Mbc1,),
@@ -88,12 +91,14 @@ impl RomHeader {
             0x1C => cart_type!(MbcType::Mbc5, has_rumble),
             0x1D => cart_type!(MbcType::Mbc5, has_rumble, has_ram),
             0x1E => cart_type!(MbcType::Mbc5, has_rumble, has_battery),
+            0x22 => cart_type!(MbcType::Mbc7, has_sensor, has_ram), // EEPROM, accelerometer
             _ => return Err(GameboyError::UnsupportedCartridgeType(cartridge_type)),
         };
 
         let rom_size = 32 * 1024 * (1 << header[0x148]);
         let ram_size = match header[0x149] {
             _ if mbc == MbcType::Mbc2 => 512,
+            _ if mbc == MbcType::Mbc7 => 256,
             2 => 8 * 1024,
             3 => 32 * 1024,
             4 => 128 * 1024,
