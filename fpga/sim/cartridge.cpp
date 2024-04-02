@@ -115,7 +115,14 @@ Cartridge::Cartridge(std::filesystem::path rom_path) : rom_path(rom_path) {
             has_ram = true;
             has_rumble = true;
             break;
+        case 0x22: // MBC7+SENSOR+RUMBLE+RAM+BATTERY
+            mbc_type = 5;
+            has_ram = true;
+            has_rumble = true;
+            ram_size = 256;
+            break;
         default:
+            printf("Unknown cartridge type: 0x%x\n", metadataType);
             throw std::runtime_error("Unknown cartridge type");
     }
 

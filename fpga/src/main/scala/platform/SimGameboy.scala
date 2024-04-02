@@ -48,4 +48,5 @@ class SimGameboy extends Module {
   emuCart.io.rtcAccess.writeEnable := false.B
   emuCart.io.rtcAccess.writeState := DontCare
   emuCart.io.rtcAccess.latchSelect := DontCare
+  emuCart.io.imu := DontCare
 }

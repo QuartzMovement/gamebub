@@ -20,6 +20,8 @@ class HandheldGameboy extends Module with HandheldModule {
   val configRegRomMask = RegInit(0.U(23.W))
   val configRegRamAddress = RegInit(0.U(19.W))
   val configRegRamMask = RegInit(0.U(17.W))
+  val configRegImuAccelX = RegInit(0.U(16.W))
+  val configRegImuAccelY = RegInit(0.U(16.W))
   val statRegStalls = RegInit(0.U(32.W))
   val statRegCycles = RegInit(0.U(32.W))
 
@@ -55,6 +57,8 @@ class HandheldGameboy extends Module with HandheldModule {
       0x0010 -> RegisterMap.Entry.rw(configRegRamMask),
       0x0014 -> makeRtcAccess(latched = false),
       0x0018 -> makeRtcAccess(latched = true),
+      0x001C -> RegisterMap.Entry.rw(configRegImuAccelX),
+      0x0020 -> RegisterMap.Entry.rw(configRegImuAccelY),
 
       0x1000 -> RegisterMap.Entry.rw(statRegStalls),
       0x1004 -> RegisterMap.Entry.rw(statRegCycles),
@@ -171,6 +175,8 @@ class HandheldGameboy extends Module with HandheldModule {
   emuCart.io.config := configRegEmuCart
   emuCart.io.tCycle := gameboy.io.tCycle
   emuCart.io.rtcAccess <> emuCartRtcAccess
+  emuCart.io.imu.x := configRegImuAccelX
+  emuCart.io.imu.y := configRegImuAccelY
 
   io.sdram.read := false.B
   io.sdram.write := false.B

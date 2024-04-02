@@ -10,6 +10,7 @@ object MbcType extends ChiselEnum {
   val Mbc2 = Value
   val Mbc3 = Value
   val Mbc5 = Value
+  val Mbc7 = Value
 }
 
 class EmuCartConfig extends Bundle {
@@ -52,6 +53,8 @@ class EmuCartridge(clockRate: Int) extends Module {
     val rtcAccess = new Mbc3RtcAccess
     /** Rumble activation signal */
     val rumble = Output(Bool())
+    /** IMU state */
+    val imu = Input(new Mbc7ImuState)
   })
 
   // True if we're accessing ROM (rather than RAM)
@@ -79,6 +82,7 @@ class EmuCartridge(clockRate: Int) extends Module {
   mbc.io.mbc.selectRom := selectRom
   io.rtcAccess <> mbc.io.rtcAccess
   io.rumble := mbc.io.rumble
+  mbc.io.imu := io.imu
 
   // We cannot write to ROM
   io.dataAccess.write := io.cartridgeIo.write && !selectRom

@@ -219,6 +219,7 @@ class ZynqGameboy extends Module {
   emuCart.io.config := configRegEmuCart
   emuCart.io.tCycle := gameboy.io.tCycle
   rtcAccess <> emuCart.io.rtcAccess
+  emuCart.io.imu := DontCare
   io.cartridgeInUse := !configRegEmuCart.enabled
   when (configRegEmuCart.enabled) {
     waitingForCart := emuCart.io.waitingForAccess

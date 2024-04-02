@@ -42,6 +42,8 @@ class EmuMbc(clockRate: Int) extends Module {
     val rtcAccess = new Mbc3RtcAccess
     /** Rumble activation signal */
     val rumble = Output(Bool())
+    /** IMU state */
+    val imu = Input(new Mbc7ImuState)
   })
   val mbcNone = Module(new MbcNone())
   val mbc1 = Module(new Mbc1())
@@ -51,7 +53,8 @@ class EmuMbc(clockRate: Int) extends Module {
   io.rtcAccess <> mbc3.io.rtcAccess
   val mbc5 = Module(new Mbc5())
   mbc5.io.hasRumble := io.config.hasRumble
-
+  val mbc7 = Module(new Mbc7())
+  mbc7.io.imu := io.imu
 
   val mbcs = Seq(
     MbcType.None -> mbcNone.io,
@@ -59,6 +62,7 @@ class EmuMbc(clockRate: Int) extends Module {
     MbcType.Mbc2 -> mbc2.io,
     MbcType.Mbc3 -> mbc3.io,
     MbcType.Mbc5 -> mbc5.io,
+    MbcType.Mbc7 -> mbc7.io,
   )
 
   io.mbc.memDataRead := DontCare
