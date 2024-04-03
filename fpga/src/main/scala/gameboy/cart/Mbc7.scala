@@ -17,10 +17,22 @@ class Mbc7ImuState extends Bundle {
   val y = UInt(16.W)
 }
 
+class Mbc7DirectRamAccess extends Bundle {
+  val enable = Output(Bool())
+  val write = Output(Bool())
+  val address = Output(UInt(10.W))
+  val dataWrite = Output(UInt(8.W))
+  val dataRead = Input(UInt(8.W))
+  val valid = Input(Bool())
+}
+
 class Mbc7 extends Module {
   val io = IO(new MbcIo {
     val imu = Input(new Mbc7ImuState)
+
+    val directRam = new Mbc7DirectRamAccess
   })
+
 
   val ramEnable = RegInit(false.B)
   val ramEnable2 = RegInit(false.B)
@@ -40,6 +52,7 @@ class Mbc7 extends Module {
   eeprom.io.cs := eepromCs
   eeprom.io.dataIn := eepromDataIn
   eepromDataOut := eeprom.io.dataOut
+  eeprom.io.directRam <> io.directRam
 
   // ROM region writes (ram enable and rom banking)
   when (io.memEnable && io.memWrite && io.selectRom) {
@@ -94,10 +107,9 @@ class Mbc7 extends Module {
           eepromDataIn := io.memDataWrite(1)
           eepromClk := io.memDataWrite(6)
           eepromCs := io.memDataWrite(7)
-
-          printf(cf"--write eeprom: cs=${io.memDataWrite(7)} clk=${io.memDataWrite(6)} din=${io.memDataWrite(1)}\n")
-        } .otherwise {
-          printf(cf"-- read eeprom: dout=${eepromDataOut}\n")
+          eeprom.io.dataIn := io.memDataWrite(1)
+          eeprom.io.clk := io.memDataWrite(6)
+          eeprom.io.cs := io.memDataWrite(7)
         }
       }
     }
@@ -132,8 +144,12 @@ object Mbc7Eeprom {
 }
 
 /// Microchip 93LC56
+///
+/// This is 16-bit words, but our interface for SRAM is 8-bits,
+/// so we do some conversions.
 class Mbc7Eeprom extends Module {
   import Mbc7Eeprom.State
+  val MEM_SIZE = 256 // 256 bytes in words of 16 bits
   val COUNTER_DELAY = 8192 // at 8MHz, about 1ms
 
   val io = IO(new Bundle {
@@ -141,27 +157,30 @@ class Mbc7Eeprom extends Module {
     val cs = Input(Bool())
     val dataIn = Input(Bool())
     val dataOut = Output(Bool())
+
+    val directRam = new Mbc7DirectRamAccess
   })
   val clockPosEdge = io.clk && !RegNext(io.clk)
   val csNegEdge = !io.cs && RegNext(io.cs)
   val writeEnable = RegInit(false.B)
   val command = Reg(UInt(10.W))
-  val commandIsAll = command(9, 8) === 0.U // Whether an erase or write command apply to all.
+  val commandIsAll = command(9, 8) === 0.U // Whether an erase or write command applies to all.
   val counter = Reg(UInt(16.W))
-  val address = command(6, 0)
+  val address = Reg(UInt(8.W)) // Byte oriented address
   val data = Reg(UInt(16.W))
 
-  io.dataOut := 1.U
 
-  // TODO: replace with actual storage
-  val mem = RegInit(VecInit(Seq.fill(128)(0xFFFF.U(16.W))))
+  io.dataOut := 1.U
+  io.directRam.enable := false.B
+  io.directRam.address := address
+  io.directRam.write := DontCare
+  io.directRam.dataWrite := DontCare
 
   val state = RegInit(State.init)
   switch (state) {
     is (State.init) {
       when (clockPosEdge && io.cs && io.dataIn) {
         // Start condition detected
-        printf(cf"eeprom: start detected\n")
         state := State.command
         counter := 9.U // 10 bits, minus one
       }
@@ -172,29 +191,25 @@ class Mbc7Eeprom extends Module {
         command := nextCommand
         when (counter === 0.U) {
           // Process command
-          printf(cf"eeprom: got command 0x${nextCommand}%x\n")
+          address := nextCommand(6, 0) << 1
           switch (nextCommand(9, 8)) {
             is (0.U) {
               switch (nextCommand(7, 6)) {
                 is (0.U) {
                   // erase/write disable
-                  printf(cf"eeprom: command write disable\n")
                   writeEnable := false.B
                   state := State.done
                 }
                 is (1.U) {
                   // write all
-                  printf(cf"eeprom: command write all\n")
                   state := State.writeData
                 }
                 is (2.U) {
                   // erase all
-                  printf(cf"eeprom: command erase all\n")
                   state := State.eraseWait
                 }
                 is (3.U) {
                   // erase/write enable
-                  printf(cf"eeprom: command write enable\n")
                   writeEnable := true.B
                   state := State.done
                 }
@@ -203,30 +218,24 @@ class Mbc7Eeprom extends Module {
             }
             is (1.U) {
               // Write
-              printf(cf"eeprom: command write\n");
               when(writeEnable) {
                 state := State.writeData
-                counter := 15.U
+                counter := 7.U
               } .otherwise {
-                printf(cf"eeprom: write blocked\n");
                 state := State.done
               }
             }
             is (2.U) {
-              // Read
-              printf(cf"eeprom: command read\n")
-              // Prepare to read on the next clock
+              // Read: prepare to read on the next clock
               counter := 0.U
               data := 0.U
               state := State.doRead
             }
             is (3.U) {
               // Erase
-              printf(cf"eeprom: command erase\n")
               when (writeEnable) {
                 state := State.eraseWait
               } .otherwise {
-                printf(cf"eeprom: erase blocked\n");
                 state := State.done
               }
             }
@@ -237,16 +246,21 @@ class Mbc7Eeprom extends Module {
       }
     }
     is (State.doRead) {
-      io.dataOut := data(15)
+      io.dataOut := data(7)
       when (clockPosEdge) {
         data := data << 1
         counter := counter - 1.U
         when (counter === 0.U) {
           // Read the next word.
-          printf(cf"    reading: ${mem(address)}%x from 0x${address}%x\n")
-          data := mem(address)
-          command := command + 1.U
-          counter := 15.U
+          //
+          // If clockPosEdge is 1, we should always be able to read,
+          // assuming SRAM is asynchronous.
+          // TODO -- handle if io.directRam.valid isn't true?
+          io.directRam.enable := true.B
+          io.directRam.write := false.B
+          data := io.directRam.dataRead
+          address := address + 1.U
+          counter := 7.U
         }
       }
       when (!io.cs) {
@@ -259,67 +273,104 @@ class Mbc7Eeprom extends Module {
         counter := counter - 1.U
       }
       when (csNegEdge) {
-        printf(cf"   doing write: all=${commandIsAll}, addr=${address}%x, data=${data}%x\n")
         counter := 0.U
         when (commandIsAll) {
           state := State.writeAllExecute
-          // TODO: actual write
-          mem := VecInit(Seq.fill(128)(data))
+          address := 0.U
         } .otherwise {
           state := State.writeExecute
-          // TODO: actual write
-          mem(address) := data
         }
       }
     }
     is (State.writeExecute) {
       // "Write takes 4ms per word typical"
       io.dataOut := 0.U
-      counter := counter + 1.U
+
+      when (counter < 2.U) {
+        io.directRam.enable := true.B
+        io.directRam.write := true.B
+        io.directRam.dataWrite := Mux(
+          address(0),
+          data(7, 0),
+          data(15, 8),
+        )
+        when (io.directRam.valid) {
+          counter := counter + 1.U
+          address := address + 1.U
+        }
+      } .otherwise {
+        counter := counter + 1.U
+      }
       when (counter === COUNTER_DELAY.U) {
-        printf(cf"    ! write DONE\n")
         state := State.done
       }
     }
     is (State.writeAllExecute) {
       // "Write all takes 16ms per word typical"
       io.dataOut := 0.U
-      counter := counter + 1.U
+      when (counter < MEM_SIZE.U) {
+        io.directRam.enable := true.B
+        io.directRam.write := true.B
+        io.directRam.dataWrite := Mux(
+          address(0),
+          data(7, 0),
+          data(15, 8),
+        )
+        when(io.directRam.valid) {
+          counter := counter + 1.U
+          address := address + 1.U
+        }
+      } .otherwise {
+        counter := counter + 1.U
+      }
       when(counter === COUNTER_DELAY.U) {
-        printf(cf"    ! write ALL DONE\n")
         state := State.done
       }
     }
     is (State.eraseWait) {
       when(csNegEdge) {
-        printf(cf"   doing erase: all=${commandIsAll}, addr=${address}%x\n")
         counter := 0.U
         when (commandIsAll) {
           state := State.eraseAllExecute
-          // TODO: actual erase
-          mem := VecInit(Seq.fill(128)(0xFFFF.U))
+          address := 0.U
         }.otherwise {
           state := State.eraseExecute
-          // TODO: actual erase
-          mem(address) := 0xFFFF.U
         }
       }
     }
     is (State.eraseExecute) {
       // "Erase takes 4ms per word typical"
       io.dataOut := 0.U
-      counter := counter + 1.U
-      when(counter === COUNTER_DELAY.U) {
-        printf(cf"    ! erase DONE\n")
+      when (counter < 2.U) {
+        io.directRam.enable := true.B
+        io.directRam.write := true.B
+        io.directRam.dataWrite := 0xFF.U(8.W)
+        when (io.directRam.valid) {
+          counter := counter + 1.U
+          address := address + 1.U
+        }
+      } .otherwise {
+        counter := counter + 1.U
+      }
+      when (counter === COUNTER_DELAY.U) {
         state := State.done
       }
     }
     is(State.eraseAllExecute) {
       // "Erase all takes 8ms per word typical"
       io.dataOut := 0.U
-      counter := counter + 1.U
-      when(counter === COUNTER_DELAY.U) {
-        printf(cf"    ! erase ALL DONE\n")
+      when (counter < MEM_SIZE.U) {
+        io.directRam.enable := true.B
+        io.directRam.write := true.B
+        io.directRam.dataWrite := 0xFF.U(8.W)
+        when (io.directRam.valid) {
+          counter := counter + 1.U
+          address := address + 1.U
+        }
+      }.otherwise {
+        counter := counter + 1.U
+      }
+      when (counter === COUNTER_DELAY.U) {
         state := State.done
       }
     }

@@ -70,8 +70,9 @@ class EmuCartridge(clockRate: Int) extends Module {
     waitingForAccess := false.B
   }
 
+  val mbcDirectRamAccess = Wire(Bool())
   io.waitingForAccess := waitingForAccess && !io.dataAccess.valid
-  io.dataAccess.enable := accessEnable && io.tCycle > 0.U
+  io.dataAccess.enable := accessEnable && (io.tCycle > 0.U)
 
   val mbc = Module(new EmuMbc(clockRate))
   mbc.io.config := io.config
@@ -111,6 +112,22 @@ class EmuCartridge(clockRate: Int) extends Module {
     } .otherwise {
       io.cartridgeIo.dataRead := io.dataAccess.dataRead
     }
+  }
+
+  // Only let the MBC directly access RAM if the
+  // game isn't also accessing it
+  mbcDirectRamAccess := mbc.io.directRam.enable
+  mbc.io.directRam.dataRead := io.dataAccess.dataRead
+  mbc.io.directRam.valid := false.B
+  when (mbc.io.directRam.enable && !accessEnable && (io.tCycle === 1.U || io.tCycle === 3.U)) {
+    // Only activate when io.tCycle is 1 or 3, to ensure there's a time when dataAccess.enable
+    // is false, because HandheldGameboy/SimGameboy only initiates an access on a rising edge.
+    io.dataAccess.enable := true.B
+    io.dataAccess.write := mbc.io.directRam.write
+    io.dataAccess.selectRom := false.B
+    io.dataAccess.address := mbc.io.directRam.address
+    io.dataAccess.dataWrite := mbc.io.directRam.dataWrite
+    mbc.io.directRam.valid := io.dataAccess.valid
   }
 }
 

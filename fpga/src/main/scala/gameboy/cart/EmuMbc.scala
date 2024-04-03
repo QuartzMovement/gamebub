@@ -44,6 +44,10 @@ class EmuMbc(clockRate: Int) extends Module {
     val rumble = Output(Bool())
     /** IMU state */
     val imu = Input(new Mbc7ImuState)
+
+    // MBC7 (EEPROM backed) needs to directly access the underlying RAM,
+    // so provide an interface for that.
+    val directRam = new Mbc7DirectRamAccess
   })
   val mbcNone = Module(new MbcNone())
   val mbc1 = Module(new Mbc1())
@@ -89,5 +93,17 @@ class EmuMbc(clockRate: Int) extends Module {
   io.rumble := false.B
   when (io.config.mbcType === MbcType.Mbc5) {
     io.rumble := mbc5.io.rumble
+  }
+
+  // MBC7 direct ram access
+  when(io.config.mbcType === MbcType.Mbc7) {
+    io.directRam <> mbc7.io.directRam
+  } .otherwise {
+    io.directRam.enable := false.B
+    io.directRam.write := DontCare
+    io.directRam.address := DontCare
+    io.directRam.dataWrite := DontCare
+    mbc7.io.directRam.dataRead := DontCare
+    mbc7.io.directRam.valid := false.B
   }
 }
