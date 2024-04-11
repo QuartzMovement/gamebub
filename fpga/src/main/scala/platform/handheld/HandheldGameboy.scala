@@ -169,9 +169,18 @@ class HandheldGameboy extends Module with HandheldModule {
       framebufferX := framebufferX + 1.U
     }
   }
+  when (io.reset) {
+    framebufferX := 0.U
+    framebufferY := 0.U
+    prevHblank := false.B
+    prevLcdEnable := false.B
+  }
 
   // Emulated Cartridge
   val emuCart = Module(new EmuCartridge(8 * 1024 * 1024))
+  when (io.reset) {
+    emuCart.reset := true.B
+  }
   emuCart.io.config := configRegEmuCart
   emuCart.io.tCycle := gameboy.io.tCycle
   emuCart.io.rtcAccess <> emuCartRtcAccess
@@ -229,6 +238,9 @@ class HandheldGameboy extends Module with HandheldModule {
       emuCartBusy := false.B
       emuCartDataRead := emuCart.io.dataAccess.dataRead
     }
+  }
+  when (io.reset) {
+    emuCartBusy := false.B
   }
 
   when (emuCart.io.config.enabled) {
