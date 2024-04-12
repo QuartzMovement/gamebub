@@ -160,3 +160,6 @@ std::vector<int16_t>& Simulator::getAudioSampleBuffer()
 {
     return audioSampleBuffer;
 }
+
+// Needed for Verilator with some linkers.
+double sc_time_stamp() { return 0; }
