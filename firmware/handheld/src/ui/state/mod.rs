@@ -18,7 +18,7 @@ pub struct UiState {
     root: Weak<MainWindow>,
     focus_stack: Vec<slint_re_exports::ItemWeak>,
 
-    gameboy: Gameboy,
+    pub gameboy: Gameboy,
     settings_model: Rc<settings::SettingsModel>,
 }
 

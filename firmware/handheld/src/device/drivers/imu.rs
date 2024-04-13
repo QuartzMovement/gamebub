@@ -76,6 +76,7 @@ where
     /// Enable the accelerometer.
     /// Currently hard-coded to 104Hz and +/- 4G range.
     pub fn enable_accel(&mut self) -> Result<(), Error> {
+        log::info!("enable accel");
         self.i2c
             .write(ADDRESS, &[REG_CTRL1_XL, 0x48])
             .map_err(|_| Error::I2cError)
@@ -83,6 +84,7 @@ where
 
     /// Disable the accelerometer.
     pub fn disable_accel(&mut self) -> Result<(), Error> {
+        log::info!("disable accel");
         self.i2c
             .write(ADDRESS, &[REG_CTRL1_XL, 0])
             .map_err(|_| Error::I2cError)
@@ -102,9 +104,10 @@ where
             .map_err(|_| Error::I2cError)?;
 
         // X, Y, then Z. Each is 16-bit little-endian signed integer.
+        // Due to the rotation of the chip, X and Y should be swapped
         Ok(AccelerometerSample {
-            x: self.convert_accel_sample(&data[0..2]),
-            y: self.convert_accel_sample(&data[2..4]),
+            y: self.convert_accel_sample(&data[0..2]),
+            x: self.convert_accel_sample(&data[2..4]),
             z: self.convert_accel_sample(&data[4..6]),
         })
     }

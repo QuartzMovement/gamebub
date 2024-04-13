@@ -402,5 +402,5 @@ impl Device<'_> {
 #[derive(Clone, Debug)]
 pub enum Event {
     Button(ButtonMap),
-    FpgaIrq,
+    FpgaIrq(u32),
 }

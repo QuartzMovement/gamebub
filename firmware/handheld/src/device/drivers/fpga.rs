@@ -8,6 +8,16 @@ use embedded_hal::{
 };
 use thiserror::Error;
 
+pub const REG_CONTROL: u32 = 0x0000_0000;
+pub const REG_BUTTON: u32 = 0x0000_0004;
+pub const REG_SPI_STATUS: u32 = 0x0000_0008;
+pub const REG_IRQ_ENABLE: u32 = 0x0000_000C;
+pub const REG_IRQ_STATUS: u32 = 0x0000_0010;
+pub const REG_OVERLAY_XCTRL: u32 = 0x0000_0100;
+pub const REG_OVERLAY_YCTRL: u32 = 0x0000_0104;
+/// Framebuffer dimensions (read only)
+pub const REG_FB_DIM: u32 = 0x0000_0200;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("gpio error")]
@@ -230,8 +240,8 @@ where
         let config_y = ((start_y as u32) & 0xFF) << 16
             | ((end_y as u32) & 0xFF) << 8
             | ((scroll_y as u32) & 0xFF);
-        self.write_u32(0x100, config_x)?;
-        self.write_u32(0x104, config_y)?;
+        self.write_u32(REG_OVERLAY_XCTRL, config_x)?;
+        self.write_u32(REG_OVERLAY_YCTRL, config_y)?;
         Ok(())
     }
 

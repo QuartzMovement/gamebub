@@ -96,7 +96,12 @@ impl UI {
                             self.window.dispatch_event(button_event.into());
                         }
                     }
-                    _ => log::info!("event: {:?}", event),
+                    device::Event::FpgaIrq(irq_mask) => {
+                        if irq_mask & 0b1 != 0 {
+                            // Module vblank
+                            self.state.borrow_mut().gameboy.handle_vblank_irq();
+                        }
+                    }
                 }
                 pending_event = self.event_queue.try_recv().ok();
             }

@@ -8,6 +8,8 @@ use esp_idf_svc::{
     sys::EspError,
 };
 
+use crate::device::drivers::fpga;
+
 use super::Device;
 
 const FLAG_MCU_IRQ: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(1) };
@@ -109,10 +111,21 @@ impl Device<'_> {
                 let _ = event_sender.send(super::Event::Button(buttons));
 
                 if (flags & FLAG_MCU_IRQ.get()) != 0 {
-                    log::info!("Interrupt: MCU_IRQ");
+                    log::debug!("Interrupt: MCU_IRQ");
                     // N.B. important to read buttons above to clear i/o expander interrupt
 
                     // TODO handle other possible interrupt sources, including FPGA
+
+                    // Read FPGA.
+                    // TODO: only read and ack interrupts that we've enabled?
+                    let fpga_irq = device.fpga.read_u32(fpga::REG_IRQ_STATUS).unwrap();
+                    if fpga_irq != 0 {
+                        device
+                            .fpga
+                            .write_u32(fpga::REG_IRQ_STATUS, fpga_irq)
+                            .unwrap();
+                        let _ = event_sender.send(super::Event::FpgaIrq(fpga_irq));
+                    }
 
                     let _ = device.pin_irq.enable_interrupt();
                 }

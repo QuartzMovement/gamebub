@@ -5,9 +5,8 @@ use std::{
 };
 use thiserror::Error;
 
-use crate::device::Device;
+use crate::device::{drivers::fpga, Device};
 
-const REG_CONTROL: u32 = 0x0000_0000;
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
 const REG_EMU_CART_ROM_ADDR: u32 = 0xC000_0004;
 const REG_EMU_CART_ROM_MASK: u32 = 0xC000_0008;
@@ -143,17 +142,26 @@ impl Gameboy {
     }
 
     pub fn set_paused(&mut self, paused: bool) -> Result<(), GameboyError> {
-        Device::lock()
+        let mut device = Device::lock();
+
+        // Enable/disable IMU as needed
+        if !paused && self.rom_header.as_ref().map_or(false, |h| h.has_sensor) {
+            device.imu.enable_accel().unwrap();
+        } else {
+            device.imu.disable_accel().unwrap();
+        }
+
+        device
             .fpga
-            .write_u32(REG_CONTROL, 0b1010u32 | ((!paused) as u32))?;
+            .write_u32(fpga::REG_CONTROL, 0b1010u32 | ((!paused) as u32))?;
         Ok(())
     }
 
     /// Resets, leaving in a paused state.
     pub fn reset(&mut self) -> Result<(), GameboyError> {
         let mut device = Device::lock();
-        device.fpga.write_u32(REG_CONTROL, 0b0000)?;
-        device.fpga.write_u32(REG_CONTROL, 0b1010)?;
+        device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
+        device.fpga.write_u32(fpga::REG_CONTROL, 0b1010)?;
         Ok(())
     }
 
@@ -163,13 +171,17 @@ impl Gameboy {
         let mut device = Device::lock();
 
         // Hold in reset
-        device.fpga.write_u32(REG_CONTROL, 0b0000)?;
+        device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
 
         // Switch to physical cartridge.
         device.fpga.write_u32(REG_EMU_CART_CONFIG, 0)?;
 
+        // Disable IRQs (including vblank)
+        device.fpga.write_u32(fpga::REG_IRQ_ENABLE, 0)?;
+
         // Resume
-        device.fpga.write_u32(REG_CONTROL, 0b1011)?;
+        device.fpga.write_u32(fpga::REG_CONTROL, 0b1011)?;
+        device.imu.disable_accel().unwrap();
 
         Ok(())
     }
@@ -178,7 +190,8 @@ impl Gameboy {
         let mut device = Device::lock();
 
         // Hold in reset
-        device.fpga.write_u32(REG_CONTROL, 0b0000)?;
+        device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
+        device.imu.disable_accel().unwrap();
 
         // Load ROM
         let mut rom_file = File::open(rom_path)?;
@@ -259,13 +272,18 @@ impl Gameboy {
             .fpga
             .write_u32(REG_EMU_CART_RAM_MASK, rom_header.ram_size - 1)?;
 
-        log::info!(
-            "debug: {:?}",
-            RtcState::from_fpga(device.fpga.read_u32(REG_RTC_STATE)?)
-        );
+        // If IMU is needed, enable vsync IRQ
+        let irq_mask = if rom_header.has_sensor {
+            // XXX: if other components need IMU too, switch to a global lease system
+            device.imu.enable_accel().unwrap();
+            0b1
+        } else {
+            0b0
+        };
+        device.fpga.write_u32(fpga::REG_IRQ_ENABLE, irq_mask)?;
 
         // Resume
-        device.fpga.write_u32(REG_CONTROL, 0b1011)?;
+        device.fpga.write_u32(fpga::REG_CONTROL, 0b1011)?;
 
         self.ram_path = Some(ram_path);
         self.rom_header = Some(rom_header);
@@ -308,6 +326,22 @@ impl Gameboy {
         }
 
         Ok(())
+    }
+
+    pub fn handle_vblank_irq(&mut self) {
+        let mut device = Device::lock();
+        let sample = device.imu.read_accel().unwrap();
+        // Invert X and Y
+        let accel_x = ((0x81D0 as f32) + ((0x70 as f32) * -sample.x)) as u16;
+        let accel_y = ((0x81D0 as f32) + ((0x70 as f32) * -sample.y)) as u16;
+        device
+            .fpga
+            .write_u32(REG_IMU_ACCEL_X, accel_x as u32)
+            .unwrap();
+        device
+            .fpga
+            .write_u32(REG_IMU_ACCEL_Y, accel_y as u32)
+            .unwrap();
     }
 }
 
