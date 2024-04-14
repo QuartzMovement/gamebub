@@ -1,13 +1,14 @@
 package platform
 
 import chisel3._
+import _root_.circt.stage.ChiselStage
 import gameboy.apu.ApuOutput
 import gameboy.cart.{EmuCartConfig, EmuCartridge, EmuCartridgeDataAccess, EmuMbc}
 import gameboy.{ClockConfig, Gameboy, JoypadState}
 import gameboy.ppu.PpuOutput
 
 object SimGameboy extends App {
-  emitVerilog(new SimGameboy, args)
+  ChiselStage.emitSystemVerilogFile(new SimGameboy, args)
 }
 
 class SimGameboy extends Module {

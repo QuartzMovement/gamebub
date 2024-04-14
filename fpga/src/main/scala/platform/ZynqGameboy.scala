@@ -1,8 +1,9 @@
 package platform
 
-import axi.{AxiLiteInitiator, AxiLiteSignals, AxiLiteTarget, SimpleCache}
+import axi.{AxiLiteSignals, AxiLiteTarget, SimpleCache}
 import chisel3._
 import chisel3.util._
+import _root_.circt.stage.ChiselStage
 import gameboy.apu.ApuOutput
 import gameboy.cart.{EmuCartConfig, EmuCartridge, Mbc3RtcAccess, RtcState}
 import gameboy.{CartridgeIo, Gameboy, JoypadState, SerialIo}
@@ -10,7 +11,7 @@ import gameboy.ppu.PpuOutput
 import gameboy.util.BundleInit.AddInitConstruct
 
 object ZynqGameboy extends App {
-  emitVerilog(new ZynqGameboy, args)
+  ChiselStage.emitSystemVerilogFile(new ZynqGameboy, args)
 }
 
 /**

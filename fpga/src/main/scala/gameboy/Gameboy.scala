@@ -298,7 +298,7 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
   cpu.io.memDataIn := Mux1H(cpuInputs ++ Seq((!cpuInputsValid, 0xFF.U)))
 }
 
-object Gameboy extends App {
+object Gameboy {
   object Model extends Enumeration {
     type Model = Value
     val Dmg = Value

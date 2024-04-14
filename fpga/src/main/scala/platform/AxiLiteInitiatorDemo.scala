@@ -3,6 +3,7 @@ package platform
 import axi.{AxiLiteInitiator, AxiLiteSignals, AxiLiteTarget}
 import chisel3._
 import chisel3.util._
+import _root_.circt.stage.ChiselStage
 
 class AxiLiteInitiatorDemo extends Module {
   val io = IO(new Bundle {
@@ -83,5 +84,5 @@ class AxiLiteInitiatorDemo extends Module {
 }
 
 object AxiLiteInitiatorDemo extends App {
-  emitVerilog(new AxiLiteInitiatorDemo, args)
+  ChiselStage.emitSystemVerilogFile(new AxiLiteInitiatorDemo, args)
 }

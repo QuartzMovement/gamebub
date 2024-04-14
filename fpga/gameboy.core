@@ -48,7 +48,7 @@ generate:
       extraargs: ""
       output:
         files:
-          - build/generated/Gameboy.v: { file_type: verilogSource }
+          - build/generated/Gameboy.sv: { file_type: systemVerilogSource }
 
   zynq_gameboy:
     generator: chisel
@@ -59,7 +59,7 @@ generate:
       extraargs: ""
       output:
         files:
-          - build/generated/ZynqGameboy.v: { file_type: verilogSource }
+          - build/generated/ZynqGameboy.sv: { file_type: systemVerilogSource }
 
   handheld:
     generator: chisel
@@ -70,7 +70,7 @@ generate:
       extraargs: ""
       output:
         files:
-          - build/generated/HandheldTop.v: { file_type: verilogSource }
+          - build/generated/HandheldTop.sv: { file_type: systemVerilogSource }
 
 targets:
   pynq_z2:

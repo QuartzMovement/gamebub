@@ -9,23 +9,22 @@ import mill.bsp._
 
 object GameboyFpga extends SbtModule { m =>
   override def millSourcePath = os.pwd
-  override def scalaVersion = "2.13.8"
+  override def scalaVersion = "2.13.12"
   override def scalacOptions = Seq(
     "-language:reflectiveCalls",
     "-deprecation",
     "-feature",
     "-Xcheckinit",
-    "-P:chiselplugin:genBundleElements"
   )
   override def ivyDeps = Agg(
-    ivy"edu.berkeley.cs::chisel3:3.5.4",
+    ivy"org.chipsalliance::chisel:6.2.0",
   )
   override def scalacPluginIvyDeps = Agg(
-    ivy"edu.berkeley.cs:::chisel3-plugin:3.5.4",
+    ivy"org.chipsalliance:::chisel-plugin:6.2.0",
   )
-  object test extends Tests with ScalaTest {
+  object test extends SbtModuleTests with TestModule.ScalaTest {
     override def ivyDeps = m.ivyDeps() ++ Agg(
-      ivy"edu.berkeley.cs::chiseltest:0.5.4"
+      ivy"org.scalatest::scalatest::3.2.16"
     )
   }
 }
