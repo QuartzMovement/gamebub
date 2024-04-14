@@ -46,24 +46,26 @@ class HandheldGameboy extends Module with HandheldModule {
     )
   }
 
-  io.mcuInterface <> RegisterMap(
-    addressWidth = 16,
-    dataWidth = 32,
-    entries = Seq(
-      0x0000 -> RegisterMap.Entry.rw(configRegEmuCart),
-      0x0004 -> RegisterMap.Entry.rw(configRegRomAddress),
-      0x0008 -> RegisterMap.Entry.rw(configRegRomMask),
-      0x000C -> RegisterMap.Entry.rw(configRegRamAddress),
-      0x0010 -> RegisterMap.Entry.rw(configRegRamMask),
-      0x0014 -> makeRtcAccess(latched = false),
-      0x0018 -> makeRtcAccess(latched = true),
-      0x001C -> RegisterMap.Entry.rw(configRegImuAccelX),
-      0x0020 -> RegisterMap.Entry.rw(configRegImuAccelY),
+  suppressEnumCastWarning {
+    io.mcuInterface <> RegisterMap(
+      addressWidth = 16,
+      dataWidth = 32,
+      entries = Seq(
+        0x0000 -> RegisterMap.Entry.rw(configRegEmuCart), // Suppressing mbcType enum cast
+        0x0004 -> RegisterMap.Entry.rw(configRegRomAddress),
+        0x0008 -> RegisterMap.Entry.rw(configRegRomMask),
+        0x000C -> RegisterMap.Entry.rw(configRegRamAddress),
+        0x0010 -> RegisterMap.Entry.rw(configRegRamMask),
+        0x0014 -> makeRtcAccess(latched = false),
+        0x0018 -> makeRtcAccess(latched = true),
+        0x001C -> RegisterMap.Entry.rw(configRegImuAccelX),
+        0x0020 -> RegisterMap.Entry.rw(configRegImuAccelY),
 
-      0x1000 -> RegisterMap.Entry.rw(statRegStalls),
-      0x1004 -> RegisterMap.Entry.rw(statRegCycles),
+        0x1000 -> RegisterMap.Entry.rw(statRegStalls),
+        0x1004 -> RegisterMap.Entry.rw(statRegCycles),
+      )
     )
-  )
+  }
 
   // Gameboy
   val gameboyConfig = Gameboy.Configuration(
