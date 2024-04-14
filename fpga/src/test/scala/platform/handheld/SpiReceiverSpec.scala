@@ -8,8 +8,8 @@ import org.scalatest.freespec.AnyFreeSpec
 import scala.collection.mutable
 
 class SpiReceiverSpec extends AnyFreeSpec with ChiselScalatestTester {
-  private val CommandWrite = 0x00
-  private val CommandRead = 0x01
+  private val CommandWrite = 0 | (1 << 1) | (1 << 4)
+  private val CommandRead = 1 | (1 << 1) | (1 << 4)
 
   /** Do a SPI exchange, returning the read data. */
   private def spiExchange(dut: SpiReceiver, writeData: Int, bits: Int): Int = {

@@ -139,6 +139,7 @@ class SpiReceiver(
         is (State.writeAddress) {
           // Finished writing address
           regAddress := shiftInReg
+          shiftInReg := 0.U
           shiftInCounter := wordSizeInBits
           shiftOutCounter := 0.U
 
@@ -151,6 +152,7 @@ class SpiReceiver(
         is (State.writeData) {
           // Finished writing data
           io.writeValid := true.B
+          shiftInReg := 0.U
           shiftInCounter := wordSizeInBits
           when (regCommand.autoIncrement) {
             regAddress := regAddress + (1.U << regCommand.wordSize).asUInt
