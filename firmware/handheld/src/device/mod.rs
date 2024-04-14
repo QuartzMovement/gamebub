@@ -17,6 +17,8 @@ use esp_idf_svc::hal::spi::{
 use esp_idf_svc::hal::units::FromValueType;
 use esp_idf_svc::hal::{i2c::*, ledc};
 
+use self::drivers::fuel_gauge;
+
 pub mod drivers;
 mod input;
 mod interrupt;
@@ -201,7 +203,8 @@ impl Device<'_> {
         let rtc = drivers::rtc::PCF8563::new(MutexI2C::new(&i2c));
 
         // Setup battery fuel gauge
-        let fuel_gauge = drivers::fuel_gauge::MAX17048::new(MutexI2C::new(&i2c));
+        let mut fuel_gauge = drivers::fuel_gauge::MAX17048::new(MutexI2C::new(&i2c));
+        let _ = fuel_gauge.set_alert_soc_change(true); // fuel gauge won't work without a battery
 
         // Setup IMU
         let mut imu = drivers::imu::LSM6DS3TRC::new(MutexI2C::new(&i2c));
@@ -403,4 +406,5 @@ impl Device<'_> {
 pub enum Event {
     Button(ButtonMap),
     FpgaIrq(u32),
+    FuelGaugeAlert(fuel_gauge::Alert),
 }

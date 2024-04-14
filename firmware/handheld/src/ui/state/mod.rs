@@ -35,6 +35,17 @@ impl UiState {
         state
     }
 
+    pub fn update_battery_level(&mut self, device: &mut Device) {
+        let level = device
+            .fuel_gauge
+            .get_battery_level()
+            .map_or(0, |x| x.round() as i32);
+        log::info!("Battery level: {:?}%", level);
+        let root = self.root.unwrap();
+        let backend = root.global::<Backend>();
+        backend.set_battery_level(level);
+    }
+
     fn rom_select_get_files(path: &Path) -> std::io::Result<Vec<String>> {
         let mut files = path
             .read_dir()?
@@ -55,12 +66,7 @@ impl UiState {
         let root = self.root.unwrap();
         let backend = root.global::<Backend>();
 
-        backend.set_battery_level(
-            device
-                .fuel_gauge
-                .get_battery_level()
-                .map_or(0, |x| x.round() as i32),
-        );
+        self.update_battery_level(device);
         backend.set_volume_level(((kvs::keys::VOLUME.get().unwrap() as i32) * 100) / 255);
         backend.set_brightness_level((kvs::keys::BRIGHTNESS.get().unwrap() * 100.0) as i32);
 

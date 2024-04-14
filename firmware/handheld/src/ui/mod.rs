@@ -13,7 +13,7 @@ use ::slint::{
     PhysicalSize, Timer,
 };
 
-use crate::device::{self, kvs, Device, Event};
+use crate::device::{self, drivers::fuel_gauge, kvs, Device, Event};
 
 use self::{slint::Argb1555, state::UiState};
 
@@ -101,6 +101,14 @@ impl UI {
                             // Module vblank
                             self.state.borrow_mut().gameboy.handle_vblank_irq();
                         }
+                    }
+                    device::Event::FuelGaugeAlert(fuel_gauge::Alert::ChargeChange) => {
+                        self.state
+                            .borrow_mut()
+                            .update_battery_level(&mut Device::lock());
+                    }
+                    _ => {
+                        log::info!("event: {:?}", event);
                     }
                 }
                 pending_event = self.event_queue.try_recv().ok();

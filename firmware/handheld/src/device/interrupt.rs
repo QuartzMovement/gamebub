@@ -111,10 +111,19 @@ impl Device<'_> {
                 let _ = event_sender.send(super::Event::Button(buttons));
 
                 if (flags & FLAG_MCU_IRQ.get()) != 0 {
-                    log::debug!("Interrupt: MCU_IRQ");
+                    log::info!("Interrupt: MCU_IRQ");
                     // N.B. important to read buttons above to clear i/o expander interrupt
 
                     // TODO handle other possible interrupt sources, including FPGA
+
+                    // Fuel gauge IRQs.
+                    if let Ok(fuel_irq) = device.fuel_gauge.query_alerts() {
+                        for (alert, active) in fuel_irq.into_iter() {
+                            if active {
+                                let _ = event_sender.send(super::Event::FuelGaugeAlert(alert));
+                            }
+                        }
+                    }
 
                     // Read FPGA.
                     // TODO: only read and ack interrupts that we've enabled?
