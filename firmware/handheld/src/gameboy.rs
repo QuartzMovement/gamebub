@@ -89,7 +89,7 @@ impl RomHeader {
             0x1B => cart_type!(MbcType::Mbc5, has_ram, has_battery),
             0x1C => cart_type!(MbcType::Mbc5, has_rumble),
             0x1D => cart_type!(MbcType::Mbc5, has_rumble, has_ram),
-            0x1E => cart_type!(MbcType::Mbc5, has_rumble, has_battery),
+            0x1E => cart_type!(MbcType::Mbc5, has_rumble, has_ram, has_battery),
             0x22 => cart_type!(MbcType::Mbc7, has_sensor, has_ram), // EEPROM, accelerometer
             _ => return Err(GameboyError::UnsupportedCartridgeType(cartridge_type)),
         };
