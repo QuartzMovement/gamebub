@@ -24,10 +24,16 @@ class CpuSpec extends AnyFreeSpec with ChiselScalatestTester {
     val highMemory = new Array[Byte](256)
     var steps = 0
 
+    dut.io.clocker.enable.poke(true)
+
     dut.io.memDataIn.poke(0.U)
     breakable {
       while (true) {
-        dut.clock.step(2)
+        dut.io.clocker.phiPulse.poke(false)
+        dut.io.clocker.tCycle.poke(0)
+        dut.clock.step(1)
+        dut.io.clocker.tCycle.poke(1)
+        dut.clock.step(1)
 
         // Check state of the DUT.
         val instruction = dut.xInstructionRegister.peekInt()
@@ -72,7 +78,11 @@ class CpuSpec extends AnyFreeSpec with ChiselScalatestTester {
           }
         }
 
-        dut.clock.step(2)
+        dut.io.clocker.tCycle.poke(2)
+        dut.clock.step(1)
+        dut.io.clocker.phiPulse.poke(true)
+        dut.io.clocker.tCycle.poke(3)
+        dut.clock.step(1)
         steps += 1
       }
     }
