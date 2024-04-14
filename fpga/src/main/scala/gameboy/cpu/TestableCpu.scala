@@ -8,8 +8,7 @@ import gameboy.cpu.TestableCpu.expose
 object TestableCpu {
   private def expose[T <: Data](signal: T): T = {
     val ob = IO(Output(chiselTypeOf(signal)))
-    ob := 0.U.asTypeOf(chiselTypeOf(signal))
-    BoringUtils.bore(signal, Seq(ob))
+    ob := BoringUtils.bore(signal)
     ob
   }
 }
