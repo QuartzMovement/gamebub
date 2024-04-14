@@ -53,7 +53,7 @@ class CpuSpec extends AnyFreeSpec with ChiselScalatestTester {
           val address = dut.io.memAddress.peekInt().toInt
           if (dut.io.memWrite.peekBoolean()) {
             val data = dut.io.memDataOut.peekInt().toByte
-//            println(f"---> Write to $address%x data $data%x")
+            println(f"---> Write to $address%x data $data%x")
             if (address >= 0xC000 && address <= 0xDFFF) {
               memory.update(address - 0xC000, data)
             } else if (address == 0xFF01) {
@@ -73,7 +73,7 @@ class CpuSpec extends AnyFreeSpec with ChiselScalatestTester {
             } else if (address >= 0xFF80 && address <= 0xFFFE) {
               output = highMemory(address - 0xFF00)
             }
-//            println(f"---> Read from $address%x data $output%x")
+            println(f"---> Read from $address%x data $output%x")
             dut.io.memDataIn.poke((output & 0xFF).U)
           }
         }

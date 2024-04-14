@@ -11,6 +11,7 @@ lazy val root = (project in file("."))
     name := "GameboyFpga",
     libraryDependencies ++= Seq(
       "org.chipsalliance" %% "chisel" % chiselVersion,
+      "edu.berkeley.cs" %% "chiseltest" % "6.0.0",
       "com.github.tototoshi" %% "scala-csv" % "1.3.10"
     ),
     scalacOptions ++= Seq(
