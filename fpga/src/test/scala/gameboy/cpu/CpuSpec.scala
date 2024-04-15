@@ -99,7 +99,7 @@ class CpuSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "nop" in {
-    test(new TestableCpu(defaultConfig)) { dut =>
+    test(new TestableCpu(defaultConfig)).withAnnotations(Seq(VerilatorBackendAnnotation)) { dut =>
       // 256 + 10 NOPs followed by a 0x10 (STOP)
       val program = (Seq.fill(256 + 10)(0x00.toByte) ++ Seq(0x10.toByte)).toArray
       runProgram(dut, program)
@@ -107,7 +107,7 @@ class CpuSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "sanity" in {
-    test(new TestableCpu(defaultConfig)) { dut =>
+    test(new TestableCpu(defaultConfig)).withAnnotations(Seq(VerilatorBackendAnnotation)) { dut =>
       runProgram(dut, compileTest("sanity_test.s"))
       dut.xRegA.expect(0x22.U)
       dut.xRegB.expect(0xBB.U)
@@ -118,7 +118,7 @@ class CpuSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "load between registers and memory" in {
-    test(new TestableCpu(defaultConfig)) { dut =>
+    test(new TestableCpu(defaultConfig)).withAnnotations(Seq(VerilatorBackendAnnotation)) { dut =>
       val (memory, _) = runProgram(dut, compileTest("basic_test.s"))
       dut.xRegC.expect(0xAB.U)
       dut.xRegD.expect(0x06.U)
@@ -137,7 +137,7 @@ class CpuSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "complete" in {
-    test(new TestableCpu(defaultConfig)) { dut =>
+    test(new TestableCpu(defaultConfig)).withAnnotations(Seq(VerilatorBackendAnnotation)) { dut =>
       val (memory, _) = runProgram(dut, compileTest("complete_test.s"), maxSteps = 2000)
       val resultCode = memory(memory.length - 1)
       assert(resultCode == 0)
@@ -145,7 +145,7 @@ class CpuSpec extends AnyFreeSpec with ChiselScalatestTester {
   }
 
   "interrupts" in {
-    test(new TestableCpu(defaultConfig)) { dut =>
+    test(new TestableCpu(defaultConfig)).withAnnotations(Seq(VerilatorBackendAnnotation)) { dut =>
       val (memory, _) = runProgram(dut, compileTest("interrupt_test.s"), maxSteps = 1000)
       val resultCode = memory(memory.length - 1)
       assert(resultCode == 0)
