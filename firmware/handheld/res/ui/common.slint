@@ -37,6 +37,7 @@ export global Backend {
     in property <int> brightness-increment: 5;
 
     in property <int> battery-level: 11;
+    in property <int> rom-select-initial: 0;
     in property <[string]> rom-select-list: ["a", "b", "c", "d", "e"];
     in property <[SettingEntry]> settings: [
         { name: "check 1", type: SettingType.checkbox, value: { bool-value: true } },

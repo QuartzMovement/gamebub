@@ -111,7 +111,7 @@ impl Device<'_> {
                 let _ = event_sender.send(super::Event::Button(buttons));
 
                 if (flags & FLAG_MCU_IRQ.get()) != 0 {
-                    log::info!("Interrupt: MCU_IRQ");
+                    log::debug!("Interrupt: MCU_IRQ");
                     // N.B. important to read buttons above to clear i/o expander interrupt
 
                     // TODO handle other possible interrupt sources, including FPGA

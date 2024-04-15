@@ -82,14 +82,23 @@ impl UiState {
         let rom_select_path: &Path = "/sdcard/roms".as_ref();
         let state_ = state.clone();
         backend.on_main_menu_load_rom(move || {
-            let last_rom_select = kvs::keys::LAST_ROM_PATH.get();
-            log::info!("last rom select path: {:?}", last_rom_select);
-
             let files = Self::rom_select_get_files(rom_select_path).unwrap();
+            let selected = kvs::keys::LAST_ROM_PATH
+                .get()
+                .and_then(|last_path| {
+                    files
+                        .iter()
+                        .position(|f| last_path == rom_select_path.join(f))
+                })
+                .unwrap_or(0);
             let files = ModelRc::from(Rc::new(VecModel::from(
                 files.iter().map(|s| s.into()).collect::<Vec<_>>(),
             )));
-            Backend::get(&state_.borrow().root.unwrap()).set_rom_select_list(files);
+
+            let root = state_.borrow().root.unwrap();
+            let backend = Backend::get(&root);
+            backend.set_rom_select_list(files);
+            backend.set_rom_select_initial(selected as i32);
         });
 
         let state_ = state.clone();

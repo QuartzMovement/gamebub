@@ -24,6 +24,9 @@ export component RomSelectScreen inherits ScreenBase {
             list := TextListView {
                 model: root.files;
                 wrap: true;
+                init => {
+                    self.set-focus-item(Backend.rom-select-initial);
+                }
                 on-item-selected(i) => {
                     if Backend.rom-select-selected(i) {
                         Global.set-screen(ScreenId.Game);
