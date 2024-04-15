@@ -40,11 +40,11 @@ object RegisterMap {
     interface.done := true.B
 
     entries.foreach { case (address, reg) =>
-      when (interface.address === address.U) {
-        val regReadData = reg.read.fn(interface.read)
+      when (interface.enable && interface.address === address.U) {
+        val regReadData = reg.read.fn(!interface.write)
         reg.write.fn(interface.write, interface.dataWrite)
 
-        when (interface.read) {
+        when (!interface.write) {
           interface.dataRead := regReadData
         }
       }

@@ -5,9 +5,9 @@ import chisel3._
 class MemoryInterface(addressWidth: Int, dataWidth: Int) extends Bundle {
   /** Access address */
   val address = Input(UInt(addressWidth.W))
-  /** Read enable */
-  val read = Input(Bool())
-  /** Write enable */
+  /** Access enable */
+  val enable = Input(Bool())
+  /** Whether the access is a write */
   val write = Input(Bool())
   /** Read data */
   val dataRead = Output(UInt(dataWidth.W))

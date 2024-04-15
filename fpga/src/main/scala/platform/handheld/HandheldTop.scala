@@ -311,7 +311,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
 
   io.pmod.dir := "b1111".U
-  io.pmod.out := Cat(clock.asBool, spi.io.mem.read || spi.io.mem.write, spi.io.mem.done, spiStatusRegister.requestFifoOverflow || spiStatusRegister.responseFifoUnderflow)
+  io.pmod.out := Cat(clock.asBool, spi.io.mem.enable, spi.io.mem.done, spiStatusRegister.requestFifoOverflow || spiStatusRegister.responseFifoUnderflow)
 
   //////////////////////////////////
   // Memory
@@ -333,19 +333,21 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.sramA := sramInterface.address(18, 1)
   sramInterface.done := false.B
   sramInterface.dataRead := DontCare
-  when (sramInterface.read) {
-    io.sramCeN := 0.U
-    io.sramWeN := 1.U
-    io.sramOeN := 0.U
-    sramInterface.dataRead := io.sramIoIn
-    sramInterface.done := true.B
-  } .elsewhen (sramInterface.write) {
-    io.sramCeN := 0.U
-    io.sramWeN := 0.U
-    io.sramLbN := !sramInterface.writeStrobe(0)
-    io.sramUbN := !sramInterface.writeStrobe(1)
-    io.sramIoOut := sramInterface.dataWrite
-    sramInterface.done := true.B
+  when (sramInterface.enable) {
+    when (sramInterface.write) {
+      io.sramCeN := 0.U
+      io.sramWeN := 0.U
+      io.sramLbN := !sramInterface.writeStrobe(0)
+      io.sramUbN := !sramInterface.writeStrobe(1)
+      io.sramIoOut := sramInterface.dataWrite
+      sramInterface.done := true.B
+    } .otherwise {
+      io.sramCeN := 0.U
+      io.sramWeN := 1.U
+      io.sramOeN := 0.U
+      sramInterface.dataRead := io.sramIoIn
+      sramInterface.done := true.B
+    }
   }
 
   // SDRAM
@@ -452,23 +454,26 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // partial rectangular updates.
   overlayInterface.dataRead := DontCare
   overlayInterface.done := false.B
-  when (overlayInterface.read) {
-    // Reads are not supported.
-    overlayInterface.done := true.B
-  }
-  when (overlayInterface.write) {
-    overlayFramebuffer.write(
-      (overlayInterface.address >> 1.U).asUInt,
-      overlayInterface.dataWrite
-    )
-    overlayInterface.done := true.B
+  when (overlayInterface.enable) {
+    when (overlayInterface.write) {
+      overlayFramebuffer.write(
+        (overlayInterface.address >> 1.U).asUInt,
+        overlayInterface.dataWrite
+      )
+      overlayInterface.done := true.B
+    } .otherwise {
+      // Reads are not supported.
+      overlayInterface.done := true.B
+    }
   }
 
+
   // Framebuffer read via memory.
+  val framebufferInterfaceRead = framebufferInterface.enable && !framebufferInterface.write
   framebufferInterface.dataRead := RegNext(RegNext(
-    framebuffer.read((framebufferInterface.address >> 1.U).asUInt, framebufferInterface.read)
+    framebuffer.read((framebufferInterface.address >> 1.U).asUInt, framebufferInterfaceRead)
   ))
-  framebufferInterface.done := RegNext(RegNext(framebufferInterface.read))
+  framebufferInterface.done := RegNext(RegNext(framebufferInterfaceRead))
   when (framebufferInterface.write) {
     // Writes are not supported.
     framebufferInterface.done := true.B
@@ -511,7 +516,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   when (module.io.framebufferWriteEnable) {
     // Module framebuffer write and SPI framebuffer read share the same read/write port,
     // so ensure that they're not activated at the same time (so they can be inferred correctly).
-    when (!framebufferInterface.read) {
+    when (!framebufferInterfaceRead) {
       val address = (module.io.framebufferY * videoWidth.U(8.W)) + module.io.framebufferX
       framebuffer.write(address, module.io.framebufferData.asUInt)
     }

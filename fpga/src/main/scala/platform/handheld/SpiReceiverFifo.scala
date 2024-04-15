@@ -261,8 +261,8 @@ class SpiReceiverFifo(
   val sysChipSelect = RegNext(RegNext(io.signals.chipSelect))
 
   io.mem.address := regSysAddress
+  io.mem.enable := false.B
   io.mem.write := false.B
-  io.mem.read := false.B
   io.mem.dataWrite := DontCare
   io.mem.writeStrobe := DontCare
 
@@ -276,13 +276,15 @@ class SpiReceiverFifo(
     } .otherwise {
       val request = fifoRequest.io.dataOut.inner.asTypeOf(new FifoRequestContinue)
       when (regSysWrite) {
+        io.mem.enable := true.B
         io.mem.write := true.B
         io.mem.dataWrite := request.data
         // TODO: determine based on addresses
         io.mem.writeStrobe := "b1111".U
 
       } .otherwise {
-        io.mem.read := true.B
+        io.mem.enable := true.B
+        io.mem.write := false.B
 
         when (io.mem.done) {
           fifoResponse.io.writeEnable := true.B

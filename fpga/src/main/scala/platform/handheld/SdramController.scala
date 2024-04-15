@@ -207,7 +207,7 @@ class SdramController(config: SdramController.Config) extends Module {
   val readDone = delayCounter === (config.readDuration - 1).U
 
   val doRefresh = refreshCounter > 0.U
-  val doAccess = (io.mem.read || io.mem.write) && !io.mem.done
+  val doAccess = io.mem.enable && !io.mem.done
 
   when (nextState === State.active && state =/= State.active) {
     // TODO align address to data width

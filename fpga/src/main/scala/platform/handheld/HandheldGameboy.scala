@@ -183,12 +183,12 @@ class HandheldGameboy extends Module with HandheldModule {
   emuCart.io.imu.x := configRegImuAccelX
   emuCart.io.imu.y := configRegImuAccelY
 
-  io.sdram.read := false.B
+  io.sdram.enable := false.B
   io.sdram.write := false.B
   io.sdram.address := DontCare
   io.sdram.dataWrite := DontCare
   io.sdram.writeStrobe := DontCare
-  io.sram.read := false.B
+  io.sram.enable := false.B
   io.sram.write := false.B
   io.sram.address := DontCare
   io.sram.dataWrite := DontCare
@@ -209,7 +209,8 @@ class HandheldGameboy extends Module with HandheldModule {
         // Don't handle ROM writes.
         emuCart.io.dataAccess.valid := true.B
       } .otherwise {
-        io.sdram.read := true.B
+        io.sdram.enable := true.B
+        io.sdram.write := false.B
         io.sdram.address := configRegRomAddress + (Cat(emuCart.io.dataAccess.address(22, 2), "b00".U(2.W)) & configRegRomMask)
         emuCart.io.dataAccess.dataRead := io.sdram.dataRead
           .asTypeOf(Vec(4, UInt(8.W)))(
@@ -218,7 +219,7 @@ class HandheldGameboy extends Module with HandheldModule {
         emuCart.io.dataAccess.valid := io.sdram.done
       }
     } .otherwise {
-      io.sram.read := !emuCart.io.dataAccess.write
+      io.sram.enable := true.B
       io.sram.write := emuCart.io.dataAccess.write
       io.sram.address := configRegRamAddress + (Cat(emuCart.io.dataAccess.address(16, 1), "b0".U(1.W)) & configRegRamMask)
       io.sram.dataWrite := Fill(2, emuCart.io.dataAccess.dataWrite)

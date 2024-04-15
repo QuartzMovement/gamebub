@@ -38,7 +38,7 @@ class MemoryCdc(addressWidth: Int, dataWidth: Int) extends Module {
   }
   val slowDone = regDone || io.target.done
 
-  io.target.read := io.initiator.read && !slowDone
+  io.target.enable := io.initiator.enable && !slowDone
   io.target.write := io.initiator.write && !slowDone
   io.target.address := io.initiator.address
   io.target.dataWrite := io.initiator.dataWrite

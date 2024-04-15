@@ -37,12 +37,12 @@ object MemoryMap {
       mem.writeStrobe := interface.writeStrobe
 
       when (interface.address.head(prefix.getWidth) === prefix) {
-        mem.read := interface.read
+        mem.enable := interface.enable
         mem.write := interface.write
         interface.dataRead := mem.dataRead
         interface.done := mem.done
       } .otherwise {
-        mem.read := false.B
+        mem.enable := false.B
         mem.write := false.B
       }
     }
