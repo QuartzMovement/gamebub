@@ -31,9 +31,10 @@ class ARM7TDMI extends Module {
   val control = Wire(new ControlSignals)
   val cpsrBus = Wire(new ProgramStatusRegister)
 
-  /////////////////////////////////// Instruction Decoder //////////////////////////////////
+  //////////////////////////////// Instruction Fetch & Decode //////////////////////////////
   val decodeUnit = Module(new Decoder)
-  decodeUnit.io.readData := memReadDataReg
+  decodeUnit.io.readData := io.mem.RDATA
+  decodeUnit.io.thumb := cpsrBus.thumb
 
   ////////////////////////////////////// Control Unit //////////////////////////////////////
   val controlUnit = Module(new Control)
@@ -89,7 +90,6 @@ class ARM7TDMI extends Module {
     }
   }
 
-
   io.mem.ADDR := memAddrReg
   io.mem.WDATA := memWriteDataReg
   io.mem.WRITE := control.memWrite
@@ -98,8 +98,6 @@ class ARM7TDMI extends Module {
   io.mem.LOCK := false.B
   io.mem.PROT.data := false.B
   io.mem.PROT.privileged := false.B
-
-  printf(cf"trans=${io.mem.TRANS} addr=${io.mem.ADDR}%x write=${io.mem.WRITE} wdata=${io.mem.WDATA}%x rdata=${io.mem.RDATA}%x\n")
 }
 
 class ProgramStatusRegister extends Bundle {
