@@ -34,24 +34,24 @@ class BusInterface extends Bundle {
     /// Wait state control (low to cause a wait state)
     val CLKEN = Input(Bool())
 
-    /// Output address bus
-    val ADDR = Output(UInt(32.W))
     /// Write/read access, high for write
     val WRITE = Output(Bool())
     /// Memory access width.
     val SIZE = Output(BusAccessWidth())
-    /// Signals whether the output is code or data, and whether the access is User mode or priviledged
+    /// Signals whether the output is code or data, and whether the access is User mode or privileged
     val PROT = Output(new BusProtectionType)
     /// Locked transaction operation
     val LOCK = Output(Bool())
 
+    /// Output address bus
+    val ADDR = Output(UInt(32.W))
     /// Next transaction type
     val TRANS = Output(BusTransactionType())
 
+    /// Memory abort or bus error
+    val ABORT = Input(Bool())
     /// Write data output bus
     val WDATA = Output(UInt(32.W))
     /// Read data input bus
     val RDATA = Input(UInt(32.W))
-    /// Memory abort or bus error
-    val ABORT = Input(Bool())
 }
