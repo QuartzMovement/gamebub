@@ -53,10 +53,12 @@ class ARM7TDMI extends Module {
     _.irqDisable -> true.B,
     _.fiqDisable -> true.B,
     _.padding -> 0.U,
-    _.condN -> false.B,
-    _.condZ -> false.B,
-    _.condC -> false.B,
-    _.condV -> false.B,
+    _.cond -> (new ConditionFlags).Lit(
+      _.n -> false.B,
+      _.z -> false.B,
+      _.c -> false.B,
+      _.v -> false.B,
+    ),
   ))
   controlUnit.io.currentStatus := cpsr
   cpsrBus := cpsr
@@ -72,7 +74,12 @@ class ARM7TDMI extends Module {
   }
 
   ////////////////////////////////////////// ALU ///////////////////////////////////////////
-  aluBus := DontCare
+  val alu = Module(new Alu)
+  alu.io.a := DontCare // TODO
+  alu.io.b := DontCare // TODO
+  alu.io.opcode := DontCare // TODO
+  alu.io.flagIn := cpsrBus.cond
+  aluBus := alu.io.out
 
   /////////////////////////////////////// Multiplier ///////////////////////////////////////
 
@@ -100,15 +107,20 @@ class ARM7TDMI extends Module {
   io.mem.PROT.privileged := false.B
 }
 
+class ConditionFlags extends Bundle {
+  /// Negative or less than
+  val n = Bool()
+  /// Zero
+  val z = Bool()
+  /// Carry or borrow or extend
+  val c = Bool()
+  /// Overflow
+  val v = Bool()
+}
+
 class ProgramStatusRegister extends Bundle {
-  ///    31: Negative or less than
-  val condN = Bool()
-  ///    30: Zero
-  val condZ = Bool()
-  ///    29: Carry or borrow or extend
-  val condC = Bool()
-  ///    28: Overflow
-  val condV = Bool()
+  /// [31:28]: Condition flags
+  val cond = new ConditionFlags
 
   /// 20 bits of padding
   val padding = UInt(20.W)
