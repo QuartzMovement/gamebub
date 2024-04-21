@@ -18,6 +18,12 @@ class ControlSignals extends Bundle {
   val pcNext = PcNext()
   val addressNext = AddressNext()
 
+  val regReadA = UInt(4.W)
+  val regReadB = UInt(4.W)
+  val regWriteIndex = UInt(4.W)
+  val regWriteEnable = Bool()
+  val aluOpcode = AluOpcode()
+
   val memTransaction = BusTransactionType()
   val memWrite = Bool()
   val memWidth = BusAccessWidth()
@@ -45,6 +51,12 @@ class Control extends Module {
 
   io.signals.pcNext := PcNext.Incrementer
   io.signals.addressNext := AddressNext.Incrementer
+
+  io.signals.regReadA := DontCare
+  io.signals.regReadB := DontCare
+  io.signals.regWriteIndex := DontCare
+  io.signals.regWriteEnable := false.B
+  io.signals.aluOpcode := DontCare
 
   io.signals.memWrite := false.B
   io.signals.memWidth := BusAccessWidth.Word

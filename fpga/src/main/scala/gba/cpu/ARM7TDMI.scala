@@ -64,8 +64,11 @@ class ARM7TDMI extends Module {
   cpsrBus := cpsr
   val pc = registers(15)
   pcBus := pc
-  aBus := DontCare
-  bBus := DontCare
+  aBus := registers(control.regReadA)
+  bBus := registers(control.regReadB)
+  when (control.regWriteEnable) {
+    registers(control.regWriteIndex) := aluBus
+  }
 
   when (io.enable) {
     switch (control.pcNext) {
@@ -75,9 +78,9 @@ class ARM7TDMI extends Module {
 
   ////////////////////////////////////////// ALU ///////////////////////////////////////////
   val alu = Module(new Alu)
-  alu.io.a := DontCare // TODO
-  alu.io.b := DontCare // TODO
-  alu.io.opcode := DontCare // TODO
+  alu.io.a := aBus
+  alu.io.b := bBus
+  alu.io.opcode := control.aluOpcode
   alu.io.flagIn := cpsrBus.cond
   aluBus := alu.io.out
 
