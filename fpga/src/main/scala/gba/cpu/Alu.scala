@@ -45,10 +45,12 @@ class Alu extends Module {
 
     /// Operand A
     val a = Input(UInt(32.W))
-    /// Operand B (TODO barrel shifter)
+    /// Operand B
     val b = Input(UInt(32.W))
     /// Flags in
     val flagIn = Input(new ConditionFlags)
+    /// Shifter carry
+    val shifterCarry = Input(Bool())
 
     /// Output
     val out = Output(UInt(32.W))
@@ -56,12 +58,9 @@ class Alu extends Module {
     val flagOut = Output(new ConditionFlags)
   })
 
-  // TODO shifter carry output
-  val shiftCarry = WireDefault(0.U(1.W))
-
   io.flagOut.n := io.out(31)
   io.flagOut.z := io.out === 0.U
-  io.flagOut.c := shiftCarry
+  io.flagOut.c := io.shifterCarry
   io.flagOut.v := io.flagIn.v
   io.out := DontCare
 

@@ -76,17 +76,25 @@ class ARM7TDMI extends Module {
     }
   }
 
+  ///////////////////////////////////// Barrel Shifter /////////////////////////////////////
+  val shifter = Module(new Shifter)
+  shifter.io.in := bBus
+  shifter.io.carryIn := cpsrBus.cond.c
+  shifter.io.shiftKind := control.shiftKind
+  shifter.io.shiftAmount := control.shiftAmount
+  shifter.io.latchShift := control.shiftDoLatch
+  shifter.io.useLatchedShift := control.shiftUseLatched
+
   ////////////////////////////////////////// ALU ///////////////////////////////////////////
   val alu = Module(new Alu)
   alu.io.a := aBus
-  alu.io.b := bBus
+  alu.io.b := shifter.io.out
   alu.io.opcode := control.aluOpcode
   alu.io.flagIn := cpsrBus.cond
+  alu.io.shifterCarry := shifter.io.carryOut
   aluBus := alu.io.out
 
   /////////////////////////////////////// Multiplier ///////////////////////////////////////
-
-  ///////////////////////////////////// Barrel Shifter /////////////////////////////////////
 
   /////////////////////////////////////// Incrementer //////////////////////////////////////
   incrementerBus := memAddrReg + 4.U // TODO: use current access size
@@ -125,7 +133,7 @@ class ProgramStatusRegister extends Bundle {
   /// [31:28]: Condition flags
   val cond = new ConditionFlags
 
-  /// 20 bits of padding
+  /// 20 bits of padding, always read as 0
   val padding = UInt(20.W)
 
   ///     7: IRQ disable

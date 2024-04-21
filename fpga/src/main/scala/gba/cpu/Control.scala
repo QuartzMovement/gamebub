@@ -22,7 +22,12 @@ class ControlSignals extends Bundle {
   val regReadB = UInt(4.W)
   val regWriteIndex = UInt(4.W)
   val regWriteEnable = Bool()
+
   val aluOpcode = AluOpcode()
+  val shiftKind = ShiftKind()
+  val shiftAmount = UInt(5.W)
+  val shiftDoLatch = Bool()
+  val shiftUseLatched = Bool()
 
   val memTransaction = BusTransactionType()
   val memWrite = Bool()
@@ -56,7 +61,12 @@ class Control extends Module {
   io.signals.regReadB := DontCare
   io.signals.regWriteIndex := DontCare
   io.signals.regWriteEnable := false.B
+
   io.signals.aluOpcode := DontCare
+  io.signals.shiftKind := ShiftKind.LogicalShiftLeft
+  io.signals.shiftAmount := 0.U
+  io.signals.shiftDoLatch := false.B
+  io.signals.shiftUseLatched := false.B
 
   io.signals.memWrite := false.B
   io.signals.memWidth := BusAccessWidth.Word
