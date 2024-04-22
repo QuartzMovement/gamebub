@@ -67,6 +67,10 @@ class Control extends Module {
     _.condition -> Condition.Nv
   ))
   val stage = RegInit(0.U(5.W))
+  val nextStage = WireDefault(stage)
+  when (io.enable) {
+    stage := nextStage
+  }
   when (io.enable && control.instDispatch) {
     instruction := io.nextInstruction
     stage := 0.U
@@ -75,7 +79,7 @@ class Control extends Module {
 
   control.instDispatch := false.B
   control.pcNext := PcNext.Same
-  control.addressNext := PcNext.Same
+  control.addressNext := AddressNext.Same
   control.regReadA := DontCare
   control.regReadB := DontCare
   control.regWriteIndex := DontCare
@@ -83,15 +87,15 @@ class Control extends Module {
   control.busB := DontCare
   control.immediate := DontCare
   control.aluOpcode := DontCare
-  control.shiftKind := DontCare
-  control.shiftImmediate := DontCare
+  control.shiftKind := ShiftKind.LogicalShiftLeft
+  control.shiftImmediate := 0.U
   control.shiftDoLatch := false.B
-  control.shiftUseLatched := DontCare
+  control.shiftUseLatched := false.B
   control.memWrite := false.B
   control.memWidth := DontCare
   control.memTransaction := BusTransactionType.Internal
 
-  printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind}\n")
+  printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}\n")
   when (execute) {
     switch (instruction.kind) {
       is (InstructionKind.Undefined) {
@@ -110,11 +114,12 @@ class Control extends Module {
         control.regWriteIndex := instruction.regD
         control.regWriteEnable := true.B
         fetchNext()
+        // TODO handle Rd = PC
       }
       is (InstructionKind.DataProcessingImmShift) {
         // Rd := Alu(Rn, Rm shift Imm)
         val shiftImmediate = instruction.immediate(6, 2)
-        val shiftKind = instruction.immediate(1, 0).asTypeOf(ShiftKind())
+        val shiftKind = suppressEnumCastWarning { instruction.immediate(1, 0).asTypeOf(ShiftKind()) }
         control.regReadA := instruction.regN
         control.regReadB := instruction.regM
         control.aluOpcode := instruction.opcode.asTypeOf(AluOpcode())
@@ -136,9 +141,30 @@ class Control extends Module {
         control.regWriteIndex := instruction.regD
         control.regWriteEnable := true.B
         fetchNext()
+        // TODO handle Rd = PC
       }
       is (InstructionKind.DataProcessingRegShift) {
-
+        switch (stage) {
+          is (0.U) {
+            control.regReadB := instruction.regS
+            control.shiftDoLatch := true.B
+            advanceStage()
+          }
+          is (1.U) {
+            // Rd := Alu(Rn, Rm shift Imm)
+            val shiftKind = suppressEnumCastWarning { instruction.immediate(1, 0).asTypeOf(ShiftKind()) }
+            control.regReadA := instruction.regN
+            control.regReadB := instruction.regM
+            control.aluOpcode := instruction.opcode.asTypeOf(AluOpcode())
+            control.shiftKind := shiftKind
+            control.shiftUseLatched := true.B
+            control.busB := BusBValue.RegisterB
+            control.regWriteIndex := instruction.regD
+            control.regWriteEnable := true.B
+            fetchNext()
+            // TODO handle Rd = PC
+          }
+        }
       }
     }
   } .otherwise {
@@ -153,6 +179,10 @@ class Control extends Module {
     control.memWrite := false.B
     control.memWidth := BusAccessWidth.Word // todo thumb
     control.memTransaction := BusTransactionType.Sequential
+  }
+
+  private def advanceStage(): Unit = {
+    nextStage := stage + 1.U
   }
 }
 

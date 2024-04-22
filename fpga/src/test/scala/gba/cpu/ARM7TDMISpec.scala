@@ -19,9 +19,18 @@ class ARM7TDMISpec extends AnyFunSuite {
         0xe3a02003, // mov r2, 0x03
         0xe0803001, // add r3, r0, r1
         0xe0833002, // add r3, r3, r2
+        0xe1a04213, // mov r4, r3, LSL r2
+        0xe2800000, // add r0, r0, 0
+        0xe2800001, // add r0, r0, 1
+        0xe2800002, // add r0, r0, 2
+        0xe2800003, // add r0, r0, 3
+        0xe2800004, // add r0, r0, 4
+        0xe2800005, // add r0, r0, 5
+        0xe2800006, // add r0, r0, 6
+        0xe2800007, // add r0, r0, 7
       )
 
-      for (_ <- 0 to 10) {
+      for (_ <- 0 to 15) {
         val memAddress = dut.io.mem.ADDR.peek().litValue
         val memWrite = dut.io.mem.WRITE.peek().litToBoolean
         val memSize = 1 << dut.io.mem.SIZE.peekValue().asBigInt.toInt
@@ -33,12 +42,15 @@ class ARM7TDMISpec extends AnyFunSuite {
           val seq = if (memTrans == BusTransactionType.Sequential.litValue) "   Seq" else "NonSeq"
           if (memWrite) {
             val memDataWrite = dut.io.mem.WDATA.peek().litValue
-            System.err.println(f"\nMem Write $seq: [0x$memAddress%X] <- 0x$memDataWrite%X | size=$memSize")
+            System.err.println(f"Mem Write $seq: [0x$memAddress%X] <- 0x$memDataWrite%X | size=$memSize\n")
           } else {
-            val readData = data.lift(memAddress.toInt >> 2).getOrElse(0)
+            val readData = data.lift(memAddress.toInt >> 2).getOrElse(0xffffffff)
             dut.io.mem.RDATA.poke(readData)
-            System.err.println(f"\nMem  Read $seq: [0x$memAddress%X] -> 0x$readData%X | size=$memSize")
+            System.err.println(f"Mem  Read $seq: [0x$memAddress%X] -> 0x$readData%X | size=$memSize\n")
           }
+        }
+        if (memTrans == BusTransactionType.Internal.litValue) {
+          System.err.println(f"Mem          Int: [0x$memAddress%X]\n")
         }
       }
     }

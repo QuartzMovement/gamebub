@@ -82,12 +82,13 @@ class Decoder extends Module {
     val decoded = Output(new DecodedInstruction)
   })
 
-  // TODO handle multi-cycle instructions
+  // TODO handle multi-cycle instructions -- the DataProcessingRegShift 2 shouldn't advance it
   val fetchReg = RegInit("hFFFFFFFF".U(32.W))
   when (io.enable) {
     fetchReg := io.readData
   }
   val in = WireDefault(fetchReg)
+  printf(cf"decoding ${in}%x, fetching ${io.readData}%x\n")
 
   val out = io.decoded
   out.kind := InstructionKind.Undefined
