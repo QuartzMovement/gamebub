@@ -24,7 +24,7 @@ object BusBValue extends ChiselEnum {
 
 class ControlSignals extends Bundle {
   /// True to start execution of the next instruction.
-  val instDispatch = Bool()
+  val nextInstruction = Bool()
 
   val pcNext = PcNext()
   val addressNext = AddressNext()
@@ -71,13 +71,13 @@ class Control extends Module {
   when (io.enable) {
     stage := nextStage
   }
-  when (io.enable && control.instDispatch) {
+  when (io.enable && control.nextInstruction) {
     instruction := io.nextInstruction
     stage := 0.U
   }
   val execute = evaluateCondition(instruction.condition, io.currentStatus.cond)
 
-  control.instDispatch := false.B
+  control.nextInstruction := false.B
   control.pcNext := PcNext.Same
   control.addressNext := AddressNext.Same
   control.regReadA := DontCare
@@ -101,7 +101,7 @@ class Control extends Module {
       is (InstructionKind.Undefined) {
         printf("Undefined instruction\n")
         // TODO interrupt
-        fetchNext()
+        nextInstruction()
       }
       is (InstructionKind.DataProcessingImm) {
         // Rd := Alu(Rn, Imm)
@@ -113,7 +113,7 @@ class Control extends Module {
         control.busB := BusBValue.Immediate
         control.regWriteIndex := instruction.regD
         control.regWriteEnable := true.B
-        fetchNext()
+        nextInstruction()
         // TODO handle Rd = PC
       }
       is (InstructionKind.DataProcessingImmShift) {
@@ -140,7 +140,7 @@ class Control extends Module {
         control.busB := BusBValue.RegisterB
         control.regWriteIndex := instruction.regD
         control.regWriteEnable := true.B
-        fetchNext()
+        nextInstruction()
         // TODO handle Rd = PC
       }
       is (InstructionKind.DataProcessingRegShift) {
@@ -161,7 +161,7 @@ class Control extends Module {
             control.busB := BusBValue.RegisterB
             control.regWriteIndex := instruction.regD
             control.regWriteEnable := true.B
-            fetchNext()
+            nextInstruction()
             // TODO handle Rd = PC
           }
         }
@@ -169,13 +169,13 @@ class Control extends Module {
     }
   } .otherwise {
     // TODO unexecuted instruction
-    fetchNext()
+    nextInstruction()
   }
 
-  private def fetchNext(): Unit = {
+  private def nextInstruction(): Unit = {
     control.pcNext := PcNext.Incrementer
     control.addressNext := AddressNext.Incrementer
-    control.instDispatch := true.B
+    control.nextInstruction := true.B
     control.memWrite := false.B
     control.memWidth := BusAccessWidth.Word // todo thumb
     control.memTransaction := BusTransactionType.Sequential

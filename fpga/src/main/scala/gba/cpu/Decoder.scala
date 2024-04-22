@@ -75,6 +75,9 @@ class Decoder extends Module {
     /// Thumb mode
     val thumb = Input(Bool())
 
+    /// Advance to next instruction
+    val nextInstruction = Input(Bool())
+
     /// Memory read data
     val readData = Input(UInt(32.W))
 
@@ -82,13 +85,23 @@ class Decoder extends Module {
     val decoded = Output(new DecodedInstruction)
   })
 
-  // TODO handle multi-cycle instructions -- the DataProcessingRegShift 2 shouldn't advance it
+  // TODO handle CLOCKEN (bus cycle stretching)
+  // Fetch stage, with support for latching the first read value
+  // during multi-cycle instructions.
+  val isNewFetch = RegNext(io.nextInstruction)
   val fetchReg = RegInit("hFFFFFFFF".U(32.W))
-  when (io.enable) {
+  when (io.enable && (!io.nextInstruction && isNewFetch)) {
     fetchReg := io.readData
   }
-  val in = WireDefault(fetchReg)
-  printf(cf"decoding ${in}%x, fetching ${io.readData}%x\n")
+  val fetchResult = Mux(isNewFetch, io.readData, fetchReg)
+
+  // Decode stage.
+  val decodeReg = RegInit("hFFFFFFFF".U(32.W))
+  when (io.enable && io.nextInstruction) {
+    decodeReg := fetchResult
+  }
+  val in = WireDefault(decodeReg)
+  printf(cf"decoding ${in}%x, fetching ${fetchResult}%x\n")
 
   val out = io.decoded
   out.kind := InstructionKind.Undefined

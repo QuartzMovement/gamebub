@@ -51,6 +51,7 @@ class ARM7TDMISpec extends AnyFunSuite {
         }
         if (memTrans == BusTransactionType.Internal.litValue) {
           System.err.println(f"Mem          Int: [0x$memAddress%X]\n")
+          dut.io.mem.RDATA.poke(0xffffffff)
         }
       }
     }

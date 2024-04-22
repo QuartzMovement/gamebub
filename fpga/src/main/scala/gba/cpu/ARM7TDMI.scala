@@ -35,6 +35,7 @@ class ARM7TDMI extends Module {
   //////////////////////////////// Instruction Fetch & Decode //////////////////////////////
   val decodeUnit = Module(new Decoder)
   decodeUnit.io.enable := io.enable
+  decodeUnit.io.nextInstruction := control.nextInstruction
   decodeUnit.io.readData := io.mem.RDATA
   decodeUnit.io.thumb := cpsrBus.thumb
 
