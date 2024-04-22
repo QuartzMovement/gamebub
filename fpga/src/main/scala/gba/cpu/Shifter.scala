@@ -8,6 +8,7 @@ object ShiftKind extends ChiselEnum {
   val LogicalShiftRight = Value
   val ArithmeticShiftRight = Value
   val RotateRight = Value
+  val RotateRightWithExtend = Value
 }
 
 class Shifter extends Module {
@@ -27,6 +28,8 @@ class Shifter extends Module {
     /// Used for data processing with register shift. If set, uses the latched shift amount.
     val useLatchedShift = Input(Bool())
   })
+
+//  printf(cf"*** shift: ${io.in}, ${io.shiftKind}  ${io.shiftAmount} -> ${io.out}\n")
 
   // Shift latching for shift-by-register
   val latchedShift = Reg(UInt(8.W))
@@ -55,8 +58,7 @@ class Shifter extends Module {
       }
     }
     is (ShiftKind.LogicalShiftRight) {
-      // With immediate, right shift of 0 is actually shift of 32
-      when (shiftAmount === 32.U || (shiftAmount === 0.U && !io.useLatchedShift)) {
+      when (shiftAmount === 32.U) {
         io.out := 0.U
         io.carryOut := operand(31)
       } .elsewhen (shiftAmount === 0.U) {
@@ -72,7 +74,7 @@ class Shifter extends Module {
     }
     is (ShiftKind.ArithmeticShiftRight) {
       // With immediate, right shift of 0 is actually shift of 32
-      when (shiftAmount >= 32.U || (shiftAmount === 0.U && !io.useLatchedShift)) {
+      when (shiftAmount >= 32.U) {
         when (operand(31) === 0.U) {
           io.out := 0.U
         } .otherwise {
@@ -91,14 +93,8 @@ class Shifter extends Module {
     is (ShiftKind.RotateRight) {
       val amount = shiftAmount(4, 0)
       when (shiftAmount === 0.U) {
-        when (!io.useLatchedShift) {
-          // With immediate, shift of 0 is actually "rotate right with extend"
-          io.out := Cat(io.carryIn, operand >> 1)
-          io.carryOut := operand(0)
-        } .otherwise {
-          io.out := operand
-          io.carryOut := io.carryIn
-        }
+        io.out := operand
+        io.carryOut := io.carryIn
       } .elsewhen (amount === 0.U) {
         io.out := operand
         io.carryOut := operand(31)
@@ -106,6 +102,11 @@ class Shifter extends Module {
         io.out := operand.rotateRight(amount)
         io.carryOut := operand(amount - 1.U)
       }
+    }
+    is (ShiftKind.RotateRightWithExtend) {
+      // With immediate, shift of 0 is actually "rotate right with extend"
+      io.out := Cat(io.carryIn, operand >> 1)
+      io.carryOut := operand(0)
     }
   }
 }

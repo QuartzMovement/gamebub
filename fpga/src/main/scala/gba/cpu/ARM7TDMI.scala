@@ -30,9 +30,11 @@ class ARM7TDMI extends Module {
   val incrementerBus = Wire(UInt(32.W))
   val control = Wire(new ControlSignals)
   val cpsrBus = Wire(new ProgramStatusRegister)
+  bBus := DontCare
 
   //////////////////////////////// Instruction Fetch & Decode //////////////////////////////
   val decodeUnit = Module(new Decoder)
+  decodeUnit.io.enable := io.enable
   decodeUnit.io.readData := io.mem.RDATA
   decodeUnit.io.thumb := cpsrBus.thumb
 
@@ -41,6 +43,9 @@ class ARM7TDMI extends Module {
   controlUnit.io.enable := io.enable
   controlUnit.io.nextInstruction := decodeUnit.io.decoded
   control := controlUnit.io.signals
+  when (control.busB === BusBValue.Immediate) {
+    bBus := control.immediate
+  }
 
   ///////////////////////////////////// Register File //////////////////////////////////////
   // TODO add banked registers
@@ -65,7 +70,9 @@ class ARM7TDMI extends Module {
   val pc = registers(15)
   pcBus := pc
   aBus := registers(control.regReadA)
-  bBus := registers(control.regReadB)
+  when (control.busB === BusBValue.RegisterB) {
+    bBus := registers(control.regReadB)
+  }
   when (control.regWriteEnable) {
     registers(control.regWriteIndex) := aluBus
   }
@@ -81,8 +88,8 @@ class ARM7TDMI extends Module {
   shifter.io.in := bBus
   shifter.io.carryIn := cpsrBus.cond.c
   shifter.io.shiftKind := control.shiftKind
-  shifter.io.shiftAmount := control.shiftAmount
-  shifter.io.latchShift := control.shiftDoLatch
+  shifter.io.shiftAmount := control.shiftImmediate
+  shifter.io.latchShift := io.enable && control.shiftDoLatch
   shifter.io.useLatchedShift := control.shiftUseLatched
 
   ////////////////////////////////////////// ALU ///////////////////////////////////////////

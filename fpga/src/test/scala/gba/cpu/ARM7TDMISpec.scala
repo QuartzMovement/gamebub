@@ -8,6 +8,18 @@ class ARM7TDMISpec extends AnyFunSuite {
   test("basic") {
     simulate(new ARM7TDMI) { dut =>
       dut.io.enable.poke(true)
+      dut.io.mem.RDATA.poke(0xFFFFFFFF)
+      dut.reset.poke(true)
+      dut.clock.step()
+      dut.reset.poke(false)
+
+      val data = Array(
+        0xe3a00010, // mov r0, 0x10
+        0xe3a01cff, // mov r1, 0xFF00
+        0xe3a02003, // mov r2, 0x03
+        0xe0803001, // add r3, r0, r1
+        0xe0833002, // add r3, r3, r2
+      )
 
       for (_ <- 0 to 10) {
         val memAddress = dut.io.mem.ADDR.peek().litValue
@@ -21,11 +33,11 @@ class ARM7TDMISpec extends AnyFunSuite {
           val seq = if (memTrans == BusTransactionType.Sequential.litValue) "   Seq" else "NonSeq"
           if (memWrite) {
             val memDataWrite = dut.io.mem.WDATA.peek().litValue
-            System.err.println(f"Mem Write $seq: [0x$memAddress%X] <- 0x$memDataWrite%X | size=$memSize")
+            System.err.println(f"\nMem Write $seq: [0x$memAddress%X] <- 0x$memDataWrite%X | size=$memSize")
           } else {
-            val readData = memAddress
+            val readData = data.lift(memAddress.toInt >> 2).getOrElse(0)
             dut.io.mem.RDATA.poke(readData)
-            System.err.println(f"Mem  Read $seq: [0x$memAddress%X] -> 0x$readData%X | size=$memSize")
+            System.err.println(f"\nMem  Read $seq: [0x$memAddress%X] -> 0x$readData%X | size=$memSize")
           }
         }
       }

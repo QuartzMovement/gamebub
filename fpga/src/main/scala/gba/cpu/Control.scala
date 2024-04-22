@@ -1,6 +1,9 @@
 package gba.cpu
 
 import chisel3._
+import chisel3.util._
+import chisel3.experimental.BundleLiterals._
+import gba.cpu.Control.evaluateCondition
 
 object PcNext extends ChiselEnum {
   val Same = Value
@@ -14,7 +17,15 @@ object AddressNext extends ChiselEnum {
   val Alu = Value
 }
 
+object BusBValue extends ChiselEnum {
+  val RegisterB = Value
+  val Immediate = Value
+}
+
 class ControlSignals extends Bundle {
+  /// True to start execution of the next instruction.
+  val instDispatch = Bool()
+
   val pcNext = PcNext()
   val addressNext = AddressNext()
 
@@ -23,9 +34,12 @@ class ControlSignals extends Bundle {
   val regWriteIndex = UInt(4.W)
   val regWriteEnable = Bool()
 
+  val busB = BusBValue()
+  val immediate = UInt(12.W)
+
   val aluOpcode = AluOpcode()
   val shiftKind = ShiftKind()
-  val shiftAmount = UInt(5.W)
+  val shiftImmediate = UInt(5.W)
   val shiftDoLatch = Bool()
   val shiftUseLatched = Bool()
 
@@ -47,28 +61,120 @@ class Control extends Module {
     /// Current program status register
     val currentStatus = Input(new ProgramStatusRegister)
   })
+  val control = io.signals
 
-  val loadInstruction = WireDefault(false.B)
-  val instruction = Reg(new DecodedInstruction) // TODO: reset?
-  when (io.enable && loadInstruction) {
+  val instruction = RegInit((new DecodedInstruction).Lit(
+    _.condition -> Condition.Nv
+  ))
+  val stage = RegInit(0.U(5.W))
+  when (io.enable && control.instDispatch) {
     instruction := io.nextInstruction
+    stage := 0.U
+  }
+  val execute = evaluateCondition(instruction.condition, io.currentStatus.cond)
+
+  control.instDispatch := false.B
+  control.pcNext := PcNext.Same
+  control.addressNext := PcNext.Same
+  control.regReadA := DontCare
+  control.regReadB := DontCare
+  control.regWriteIndex := DontCare
+  control.regWriteEnable := false.B
+  control.busB := DontCare
+  control.immediate := DontCare
+  control.aluOpcode := DontCare
+  control.shiftKind := DontCare
+  control.shiftImmediate := DontCare
+  control.shiftDoLatch := false.B
+  control.shiftUseLatched := DontCare
+  control.memWrite := false.B
+  control.memWidth := DontCare
+  control.memTransaction := BusTransactionType.Internal
+
+  printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind}\n")
+  when (execute) {
+    switch (instruction.kind) {
+      is (InstructionKind.Undefined) {
+        printf("Undefined instruction\n")
+        // TODO interrupt
+        fetchNext()
+      }
+      is (InstructionKind.DataProcessingImm) {
+        // Rd := Alu(Rn, Imm)
+        control.regReadA := instruction.regN
+        control.aluOpcode := instruction.opcode.asTypeOf(AluOpcode())
+        control.shiftKind := ShiftKind.RotateRight
+        control.shiftImmediate := instruction.immediate(11, 8) << 1
+        control.immediate := instruction.immediate(7, 0)
+        control.busB := BusBValue.Immediate
+        control.regWriteIndex := instruction.regD
+        control.regWriteEnable := true.B
+        fetchNext()
+      }
+      is (InstructionKind.DataProcessingImmShift) {
+        // Rd := Alu(Rn, Rm shift Imm)
+        val shiftImmediate = instruction.immediate(6, 2)
+        val shiftKind = instruction.immediate(1, 0).asTypeOf(ShiftKind())
+        control.regReadA := instruction.regN
+        control.regReadB := instruction.regM
+        control.aluOpcode := instruction.opcode.asTypeOf(AluOpcode())
+        control.shiftKind := shiftKind
+        control.shiftImmediate := shiftImmediate
+        when (shiftImmediate === 0.U) {
+          switch(shiftKind) {
+            // Right shift [both] of 0 is actually shift of 32
+            is (ShiftKind.LogicalShiftRight, ShiftKind.ArithmeticShiftRight) {
+              control.shiftImmediate := 32.U
+            }
+            // Rotate right of 0 is actually rotate right with extend
+            is (ShiftKind.RotateRight) {
+                control.shiftKind := ShiftKind.RotateRightWithExtend
+            }
+          }
+        }
+        control.busB := BusBValue.RegisterB
+        control.regWriteIndex := instruction.regD
+        control.regWriteEnable := true.B
+        fetchNext()
+      }
+      is (InstructionKind.DataProcessingRegShift) {
+
+      }
+    }
+  } .otherwise {
+    // TODO unexecuted instruction
+    fetchNext()
   }
 
-  io.signals.pcNext := PcNext.Incrementer
-  io.signals.addressNext := AddressNext.Incrementer
+  private def fetchNext(): Unit = {
+    control.pcNext := PcNext.Incrementer
+    control.addressNext := AddressNext.Incrementer
+    control.instDispatch := true.B
+    control.memWrite := false.B
+    control.memWidth := BusAccessWidth.Word // todo thumb
+    control.memTransaction := BusTransactionType.Sequential
+  }
+}
 
-  io.signals.regReadA := DontCare
-  io.signals.regReadB := DontCare
-  io.signals.regWriteIndex := DontCare
-  io.signals.regWriteEnable := false.B
-
-  io.signals.aluOpcode := DontCare
-  io.signals.shiftKind := ShiftKind.LogicalShiftLeft
-  io.signals.shiftAmount := 0.U
-  io.signals.shiftDoLatch := false.B
-  io.signals.shiftUseLatched := false.B
-
-  io.signals.memWrite := false.B
-  io.signals.memWidth := BusAccessWidth.Word
-  io.signals.memTransaction := BusTransactionType.Sequential
+object Control {
+  private def evaluateCondition(condition: Condition.Type, flags: ConditionFlags): Bool = {
+    MuxLookup(condition, false.B)(Seq(
+      Condition.Eq -> flags.z,
+      Condition.Ne -> !flags.z,
+      Condition.Cs -> flags.c,
+      Condition.Cc -> !flags.c,
+      Condition.Mi -> flags.n,
+      Condition.Pl -> !flags.n,
+      Condition.Vs -> flags.v,
+      Condition.Vc -> !flags.v,
+      Condition.Hi -> (flags.c && !flags.z),
+      Condition.Ls -> (!flags.c || flags.z),
+      Condition.Ge -> !(flags.n ^ flags.v),
+      Condition.Lt -> (flags.n ^ flags.v),
+      Condition.Gt -> (!flags.z && !(flags.n ^ flags.v)),
+      Condition.Le -> (flags.z && (flags.n ^ flags.v)),
+      Condition.Al -> true.B,
+      Condition.Nv -> false.B,
+    ))
+  }
 }

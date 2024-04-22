@@ -69,6 +69,9 @@ class DecodedInstruction extends Bundle {
 /// Instruction fetch and decode
 class Decoder extends Module {
   val io = IO(new Bundle {
+    /// Global enable
+    val enable = Input(Bool())
+
     /// Thumb mode
     val thumb = Input(Bool())
 
@@ -79,8 +82,11 @@ class Decoder extends Module {
     val decoded = Output(new DecodedInstruction)
   })
 
-  val fetchReg = RegInit(0xFFFFFF.U(32.W))
-  fetchReg := io.readData
+  // TODO handle multi-cycle instructions
+  val fetchReg = RegInit("hFFFFFFFF".U(32.W))
+  when (io.enable) {
+    fetchReg := io.readData
+  }
   val in = WireDefault(fetchReg)
 
   val out = io.decoded
@@ -97,9 +103,9 @@ class Decoder extends Module {
   // Decode table
   when (!io.thumb) {
     // ARM mode
-    io.decoded.condition := fetchReg(31, 28).asTypeOf(Condition())
+    io.decoded.condition := in(31, 28).asTypeOf(Condition())
 
-    when (in(27, 26) === "b000".U(3.W) && in(4) && in(7)) {
+    when (in(27, 25) === "b000".U(3.W) && in(4) && in(7)) {
       // Multiply and additional loads/stores
       // TODO
     } .elsewhen (in(27, 26) === "b00".U(2.W) && !(in(24, 23) === "b10".U(2.W) && !in(20))) {
