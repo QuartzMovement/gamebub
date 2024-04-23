@@ -19,7 +19,7 @@ class ARM7TDMI extends Module {
   })
 
   ////////////////////////////////// Busses and Registers //////////////////////////////////
-  val memAddrReg = RegInit(0.U(32.W))
+  val memAddrReg = RegInit("hFFFFFFFC".U(32.W))
   val memWriteDataReg = Reg(UInt(32.W))
   val memReadDataReg = Reg(UInt(32.W))
 
@@ -36,6 +36,7 @@ class ARM7TDMI extends Module {
   val decodeUnit = Module(new Decoder)
   decodeUnit.io.enable := io.enable
   decodeUnit.io.nextInstruction := control.nextInstruction
+  decodeUnit.io.flushPipeline := control.branch
   decodeUnit.io.readData := io.mem.RDATA
   decodeUnit.io.thumb := cpsrBus.thumb
 
@@ -51,7 +52,7 @@ class ARM7TDMI extends Module {
   ///////////////////////////////////// Register File //////////////////////////////////////
   // TODO add banked registers
   // TODO add SPSR registers
-  val registers = RegInit(VecInit(Seq.fill(16)(0.U(32.W))))
+  val registers = RegInit(VecInit(Seq.fill(15)(0.U(32.W)) ++ Seq("hFFFFFFFC".U(32.W))))
   val cpsr = RegInit((new ProgramStatusRegister).Lit(
     // TODO: should be Supervisor mode
     _.mode -> CpuMode.User,
@@ -109,15 +110,17 @@ class ARM7TDMI extends Module {
   incrementerBus := memAddrReg + 4.U // TODO: use current access size
 
   ///////////////////////////////////////// IO Port ////////////////////////////////////////
+  io.mem.ADDR := memAddrReg
+  switch (control.addressSource) {
+    is (AddressSource.Incrementer) { io.mem.ADDR := incrementerBus }
+    is (AddressSource.Pc) { io.mem.ADDR := pcBus }
+    is (AddressSource.Alu) { io.mem.ADDR := aluBus }
+  }
   when (io.enable) {
-    switch (control.addressNext) {
-      is (AddressNext.Incrementer) { memAddrReg := incrementerBus }
-      is (AddressNext.Pc) { memAddrReg := pcBus }
-      is (AddressNext.Alu) { memAddrReg := aluBus }
-    }
+    memAddrReg := io.mem.ADDR
   }
 
-  io.mem.ADDR := memAddrReg
+//  io.mem.ADDR := memAddrReg
   io.mem.WDATA := memWriteDataReg
   io.mem.WRITE := control.memWrite
   io.mem.SIZE := control.memWidth
@@ -125,6 +128,9 @@ class ARM7TDMI extends Module {
   io.mem.LOCK := false.B
   io.mem.PROT.data := false.B
   io.mem.PROT.privileged := false.B
+
+
+  printf(cf" pc is ${pc}%x, addr is ${io.mem.ADDR}%x\n")
 }
 
 class ConditionFlags extends Bundle {

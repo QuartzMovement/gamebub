@@ -77,6 +77,8 @@ class Decoder extends Module {
 
     /// Advance to next instruction
     val nextInstruction = Input(Bool())
+    /// Flush the pipeline
+    val flushPipeline = Input(Bool())
 
     /// Memory read data
     val readData = Input(UInt(32.W))
@@ -102,6 +104,12 @@ class Decoder extends Module {
   }
   val in = WireDefault(decodeReg)
   printf(cf"decoding ${in}%x, fetching ${fetchResult}%x\n")
+
+  when (io.enable && io.flushPipeline) {
+    // TODO correctly flush pipeline
+//    fetchReg := "hFFFFFFFF".U(32.W)
+    decodeReg := "hFFFFFFFF".U(32.W)
+  }
 
   val out = io.decoded
   out.kind := InstructionKind.Undefined

@@ -10,7 +10,7 @@ object PcNext extends ChiselEnum {
   val Incrementer = Value
 }
 
-object AddressNext extends ChiselEnum {
+object AddressSource extends ChiselEnum {
   val Same = Value
   val Incrementer = Value
   val Pc = Value
@@ -25,9 +25,10 @@ object BusBValue extends ChiselEnum {
 class ControlSignals extends Bundle {
   /// True to start execution of the next instruction.
   val nextInstruction = Bool()
+  val branch = Bool()
 
   val pcNext = PcNext()
-  val addressNext = AddressNext()
+  val addressSource = AddressSource()
 
   val regReadA = UInt(4.W)
   val regReadB = UInt(4.W)
@@ -70,16 +71,20 @@ class Control extends Module {
   val nextStage = WireDefault(stage)
   when (io.enable) {
     stage := nextStage
-  }
-  when (io.enable && control.nextInstruction) {
-    instruction := io.nextInstruction
-    stage := 0.U
+    when (control.branch) {
+      instruction.condition := Condition.Nv
+      stage := 0.U
+    } .elsewhen (control.nextInstruction) {
+      instruction := io.nextInstruction
+      stage := 0.U
+    }
   }
   val execute = evaluateCondition(instruction.condition, io.currentStatus.cond)
 
   control.nextInstruction := false.B
+  control.branch := false.B
   control.pcNext := PcNext.Same
-  control.addressNext := AddressNext.Same
+  control.addressSource := AddressSource.Same
   control.regReadA := DontCare
   control.regReadB := DontCare
   control.regWriteIndex := DontCare
@@ -113,8 +118,11 @@ class Control extends Module {
         control.busB := BusBValue.Immediate
         control.regWriteIndex := instruction.regD
         control.regWriteEnable := true.B
-        nextInstruction()
-        // TODO handle Rd = PC
+        when (instruction.regD === 15.U) {
+          branch()
+        } .otherwise {
+          nextInstruction()
+        }
       }
       is (InstructionKind.DataProcessingImmShift) {
         // Rd := Alu(Rn, Rm shift Imm)
@@ -140,14 +148,18 @@ class Control extends Module {
         control.busB := BusBValue.RegisterB
         control.regWriteIndex := instruction.regD
         control.regWriteEnable := true.B
-        nextInstruction()
-        // TODO handle Rd = PC
+        when (instruction.regD === 15.U) {
+          branch()
+        } .otherwise {
+          nextInstruction()
+        }
       }
       is (InstructionKind.DataProcessingRegShift) {
         switch (stage) {
           is (0.U) {
             control.regReadB := instruction.regS
             control.shiftDoLatch := true.B
+            beginPrefetch()
             advanceStage()
           }
           is (1.U) {
@@ -161,8 +173,11 @@ class Control extends Module {
             control.busB := BusBValue.RegisterB
             control.regWriteIndex := instruction.regD
             control.regWriteEnable := true.B
-            nextInstruction()
-            // TODO handle Rd = PC
+            when (instruction.regD === 15.U) {
+              branch()
+            } .otherwise {
+              completePrefetch()
+            }
           }
         }
       }
@@ -172,13 +187,46 @@ class Control extends Module {
     nextInstruction()
   }
 
-  private def nextInstruction(): Unit = {
+
+  private def beginPrefetch(): Unit = {
     control.pcNext := PcNext.Incrementer
-    control.addressNext := AddressNext.Incrementer
-    control.nextInstruction := true.B
+    control.addressSource := AddressSource.Incrementer
+    control.memWrite := false.B
+    control.memWidth := BusAccessWidth.Word // todo thumb
+    control.memTransaction := BusTransactionType.Internal
+  }
+
+  private def continuePrefetch(): Unit = {
+    // TODO: multi-cycle I-I-I-I-S (middle I), like in a multiply
+  }
+
+  /// Complete the prefetch of a merged I-S cycle, and go to the next instruction
+  private def completePrefetch(): Unit = {
     control.memWrite := false.B
     control.memWidth := BusAccessWidth.Word // todo thumb
     control.memTransaction := BusTransactionType.Sequential
+    control.nextInstruction := true.B
+  }
+
+  private def nextInstruction(): Unit = {
+    control.pcNext := PcNext.Incrementer
+    control.addressSource := AddressSource.Incrementer
+    control.memWrite := false.B
+    control.memWidth := BusAccessWidth.Word // todo thumb
+    control.memTransaction := BusTransactionType.Sequential
+    control.nextInstruction := true.B
+  }
+
+  /// After modifiying PC, flush pipeline.
+  private def branch(): Unit = {
+    // TODO
+    control.pcNext := PcNext.Same
+    control.addressSource := AddressSource.Alu
+    control.branch := true.B
+    control.nextInstruction := true.B
+    control.memWrite := false.B
+    control.memWidth := BusAccessWidth.Word // todo thumb
+    control.memTransaction := BusTransactionType.NonSequential
   }
 
   private def advanceStage(): Unit = {
