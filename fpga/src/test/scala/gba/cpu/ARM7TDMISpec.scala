@@ -69,6 +69,13 @@ class ARM7TDMISpec extends AnyFunSuite {
     def reg(index: Int): Int = {
       dut.io.debug.registers.getElements(index).peekValue().asBigInt.toInt
     }
+
+    def cpsr_flags(): Int = {
+      (dut.io.debug.cpsr.cond.n.peekValue().asBigInt.toInt << 3) |
+        (dut.io.debug.cpsr.cond.z.peekValue().asBigInt.toInt << 2) |
+        (dut.io.debug.cpsr.cond.c.peekValue().asBigInt.toInt << 1) |
+        (dut.io.debug.cpsr.cond.v.peekValue().asBigInt.toInt << 0)
+    }
   }
 
   test("reset") {
@@ -102,22 +109,26 @@ class ARM7TDMISpec extends AnyFunSuite {
     simulate(new ARM7TDMI) { dut =>
       val cpu = new CpuHarness(dut)
       cpu.copyMem(Array(
-        0xe3a00001, // 0x0000: mov r0, 1
+        0xe3b00001, // 0x0000: movs r0, 1
         0xe2801004, // 0x0004: add r1, r0, 4
         0xe2412005, // 0x0008: sub r2, r1, 5
+        0xe2512005, // 0x000c: subs r2, r1, 5
       ))
       cpu.step(3)
 
       cpu.step()
       assert(cpu.reg(0) == 1)
+      assert((cpu.cpsr_flags() & 4) == 0) // Z flag
 
       cpu.step()
       assert(cpu.reg(1) == 5)
-      // TODO check flags
 
       cpu.step()
       assert(cpu.reg(2) == 0)
-      // TODO check flags
+      assert((cpu.cpsr_flags() & 4) == 0) // Z flag
+
+      cpu.step()
+      assert((cpu.cpsr_flags() & 4) == 4) // Z flag
     }
   }
 

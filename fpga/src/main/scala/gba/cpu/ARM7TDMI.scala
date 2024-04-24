@@ -29,6 +29,7 @@ class ARM7TDMI extends Module {
   val bBus = Wire(UInt(32.W))
   val pcBus = Wire(UInt(32.W))
   val aluBus = Wire(UInt(32.W))
+  val aluConditionOut = Wire(new ConditionFlags)
   val incrementerBus = Wire(UInt(32.W))
   val control = Wire(new ControlSignals)
   val cpsrBus = Wire(new ProgramStatusRegister)
@@ -77,12 +78,14 @@ class ARM7TDMI extends Module {
   when (control.busB === BusBValue.RegisterB) {
     bBus := registers(control.regReadB)
   }
-  when (control.regWriteEnable) {
-    printf(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x\n")
-    registers(control.regWriteIndex) := aluBus
-  }
-
   when (io.enable) {
+    when (control.regWriteEnable) {
+      printf(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x\n")
+      registers(control.regWriteIndex) := aluBus
+    }
+    when (control.updateConditionCodes) {
+      cpsr.cond := aluConditionOut
+    }
     switch (control.pcNext) {
       is (PcNext.Incrementer) { pc := incrementerBus }
     }
@@ -105,6 +108,7 @@ class ARM7TDMI extends Module {
   alu.io.flagIn := cpsrBus.cond
   alu.io.shifterCarry := shifter.io.carryOut
   aluBus := alu.io.out
+  aluConditionOut := alu.io.flagOut
 
   /////////////////////////////////////// Multiplier ///////////////////////////////////////
 

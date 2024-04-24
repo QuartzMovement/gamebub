@@ -34,6 +34,7 @@ class ControlSignals extends Bundle {
   val regReadB = UInt(4.W)
   val regWriteIndex = UInt(4.W)
   val regWriteEnable = Bool()
+  val updateConditionCodes = Bool()
 
   val busB = BusBValue()
   val immediate = UInt(12.W)
@@ -90,6 +91,7 @@ class Control extends Module {
   control.regReadB := DontCare
   control.regWriteIndex := DontCare
   control.regWriteEnable := false.B
+  control.updateConditionCodes := false.B
   control.busB := DontCare
   control.immediate := DontCare
   control.aluOpcode := DontCare
@@ -112,7 +114,6 @@ class Control extends Module {
         nextInstruction()
       }
       is (InstructionKind.DataProcessingImm) {
-        // TODO set flags for data processing imm when S bit is set
         // Rd := Alu(Rn, Imm)
         control.regReadA := instruction.regN
         control.aluOpcode := instruction.opcode.asTypeOf(AluOpcode())
@@ -122,6 +123,7 @@ class Control extends Module {
         control.busB := BusBValue.Immediate
         control.regWriteIndex := instruction.regD
         control.regWriteEnable := true.B
+        control.updateConditionCodes := instruction.flags(0)
         when (instruction.regD === 15.U) {
           branch()
         } .otherwise {
@@ -129,7 +131,6 @@ class Control extends Module {
         }
       }
       is (InstructionKind.DataProcessingImmShift) {
-        // TODO set flags for data processing imm when S bit is set
         // Rd := Alu(Rn, Rm shift Imm)
         val shiftImmediate = instruction.immediate(6, 2)
         val shiftKind = suppressEnumCastWarning { instruction.immediate(1, 0).asTypeOf(ShiftKind()) }
@@ -153,6 +154,7 @@ class Control extends Module {
         control.busB := BusBValue.RegisterB
         control.regWriteIndex := instruction.regD
         control.regWriteEnable := true.B
+        control.updateConditionCodes := instruction.flags(0)
         when (instruction.regD === 15.U) {
           branch()
         } .otherwise {
@@ -160,7 +162,6 @@ class Control extends Module {
         }
       }
       is (InstructionKind.DataProcessingRegShift) {
-        // TODO set flags for data processing imm when S bit is set
         switch (stage) {
           is (0.U) {
             control.regReadB := instruction.regS
@@ -179,6 +180,7 @@ class Control extends Module {
             control.busB := BusBValue.RegisterB
             control.regWriteIndex := instruction.regD
             control.regWriteEnable := true.B
+            control.updateConditionCodes := instruction.flags(0)
             when (instruction.regD === 15.U) {
               branch()
             } .otherwise {
