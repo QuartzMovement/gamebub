@@ -9,6 +9,8 @@ class ARM7TDMI extends Module {
   val io = IO(new Bundle {
     /// Global enable signal for emulation
     val enable = Input(Bool())
+    /// Debug output
+    val debug = Output(new CpuDebug())
 
     /// Memory bus interface
     val mem = new BusInterface
@@ -129,6 +131,8 @@ class ARM7TDMI extends Module {
   io.mem.PROT.data := false.B
   io.mem.PROT.privileged := false.B
 
+  io.debug.registers := registers
+  io.debug.cpsr := cpsr
 
   printf(cf" pc is ${pc}%x, addr is ${io.mem.ADDR}%x\n")
 }
@@ -169,4 +173,9 @@ object CpuMode extends ChiselEnum {
   val Abort = Value("b10111".U(5.W))
   val Undefined = Value("b11011".U(5.W))
   val System = Value("b11111".U(5.W))
+}
+
+class CpuDebug extends Bundle {
+  val registers = Vec(16, UInt(32.W))
+  val cpsr = new ProgramStatusRegister()
 }

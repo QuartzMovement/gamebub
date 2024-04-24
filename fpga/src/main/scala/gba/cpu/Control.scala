@@ -47,6 +47,7 @@ class ControlSignals extends Bundle {
   val memTransaction = BusTransactionType()
   val memWrite = Bool()
   val memWidth = BusAccessWidth()
+  val memProt = new BusProtectionType
 }
 
 /// Control unit
@@ -99,6 +100,8 @@ class Control extends Module {
   control.memWrite := false.B
   control.memWidth := DontCare
   control.memTransaction := BusTransactionType.Internal
+  control.memProt.privileged := false.B // TODO
+  control.memProt.data := false.B
 
   printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}\n")
   when (execute) {
@@ -109,6 +112,7 @@ class Control extends Module {
         nextInstruction()
       }
       is (InstructionKind.DataProcessingImm) {
+        // TODO set flags for data processing imm when S bit is set
         // Rd := Alu(Rn, Imm)
         control.regReadA := instruction.regN
         control.aluOpcode := instruction.opcode.asTypeOf(AluOpcode())
@@ -125,6 +129,7 @@ class Control extends Module {
         }
       }
       is (InstructionKind.DataProcessingImmShift) {
+        // TODO set flags for data processing imm when S bit is set
         // Rd := Alu(Rn, Rm shift Imm)
         val shiftImmediate = instruction.immediate(6, 2)
         val shiftKind = suppressEnumCastWarning { instruction.immediate(1, 0).asTypeOf(ShiftKind()) }
@@ -155,6 +160,7 @@ class Control extends Module {
         }
       }
       is (InstructionKind.DataProcessingRegShift) {
+        // TODO set flags for data processing imm when S bit is set
         switch (stage) {
           is (0.U) {
             control.regReadB := instruction.regS
