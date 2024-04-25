@@ -124,9 +124,14 @@ class ARM7TDMI extends Module {
   }
   when (io.enable) {
     memAddrReg := io.mem.ADDR
+    when (control.latchMemReadData) {
+      memReadDataReg := io.mem.RDATA
+    }
+  }
+  when (control.busB === BusBValue.MemReadData) {
+    bBus := memReadDataReg
   }
 
-//  io.mem.ADDR := memAddrReg
   io.mem.WDATA := memWriteDataReg
   io.mem.WRITE := control.memWrite
   io.mem.SIZE := control.memWidth

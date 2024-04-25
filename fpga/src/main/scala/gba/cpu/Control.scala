@@ -3,7 +3,6 @@ package gba.cpu
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
-import gba.cpu.Control.evaluateCondition
 
 object PcNext extends ChiselEnum {
   val Same = Value
@@ -20,6 +19,7 @@ object AddressSource extends ChiselEnum {
 object BusBValue extends ChiselEnum {
   val RegisterB = Value
   val Immediate = Value
+  val MemReadData = Value
 }
 
 class ControlSignals extends Bundle {
@@ -49,6 +49,7 @@ class ControlSignals extends Bundle {
   val memWrite = Bool()
   val memWidth = BusAccessWidth()
   val memProt = new BusProtectionType
+  val latchMemReadData = Bool()
 }
 
 /// Control unit
@@ -81,7 +82,7 @@ class Control extends Module {
       stage := 0.U
     }
   }
-  val execute = evaluateCondition(instruction.condition, io.currentStatus.cond)
+  val execute = Control.evaluateCondition(instruction.condition, io.currentStatus.cond)
 
   control.nextInstruction := false.B
   control.branch := false.B
@@ -104,6 +105,7 @@ class Control extends Module {
   control.memTransaction := BusTransactionType.Internal
   control.memProt.privileged := false.B // TODO
   control.memProt.data := false.B
+  control.latchMemReadData := false.B
 
   printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}\n")
   when (execute) {
@@ -189,10 +191,90 @@ class Control extends Module {
           }
         }
       }
+      is (InstructionKind.Load) {
+        val width = suppressEnumCastWarning { instruction.opcode(1, 0).asTypeOf(BusAccessWidth()) }
+        val flag_user = instruction.flags(5) // TODO
+        val flag_signed = instruction.flags(4)
+        val flag_immediate = instruction.flags(3)
+        val flag_preindex = instruction.flags(2)
+        val flag_add = instruction.flags(1)
+        val flag_writeback = instruction.flags(0)
+
+        printf(cf"load: user=${flag_user}, sign=${flag_signed}, immediate=${flag_immediate}, preindex=${flag_preindex}, add=${flag_add}, writeback=${flag_writeback}\n")
+
+        switch (stage) {
+          is (0.U) {
+            // Calculate address, initiate access
+            when (flag_preindex) {
+              setAluLoadStoreAddress()
+            } .otherwise {
+              control.regReadB := instruction.regN
+              control.busB := BusBValue.RegisterB
+              control.aluOpcode := AluOpcode.mov
+            }
+            control.addressSource := AddressSource.Alu
+
+            control.memTransaction := BusTransactionType.NonSequential
+            control.memWrite := false.B
+            control.memWidth := width
+            control.memProt.data := true.B
+            control.addressSource := AddressSource.Alu
+            advanceStage()
+          }
+          is (1.U) {
+            // Wait for access, perform address writeback
+            when (flag_writeback) {
+              setAluLoadStoreAddress()
+              control.regWriteIndex := instruction.regN
+              control.regWriteEnable := true.B
+            }
+
+            control.latchMemReadData := true.B
+            beginPrefetch()
+            control.addressSource := AddressSource.Pc
+            control.pcNext := PcNext.Same
+            advanceStage()
+          }
+          is (2.U) {
+            // TODO: handle memory size, signedness
+            // Write the loaded data to the register.
+            control.busB := BusBValue.MemReadData
+            control.aluOpcode := AluOpcode.mov
+            control.regWriteIndex := instruction.regD
+            control.regWriteEnable := true.B
+            when (instruction.regD === 15.U) {
+              branch()
+            } .otherwise {
+              completePrefetch()
+            }
+          }
+        }
+      }
     }
   } .otherwise {
     // TODO unexecuted instruction
     nextInstruction()
+  }
+
+  // Setup the ALU to calculate the offset address for a load/store instruction.
+  private def setAluLoadStoreAddress(): Unit = {
+    val flag_immediate = instruction.flags(3)
+    val flag_add = instruction.flags(1)
+
+    // Calculate address, initiate access
+    when (flag_immediate) {
+      control.immediate := instruction.immediate
+      control.busB := BusBValue.Immediate
+    } .otherwise {
+      control.regReadB := instruction.regM
+      control.busB := BusBValue.RegisterB
+      val shiftImmediate = instruction.immediate(6, 2)
+      val shiftKind = suppressEnumCastWarning { instruction.immediate(1, 0).asTypeOf(ShiftKind()) }
+      control.shiftImmediate := shiftImmediate
+      control.shiftKind := shiftKind
+    }
+    control.regReadA := instruction.regN
+    control.aluOpcode := Mux(flag_add, AluOpcode.add, AluOpcode.sub)
   }
 
 

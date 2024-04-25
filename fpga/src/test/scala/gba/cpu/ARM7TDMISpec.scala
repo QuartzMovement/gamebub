@@ -200,4 +200,83 @@ class ARM7TDMISpec extends AnyFunSuite {
       cpu.assertMemRead(24, BusTransactionType.Sequential)
     }
   }
+
+  def testLoad(instruction: Int, address: Int, base: Int): Unit = {
+    simulate(new ARM7TDMI) { dut =>
+      val cpu = new CpuHarness(dut)
+      cpu.copyMem(Array(
+        0xe3a00ffa, // 0x0000: mov r0, #1000
+        0xe3a04004, // 0x0004: mov r4, #4
+        instruction,
+        0xe3a02001, // 0x000C: mov r2, 1
+      ))
+      cpu.copyMem(Array(0xAABBCCDD, 0x11223344, 0x55667788), 996)
+      cpu.step(3)
+      cpu.step()
+      assert(cpu.reg(0) == 1000)
+      cpu.step()
+
+      // Load: compute address
+      cpu.assertMemRead(address, BusTransactionType.NonSequential)
+      // TODO: assert prot0 is 1(?) for data
+      cpu.step()
+
+      // Load: register writeback
+      cpu.assertMemRead(16, BusTransactionType.Internal)
+      cpu.step()
+      assert(cpu.reg(0) == base)
+
+      // Load: save the memory
+      cpu.assertMemRead(16, BusTransactionType.Sequential)
+      cpu.step()
+      address match {
+        case 996 => assert(cpu.reg(1) == 0xAABBCCDD)
+        case 1000 => assert(cpu.reg(1) == 0x11223344)
+        case 1004 => assert(cpu.reg(1) == 0x55667788)
+        case _ =>
+      }
+
+
+      cpu.step()
+      assert(cpu.reg(2) == 1)
+    }
+  }
+
+  test("load") {
+    testLoad(
+      instruction = 0xe5901000, // ldr r1, [r0]
+      address = 1000,
+      base = 1000,
+    )
+
+    testLoad(
+      instruction = 0xe5901004, // ldr r1, [r0, #4]
+      address = 1004,
+      base = 1000,
+    )
+
+    testLoad(
+      instruction = 0xe5b01004, // ldr r1, [r0, #4]!
+      address = 1004,
+      base = 1004,
+    )
+
+    testLoad(
+      instruction = 0xe5301004, // ldr r1, [r0, #-4]!
+      address = 996,
+      base = 996,
+    )
+
+    testLoad(
+      instruction = 0xe4901004, // ldr r1, [r0], #4
+      address = 1000,
+      base = 1004,
+    )
+
+    testLoad(
+      instruction = 0xe7901184, // ldr r1, [r0, r4, LSL #3]
+      address = 1032,
+      base = 1000,
+    )
+  }
 }
