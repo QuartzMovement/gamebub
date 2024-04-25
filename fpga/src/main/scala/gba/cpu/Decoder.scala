@@ -43,6 +43,8 @@ object InstructionKind extends ChiselEnum {
   val DataProcessingImm = Value
   val DataProcessingImmShift = Value
   val DataProcessingRegShift = Value
+  val Load = Value
+  val Store = Value
 }
 
 class DecodedInstruction extends Bundle {
@@ -129,7 +131,30 @@ class Decoder extends Module {
 
     when (in(27, 25) === "b000".U(3.W) && in(4) && in(7)) {
       // Multiply and additional loads/stores
-      // TODO
+      when (in(7, 4) === "b1001".U(4.W) && in(27, 23) === 0.U) {
+        // TODO Multiply [accumulate]
+      } .elsewhen (in(7, 4) === "b1001".U(4.W) && in(27, 23) === 1.U) {
+        // TODO Multiply [accumulate] long
+      } .elsewhen (in(7, 4) === "b1001".U(4.W) && in(27, 23) === 2.U) {
+        // TODO swap / swap byte
+      } .otherwise {
+        // Load/store halfword / byte
+        out.kind := Mux(in(20), InstructionKind.Load, InstructionKind.Store)
+        out.opcode := Mux(in(5), BusAccessWidth.Halfword, BusAccessWidth.Byte).asUInt
+        val writeback = !in(24) || in(21)  // (P == 0) || (W == 1)
+        // if P == 0 and W == 1 -> unpredictable (??)
+        out.flags := Cat(0.U(1.W), in(6), in(22), in(24), in(23), writeback)
+        out.regN := in(19, 16)
+        out.regD := in(15, 12)
+        when (in(22)) {
+          // [immediate (8)]
+          out.immediate := Cat(in(11, 8), in(3, 0))
+        } .otherwise {
+          // LSL by 0 ([shift imm][shift type(2)]
+          out.immediate := 0.U
+        }
+        out.regM := in(3, 0)
+      }
     } .elsewhen (in(27, 26) === "b00".U(2.W) && !(in(24, 23) === "b10".U(2.W) && !in(20))) {
       // ALU data processing instructions
       when (in(25)) {
@@ -152,6 +177,20 @@ class Decoder extends Module {
       out.flags := in(20) // [SetCond]
       out.regN := in(19, 16)
       out.regD := in(15, 12)
+    } .elsewhen (in(27, 26) === "b01".U(2.W)) {
+      // Load and store word or unsigned byte.
+      out.kind := Mux(in(20), InstructionKind.Load, InstructionKind.Store)
+      out.opcode := Mux(in(22), BusAccessWidth.Byte, BusAccessWidth.Word).asUInt
+      // flags: (user mode) (signed) (use immediate) (pre indexed) (*add* offset) (writeback to base)
+      //        (TSIPUW)
+      val userMode = !in(24) && in(21) // (P == 0) && (W == 1)
+      val writeback = !in(24) || in(21) // (P == 0) || (W == 1)
+      out.flags := Cat(userMode, 0.U(1.W), !in(25), in(24), in(23), writeback)
+      out.regN := in(19, 16)
+      out.regD := in(15, 12)
+      out.immediate := Mux(in(25), in(11, 5), in(11, 0))
+      // Immediate: [immediate (12)]
+      //         OR [shift imm][shift type (2)]
     }
   } .otherwise {
     // Thumb mode
