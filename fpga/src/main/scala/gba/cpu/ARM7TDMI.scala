@@ -27,6 +27,7 @@ class ARM7TDMI extends Module {
 
   val aBus = Wire(UInt(32.W))
   val bBus = Wire(UInt(32.W))
+  val cBus = Wire(UInt(32.W))
   val pcBus = Wire(UInt(32.W))
   val aluBus = Wire(UInt(32.W))
   val aluConditionOut = Wire(new ConditionFlags)
@@ -78,6 +79,7 @@ class ARM7TDMI extends Module {
   when (control.busB === BusBValue.RegisterB) {
     bBus := registers(control.regReadB)
   }
+  cBus := registers(control.regReadC)
   when (io.enable) {
     when (control.regWriteEnable) {
       printf(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x\n")
@@ -133,6 +135,17 @@ class ARM7TDMI extends Module {
       lastMemReadAlign := memAddrReg(1, 0)
       memReadDataReg := io.mem.RDATA
     }
+    when (control.latchMemWriteData) {
+      val writeData = cBus
+      printf(cf"latchMemWriteData: cBus= ${writeData}%x\n")
+      when (io.mem.SIZE === BusAccessWidth.Byte) {
+        memWriteDataReg := Fill(4, writeData(7, 0))
+      } .elsewhen (io.mem.SIZE === BusAccessWidth.Halfword) {
+        memWriteDataReg := Fill(2, writeData(15, 0))
+      } .otherwise {
+        memWriteDataReg := writeData
+      }
+    }
   }
   when (control.busB === BusBValue.MemReadData) {
     val readData = WireDefault(memReadDataReg)
@@ -172,9 +185,9 @@ class ARM7TDMI extends Module {
   io.mem.PROT.data := false.B
   io.mem.PROT.privileged := false.B
 
+  ////////////////////////////////////////// Debug /////////////////////////////////////////
   io.debug.registers := registers
   io.debug.cpsr := cpsr
-
   printf(cf" pc is ${pc}%x, addr is ${io.mem.ADDR}%x\n")
 }
 

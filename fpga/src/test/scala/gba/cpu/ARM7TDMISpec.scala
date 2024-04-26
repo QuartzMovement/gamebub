@@ -40,6 +40,7 @@ class ARM7TDMISpec extends AnyFunSuite {
         if (memWrite) {
           val memDataWrite = dut.io.mem.WDATA.peek().litValue
           System.err.println(f"Mem Write $seq: [0x$memAddress%X] <- 0x$memDataWrite%X | size=$memSize\n")
+          // TODO!
         } else {
           val readData = mem.lift(memAddress.toInt >> 2).getOrElse(0xffffffff)
           dut.io.mem.RDATA.poke(readData)
@@ -62,6 +63,16 @@ class ARM7TDMISpec extends AnyFunSuite {
       assert(dut.io.mem.ADDR.peek().litValue == address)
       assert(!dut.io.mem.WRITE.peek().litToBoolean)
       assert(dut.io.mem.TRANS.peekValue().asBigInt == trans.litValue)
+    }
+
+    def assertMemWrite(address: Int, trans: BusTransactionType.Type): Unit = {
+      assert(dut.io.mem.ADDR.peek().litValue == address)
+      assert(dut.io.mem.WRITE.peek().litToBoolean)
+      assert(dut.io.mem.TRANS.peekValue().asBigInt == trans.litValue)
+    }
+
+    def memWriteData(): Int = {
+      dut.io.mem.WDATA.peek().litValue.toInt
     }
 
     def reg(index: Int): Int = {
@@ -211,7 +222,7 @@ class ARM7TDMISpec extends AnyFunSuite {
       0xe3a00ffa, // 0x0000: mov r0, #1000
       0xe3a04004, // 0x0004: mov r4, #4
       instruction,
-      0xe3a02001, // 0x000C: mov r2, 1
+      0xe3a02001, // 0x000C: mov r2, #1
     ))
     cpu.copyMem(Array(0xAABBCCDD, 0x11223344, 0x55667788), 996)
     cpu.step(3)
@@ -361,6 +372,85 @@ class ARM7TDMISpec extends AnyFunSuite {
       testLoad(dut,
         instruction = 0xe15010f1, // ldrsh r1, [r0, #-1]
         data = 0xFFFFFFAA)
+    }
+  }
+
+  def testStore(
+                dut: ARM7TDMI,
+                instruction: Int,
+                address: Option[Int] = None,
+                data: Int,
+                base: Option[Int] = None
+              ): Unit = {
+    val cpu = new CpuHarness(dut)
+    cpu.copyMem(Array(
+      0xe3a00ffa, // 0x0000: mov r0, #1000
+      0xe3a01011, // 0x0004: mov r1, #0x11
+      0xe3811c22, // 0x0008: orr r1, r1, #0x2200
+      0xe3811833, // 0x000c: orr r1, r1, #0x330000
+      0xe3811311, // 0x0010: orr r1, r1, #0x44000000
+      0xe3a04004, // 0x0014: mov r4, #4
+      instruction,
+      0xe3a02001, // 0x001c: mov r2, #1
+      0xe3a02002, // 0x0020: mov r2, #2
+      0xe3a02003, // 0x0024: mov r2, #3
+    ))
+    cpu.copyMem(Array(0xAABBCCDD, 0x99887766, 0x55667788), 996)
+    cpu.step(3)
+    cpu.step(5)
+    assert(cpu.reg(1) == 0x44332211)
+    cpu.step()
+
+    // Store: compute address
+    if (address.isDefined) {
+      cpu.assertMemWrite(address.get, BusTransactionType.NonSequential)
+    }
+    // TODO: assert prot0 is 1(?) for data
+    cpu.step()
+    assert(cpu.memWriteData() == data)
+
+    // Store: base modification
+    cpu.assertMemRead(36, BusTransactionType.NonSequential)
+    cpu.step()
+    if (base.isDefined) {
+      assert(cpu.reg(0) == base.get)
+    }
+
+    cpu.step()
+    assert(cpu.reg(2) == 1)
+
+    cpu.step()
+    assert(cpu.reg(2) == 2)
+
+    cpu.step()
+    assert(cpu.reg(2) == 3)
+  }
+
+  test("store") {
+    simulate(new ARM7TDMI) { dut =>
+      testStore(dut,
+        instruction = 0xe5801000, // str r1, [r0]
+        address = Some(1000),
+        data = 0x44332211,
+        base = Some(1000),
+      )
+
+      testStore(dut,
+        instruction = 0xE5A00004, // str r0, [r0, #4]!
+        address = Some(1004),
+        data = 1000,
+        base = Some(1004),
+      )
+
+      testStore(dut,
+        instruction = 0xe5c01000, // strb r1, [r0]
+        data = 0x11111111,
+      )
+
+      testStore(dut,
+        instruction = 0xe1c010b0, // strh r1, [r0]
+        data = 0x22112211,
+      )
     }
   }
 }

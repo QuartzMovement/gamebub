@@ -32,6 +32,7 @@ class ControlSignals extends Bundle {
 
   val regReadA = UInt(4.W)
   val regReadB = UInt(4.W)
+  val regReadC = UInt(4.W)
   val regWriteIndex = UInt(4.W)
   val regWriteEnable = Bool()
   val updateConditionCodes = Bool()
@@ -50,6 +51,7 @@ class ControlSignals extends Bundle {
   val memWidth = BusAccessWidth()
   val memProt = new BusProtectionType
   val latchMemReadData = Bool()
+  val latchMemWriteData = Bool()
   val memReadDataSigned = Bool()
 }
 
@@ -91,6 +93,7 @@ class Control extends Module {
   control.addressSource := AddressSource.Same
   control.regReadA := DontCare
   control.regReadB := DontCare
+  control.regReadC := DontCare
   control.regWriteIndex := DontCare
   control.regWriteEnable := false.B
   control.updateConditionCodes := false.B
@@ -107,6 +110,7 @@ class Control extends Module {
   control.memProt.privileged := false.B // TODO
   control.memProt.data := false.B
   control.latchMemReadData := false.B
+  control.latchMemWriteData := false.B
   control.memReadDataSigned := DontCare
 
   printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}\n")
@@ -218,7 +222,6 @@ class Control extends Module {
             control.memWrite := false.B
             control.memWidth := width
             control.memProt.data := true.B
-            control.addressSource := AddressSource.Alu
             advanceStage()
           }
           is (1.U) {
@@ -248,6 +251,53 @@ class Control extends Module {
             } .otherwise {
               completePrefetch()
             }
+          }
+        }
+      }
+      is (InstructionKind.Store) {
+        val width = suppressEnumCastWarning { instruction.opcode(1, 0).asTypeOf(BusAccessWidth()) }
+        val flag_user = instruction.flags(5) // TODO
+        val flag_immediate = instruction.flags(3)
+        val flag_preindex = instruction.flags(2)
+        val flag_add = instruction.flags(1)
+        val flag_writeback = instruction.flags(0)
+
+        switch (stage) {
+          is (0.U) {
+            // Calculate address, initiate access
+            // XXX: if base addr regN is the same as store regD, the stored data is *pre* writeback
+            when (flag_preindex) {
+              setAluLoadStoreAddress()
+            } .otherwise {
+              control.regReadB := instruction.regN
+              control.busB := BusBValue.RegisterB
+              control.aluOpcode := AluOpcode.mov
+            }
+            control.addressSource := AddressSource.Alu
+
+            // XXX: is there a way to do this without adding a third register read port?
+            control.regReadC := instruction.regD
+            control.latchMemWriteData := true.B
+
+            control.memTransaction := BusTransactionType.NonSequential
+            control.memWrite := true.B
+            control.memWidth := width
+            control.memProt.data := true.B
+            control.pcNext := PcNext.Incrementer
+            advanceStage()
+          }
+          is (1.U) {
+            // Base modification
+            when (flag_writeback) {
+              setAluLoadStoreAddress()
+              control.regWriteIndex := instruction.regN
+              control.regWriteEnable := true.B
+            }
+
+            nextInstruction()
+            control.memTransaction := BusTransactionType.NonSequential
+            control.pcNext := PcNext.Same
+            control.addressSource := AddressSource.Pc
           }
         }
       }
