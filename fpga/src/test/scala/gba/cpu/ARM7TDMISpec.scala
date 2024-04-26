@@ -32,9 +32,8 @@ class ARM7TDMISpec extends AnyFunSuite {
       dut.clock.step()
 
       // TODO verify bursts are valid
-      // TODO support non-32-bit load/store
-      // TODO support stores
-      // TODO verify addresses are aligned properly
+      // TODO support stores (8, 16, or 32 bit)
+      // Note: addresses are not necessarily aligned, they are aligned by memory controller.
 
       if (memTrans == BusTransactionType.Sequential.litValue || memTrans == BusTransactionType.NonSequential.litValue) {
         val seq = if (memTrans == BusTransactionType.Sequential.litValue) "   Seq" else "NonSeq"
@@ -200,7 +199,13 @@ class ARM7TDMISpec extends AnyFunSuite {
     }
   }
 
-  def testLoad(dut: ARM7TDMI, instruction: Int, address: Int, base: Int): Unit = {
+  def testLoad(
+                dut: ARM7TDMI,
+                instruction: Int,
+                address: Option[Int] = None,
+                data: Int,
+                base: Option[Int] = None
+              ): Unit = {
     val cpu = new CpuHarness(dut)
     cpu.copyMem(Array(
       0xe3a00ffa, // 0x0000: mov r0, #1000
@@ -215,25 +220,23 @@ class ARM7TDMISpec extends AnyFunSuite {
     cpu.step()
 
     // Load: compute address
-    cpu.assertMemRead(address, BusTransactionType.NonSequential)
+    if (address.isDefined) {
+      cpu.assertMemRead(address.get, BusTransactionType.NonSequential)
+    }
     // TODO: assert prot0 is 1(?) for data
     cpu.step()
 
     // Load: register writeback
     cpu.assertMemRead(16, BusTransactionType.Internal)
     cpu.step()
-    assert(cpu.reg(0) == base)
+    if (base.isDefined) {
+      assert(cpu.reg(0) == base.get)
+    }
 
     // Load: save the memory
     cpu.assertMemRead(16, BusTransactionType.Sequential)
     cpu.step()
-    address match {
-      case 996 => assert(cpu.reg(1) == 0xAABBCCDD)
-      case 1000 => assert(cpu.reg(1) == 0x11223344)
-      case 1004 => assert(cpu.reg(1) == 0x55667788)
-      case _ =>
-    }
-
+    assert(cpu.reg(1) == data)
 
     cpu.step()
     assert(cpu.reg(2) == 1)
@@ -241,47 +244,123 @@ class ARM7TDMISpec extends AnyFunSuite {
 
   test("load") {
     simulate(new ARM7TDMI) { dut =>
-      testLoad(
-        dut,
+      // Load word with various addressing modes.
+      testLoad(dut,
         instruction = 0xe5901000, // ldr r1, [r0]
-        address = 1000,
-        base = 1000,
+        address = Some(1000),
+        data = 0x11223344,
+        base = Some(1000),
       )
-
-      testLoad(
-        dut,
+      testLoad(dut,
         instruction = 0xe5901004, // ldr r1, [r0, #4]
-        address = 1004,
-        base = 1000,
+        address = Some(1004),
+        data = 0x55667788,
+        base = Some(1000),
       )
-
-      testLoad(
-        dut,
+      testLoad(dut,
         instruction = 0xe5b01004, // ldr r1, [r0, #4]!
-        address = 1004,
-        base = 1004,
+        address = Some(1004),
+        data = 0x55667788,
+        base = Some(1004),
       )
-
-      testLoad(
-        dut,
+      testLoad(dut,
         instruction = 0xe5301004, // ldr r1, [r0, #-4]!
-        address = 996,
-        base = 996,
+        address = Some(996),
+        data = 0xAABBCCDD,
+        base = Some(996),
       )
-
-      testLoad(
-        dut,
+      testLoad(dut,
         instruction = 0xe4901004, // ldr r1, [r0], #4
-        address = 1000,
-        base = 1004,
+        address = Some(1000),
+        data = 0x11223344,
+        base = Some(1004),
+      )
+      testLoad(dut,
+        instruction = 0xe7901184, // ldr r1, [r0, r4, LSL #3]
+        address = Some(1032),
+        data = 0x0,
+        base = Some(1000),
       )
 
-      testLoad(
-        dut,
-        instruction = 0xe7901184, // ldr r1, [r0, r4, LSL #3]
-        address = 1032,
-        base = 1000,
-      )
+      // Load byte unsigned
+      testLoad(dut,
+        instruction = 0xe5d01000, // ldrb r1, [r0, #0]
+        data = 0x44)
+      testLoad(dut,
+        instruction = 0xe5d01001, // ldrb r1, [r0, #1]
+        data = 0x33)
+      testLoad(dut,
+        instruction = 0xe5d01002, // ldrb r1, [r0, #2]
+        data = 0x22)
+      testLoad(dut,
+        instruction = 0xe5d01003, // ldrb r1, [r0, #3]
+        data = 0x11)
+
+      // Load byte signed
+      testLoad(dut,
+        instruction = 0xe1d010d0, // ldrsb r1, [r0, #0]
+        data = 0x44)
+      testLoad(dut,
+        instruction = 0xe1d010d1, // ldrsb r1, [r0, #1]
+        data = 0x33)
+      testLoad(dut,
+        instruction = 0xe1d010d2, // ldrsb r1, [r0, #2]
+        data = 0x22)
+      testLoad(dut,
+        instruction = 0xe1d010d3, // ldrsb r1, [r0, #3]
+        data = 0x11)
+      testLoad(dut,
+        instruction = 0xe15010d4, // ldrsb r1, [r0, #-4]
+        data = 0xFFFFFFDD)
+      testLoad(dut,
+        instruction = 0xe15010d3, // ldrsb r1, [r0, #-3]
+        data = 0xFFFFFFCC)
+      testLoad(dut,
+        instruction = 0xe15010d2, // ldrsb r1, [r0, #-2]
+        data = 0xFFFFFFBB)
+      testLoad(dut,
+        instruction = 0xe15010d1, // ldrsb r1, [r0, #-1]
+        data = 0xFFFFFFAA)
+
+      // Load halfword unsigned
+      testLoad(dut,
+        instruction = 0xe1d010b0, // ldrh r1, [r0, #0]
+        data = 0x3344)
+      testLoad(dut,
+        instruction = 0xe1d010b1, // ldrh r1, [r0, #0]
+        data = 0x44000033)
+      testLoad(dut,
+        instruction = 0xe1d010b2, // ldrh r1, [r0, #2]
+        data = 0x1122)
+      testLoad(dut,
+        instruction = 0xe1d010b3, // ldrh r1, [r0, #0]
+        data = 0x22000011)
+
+      // Load halfword signed
+      testLoad(dut,
+        instruction = 0xe1d010f0, // ldrsh r1, [r0, #0]
+        data = 0x3344)
+      testLoad(dut,
+        instruction = 0xe1d010f1, // ldrsh r1, [r0, #1]
+        data = 0x33)
+      testLoad(dut,
+        instruction = 0xe1d010f2, // ldrsh r1, [r0, #2]
+        data = 0x1122)
+      testLoad(dut,
+        instruction = 0xe1d010f3, // ldrsh r1, [r0, #3]
+        data = 0x11)
+      testLoad(dut,
+        instruction = 0xe15010f4, // ldrsh r1, [r0, #-4]
+        data = 0xFFFFCCDD)
+      testLoad(dut,
+        instruction = 0xe15010f3, // ldrsh r1, [r0, #-3]
+        data = 0xFFFFFFCC)
+      testLoad(dut,
+        instruction = 0xe15010f2, // ldrsh r1, [r0, #-2]
+        data = 0xFFFFAABB)
+      testLoad(dut,
+        instruction = 0xe15010f1, // ldrsh r1, [r0, #-1]
+        data = 0xFFFFFFAA)
     }
   }
 }

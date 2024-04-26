@@ -116,6 +116,9 @@ class ARM7TDMI extends Module {
   incrementerBus := memAddrReg + 4.U // TODO: use current access size
 
   ///////////////////////////////////////// IO Port ////////////////////////////////////////
+  val currentMemReadWidth = Reg(BusAccessWidth())
+  val lastMemReadWidth = Reg(BusAccessWidth())
+  val lastMemReadAlign = Reg(UInt(2.W))
   io.mem.ADDR := memAddrReg
   switch (control.addressSource) {
     is (AddressSource.Incrementer) { io.mem.ADDR := incrementerBus }
@@ -124,12 +127,41 @@ class ARM7TDMI extends Module {
   }
   when (io.enable) {
     memAddrReg := io.mem.ADDR
+    currentMemReadWidth := io.mem.SIZE
     when (control.latchMemReadData) {
+      lastMemReadWidth := currentMemReadWidth
+      lastMemReadAlign := memAddrReg(1, 0)
       memReadDataReg := io.mem.RDATA
     }
   }
   when (control.busB === BusBValue.MemReadData) {
-    bBus := memReadDataReg
+    val readData = WireDefault(memReadDataReg)
+    bBus := readData
+    shifter.io.shiftAmount := lastMemReadAlign << 3
+
+    // For halfword and byte loads, mask out / sign extend bits.
+    val maskValue = WireDefault(0.U(8.W))
+    when (control.memReadDataSigned) {
+      val signByte = Mux(
+        lastMemReadWidth === BusAccessWidth.Halfword,
+        lastMemReadAlign | 1.U,
+        lastMemReadAlign,
+      )
+      maskValue := Fill(8, memReadDataReg(Cat(signByte, "b111".U(3.W))))
+    }
+    when (lastMemReadWidth === BusAccessWidth.Byte) {
+      readData := Cat(
+        Mux(lastMemReadAlign === 3.U, memReadDataReg(31, 24), maskValue),
+        Mux(lastMemReadAlign === 2.U, memReadDataReg(23, 16), maskValue),
+        Mux(lastMemReadAlign === 1.U, memReadDataReg(15, 8), maskValue),
+        Mux(lastMemReadAlign === 0.U, memReadDataReg(7, 0), maskValue),
+      )
+    } .elsewhen (lastMemReadWidth === BusAccessWidth.Halfword) {
+      readData := Cat(
+        Mux(lastMemReadAlign(1), memReadDataReg(31, 16), Fill(2, maskValue)),
+        Mux(!lastMemReadAlign(1), memReadDataReg(15, 0), Fill(2, maskValue)),
+      )
+    }
   }
 
   io.mem.WDATA := memWriteDataReg

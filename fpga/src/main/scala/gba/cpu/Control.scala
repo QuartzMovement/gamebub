@@ -50,6 +50,7 @@ class ControlSignals extends Bundle {
   val memWidth = BusAccessWidth()
   val memProt = new BusProtectionType
   val latchMemReadData = Bool()
+  val memReadDataSigned = Bool()
 }
 
 /// Control unit
@@ -106,6 +107,7 @@ class Control extends Module {
   control.memProt.privileged := false.B // TODO
   control.memProt.data := false.B
   control.latchMemReadData := false.B
+  control.memReadDataSigned := DontCare
 
   printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}\n")
   when (execute) {
@@ -200,8 +202,6 @@ class Control extends Module {
         val flag_add = instruction.flags(1)
         val flag_writeback = instruction.flags(0)
 
-        printf(cf"load: user=${flag_user}, sign=${flag_signed}, immediate=${flag_immediate}, preindex=${flag_preindex}, add=${flag_add}, writeback=${flag_writeback}\n")
-
         switch (stage) {
           is (0.U) {
             // Calculate address, initiate access
@@ -236,10 +236,11 @@ class Control extends Module {
             advanceStage()
           }
           is (2.U) {
-            // TODO: handle memory size, signedness
             // Write the loaded data to the register.
             control.busB := BusBValue.MemReadData
+            control.memReadDataSigned := flag_signed
             control.aluOpcode := AluOpcode.mov
+            control.shiftKind := Mux(flag_signed, ShiftKind.ArithmeticShiftRight, ShiftKind.RotateRight)
             control.regWriteIndex := instruction.regD
             control.regWriteEnable := true.B
             when (instruction.regD === 15.U) {
@@ -252,7 +253,7 @@ class Control extends Module {
       }
     }
   } .otherwise {
-    // TODO unexecuted instruction
+    // Unexecuted instruction
     nextInstruction()
   }
 
