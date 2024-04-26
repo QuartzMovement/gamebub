@@ -222,6 +222,7 @@ class Control extends Module {
             control.memWrite := false.B
             control.memWidth := width
             control.memProt.data := true.B
+            control.pcNext := PcNext.Incrementer
             advanceStage()
           }
           is (1.U) {

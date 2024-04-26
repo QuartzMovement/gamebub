@@ -223,6 +223,8 @@ class ARM7TDMISpec extends AnyFunSuite {
       0xe3a04004, // 0x0004: mov r4, #4
       instruction,
       0xe3a02001, // 0x000C: mov r2, #1
+      0xe3a02002, // 0x0010: mov r2, #2
+      0xe3a02003, // 0x0014: mov r2, #3
     ))
     cpu.copyMem(Array(0xAABBCCDD, 0x11223344, 0x55667788), 996)
     cpu.step(3)
@@ -238,19 +240,25 @@ class ARM7TDMISpec extends AnyFunSuite {
     cpu.step()
 
     // Load: register writeback
-    cpu.assertMemRead(16, BusTransactionType.Internal)
+    cpu.assertMemRead(20, BusTransactionType.Internal)
     cpu.step()
     if (base.isDefined) {
       assert(cpu.reg(0) == base.get)
     }
 
     // Load: save the memory
-    cpu.assertMemRead(16, BusTransactionType.Sequential)
+    cpu.assertMemRead(20, BusTransactionType.Sequential)
     cpu.step()
     assert(cpu.reg(1) == data)
 
     cpu.step()
     assert(cpu.reg(2) == 1)
+
+    cpu.step()
+    assert(cpu.reg(2) == 2)
+
+    cpu.step()
+    assert(cpu.reg(2) == 3)
   }
 
   test("load") {
