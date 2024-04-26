@@ -461,4 +461,74 @@ class ARM7TDMISpec extends AnyFunSuite {
       )
     }
   }
+
+  test("swap") {
+    simulate(new ARM7TDMI) { dut =>
+      def testSwap(instruction: Int, rd: Int, storeData: Int, loadData: Int): Unit = {
+        val cpu = new CpuHarness(dut)
+        cpu.copyMem(Array(
+          0xe3a00ffa, // 0x0000: mov r0, #1000
+          0xe3a01011, // 0x0004: mov r1, #0x11
+          0xe3811c22, // 0x0008: orr r1, r1, #0x2200
+          0xe3811833, // 0x000c: orr r1, r1, #0x330000
+          0xe3811311, // 0x0010: orr r1, r1, #0x44000000
+          instruction,
+          0xe3a02001, // 0x0018: mov r2, #1
+          0xe3a02002, // 0x001c: mov r2, #2
+          0xe3a02003, // 0x0020: mov r2, #3
+        ))
+        cpu.copyMem(Array(0xAABBCCDD), 1000)
+        cpu.step(3)
+        cpu.step(5)
+
+        // Swap: load
+        // TODO assert "LOCK" is set (and PROT is data)
+        cpu.assertMemRead(1000, BusTransactionType.NonSequential)
+        cpu.step()
+
+        // Swap: store
+        // TODO assert "LOCK" is set (and PROT is data)
+        cpu.assertMemWrite(1000, BusTransactionType.NonSequential)
+        cpu.step()
+        assert(cpu.memWriteData() == storeData)
+
+        // Swap: write-back to register
+        cpu.assertMemRead(0x20 /* pc + 12 */ , BusTransactionType.Internal)
+        cpu.step()
+
+        // Swap: prefetch?
+        cpu.assertMemRead(0x20 /* pc + 12 */ , BusTransactionType.Sequential)
+        cpu.step()
+        assert(cpu.reg(rd) == loadData)
+
+        cpu.step()
+        assert(cpu.reg(2) == 1)
+        cpu.step()
+        assert(cpu.reg(2) == 2)
+        cpu.step()
+        assert(cpu.reg(2) == 3)
+      }
+
+      testSwap(
+        0xe1002091, // swp r2, r1, [r0]
+        rd = 2,
+        storeData = 0x44332211,
+        loadData = 0xAABBCCDD,
+      )
+
+      testSwap(
+        0xe1001091, // swp r1, r1, [r0]
+        rd = 1,
+        storeData = 0x44332211,
+        loadData = 0xAABBCCDD,
+      )
+
+      testSwap(
+        0xe1402091, // swp r2, r1, [r0]
+        rd = 2,
+        storeData = 0x11111111,
+        loadData = 0xDD,
+      )
+    }
+  }
 }

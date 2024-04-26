@@ -45,6 +45,7 @@ object InstructionKind extends ChiselEnum {
   val DataProcessingRegShift = Value
   val Load = Value
   val Store = Value
+  val Swap = Value
 }
 
 class DecodedInstruction extends Bundle {
@@ -136,7 +137,11 @@ class Decoder extends Module {
       } .elsewhen (in(7, 4) === "b1001".U(4.W) && in(27, 23) === 1.U) {
         // TODO Multiply [accumulate] long
       } .elsewhen (in(7, 4) === "b1001".U(4.W) && in(27, 23) === 2.U) {
-        // TODO swap / swap byte
+        out.kind := InstructionKind.Swap
+        out.opcode := Mux(in(22), BusAccessWidth.Byte, BusAccessWidth.Word).asUInt
+        out.regN := in(19, 16)
+        out.regD := in(15, 12)
+        out.regM := in(3, 0)
       } .otherwise {
         // Load/store halfword / byte
         out.kind := Mux(in(20), InstructionKind.Load, InstructionKind.Store)

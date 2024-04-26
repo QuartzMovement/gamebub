@@ -50,6 +50,7 @@ class ControlSignals extends Bundle {
   val memWrite = Bool()
   val memWidth = BusAccessWidth()
   val memProt = new BusProtectionType
+  val memLock = Bool()
   val latchMemReadData = Bool()
   val latchMemWriteData = Bool()
   val memReadDataSigned = Bool()
@@ -109,6 +110,7 @@ class Control extends Module {
   control.memTransaction := BusTransactionType.Internal
   control.memProt.privileged := false.B // TODO
   control.memProt.data := false.B
+  control.memLock := false.B
   control.latchMemReadData := false.B
   control.latchMemWriteData := false.B
   control.memReadDataSigned := DontCare
@@ -299,6 +301,57 @@ class Control extends Module {
             control.memTransaction := BusTransactionType.NonSequential
             control.pcNext := PcNext.Same
             control.addressSource := AddressSource.Pc
+          }
+        }
+      }
+      is (InstructionKind.Swap) {
+        val width = suppressEnumCastWarning { instruction.opcode(1, 0).asTypeOf(BusAccessWidth()) }
+
+        switch (stage) {
+          is (0.U) {
+            // Start load from Rn
+            control.regReadB := instruction.regN
+            control.busB := BusBValue.RegisterB
+            control.aluOpcode := AluOpcode.mov
+            control.addressSource := AddressSource.Alu
+            control.memTransaction := BusTransactionType.NonSequential
+            control.memWrite := false.B
+            control.memWidth := width
+            control.memProt.data := true.B
+            control.memLock := true.B
+            control.pcNext := PcNext.Incrementer
+            advanceStage()
+          }
+          is (1.U) {
+            // Latch loaded data, start store to Rn (with Rm)
+            control.latchMemReadData := true.B
+            // XXX: this *could* go over bus B
+            control.regReadC := instruction.regM
+            control.latchMemWriteData := true.B
+
+            control.addressSource := AddressSource.Same
+            control.memTransaction := BusTransactionType.NonSequential
+            control.memWrite := true.B
+            control.memWidth := width
+            control.memProt.data := true.B
+            control.memLock := true.B
+            advanceStage()
+          }
+          is (2.U) {
+            // Wait for the store... start merged I-S cycle
+            beginPrefetch()
+            control.addressSource := AddressSource.Pc
+            control.pcNext := PcNext.Same
+            advanceStage()
+          }
+          is (3.U) {
+            // Write the loaded data to the register.
+            control.busB := BusBValue.MemReadData
+            control.aluOpcode := AluOpcode.mov
+            control.shiftKind := ShiftKind.RotateRight
+            control.regWriteIndex := instruction.regD
+            control.regWriteEnable := true.B
+            completePrefetch()
           }
         }
       }

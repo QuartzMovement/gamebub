@@ -181,9 +181,8 @@ class ARM7TDMI extends Module {
   io.mem.WRITE := control.memWrite
   io.mem.SIZE := control.memWidth
   io.mem.TRANS := control.memTransaction
-  io.mem.LOCK := false.B
-  io.mem.PROT.data := false.B
-  io.mem.PROT.privileged := false.B
+  io.mem.LOCK := control.memLock
+  io.mem.PROT := control.memProt
 
   ////////////////////////////////////////// Debug /////////////////////////////////////////
   io.debug.registers := registers
