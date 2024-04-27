@@ -132,28 +132,18 @@ class Control extends Module {
       }
       is (InstructionKind.DataProcessingImm) {
         // Rd := Alu(Rn, Imm)
-        control.regReadA := instruction.regN
-        control.aluOpcode := instruction.opcode.asTypeOf(AluOpcode())
         control.shiftKind := ShiftKind.RotateRight
         control.shiftImmediate := instruction.immediate(11, 8) << 1
         control.immediate := instruction.immediate(7, 0)
         control.busB := BusBValue.Immediate
-        control.regWriteIndex := instruction.regD
-        control.regWriteEnable := true.B
-        control.cpsrUpdateCond := instruction.flags(0)
-        when (instruction.regD === 15.U) {
-          flushPipeline()
-        } .otherwise {
-          nextInstruction()
-        }
+        finishDataProcessing()
       }
       is (InstructionKind.DataProcessingImmShift) {
         // Rd := Alu(Rn, Rm shift Imm)
         val shiftImmediate = instruction.immediate(6, 2)
         val shiftKind = suppressEnumCastWarning { instruction.immediate(1, 0).asTypeOf(ShiftKind()) }
-        control.regReadA := instruction.regN
         control.regReadB := instruction.regM
-        control.aluOpcode := instruction.opcode.asTypeOf(AluOpcode())
+        control.busB := BusBValue.RegisterB
         control.shiftKind := shiftKind
         control.shiftImmediate := shiftImmediate
         when (shiftImmediate === 0.U) {
@@ -168,15 +158,7 @@ class Control extends Module {
             }
           }
         }
-        control.busB := BusBValue.RegisterB
-        control.regWriteIndex := instruction.regD
-        control.regWriteEnable := true.B
-        control.cpsrUpdateCond := instruction.flags(0)
-        when (instruction.regD === 15.U) {
-          flushPipeline()
-        } .otherwise {
-          nextInstruction()
-        }
+        finishDataProcessing()
       }
       is (InstructionKind.DataProcessingRegShift) {
         switch (stage) {
@@ -189,20 +171,11 @@ class Control extends Module {
           is (1.U) {
             // Rd := Alu(Rn, Rm shift Imm)
             val shiftKind = suppressEnumCastWarning { instruction.immediate(1, 0).asTypeOf(ShiftKind()) }
-            control.regReadA := instruction.regN
             control.regReadB := instruction.regM
-            control.aluOpcode := instruction.opcode.asTypeOf(AluOpcode())
+            control.busB := BusBValue.RegisterB
             control.shiftKind := shiftKind
             control.shiftUseLatched := true.B
-            control.busB := BusBValue.RegisterB
-            control.regWriteIndex := instruction.regD
-            control.regWriteEnable := true.B
-            control.cpsrUpdateCond := instruction.flags(0)
-            when (instruction.regD === 15.U) {
-              flushPipeline()
-            } .otherwise {
-              completePrefetch()
-            }
+            finishDataProcessing(didPrefetch = true)
           }
         }
       }
@@ -465,6 +438,24 @@ class Control extends Module {
     control.aluOpcode := Mux(flag_add, AluOpcode.add, AluOpcode.sub)
   }
 
+  // Complete a data processing instruction
+  private def finishDataProcessing(didPrefetch: Boolean = false): Unit = {
+    control.regReadA := instruction.regN
+    control.aluOpcode := instruction.opcode.asTypeOf(AluOpcode())
+    control.regWriteIndex := instruction.regD
+    control.regWriteEnable := true.B
+    control.cpsrUpdateCond := instruction.flags(0)
+    when (instruction.regD === 15.U) {
+      flushPipeline()
+      // TODO if 'S' flag is set, (CPSR := SPSR)
+    } .otherwise {
+      if (didPrefetch) {
+        completePrefetch()
+      } else {
+        nextInstruction()
+      }
+    }
+  }
 
   private def beginPrefetch(): Unit = {
     control.pcNext := PcNext.Incrementer
