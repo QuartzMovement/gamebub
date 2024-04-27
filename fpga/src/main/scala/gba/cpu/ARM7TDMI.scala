@@ -55,11 +55,10 @@ class ARM7TDMI extends Module {
 
   ///////////////////////////////////// Register File //////////////////////////////////////
   // TODO add banked registers
-  // TODO add SPSR registers
   val registers = RegInit(VecInit(Seq.fill(15)(0.U(32.W)) ++ Seq("hFFFFFFFC".U(32.W))))
   val cpsr = RegInit((new ProgramStatusRegister).Lit(
     // TODO: should be Supervisor mode
-    _.mode -> CpuMode.User,
+    _.mode -> CpuMode.System,
     _.thumb -> false.B,
     _.irqDisable -> true.B,
     _.fiqDisable -> true.B,
@@ -71,6 +70,9 @@ class ARM7TDMI extends Module {
       _.v -> false.B,
     ),
   ))
+  val spsr = Reg(new ProgramStatusRegister)
+  val modeHasSpsr = false.B // TODO
+
   controlUnit.io.currentStatus := cpsr
   cpsrBus := cpsr
   val pc = registers(15)
@@ -78,11 +80,14 @@ class ARM7TDMI extends Module {
   aBus := registers(control.regReadA)
   when (control.busB === BusBValue.RegisterB) {
     bBus := registers(control.regReadB)
+  } .elsewhen (control.busB === BusBValue.Cpsr) {
+    bBus := cpsr.asUInt
+  } .elsewhen (control.busB === BusBValue.Spsr) {
+    bBus := spsr.asUInt
   }
   cBus := registers(control.regReadC)
   when (io.enable) {
     when (control.regWriteEnable) {
-      printf(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x\n")
       registers(control.regWriteIndex) := aluBus
     }
     when (control.cpsrUpdateCond) {
@@ -90,6 +95,24 @@ class ARM7TDMI extends Module {
     }
     when (control.cpsrUpdateThumb) {
       cpsr.thumb := aBus(0)
+    }
+    when (control.cpsrUpdateFields(0) && cpsr.mode =/= CpuMode.User) {
+      cpsr.mode := suppressEnumCastWarning { aluBus(4, 0).asTypeOf(CpuMode()) }
+      cpsr.thumb := aluBus(5)
+      cpsr.fiqDisable := aluBus(6)
+      cpsr.irqDisable := aluBus(7)
+    }
+    when (control.cpsrUpdateFields(1)) {
+      cpsr.cond := aluBus(31, 28).asTypeOf(new ConditionFlags)
+    }
+    when (control.spsrUpdateFields(0) && modeHasSpsr) {
+      spsr.mode := suppressEnumCastWarning { aluBus(4, 0).asTypeOf(CpuMode()) }
+      spsr.thumb := aluBus(5)
+      spsr.fiqDisable := aluBus(6)
+      spsr.irqDisable := aluBus(7)
+    }
+    when (control.spsrUpdateFields(1) && modeHasSpsr) {
+      spsr.cond := aluBus(31, 28).asTypeOf(new ConditionFlags)
     }
     switch (control.pcNext) {
       is (PcNext.Incrementer) { pc := incrementerBus }

@@ -610,4 +610,40 @@ class ARM7TDMISpec extends AnyFunSuite {
       // TODO: check more once Thumb is implemented
     }
   }
+
+  test("move to/from cpsr") {
+    simulate(new ARM7TDMI) { dut =>
+      val cpu = new CpuHarness(dut)
+      cpu.copyMem(Array(
+        0xe1500000, // 0x0000: cmp r0, r0
+        0xe10f1000, // 0x0004: mrs r1, cpsr
+        0xe328f203, // 0x0008: msr cpsr_f, #0x30000000
+        0x63822001, // 0x000c: orrvs r2, #1
+        0x23822002, // 0x0010: orrcs r2, #2
+        0x03822004, // 0x0014: orreq r2, #4
+        0x43822008, // 0x0018: orrmi r2, #8
+        0xe3a03209, // 0x001c: mov r3, #0x90000000
+        0xe128f003, // 0x0020: msr cpsr_f, r3
+        0x63844001, // 0x0024: orrvs r4, #1
+        0x23844002, // 0x0028: orrcs r4, #2
+        0x03844004, // 0x002c: orreq r4, #4
+        0x43844008, // 0x0030: orrmi r4, #8
+      ))
+      cpu.step(3)
+
+      cpu.step()
+
+      // MRS
+      cpu.step()
+      assert(cpu.reg(1) == 0x400000DF) // Note: last 'F' means system mode
+
+      // MSR (immediate)
+      cpu.step(5)
+      assert(cpu.reg(2) == 3)
+
+      // MSR (reg)
+      cpu.step(6)
+      assert(cpu.reg(4) == 9)
+    }
+  }
 }

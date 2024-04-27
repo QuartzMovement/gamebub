@@ -20,6 +20,8 @@ object BusBValue extends ChiselEnum {
   val RegisterB = Value
   val Immediate = Value
   val MemReadData = Value
+  val Cpsr = Value
+  val Spsr = Value
 }
 
 class ControlSignals extends Bundle {
@@ -37,6 +39,8 @@ class ControlSignals extends Bundle {
   val regWriteEnable = Bool()
   val cpsrUpdateCond = Bool()
   val cpsrUpdateThumb = Bool()
+  val cpsrUpdateFields = UInt(2.W)
+  val spsrUpdateFields = UInt(2.W)
 
   val busB = BusBValue()
   val immediate = UInt(32.W)
@@ -98,6 +102,8 @@ class Control extends Module {
   control.regWriteEnable := false.B
   control.cpsrUpdateCond := false.B
   control.cpsrUpdateThumb := false.B
+  control.cpsrUpdateFields := 0.U
+  control.spsrUpdateFields := 0.U
   control.busB := DontCare
   control.immediate := DontCare
   control.aluOpcode := DontCare
@@ -401,6 +407,35 @@ class Control extends Module {
             nextInstruction()
           }
         }
+      }
+      is (InstructionKind.MoveFromStatusRegister) {
+        val flag_spsr = instruction.flags(0)
+        control.busB := Mux(flag_spsr, BusBValue.Spsr, BusBValue.Cpsr)
+        control.aluOpcode := AluOpcode.mov
+        control.regWriteIndex := instruction.regD
+        control.regWriteEnable := true.B
+        nextInstruction()
+        // XXX: if target is R15, is the pipeline flushed or not?
+      }
+      is (InstructionKind.MoveToStatusRegister) {
+        val flag_spsr = instruction.flags(0)
+        val flag_immediate = instruction.flags(1)
+        when (flag_immediate) {
+          control.shiftKind := ShiftKind.RotateRight
+          control.shiftImmediate := instruction.immediate(11, 8) << 1
+          control.immediate := instruction.immediate(7, 0)
+          control.busB := BusBValue.Immediate
+        } .otherwise {
+          control.busB := BusBValue.RegisterB
+          control.regReadB := instruction.regM
+        }
+        control.aluOpcode := AluOpcode.mov
+        when (flag_spsr) {
+          control.spsrUpdateFields := Cat(instruction.opcode(3), instruction.opcode(0))
+        } .otherwise {
+          control.cpsrUpdateFields := Cat(instruction.opcode(3), instruction.opcode(0))
+        }
+        nextInstruction()
       }
     }
   } .otherwise {
