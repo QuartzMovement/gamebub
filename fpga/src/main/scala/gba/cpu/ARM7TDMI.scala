@@ -74,8 +74,10 @@ class ARM7TDMI extends Module {
   val spsr = Reg(new ProgramStatusRegister)
   val modeHasSpsr = false.B // TODO
   val modePrivileged = cpsr.mode =/= CpuMode.User
+  val nextCpsr = WireDefault(cpsr)
 
   controlUnit.io.currentStatus := cpsr
+  controlUnit.io.nextStatus := nextCpsr
   cpsrBus := cpsr
   val pc = registers(15)
   pcBus := pc
@@ -99,19 +101,19 @@ class ARM7TDMI extends Module {
       registers(control.regWriteIndex) := aluBus
     }
     when (control.cpsrUpdateCond) {
-      cpsr.cond := aluConditionOut
+      nextCpsr.cond := aluConditionOut
     }
     when (control.cpsrUpdateThumb) {
-      cpsr.thumb := aBus(0)
+      nextCpsr.thumb := aBus(0)
     }
     when (control.cpsrUpdateFields(0) && modePrivileged) {
-      cpsr.mode := suppressEnumCastWarning { aluBus(4, 0).asTypeOf(CpuMode()) }
-      cpsr.thumb := aluBus(5)
-      cpsr.fiqDisable := aluBus(6)
-      cpsr.irqDisable := aluBus(7)
+      nextCpsr.mode := suppressEnumCastWarning { aluBus(4, 0).asTypeOf(CpuMode()) }
+      nextCpsr.thumb := aluBus(5)
+      nextCpsr.fiqDisable := aluBus(6)
+      nextCpsr.irqDisable := aluBus(7)
     }
     when (control.cpsrUpdateFields(1)) {
-      cpsr.cond := aluBus(31, 28).asTypeOf(new ConditionFlags)
+      nextCpsr.cond := aluBus(31, 28).asTypeOf(new ConditionFlags)
     }
     when (control.spsrUpdateFields(0) && modeHasSpsr) {
       spsr.mode := suppressEnumCastWarning { aluBus(4, 0).asTypeOf(CpuMode()) }
@@ -123,11 +125,12 @@ class ARM7TDMI extends Module {
       spsr.cond := aluBus(31, 28).asTypeOf(new ConditionFlags)
     }
     when (control.cpsrRestore && modeHasSpsr) {
-      cpsr := spsr
+      nextCpsr := spsr
     }
     switch (control.pcNext) {
       is (PcNext.Incrementer) { pc := incrementerBus }
     }
+    cpsr := nextCpsr
   }
 
   ///////////////////////////////////// Barrel Shifter /////////////////////////////////////

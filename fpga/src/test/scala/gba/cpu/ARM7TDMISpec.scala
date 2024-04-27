@@ -642,8 +642,12 @@ class ARM7TDMISpec extends AnyFunSuite {
       assert(cpu.reg(1) == 0)
 
       // Branch 2
-      cpu.assertMemRead(0x18, BusTransactionType.NonSequential)
-      cpu.step(3)
+      cpu.assertMemRead(0x18, BusTransactionType.NonSequential, size = BusAccessWidth.Halfword)
+      cpu.step()
+      cpu.assertMemRead(0x1A, BusTransactionType.Sequential, size = BusAccessWidth.Halfword)
+      cpu.step()
+      cpu.assertMemRead(0x1C, BusTransactionType.Sequential, size = BusAccessWidth.Halfword)
+      cpu.step()
       assert((cpu.cpsr() & 0x20) != 0)
 
       // Execute thumb instructions

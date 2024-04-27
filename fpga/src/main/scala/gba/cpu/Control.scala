@@ -74,6 +74,8 @@ class Control extends Module {
     val nextInstruction = Input(new DecodedInstruction)
     /// Current program status register
     val currentStatus = Input(new ProgramStatusRegister)
+    /// Next program status register
+    val nextStatus = Input(new ProgramStatusRegister)
   })
   val control = io.signals
 
@@ -91,7 +93,7 @@ class Control extends Module {
     }
   }
   val execute = Control.evaluateCondition(instruction.condition, io.currentStatus.cond)
-  val thumb = io.currentStatus.thumb
+  val nextThumb = io.nextStatus.thumb
 
   control.advancePipeline := false.B
   control.flushPipeline := false.B
@@ -450,7 +452,6 @@ class Control extends Module {
     when (instruction.regD === 15.U) {
       when (control.cpsrUpdateCond) {
         // 'S' instructions restore (CPSR := SPSR) when Rd = PC
-        // TODO: if this switches T bit, need to do the next pipeline fetch correctly.
         control.cpsrRestore := true.B
       }
       flushPipeline()
@@ -467,7 +468,7 @@ class Control extends Module {
     control.pcNext := PcNext.Incrementer
     control.addressSource := AddressSource.Incrementer
     control.memWrite := false.B
-    control.memWidth := Mux(thumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
+    control.memWidth := Mux(nextThumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
     control.memTransaction := BusTransactionType.Internal
   }
 
@@ -478,7 +479,7 @@ class Control extends Module {
   /// Complete the prefetch of a merged I-S cycle, and go to the next instruction
   private def completePrefetch(): Unit = {
     control.memWrite := false.B
-    control.memWidth := Mux(thumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
+    control.memWidth := Mux(nextThumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
     control.memTransaction := BusTransactionType.Sequential
     control.advancePipeline := true.B
     dispatch := true.B
@@ -488,7 +489,7 @@ class Control extends Module {
     control.pcNext := PcNext.Incrementer
     control.addressSource := AddressSource.Incrementer
     control.memWrite := false.B
-    control.memWidth := Mux(thumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
+    control.memWidth := Mux(nextThumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
     control.memTransaction := BusTransactionType.Sequential
     control.advancePipeline := true.B
     dispatch := true.B
@@ -496,13 +497,12 @@ class Control extends Module {
 
   /// After modifying PC, flush pipeline.
   private def flushPipeline(): Unit = {
-    // TODO: ensure width is using the *new* T bit (e.g. after BX or MOVS PC, LR)
     control.pcNext := PcNext.Same
     control.addressSource := AddressSource.Alu
     control.flushPipeline := true.B
     control.advancePipeline := true.B
     control.memWrite := false.B
-    control.memWidth := Mux(thumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
+    control.memWidth := Mux(nextThumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
     control.memTransaction := BusTransactionType.NonSequential
     dispatch := true.B
   }
