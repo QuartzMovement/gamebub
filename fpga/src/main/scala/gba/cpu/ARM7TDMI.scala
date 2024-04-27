@@ -88,6 +88,7 @@ class ARM7TDMI extends Module {
   cBus := registers(control.regReadC)
   when (io.enable) {
     when (control.regWriteEnable) {
+      printf(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x\n")
       registers(control.regWriteIndex) := aluBus
     }
     when (control.cpsrUpdateCond) {

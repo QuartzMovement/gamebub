@@ -97,22 +97,28 @@ class Decoder extends Module {
   // Fetch stage, with support for latching the first read value
   // during multi-cycle instructions.
   val isNewFetch = RegNext(io.advancePipeline)
-  val fetchReg = RegInit("hFFFFFFFF".U(32.W))
+  val fetchRegValid = RegInit(false.B)
+  val fetchReg = Reg(UInt(32.W))
   when (io.enable && (!io.advancePipeline && isNewFetch)) {
     fetchReg := io.readData
+    fetchRegValid := true.B
   }
   val fetchResult = Mux(isNewFetch, io.readData, fetchReg)
+  val fetchResultValid = Mux(isNewFetch, true.B, fetchRegValid)
 
   // Decode stage.
-  val decodeReg = RegInit("hFFFFFFFF".U(32.W))
+  val decodeReg = Reg(UInt(32.W))
+  val decodeRegValid = RegInit(false.B)
   when (io.enable && io.advancePipeline) {
     decodeReg := fetchResult
+    decodeRegValid := fetchResultValid
   }
-  val in = Mux(io.flushPipeline, "hFFFFFFFF".U(32.W), decodeReg)
+  val in = decodeReg
   printf(cf"decoding ${in}%x, fetching ${fetchResult}%x\n")
 
   when (io.enable && io.flushPipeline) {
-    decodeReg := "hFFFFFFFF".U(32.W)
+    fetchRegValid := false.B
+    decodeRegValid := false.B
   }
 
   val out = io.decoded
@@ -127,7 +133,10 @@ class Decoder extends Module {
   out.flags := DontCare
 
   // Decode table
-  when (!io.thumb) {
+  when (io.flushPipeline || !decodeRegValid) {
+    printf(cf"decode: forcing no-op\n")
+    out.condition := Condition.Nv
+  } .elsewhen (!io.thumb) {
     // ARM mode
     io.decoded.condition := in(31, 28).asTypeOf(Condition())
 
