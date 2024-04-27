@@ -23,9 +23,9 @@ object BusBValue extends ChiselEnum {
 }
 
 class ControlSignals extends Bundle {
-  /// True to start execution of the next instruction.
-  val nextInstruction = Bool()
-  val branch = Bool()
+  /// True to start advance the fetch/decode stages of the pipeline.
+  val advancePipeline = Bool()
+  val flushPipeline = Bool()
 
   val pcNext = PcNext()
   val addressSource = AddressSource()
@@ -38,7 +38,7 @@ class ControlSignals extends Bundle {
   val updateConditionCodes = Bool()
 
   val busB = BusBValue()
-  val immediate = UInt(12.W)
+  val immediate = UInt(32.W)
 
   val aluOpcode = AluOpcode()
   val shiftKind = ShiftKind()
@@ -76,20 +76,18 @@ class Control extends Module {
   ))
   val stage = RegInit(0.U(5.W))
   val nextStage = WireDefault(stage)
+  val dispatch = WireDefault(false.B)
   when (io.enable) {
     stage := nextStage
-    when (control.branch) {
-      instruction.condition := Condition.Nv
-      stage := 0.U
-    } .elsewhen (control.nextInstruction) {
+    when (dispatch) {
       instruction := io.nextInstruction
       stage := 0.U
     }
   }
   val execute = Control.evaluateCondition(instruction.condition, io.currentStatus.cond)
 
-  control.nextInstruction := false.B
-  control.branch := false.B
+  control.advancePipeline := false.B
+  control.flushPipeline := false.B
   control.pcNext := PcNext.Same
   control.addressSource := AddressSource.Same
   control.regReadA := DontCare
@@ -135,7 +133,7 @@ class Control extends Module {
         control.regWriteEnable := true.B
         control.updateConditionCodes := instruction.flags(0)
         when (instruction.regD === 15.U) {
-          branch()
+          flushPipeline()
         } .otherwise {
           nextInstruction()
         }
@@ -166,7 +164,7 @@ class Control extends Module {
         control.regWriteEnable := true.B
         control.updateConditionCodes := instruction.flags(0)
         when (instruction.regD === 15.U) {
-          branch()
+          flushPipeline()
         } .otherwise {
           nextInstruction()
         }
@@ -192,7 +190,7 @@ class Control extends Module {
             control.regWriteEnable := true.B
             control.updateConditionCodes := instruction.flags(0)
             when (instruction.regD === 15.U) {
-              branch()
+              flushPipeline()
             } .otherwise {
               completePrefetch()
             }
@@ -250,7 +248,7 @@ class Control extends Module {
             control.regWriteIndex := instruction.regD
             control.regWriteEnable := true.B
             when (instruction.regD === 15.U) {
-              branch()
+              flushPipeline()
             } .otherwise {
               completePrefetch()
             }
@@ -318,7 +316,6 @@ class Control extends Module {
             control.memWrite := false.B
             control.memWidth := width
             control.memProt.data := true.B
-            control.memLock := true.B
             control.pcNext := PcNext.Incrementer
             advanceStage()
           }
@@ -342,6 +339,7 @@ class Control extends Module {
             beginPrefetch()
             control.addressSource := AddressSource.Pc
             control.pcNext := PcNext.Same
+            control.memLock := true.B
             advanceStage()
           }
           is (3.U) {
@@ -352,6 +350,44 @@ class Control extends Module {
             control.regWriteIndex := instruction.regD
             control.regWriteEnable := true.B
             completePrefetch()
+          }
+        }
+      }
+      is (InstructionKind.ArmBranch) {
+        val flag_link = instruction.flags(0)
+        val flag_exchange = instruction.flags(1)
+
+        switch (stage) {
+          is (0.U) {
+            control.regReadA := 15.U // PC
+            control.busB := BusBValue.Immediate
+            control.immediate := Cat(
+              Fill(6, instruction.immediate(23)),
+              instruction.immediate(23, 0),
+              "b00".U(2.W)
+            )
+            control.aluOpcode := AluOpcode.add
+            flushPipeline()
+            dispatch := false.B
+            advanceStage()
+          }
+          is (1.U) {
+            when (flag_link) {
+              // If link, save LR := PC - 4 (to point to the instruction after the branch)q
+              control.regWriteEnable := true.B
+              control.regWriteIndex := 14.U // LR
+              control.regReadA := 15.U // PC
+              control.busB := BusBValue.Immediate
+              control.immediate := 4.U
+              control.aluOpcode := AluOpcode.sub
+            }
+            nextInstruction()
+            dispatch := false.B
+            advanceStage()
+          }
+          is (2.U) {
+            // And update the PC.
+            nextInstruction()
           }
         }
       }
@@ -400,7 +436,8 @@ class Control extends Module {
     control.memWrite := false.B
     control.memWidth := BusAccessWidth.Word // todo thumb
     control.memTransaction := BusTransactionType.Sequential
-    control.nextInstruction := true.B
+    control.advancePipeline := true.B
+    dispatch := true.B
   }
 
   private def nextInstruction(): Unit = {
@@ -409,19 +446,20 @@ class Control extends Module {
     control.memWrite := false.B
     control.memWidth := BusAccessWidth.Word // todo thumb
     control.memTransaction := BusTransactionType.Sequential
-    control.nextInstruction := true.B
+    control.advancePipeline := true.B
+    dispatch := true.B
   }
 
-  /// After modifiying PC, flush pipeline.
-  private def branch(): Unit = {
-    // TODO
+  /// After modifying PC, flush pipeline.
+  private def flushPipeline(): Unit = {
     control.pcNext := PcNext.Same
     control.addressSource := AddressSource.Alu
-    control.branch := true.B
-    control.nextInstruction := true.B
+    control.flushPipeline := true.B
+    control.advancePipeline := true.B
     control.memWrite := false.B
     control.memWidth := BusAccessWidth.Word // todo thumb
     control.memTransaction := BusTransactionType.NonSequential
+    dispatch := true.B
   }
 
   private def advanceStage(): Unit = {

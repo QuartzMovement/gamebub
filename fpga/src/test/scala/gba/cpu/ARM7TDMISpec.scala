@@ -60,15 +60,15 @@ class ARM7TDMISpec extends AnyFunSuite {
     }
 
     def assertMemRead(address: Int, trans: BusTransactionType.Type): Unit = {
-      assert(dut.io.mem.ADDR.peek().litValue == address)
-      assert(!dut.io.mem.WRITE.peek().litToBoolean)
-      assert(dut.io.mem.TRANS.peekValue().asBigInt == trans.litValue)
+      assert(dut.io.mem.ADDR.peek().litValue == address, "read address")
+      assert(!dut.io.mem.WRITE.peek().litToBoolean, "not read")
+      assert(dut.io.mem.TRANS.peekValue().asBigInt == trans.litValue, "wrong trans")
     }
 
     def assertMemWrite(address: Int, trans: BusTransactionType.Type): Unit = {
-      assert(dut.io.mem.ADDR.peek().litValue == address)
-      assert(dut.io.mem.WRITE.peek().litToBoolean)
-      assert(dut.io.mem.TRANS.peekValue().asBigInt == trans.litValue)
+      assert(dut.io.mem.ADDR.peek().litValue == address, "write address")
+      assert(dut.io.mem.WRITE.peek().litToBoolean, "not write")
+      assert(dut.io.mem.TRANS.peekValue().asBigInt == trans.litValue, "wrong trans")
     }
 
     def memWriteData(): Int = {
@@ -151,6 +151,8 @@ class ARM7TDMISpec extends AnyFunSuite {
         0xe3a01003, // 0x000C: mov r1, 3
         0xe3a01004, // 0x0010: mov r1, 4
         0xe3a02005, // 0x0014: mov r2, 5
+        0xe3a02006, // 0x0018: mov r2, 6
+        0xe3a02007, // 0x001C: mov r2, 7
       ))
 
       cpu.assertMemRead(0, BusTransactionType.Sequential)
@@ -178,6 +180,12 @@ class ARM7TDMISpec extends AnyFunSuite {
       assert(cpu.reg(1) == 0)
       assert(cpu.reg(2) == 5)
       cpu.assertMemRead(36, BusTransactionType.Sequential)
+
+      cpu.step()
+      assert(cpu.reg(2) == 6)
+
+      cpu.step()
+      assert(cpu.reg(2) == 7)
     }
   }
 
@@ -529,6 +537,45 @@ class ARM7TDMISpec extends AnyFunSuite {
         storeData = 0x11111111,
         loadData = 0xDD,
       )
+    }
+  }
+
+  test("branch") {
+    simulate(new ARM7TDMI) { dut =>
+      val cpu = new CpuHarness(dut)
+      cpu.copyMem(Array(
+        0xEB0003FE, // 0x0000: bl +0x1000
+        0xe3a01001, // 0x0004: mov r1, #1
+      ))
+      cpu.copyMem(Array(
+        0xe3a02001, // 0x1000: mov r2, #1
+        0xe3a02002, // 0x1004: mov r2, #2
+        0xe3a02003, // 0x1008: mov r2, #3
+      ), 0x1000)
+      cpu.step(3)
+
+      // Branch 1: load from branch target
+      cpu.assertMemRead(0x1000, BusTransactionType.NonSequential)
+      cpu.step()
+
+      // Branch 2: refill pipeline
+      cpu.assertMemRead(0x1004, BusTransactionType.Sequential)
+      cpu.step()
+
+      // Branch 3: refill pipeline
+      cpu.assertMemRead(0x1008, BusTransactionType.Sequential)
+      cpu.step()
+
+      // Check that link flag and PC were set correctly.
+      assert(cpu.reg(14) == 0x4)
+      assert(cpu.reg(15) == 0x1008)
+
+      cpu.step()
+      assert(cpu.reg(2) == 1)
+      cpu.step()
+      assert(cpu.reg(2) == 2)
+      cpu.step()
+      assert(cpu.reg(2) == 3)
     }
   }
 }

@@ -46,6 +46,7 @@ object InstructionKind extends ChiselEnum {
   val Load = Value
   val Store = Value
   val Swap = Value
+  val ArmBranch = Value
 }
 
 class DecodedInstruction extends Bundle {
@@ -79,7 +80,7 @@ class Decoder extends Module {
     val thumb = Input(Bool())
 
     /// Advance to next instruction
-    val nextInstruction = Input(Bool())
+    val advancePipeline = Input(Bool())
     /// Flush the pipeline
     val flushPipeline = Input(Bool())
 
@@ -93,24 +94,22 @@ class Decoder extends Module {
   // TODO handle CLOCKEN (bus cycle stretching)
   // Fetch stage, with support for latching the first read value
   // during multi-cycle instructions.
-  val isNewFetch = RegNext(io.nextInstruction)
+  val isNewFetch = RegNext(io.advancePipeline)
   val fetchReg = RegInit("hFFFFFFFF".U(32.W))
-  when (io.enable && (!io.nextInstruction && isNewFetch)) {
+  when (io.enable && (!io.advancePipeline && isNewFetch)) {
     fetchReg := io.readData
   }
   val fetchResult = Mux(isNewFetch, io.readData, fetchReg)
 
   // Decode stage.
   val decodeReg = RegInit("hFFFFFFFF".U(32.W))
-  when (io.enable && io.nextInstruction) {
+  when (io.enable && io.advancePipeline) {
     decodeReg := fetchResult
   }
-  val in = WireDefault(decodeReg)
+  val in = Mux(io.flushPipeline, "hFFFFFFFF".U(32.W), decodeReg)
   printf(cf"decoding ${in}%x, fetching ${fetchResult}%x\n")
 
   when (io.enable && io.flushPipeline) {
-    // TODO correctly flush pipeline
-//    fetchReg := "hFFFFFFFF".U(32.W)
     decodeReg := "hFFFFFFFF".U(32.W)
   }
 
@@ -182,6 +181,11 @@ class Decoder extends Module {
       out.flags := in(20) // [SetCond]
       out.regN := in(19, 16)
       out.regD := in(15, 12)
+    } .elsewhen(in(27, 25) === "b101".U) {
+      // Branch, Branch-and-link
+      out.kind := InstructionKind.ArmBranch
+      out.flags := Cat("b0".U(1.W), in(24)) // [Exchange, Link]
+      out.immediate := in(23, 0)
     } .elsewhen (in(27, 26) === "b01".U(2.W)) {
       // Load and store word or unsigned byte.
       out.kind := Mux(in(20), InstructionKind.Load, InstructionKind.Store)
