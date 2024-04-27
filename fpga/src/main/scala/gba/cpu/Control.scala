@@ -357,6 +357,8 @@ class Control extends Module {
         val flag_link = instruction.flags(0)
         val flag_exchange = instruction.flags(1)
 
+        // TODO: handle exchange (which also uses a register, not an immediate)
+
         switch (stage) {
           is (0.U) {
             control.regReadA := 15.U // PC

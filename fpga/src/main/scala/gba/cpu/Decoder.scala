@@ -181,7 +181,17 @@ class Decoder extends Module {
       out.flags := in(20) // [SetCond]
       out.regN := in(19, 16)
       out.regD := in(15, 12)
-    } .elsewhen(in(27, 25) === "b101".U) {
+    } .elsewhen (in(27, 25) === "b000".U(3.W) && (in(24, 23) === "b10".U(2.W) && !in(20))) {
+      // Miscellaneous functions
+      when (in(7, 4) === "b0000".U) {
+        // TODO: mrs, msr
+      } .elsewhen (in(7, 4) === "b0001".U(4.W) && in(22, 21) === "b01".U(2.W)) {
+        // TODO: branch exchange
+        out.kind := InstructionKind.ArmBranch
+        out.flags := "b10".U(2.W) // [Exchange, Link]
+        out.regM := in(3, 0)
+      }
+    } .elsewhen(in(27, 25) === "b101".U(3.W)) {
       // Branch, Branch-and-link
       out.kind := InstructionKind.ArmBranch
       out.flags := Cat("b0".U(1.W), in(24)) // [Exchange, Link]
