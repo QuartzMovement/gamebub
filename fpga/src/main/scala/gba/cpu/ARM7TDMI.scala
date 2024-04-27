@@ -73,6 +73,7 @@ class ARM7TDMI extends Module {
   ))
   val spsr = Reg(new ProgramStatusRegister)
   val modeHasSpsr = false.B // TODO
+  val modePrivileged = cpsr.mode =/= CpuMode.User
 
   controlUnit.io.currentStatus := cpsr
   cpsrBus := cpsr
@@ -84,7 +85,12 @@ class ARM7TDMI extends Module {
   } .elsewhen (control.busB === BusBValue.Cpsr) {
     bBus := cpsr.asUInt
   } .elsewhen (control.busB === BusBValue.Spsr) {
-    bBus := spsr.asUInt
+    when (modeHasSpsr) {
+      bBus := spsr.asUInt
+    } .otherwise {
+      // Modes without SPSR apparently return CPSR on a read
+      bBus := cpsr.asUInt
+    }
   }
   cBus := registers(control.regReadC)
   when (io.enable) {
@@ -98,7 +104,7 @@ class ARM7TDMI extends Module {
     when (control.cpsrUpdateThumb) {
       cpsr.thumb := aBus(0)
     }
-    when (control.cpsrUpdateFields(0) && cpsr.mode =/= CpuMode.User) {
+    when (control.cpsrUpdateFields(0) && modePrivileged) {
       cpsr.mode := suppressEnumCastWarning { aluBus(4, 0).asTypeOf(CpuMode()) }
       cpsr.thumb := aluBus(5)
       cpsr.fiqDisable := aluBus(6)
