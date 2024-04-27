@@ -116,6 +116,9 @@ class ARM7TDMI extends Module {
     when (control.spsrUpdateFields(1) && modeHasSpsr) {
       spsr.cond := aluBus(31, 28).asTypeOf(new ConditionFlags)
     }
+    when (control.cpsrRestore && modeHasSpsr) {
+      cpsr := spsr
+    }
     switch (control.pcNext) {
       is (PcNext.Incrementer) { pc := incrementerBus }
     }

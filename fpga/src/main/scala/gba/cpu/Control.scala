@@ -41,6 +41,7 @@ class ControlSignals extends Bundle {
   val cpsrUpdateThumb = Bool()
   val cpsrUpdateFields = UInt(2.W)
   val spsrUpdateFields = UInt(2.W)
+  val cpsrRestore = Bool()
 
   val busB = BusBValue()
   val immediate = UInt(32.W)
@@ -105,6 +106,7 @@ class Control extends Module {
   control.cpsrUpdateThumb := false.B
   control.cpsrUpdateFields := 0.U
   control.spsrUpdateFields := 0.U
+  control.cpsrRestore := false.B
   control.busB := DontCare
   control.immediate := DontCare
   control.aluOpcode := DontCare
@@ -446,8 +448,12 @@ class Control extends Module {
     control.regWriteEnable := true.B
     control.cpsrUpdateCond := instruction.flags(0)
     when (instruction.regD === 15.U) {
+      when (control.cpsrUpdateCond) {
+        // 'S' instructions restore (CPSR := SPSR) when Rd = PC
+        // TODO: if this switches T bit, need to do the next pipeline fetch correctly.
+        control.cpsrRestore := true.B
+      }
       flushPipeline()
-      // TODO if 'S' flag is set, (CPSR := SPSR)
     } .otherwise {
       if (didPrefetch) {
         completePrefetch()
@@ -490,6 +496,7 @@ class Control extends Module {
 
   /// After modifying PC, flush pipeline.
   private def flushPipeline(): Unit = {
+    // TODO: ensure width is using the *new* T bit (e.g. after BX or MOVS PC, LR)
     control.pcNext := PcNext.Same
     control.addressSource := AddressSource.Alu
     control.flushPipeline := true.B
