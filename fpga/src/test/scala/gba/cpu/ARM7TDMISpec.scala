@@ -59,16 +59,22 @@ class ARM7TDMISpec extends AnyFunSuite {
       }
     }
 
-    def assertMemRead(address: Int, trans: BusTransactionType.Type): Unit = {
+    def assertMemRead(address: Int, trans: BusTransactionType.Type, size: BusAccessWidth.Type = BusAccessWidth.Word): Unit = {
       assert(dut.io.mem.ADDR.peek().litValue == address, "read address")
       assert(!dut.io.mem.WRITE.peek().litToBoolean, "not read")
       assert(dut.io.mem.TRANS.peekValue().asBigInt == trans.litValue, "wrong trans")
+      assert(dut.io.mem.SIZE.peekValue().asBigInt == size.litValue, "wrong size")
     }
 
-    def assertMemWrite(address: Int, trans: BusTransactionType.Type): Unit = {
+    def assertMemWrite(address: Int, trans: BusTransactionType.Type, size: BusAccessWidth.Type = BusAccessWidth.Word): Unit = {
       assert(dut.io.mem.ADDR.peek().litValue == address, "write address")
       assert(dut.io.mem.WRITE.peek().litToBoolean, "not write")
       assert(dut.io.mem.TRANS.peekValue().asBigInt == trans.litValue, "wrong trans")
+      assert(dut.io.mem.SIZE.peekValue().asBigInt == size.litValue, "wrong size")
+    }
+
+    def memAddress(): Int = {
+      dut.io.mem.ADDR.peek().litValue.toInt
     }
 
     def memWriteData(): Int = {
@@ -223,6 +229,7 @@ class ARM7TDMISpec extends AnyFunSuite {
                 dut: ARM7TDMI,
                 instruction: Int,
                 address: Option[Int] = None,
+                size: BusAccessWidth.Type = BusAccessWidth.Word,
                 data: Int,
                 base: Option[Int] = None
               ): Unit = {
@@ -242,9 +249,7 @@ class ARM7TDMISpec extends AnyFunSuite {
     cpu.step()
 
     // Load: compute address
-    if (address.isDefined) {
-      cpu.assertMemRead(address.get, BusTransactionType.NonSequential)
-    }
+    cpu.assertMemRead(address.getOrElse(cpu.memAddress()), BusTransactionType.NonSequential, size)
     // TODO: assert prot0 is 1(?) for data
     cpu.step()
 
@@ -313,82 +318,106 @@ class ARM7TDMISpec extends AnyFunSuite {
       // Load byte unsigned
       testLoad(dut,
         instruction = 0xe5d01000, // ldrb r1, [r0, #0]
-        data = 0x44)
+        data = 0x44,
+        size = BusAccessWidth.Byte)
       testLoad(dut,
         instruction = 0xe5d01001, // ldrb r1, [r0, #1]
-        data = 0x33)
+        data = 0x33,
+        size = BusAccessWidth.Byte)
       testLoad(dut,
         instruction = 0xe5d01002, // ldrb r1, [r0, #2]
-        data = 0x22)
+        data = 0x22,
+        size = BusAccessWidth.Byte)
       testLoad(dut,
         instruction = 0xe5d01003, // ldrb r1, [r0, #3]
-        data = 0x11)
+        data = 0x11,
+        size = BusAccessWidth.Byte)
 
       // Load byte signed
       testLoad(dut,
         instruction = 0xe1d010d0, // ldrsb r1, [r0, #0]
-        data = 0x44)
+        data = 0x44,
+        size = BusAccessWidth.Byte)
       testLoad(dut,
         instruction = 0xe1d010d1, // ldrsb r1, [r0, #1]
-        data = 0x33)
+        data = 0x33,
+        size = BusAccessWidth.Byte)
       testLoad(dut,
         instruction = 0xe1d010d2, // ldrsb r1, [r0, #2]
-        data = 0x22)
+        data = 0x22,
+        size = BusAccessWidth.Byte)
       testLoad(dut,
         instruction = 0xe1d010d3, // ldrsb r1, [r0, #3]
-        data = 0x11)
+        data = 0x11,
+        size = BusAccessWidth.Byte)
       testLoad(dut,
         instruction = 0xe15010d4, // ldrsb r1, [r0, #-4]
-        data = 0xFFFFFFDD)
+        data = 0xFFFFFFDD,
+        size = BusAccessWidth.Byte)
       testLoad(dut,
         instruction = 0xe15010d3, // ldrsb r1, [r0, #-3]
-        data = 0xFFFFFFCC)
+        data = 0xFFFFFFCC,
+        size = BusAccessWidth.Byte)
       testLoad(dut,
         instruction = 0xe15010d2, // ldrsb r1, [r0, #-2]
-        data = 0xFFFFFFBB)
+        data = 0xFFFFFFBB,
+        size = BusAccessWidth.Byte)
       testLoad(dut,
         instruction = 0xe15010d1, // ldrsb r1, [r0, #-1]
-        data = 0xFFFFFFAA)
+        data = 0xFFFFFFAA,
+        size = BusAccessWidth.Byte)
 
       // Load halfword unsigned
       testLoad(dut,
         instruction = 0xe1d010b0, // ldrh r1, [r0, #0]
-        data = 0x3344)
+        data = 0x3344,
+        size = BusAccessWidth.Halfword)
       testLoad(dut,
         instruction = 0xe1d010b1, // ldrh r1, [r0, #0]
-        data = 0x44000033)
+        data = 0x44000033,
+        size = BusAccessWidth.Halfword)
       testLoad(dut,
         instruction = 0xe1d010b2, // ldrh r1, [r0, #2]
-        data = 0x1122)
+        data = 0x1122,
+        size = BusAccessWidth.Halfword)
       testLoad(dut,
         instruction = 0xe1d010b3, // ldrh r1, [r0, #0]
-        data = 0x22000011)
+        data = 0x22000011,
+        size = BusAccessWidth.Halfword)
 
       // Load halfword signed
       testLoad(dut,
         instruction = 0xe1d010f0, // ldrsh r1, [r0, #0]
-        data = 0x3344)
+        data = 0x3344,
+        size = BusAccessWidth.Halfword)
       testLoad(dut,
         instruction = 0xe1d010f1, // ldrsh r1, [r0, #1]
-        data = 0x33)
+        data = 0x33,
+        size = BusAccessWidth.Halfword)
       testLoad(dut,
         instruction = 0xe1d010f2, // ldrsh r1, [r0, #2]
-        data = 0x1122)
+        data = 0x1122,
+        size = BusAccessWidth.Halfword)
       testLoad(dut,
         instruction = 0xe1d010f3, // ldrsh r1, [r0, #3]
-        data = 0x11)
+        data = 0x11,
+        size = BusAccessWidth.Halfword)
       testLoad(dut,
         instruction = 0xe15010f4, // ldrsh r1, [r0, #-4]
-        data = 0xFFFFCCDD)
+        data = 0xFFFFCCDD,
+        size = BusAccessWidth.Halfword)
       testLoad(dut,
         instruction = 0xe15010f3, // ldrsh r1, [r0, #-3]
-        data = 0xFFFFFFCC)
+        data = 0xFFFFFFCC,
+        size = BusAccessWidth.Halfword)
       testLoad(dut,
         instruction = 0xe15010f2, // ldrsh r1, [r0, #-2]
-        data = 0xFFFFAABB)
+        data = 0xFFFFAABB,
+        size = BusAccessWidth.Halfword)
       testLoad(dut,
         instruction = 0xe15010f1, // ldrsh r1, [r0, #-1]
-        data = 0xFFFFFFAA)
+        data = 0xFFFFFFAA,
+        size = BusAccessWidth.Halfword)
     }
   }
 
@@ -396,6 +425,7 @@ class ARM7TDMISpec extends AnyFunSuite {
                 dut: ARM7TDMI,
                 instruction: Int,
                 address: Option[Int] = None,
+                size: BusAccessWidth.Type = BusAccessWidth.Word,
                 data: Int,
                 base: Option[Int] = None
               ): Unit = {
@@ -419,9 +449,7 @@ class ARM7TDMISpec extends AnyFunSuite {
     cpu.step()
 
     // Store: compute address
-    if (address.isDefined) {
-      cpu.assertMemWrite(address.get, BusTransactionType.NonSequential)
-    }
+    cpu.assertMemWrite(address.getOrElse(cpu.memAddress()), BusTransactionType.NonSequential, size)
     // TODO: assert prot0 is 1(?) for data
     cpu.step()
     assert(cpu.memWriteData() == data)
@@ -461,11 +489,13 @@ class ARM7TDMISpec extends AnyFunSuite {
 
       testStore(dut,
         instruction = 0xe5c01000, // strb r1, [r0]
+        size = BusAccessWidth.Byte,
         data = 0x11111111,
       )
 
       testStore(dut,
         instruction = 0xe1c010b0, // strh r1, [r0]
+        size = BusAccessWidth.Halfword,
         data = 0x22112211,
       )
     }
@@ -473,7 +503,7 @@ class ARM7TDMISpec extends AnyFunSuite {
 
   test("swap") {
     simulate(new ARM7TDMI) { dut =>
-      def testSwap(instruction: Int, rd: Int, storeData: Int, loadData: Int): Unit = {
+      def testSwap(instruction: Int, size: BusAccessWidth.Type, rd: Int, storeData: Int, loadData: Int): Unit = {
         val cpu = new CpuHarness(dut)
         cpu.copyMem(Array(
           0xe3a00ffa, // 0x0000: mov r0, #1000
@@ -492,12 +522,12 @@ class ARM7TDMISpec extends AnyFunSuite {
 
         // Swap: load
         // TODO assert "LOCK" is set (and PROT is data)
-        cpu.assertMemRead(1000, BusTransactionType.NonSequential)
+        cpu.assertMemRead(1000, BusTransactionType.NonSequential, size)
         cpu.step()
 
         // Swap: store
         // TODO assert "LOCK" is set (and PROT is data)
-        cpu.assertMemWrite(1000, BusTransactionType.NonSequential)
+        cpu.assertMemWrite(1000, BusTransactionType.NonSequential, size)
         cpu.step()
         assert(cpu.memWriteData() == storeData)
 
@@ -520,6 +550,7 @@ class ARM7TDMISpec extends AnyFunSuite {
 
       testSwap(
         0xe1002091, // swp r2, r1, [r0]
+        size = BusAccessWidth.Word,
         rd = 2,
         storeData = 0x44332211,
         loadData = 0xAABBCCDD,
@@ -527,13 +558,15 @@ class ARM7TDMISpec extends AnyFunSuite {
 
       testSwap(
         0xe1001091, // swp r1, r1, [r0]
+        size = BusAccessWidth.Word,
         rd = 1,
         storeData = 0x44332211,
         loadData = 0xAABBCCDD,
       )
 
       testSwap(
-        0xe1402091, // swp r2, r1, [r0]
+        0xe1402091, // swpb r2, r1, [r0]
+        size = BusAccessWidth.Byte,
         rd = 2,
         storeData = 0x11111111,
         loadData = 0xDD,
@@ -614,19 +647,19 @@ class ARM7TDMISpec extends AnyFunSuite {
       assert((cpu.cpsr() & 0x20) != 0)
 
       // Execute thumb instructions
-      cpu.assertMemRead(0x1E, BusTransactionType.Sequential)
+      cpu.assertMemRead(0x1E, BusTransactionType.Sequential, size = BusAccessWidth.Halfword)
       cpu.step()
       assert(cpu.reg(2) == 1)
 
-      cpu.assertMemRead(0x20, BusTransactionType.Sequential)
+      cpu.assertMemRead(0x20, BusTransactionType.Sequential, size = BusAccessWidth.Halfword)
       cpu.step()
       assert(cpu.reg(2) == 2)
 
-      cpu.assertMemRead(0x22, BusTransactionType.Sequential)
+      cpu.assertMemRead(0x22, BusTransactionType.Sequential, size = BusAccessWidth.Halfword)
       cpu.step()
       assert(cpu.reg(2) == 3)
 
-      cpu.assertMemRead(0x24, BusTransactionType.Sequential)
+      cpu.assertMemRead(0x24, BusTransactionType.Sequential, size = BusAccessWidth.Halfword)
       cpu.step()
       assert(cpu.reg(2) == 4)
     }
