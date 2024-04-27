@@ -79,11 +79,12 @@ class ARM7TDMISpec extends AnyFunSuite {
       dut.io.debug.registers.getElements(index).peekValue().asBigInt.toInt
     }
 
+    def cpsr(): Int = {
+      dut.io.debug.cpsr.peek().litValue.toInt
+    }
+
     def cpsr_flags(): Int = {
-      (dut.io.debug.cpsr.cond.n.peekValue().asBigInt.toInt << 3) |
-        (dut.io.debug.cpsr.cond.z.peekValue().asBigInt.toInt << 2) |
-        (dut.io.debug.cpsr.cond.c.peekValue().asBigInt.toInt << 1) |
-        (dut.io.debug.cpsr.cond.v.peekValue().asBigInt.toInt << 0)
+      (cpsr() >> 28) & 0xF
     }
   }
 
@@ -576,6 +577,37 @@ class ARM7TDMISpec extends AnyFunSuite {
       assert(cpu.reg(2) == 2)
       cpu.step()
       assert(cpu.reg(2) == 3)
+    }
+  }
+
+  test("branch exchange") {
+    simulate(new ARM7TDMI) { dut =>
+      val cpu = new CpuHarness(dut)
+      cpu.copyMem(Array(
+        0xe3a0000c, // 0x0000: mov r0, #0xC
+        0xe12fff10, // 0x0004: bx r0
+        0xe3a01001, // 0x0008: mov r1, #1
+        0xe3a00019, // 0x000c: mov r0, #0x19
+        0xe12fff10, // 0x0010: bx r0
+        0xe3a01002, // 0x0014: mov r1, #2
+      ))
+      cpu.step(3)
+      cpu.step()
+
+      // Branch 1
+      cpu.assertMemRead(0xC, BusTransactionType.NonSequential)
+      cpu.step(3)
+      assert((cpu.cpsr() & 0x20) == 0)
+
+      cpu.step(1)
+      assert(cpu.reg(1) == 0)
+
+      // Branch 2
+      cpu.assertMemRead(0x18, BusTransactionType.NonSequential)
+      cpu.step(3)
+      assert((cpu.cpsr() & 0x20) != 0)
+
+      // TODO: check more once Thumb is implemented
     }
   }
 }

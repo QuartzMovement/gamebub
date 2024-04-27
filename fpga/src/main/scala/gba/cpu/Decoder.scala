@@ -186,7 +186,6 @@ class Decoder extends Module {
       when (in(7, 4) === "b0000".U) {
         // TODO: mrs, msr
       } .elsewhen (in(7, 4) === "b0001".U(4.W) && in(22, 21) === "b01".U(2.W)) {
-        // TODO: branch exchange
         out.kind := InstructionKind.ArmBranch
         out.flags := "b10".U(2.W) // [Exchange, Link]
         out.regM := in(3, 0)

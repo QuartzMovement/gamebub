@@ -35,7 +35,8 @@ class ControlSignals extends Bundle {
   val regReadC = UInt(4.W)
   val regWriteIndex = UInt(4.W)
   val regWriteEnable = Bool()
-  val updateConditionCodes = Bool()
+  val cpsrUpdateCond = Bool()
+  val cpsrUpdateThumb = Bool()
 
   val busB = BusBValue()
   val immediate = UInt(32.W)
@@ -95,7 +96,8 @@ class Control extends Module {
   control.regReadC := DontCare
   control.regWriteIndex := DontCare
   control.regWriteEnable := false.B
-  control.updateConditionCodes := false.B
+  control.cpsrUpdateCond := false.B
+  control.cpsrUpdateThumb := false.B
   control.busB := DontCare
   control.immediate := DontCare
   control.aluOpcode := DontCare
@@ -131,7 +133,7 @@ class Control extends Module {
         control.busB := BusBValue.Immediate
         control.regWriteIndex := instruction.regD
         control.regWriteEnable := true.B
-        control.updateConditionCodes := instruction.flags(0)
+        control.cpsrUpdateCond := instruction.flags(0)
         when (instruction.regD === 15.U) {
           flushPipeline()
         } .otherwise {
@@ -162,7 +164,7 @@ class Control extends Module {
         control.busB := BusBValue.RegisterB
         control.regWriteIndex := instruction.regD
         control.regWriteEnable := true.B
-        control.updateConditionCodes := instruction.flags(0)
+        control.cpsrUpdateCond := instruction.flags(0)
         when (instruction.regD === 15.U) {
           flushPipeline()
         } .otherwise {
@@ -188,7 +190,7 @@ class Control extends Module {
             control.busB := BusBValue.RegisterB
             control.regWriteIndex := instruction.regD
             control.regWriteEnable := true.B
-            control.updateConditionCodes := instruction.flags(0)
+            control.cpsrUpdateCond := instruction.flags(0)
             when (instruction.regD === 15.U) {
               flushPipeline()
             } .otherwise {
@@ -357,25 +359,32 @@ class Control extends Module {
         val flag_link = instruction.flags(0)
         val flag_exchange = instruction.flags(1)
 
-        // TODO: handle exchange (which also uses a register, not an immediate)
-
         switch (stage) {
           is (0.U) {
-            control.regReadA := 15.U // PC
-            control.busB := BusBValue.Immediate
-            control.immediate := Cat(
-              Fill(6, instruction.immediate(23)),
-              instruction.immediate(23, 0),
-              "b00".U(2.W)
-            )
-            control.aluOpcode := AluOpcode.add
+            when (flag_exchange) {
+              control.regReadA := instruction.regM
+              control.busB := BusBValue.Immediate
+              control.immediate := 1.U
+              control.aluOpcode := AluOpcode.bic
+              control.cpsrUpdateThumb := true.B
+            } .otherwise {
+              control.regReadA := 15.U // PC
+              control.busB := BusBValue.Immediate
+              control.immediate := Cat(
+                Fill(6, instruction.immediate(23)),
+                instruction.immediate(23, 0),
+                "b00".U(2.W)
+              )
+              control.aluOpcode := AluOpcode.add
+            }
             flushPipeline()
             dispatch := false.B
             advanceStage()
           }
           is (1.U) {
             when (flag_link) {
-              // If link, save LR := PC - 4 (to point to the instruction after the branch)q
+              // If link, save LR := PC - 4 (to point to the instruction after the branch)
+              // Note: this is always executed from ARM mode, so it's always 4.
               control.regWriteEnable := true.B
               control.regWriteIndex := 14.U // LR
               control.regReadA := 15.U // PC

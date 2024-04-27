@@ -85,8 +85,11 @@ class ARM7TDMI extends Module {
       printf(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x\n")
       registers(control.regWriteIndex) := aluBus
     }
-    when (control.updateConditionCodes) {
+    when (control.cpsrUpdateCond) {
       cpsr.cond := aluConditionOut
+    }
+    when (control.cpsrUpdateThumb) {
+      cpsr.thumb := aBus(0)
     }
     switch (control.pcNext) {
       is (PcNext.Incrementer) { pc := incrementerBus }
@@ -186,7 +189,7 @@ class ARM7TDMI extends Module {
 
   ////////////////////////////////////////// Debug /////////////////////////////////////////
   io.debug.registers := registers
-  io.debug.cpsr := cpsr
+  io.debug.cpsr := cpsr.asUInt
   printf(cf" pc is ${pc}%x, addr is ${io.mem.ADDR}%x\n")
 }
 
@@ -230,5 +233,5 @@ object CpuMode extends ChiselEnum {
 
 class CpuDebug extends Bundle {
   val registers = Vec(16, UInt(32.W))
-  val cpsr = new ProgramStatusRegister()
+  val cpsr = UInt(32.W)
 }
