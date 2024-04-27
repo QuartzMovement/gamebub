@@ -42,6 +42,7 @@ class ARM7TDMI extends Module {
   decodeUnit.io.advancePipeline := control.advancePipeline
   decodeUnit.io.flushPipeline := control.flushPipeline
   decodeUnit.io.readData := io.mem.RDATA
+  decodeUnit.io.readAddress := memAddrReg(1, 0)
   decodeUnit.io.thumb := cpsrBus.thumb
 
   ////////////////////////////////////// Control Unit //////////////////////////////////////
@@ -142,7 +143,8 @@ class ARM7TDMI extends Module {
   /////////////////////////////////////// Multiplier ///////////////////////////////////////
 
   /////////////////////////////////////// Incrementer //////////////////////////////////////
-  incrementerBus := memAddrReg + 4.U // TODO: use current access size
+  incrementerBus := memAddrReg + Mux(cpsrBus.thumb, 2.U, 4.U)
+  // TODO: LDM/STM in Thumb would increment by 4
 
   ///////////////////////////////////////// IO Port ////////////////////////////////////////
   val currentMemReadWidth = Reg(BusAccessWidth())

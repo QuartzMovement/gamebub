@@ -88,6 +88,8 @@ class Decoder extends Module {
 
     /// Memory read data
     val readData = Input(UInt(32.W))
+    /// Memory read address (alignment)
+    val readAddress = Input(UInt(2.W))
 
     /// Decoded instruction
     val decoded = Output(new DecodedInstruction)
@@ -96,14 +98,18 @@ class Decoder extends Module {
   // TODO handle CLOCKEN (bus cycle stretching)
   // Fetch stage, with support for latching the first read value
   // during multi-cycle instructions.
+  val currentFetch = Mux(io.thumb,
+    Mux(io.readAddress(1), io.readData(31, 16), io.readData(15, 0)),
+    io.readData
+  )
   val isNewFetch = RegNext(io.advancePipeline)
   val fetchRegValid = RegInit(false.B)
   val fetchReg = Reg(UInt(32.W))
   when (io.enable && (!io.advancePipeline && isNewFetch)) {
-    fetchReg := io.readData
+    fetchReg := currentFetch
     fetchRegValid := true.B
   }
-  val fetchResult = Mux(isNewFetch, io.readData, fetchReg)
+  val fetchResult = Mux(isNewFetch, currentFetch, fetchReg)
   val fetchResultValid = Mux(isNewFetch, true.B, fetchRegValid)
 
   // Decode stage.
@@ -241,5 +247,16 @@ class Decoder extends Module {
   } .otherwise {
     // Thumb mode
     // TODO
+    printf(cf"decoding THUMB\n")
+    when (in(15, 13) === "b001".U(3.W)) {
+      // Thumb data processing format 3
+      out.kind := InstructionKind.DataProcessingImm
+      out.flags := 1.U // [SetCond]
+      out.regD := in(10, 8)
+      out.regN := in(10, 8)
+      out.immediate := in(7, 0)
+      out.opcode := VecInit(Seq(AluOpcode.mov, AluOpcode.cmp, AluOpcode.add, AluOpcode.sub))(in(12, 11)).asUInt
+    }
+    // TODO the rest of thumb
   }
 }

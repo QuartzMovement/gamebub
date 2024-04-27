@@ -90,6 +90,7 @@ class Control extends Module {
     }
   }
   val execute = Control.evaluateCondition(instruction.condition, io.currentStatus.cond)
+  val thumb = io.currentStatus.thumb
 
   control.advancePipeline := false.B
   control.flushPipeline := false.B
@@ -469,7 +470,7 @@ class Control extends Module {
     control.pcNext := PcNext.Incrementer
     control.addressSource := AddressSource.Incrementer
     control.memWrite := false.B
-    control.memWidth := BusAccessWidth.Word // todo thumb
+    control.memWidth := Mux(thumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
     control.memTransaction := BusTransactionType.Internal
   }
 
@@ -480,7 +481,7 @@ class Control extends Module {
   /// Complete the prefetch of a merged I-S cycle, and go to the next instruction
   private def completePrefetch(): Unit = {
     control.memWrite := false.B
-    control.memWidth := BusAccessWidth.Word // todo thumb
+    control.memWidth := Mux(thumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
     control.memTransaction := BusTransactionType.Sequential
     control.advancePipeline := true.B
     dispatch := true.B
@@ -490,7 +491,7 @@ class Control extends Module {
     control.pcNext := PcNext.Incrementer
     control.addressSource := AddressSource.Incrementer
     control.memWrite := false.B
-    control.memWidth := BusAccessWidth.Word // todo thumb
+    control.memWidth := Mux(thumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
     control.memTransaction := BusTransactionType.Sequential
     control.advancePipeline := true.B
     dispatch := true.B
@@ -503,7 +504,7 @@ class Control extends Module {
     control.flushPipeline := true.B
     control.advancePipeline := true.B
     control.memWrite := false.B
-    control.memWidth := BusAccessWidth.Word // todo thumb
+    control.memWidth := Mux(thumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
     control.memTransaction := BusTransactionType.NonSequential
     dispatch := true.B
   }

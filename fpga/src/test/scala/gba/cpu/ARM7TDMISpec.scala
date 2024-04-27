@@ -590,6 +590,12 @@ class ARM7TDMISpec extends AnyFunSuite {
         0xe3a00019, // 0x000c: mov r0, #0x19
         0xe12fff10, // 0x0010: bx r0
         0xe3a01002, // 0x0014: mov r1, #2
+        //             0x0018: movs r2, #1   (thumb)
+        //             0x001A: movs r2, #2   (thumb)
+        0x22022201,
+        //             0x001C: movs r2, #3   (thumb)
+        //             0x001E: movs r2, #4   (thumb)
+        0x22042203,
       ))
       cpu.step(3)
       cpu.step()
@@ -607,7 +613,22 @@ class ARM7TDMISpec extends AnyFunSuite {
       cpu.step(3)
       assert((cpu.cpsr() & 0x20) != 0)
 
-      // TODO: check more once Thumb is implemented
+      // Execute thumb instructions
+      cpu.assertMemRead(0x1E, BusTransactionType.Sequential)
+      cpu.step()
+      assert(cpu.reg(2) == 1)
+
+      cpu.assertMemRead(0x20, BusTransactionType.Sequential)
+      cpu.step()
+      assert(cpu.reg(2) == 2)
+
+      cpu.assertMemRead(0x22, BusTransactionType.Sequential)
+      cpu.step()
+      assert(cpu.reg(2) == 3)
+
+      cpu.assertMemRead(0x24, BusTransactionType.Sequential)
+      cpu.step()
+      assert(cpu.reg(2) == 4)
     }
   }
 
