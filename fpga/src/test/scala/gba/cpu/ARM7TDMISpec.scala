@@ -717,8 +717,14 @@ class ARM7TDMISpec extends AnyFunSuite {
           0xe3a00ffa, // 0x0000: mov r0, #1000
           instruction,
           0xe3a00001, // 0x0008: mov r0, #1
-          0xe3a00002, // 0x000A: mov r0, #2
-          0xe3a00003, // 0x000C: mov r0, #3
+          0xe3a00002, // 0x000C: mov r0, #2
+          0xe3a00003, // 0x0010: mov r0, #3
+          0xe1a00000, // 0x0014: nop
+          0xe1a00000, // 0x0018: nop
+          0xe1a00000, // 0x001C: nop
+          0xe3a00004, // 0x0020: mov r0, #4
+          0xe3a00005, // 0x0024: mov r0, #5
+          0xe3a00006, // 0x0028: mov r0, #6
         ))
         cpu.copyMem((0 until 16).map(0xA000 + _).toArray, 936)
         cpu.copyMem((0 until 16).map(0xB000 + _).toArray, 968)
@@ -729,6 +735,13 @@ class ARM7TDMISpec extends AnyFunSuite {
 
         val registerField = instruction & 0xFFFF
         val numRegisters = registerField.toBinaryString.count(_ == '1')
+
+        val isBranch = (registerField & 0x8000) != 0
+        val branchTarget = 0x20
+        if (isBranch) {
+          // Ensure that the memory PC will be loaded from is a valid target.
+          cpu.copyMem(Array(branchTarget), start + ((numRegisters - 1) * 4))
+        }
 
         // LDM #1: Calculate start address
         cpu.assertMemRead(start, BusTransactionType.NonSequential)
@@ -754,28 +767,39 @@ class ARM7TDMISpec extends AnyFunSuite {
           assert(cpu.reg(0) == newBase)
         }
 
-        // Last: finish prefetch, moving to next instruction
-        cpu.assertMemRead(0x10, BusTransactionType.Sequential)
-        cpu.step()
+        if (!isBranch) {
+          // Last: finish prefetch, moving to next instruction
+          cpu.assertMemRead(0x10, BusTransactionType.Sequential)
+          cpu.step()
+        } else {
+          // Flushing the pipeline -- new branch target
+          cpu.assertMemRead(branchTarget, BusTransactionType.NonSequential)
+          cpu.step()
+          cpu.assertMemRead(branchTarget + 4, BusTransactionType.Sequential)
+          cpu.step()
+          cpu.assertMemRead(branchTarget + 8, BusTransactionType.Sequential)
+          cpu.step()
+        }
 
         // Check loaded registers.
         {
           var address = start
           for (i <- 0 until 16) {
-            if ((instruction & (1 << i)) != 0) {
-              assert(cpu.reg(i) == cpu.getMem(address))
+            if ((instruction & (1 << i)) != 0 && (i != 15)) {
+              assert(cpu.reg(i) == cpu.getMem(address), f"(reg $i)")
               address += 4
             }
           }
         }
 
         // Check that instructions after work.
+        val base = if (isBranch) { 3 } else { 0 }
         cpu.step()
-        assert(cpu.reg(0) == 1)
+        assert(cpu.reg(0) == base + 1)
         cpu.step()
-        assert(cpu.reg(0) == 2)
+        assert(cpu.reg(0) == base + 2)
         cpu.step()
-        assert(cpu.reg(0) == 3)
+        assert(cpu.reg(0) == base + 3)
       }
 
       // Test the four addressing modes
@@ -794,10 +818,15 @@ class ARM7TDMISpec extends AnyFunSuite {
       // ldmia r0!, {r0}
       testLDM(instruction = 0xe8b00001, start = 1000, newBase = 1004)
 
-      // TODO: test with R15 in list (branch)
-      // TODO: test with only PC in list
+      // Test loading PC
+      // ldmia r0!, {r1, r2, r3, pc}
+      testLDM(instruction = 0xe8b0800e, start = 1000, newBase = 1016)
+
+      // Test loading only PC
+      // ldmia r0!, {pc}
+      testLDM(instruction = 0xe8b08000, start = 1000, newBase = 1004)
+
       // TODO: test empty list
-      // TODO: test r0 in the list (writeback register)
     }
   }
 }

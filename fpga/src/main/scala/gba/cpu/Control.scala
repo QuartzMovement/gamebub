@@ -421,6 +421,7 @@ class Control extends Module {
         val flag_s = instruction.flags(1)
         val flag_up = instruction.flags(2)
         val flag_preindex = instruction.flags(3)
+        // TODO: works differently with 'S' flag (user registers, CPSR restore, etc.)
 
         // TODO: handle empty list: transfer R15 only, but increment/decrement a full 64 bytes.
         val regList = instruction.immediate(15, 0)
@@ -501,8 +502,8 @@ class Control extends Module {
 
         when (stage === 3.U) {
           // Complete fetch, next cycle
-          when (false.B) {
-            // TODO if PC is written, flush pipeline
+          when (control.regWriteIndex === 15.U) {
+            // If writing PC, flush the pipeline
             flushPipeline()
           } .otherwise {
             completePrefetch()
