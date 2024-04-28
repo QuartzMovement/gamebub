@@ -423,12 +423,11 @@ class Control extends Module {
         val flag_preindex = instruction.flags(3)
         // TODO: works differently with 'S' flag (user registers, CPSR restore, etc.)
 
-        // TODO: handle empty list: transfer R15 only, but increment/decrement a full 64 bytes.
+        // Special handling for empty list: transfer R15 only, but increment/decrement base by full 64 bytes.
         val regList = instruction.immediate(15, 0)
+        val listEmpty = regList === 0.U
         val regCount = PopCount(regList)
-        val regNextIndex = PriorityEncoder(regList) // TODO handle empty
-
-        printf(cf"==== DEBUG LDM: stage=${stage}, counter=${counter} l=${regList} regNext=${regNextIndex}\n")
+        val regNextIndex = Mux(listEmpty, 15.U, PriorityEncoder(regList))
 
         when (stage === 0.U) {
           // Calculate start address
@@ -437,7 +436,7 @@ class Control extends Module {
           control.regReadA := instruction.regN
           control.immediate := Mux(flag_up,
             flag_preindex,
-            regCount - (!flag_preindex).asUInt
+            Mux(listEmpty, 16.U, regCount) - (!flag_preindex).asUInt
           )
           control.busB := BusBValue.Immediate
           control.aluOpcode := Mux(flag_up, AluOpcode.add, AluOpcode.sub)
@@ -448,7 +447,7 @@ class Control extends Module {
           control.memWrite := false.B
           control.memWidth := BusAccessWidth.Word
           control.memProt.data := true.B
-          counter := regCount - 1.U
+          counter := Mux(listEmpty, 1.U, regCount) - 1.U
           control.pcNext := PcNext.Incrementer
           advanceStage()
         }
@@ -458,7 +457,7 @@ class Control extends Module {
           control.regReadA := instruction.regN
           control.regWriteEnable := flag_writeback
           control.regWriteIndex := instruction.regN
-          control.immediate := regCount
+          control.immediate := Mux(listEmpty, 16.U, regCount)
           control.busB := BusBValue.Immediate
           control.aluOpcode := Mux(flag_up, AluOpcode.add, AluOpcode.sub)
           control.shiftKind := ShiftKind.LogicalShiftLeft
@@ -483,7 +482,7 @@ class Control extends Module {
             control.addressSource := AddressSource.Pc
             control.pcNext := PcNext.Same
             // Skip stage 2 for single register load
-            advanceStage(Mux(regCount > 1.U, 1.U, 2.U))
+            advanceStage(Mux(regCount > 1.U && !listEmpty, 1.U, 2.U))
           }
         }
 

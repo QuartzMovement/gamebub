@@ -733,7 +733,11 @@ class ARM7TDMISpec extends AnyFunSuite {
         cpu.step(3)
         cpu.step()
 
-        val registerField = instruction & 0xFFFF
+        var registerField = instruction & 0xFFFF
+        if (registerField == 0) {
+          // Special behavior with empty list: PC only (but writeback of +/- 64)
+          registerField = 0x8000
+        }
         val numRegisters = registerField.toBinaryString.count(_ == '1')
 
         val isBranch = (registerField & 0x8000) != 0
@@ -785,7 +789,7 @@ class ARM7TDMISpec extends AnyFunSuite {
         {
           var address = start
           for (i <- 0 until 16) {
-            if ((instruction & (1 << i)) != 0 && (i != 15)) {
+            if ((registerField & (1 << i)) != 0 && (i != 15)) {
               assert(cpu.reg(i) == cpu.getMem(address), f"(reg $i)")
               address += 4
             }
@@ -815,6 +819,8 @@ class ARM7TDMISpec extends AnyFunSuite {
       // Test with only 1 register
       // ldmia r0!, {r1}
       testLDM(instruction = 0xe8b00002, start = 1000, newBase = 1004)
+
+      // Test writeback to a register that's loaded (load happens after writeback)
       // ldmia r0!, {r0}
       testLDM(instruction = 0xe8b00001, start = 1000, newBase = 1004)
 
@@ -826,7 +832,15 @@ class ARM7TDMISpec extends AnyFunSuite {
       // ldmia r0!, {pc}
       testLDM(instruction = 0xe8b08000, start = 1000, newBase = 1004)
 
-      // TODO: test empty list
+      // Test empty list (transfer PC, adjust registers by 64 bytes)
+      // ldmia r0!, {}
+      testLDM(instruction = 0xe8b00000, start = 1000, newBase = 1064)
+      // ldmib r0!, {}
+      testLDM(instruction = 0xe9b00000, start = 1004, newBase = 1064)
+      // ldmda r0!, {}
+      testLDM(instruction = 0xe8300000, start = 940, newBase = 936)
+      // ldmdb r0!, {}
+      testLDM(instruction = 0xe9300000, start = 936, newBase = 936)
     }
   }
 }
