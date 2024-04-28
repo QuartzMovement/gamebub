@@ -176,17 +176,14 @@ class ARM7TDMI extends Module {
       lastMemReadAlign := memAddrReg(1, 0)
       memReadDataReg := io.mem.RDATA
     }
-    when (control.latchMemWriteData) {
-      val writeData = cBus
-      printf(cf"latchMemWriteData: cBus= ${writeData}%x\n")
-      when (io.mem.SIZE === BusAccessWidth.Byte) {
-        memWriteDataReg := Fill(4, writeData(7, 0))
-      } .elsewhen (io.mem.SIZE === BusAccessWidth.Halfword) {
-        memWriteDataReg := Fill(2, writeData(15, 0))
-      } .otherwise {
-        memWriteDataReg := writeData
-      }
-    }
+  }
+  val memWriteData = Wire(UInt(32.W))
+  when (currentMemReadWidth === BusAccessWidth.Byte) {
+    memWriteData := Fill(4, cBus(7, 0))
+  } .elsewhen (currentMemReadWidth === BusAccessWidth.Halfword) {
+    memWriteData := Fill(2, cBus(15, 0))
+  } .otherwise {
+    memWriteData := cBus
   }
   when (control.busB === BusBValue.MemReadData) {
     val readData = WireDefault(memReadDataReg)
@@ -218,7 +215,7 @@ class ARM7TDMI extends Module {
     }
   }
 
-  io.mem.WDATA := memWriteDataReg
+  io.mem.WDATA := memWriteData
   io.mem.WRITE := control.memWrite
   io.mem.SIZE := control.memWidth
   io.mem.TRANS := control.memTransaction

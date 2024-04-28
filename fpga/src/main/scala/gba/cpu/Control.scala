@@ -253,7 +253,7 @@ class Control extends Module {
         switch (stage) {
           is (0.U) {
             // Calculate address, initiate access
-            // XXX: if base addr regN is the same as store regD, the stored data is *pre* writeback
+            // Note: if base addr regN is the same as store regD, the stored data is *pre* writeback
             when (flag_preindex) {
               setAluLoadStoreAddress()
             } .otherwise {
@@ -262,9 +262,6 @@ class Control extends Module {
               control.aluOpcode := AluOpcode.mov
             }
             control.addressSource := AddressSource.Alu
-
-            // XXX: is there a way to do this without adding a third register read port?
-            control.regReadC := instruction.regD
             control.latchMemWriteData := true.B
 
             control.memTransaction := BusTransactionType.NonSequential
@@ -281,6 +278,9 @@ class Control extends Module {
               control.regWriteIndex := instruction.regN
               control.regWriteEnable := true.B
             }
+
+            // XXX: is there a way to do this without adding a third register read port?
+            control.regReadC := instruction.regD
 
             nextInstruction()
             control.memTransaction := BusTransactionType.NonSequential
