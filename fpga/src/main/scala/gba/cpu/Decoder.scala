@@ -49,6 +49,8 @@ object InstructionKind extends ChiselEnum {
   val ArmBranch = Value
   val MoveFromStatusRegister = Value
   val MoveToStatusRegister = Value
+  val LoadMultiple = Value
+  val StoreMultiple = Value
 }
 
 class DecodedInstruction extends Bundle {
@@ -243,6 +245,12 @@ class Decoder extends Module {
       out.immediate := Mux(in(25), in(11, 5), in(11, 0))
       // Immediate: [immediate (12)]
       //         OR [shift imm][shift type (2)]
+    } .elsewhen(in(27, 25) === "b100".U(3.W)) {
+      // Load/Store Multiple
+      out.kind := Mux(in(20), InstructionKind.LoadMultiple, InstructionKind.StoreMultiple)
+      out.regN := in(19, 16)
+      out.flags := in(24, 21) // [P, U, S, W]
+      out.immediate := in(15, 0)
     }
   } .otherwise {
     // Thumb mode

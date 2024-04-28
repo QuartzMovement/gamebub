@@ -23,6 +23,10 @@ class ARM7TDMISpec extends AnyFunSuite {
       data.copyToArray(mem, address / 4)
     }
 
+    def getMem(address: Int = 0): Int = {
+      mem.lift(address >> 2).getOrElse(0xffffffff)
+    }
+
     def step(): Unit = {
       val memAddress = dut.io.mem.ADDR.peek().litValue
       val memWrite = dut.io.mem.WRITE.peek().litToBoolean
@@ -42,7 +46,7 @@ class ARM7TDMISpec extends AnyFunSuite {
           System.err.println(f"Mem Write $seq: [0x$memAddress%X] <- 0x$memDataWrite%X | size=$memSize\n")
           // TODO!
         } else {
-          val readData = mem.lift(memAddress.toInt >> 2).getOrElse(0xffffffff)
+          val readData = getMem(memAddress.toInt)
           dut.io.mem.RDATA.poke(readData)
           System.err.println(f"Mem  Read $seq: [0x$memAddress%X] -> 0x$readData%X | size=$memSize\n")
         }
@@ -702,6 +706,89 @@ class ARM7TDMISpec extends AnyFunSuite {
       // MSR (reg)
       cpu.step(6)
       assert(cpu.reg(4) == 9)
+    }
+  }
+
+  test("load multiple") {
+    simulate(new ARM7TDMI) { dut =>
+      def testLDM(instruction: Int, start: Int, newBase: Int): Unit = {
+        val cpu = new CpuHarness(dut)
+        cpu.copyMem(Array(
+          0xe3a00ffa, // 0x0000: mov r0, #1000
+          instruction,
+          0xe3a00001, // 0x0008: mov r0, #1
+          0xe3a00002, // 0x000A: mov r0, #2
+          0xe3a00003, // 0x000C: mov r0, #3
+        ))
+        cpu.copyMem((0 until 16).map(0xA000 + _).toArray, 936)
+        cpu.copyMem((0 until 16).map(0xB000 + _).toArray, 968)
+        cpu.copyMem((0 until 16).map(0xC000 + _).toArray, 1000)
+        cpu.copyMem((0 until 16).map(0xD000 + _).toArray, 1032)
+        cpu.step(3)
+        cpu.step()
+
+        // LDM #1: Calculate start address
+        cpu.assertMemRead(start, BusTransactionType.NonSequential)
+        cpu.step()
+
+        // LDM #2: Writeback base, start fetch
+        cpu.assertMemRead(start + 4, BusTransactionType.Sequential)
+        cpu.step()
+        assert(cpu.reg(0) == newBase)
+
+        // #3
+        cpu.assertMemRead(start + 8, BusTransactionType.Sequential)
+        cpu.step()
+
+        // #4
+        cpu.assertMemRead(start + 12, BusTransactionType.Sequential)
+        cpu.step()
+
+        // #5: start I-S prefetch
+        cpu.assertMemRead(0x10, BusTransactionType.Internal)
+        cpu.step()
+
+        // #6: finish prefetch, moving to next instruction
+        cpu.assertMemRead(0x10, BusTransactionType.Sequential)
+        cpu.step()
+
+        // Check loaded registers.
+        {
+          var address = start
+          for (i <- 0 until 16) {
+            if ((instruction & (1 << i)) != 0) {
+              assert(cpu.reg(i) == cpu.getMem(address))
+              address += 4
+            }
+          }
+        }
+
+        // Check that instructions after work.
+        cpu.step()
+        assert(cpu.reg(0) == 1)
+        cpu.step()
+        assert(cpu.reg(0) == 2)
+        cpu.step()
+        assert(cpu.reg(0) == 3)
+      }
+
+      // ldmia r0!, {r1, r2, r3, r4}
+      testLDM(0xe8b0001e, 1000, 1016)
+
+      // ldmib r0!, {r1, r2, r3, r4}
+      testLDM(0xe9b0001e, 1004, 1016)
+
+      // ldmda r0!, {r1, r2, r3, r4}
+      testLDM(0xe830001e, 988, 984)
+
+      // ldmdb r0!, {r1, r2, r3, r4}
+      testLDM(0xe930001e, 984, 984)
+
+      // TODO: test with R15 in list (branch)
+      // TODO: test with only 1 register in list
+      // TODO: test with only PC in list
+      // TODO: test empty list
+      // TODO: test r0 in the list (writeback register)
     }
   }
 }

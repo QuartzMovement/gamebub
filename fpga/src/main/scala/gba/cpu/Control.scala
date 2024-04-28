@@ -82,7 +82,8 @@ class Control extends Module {
   val instruction = RegInit((new DecodedInstruction).Lit(
     _.condition -> Condition.Nv
   ))
-  val stage = RegInit(0.U(5.W))
+  val stage = RegInit(0.U(3.W))
+  val counter = Reg(UInt(5.W)) // Counter used for LDM/STM
   val nextStage = WireDefault(stage)
   val dispatch = WireDefault(false.B)
   when (io.enable) {
@@ -124,7 +125,7 @@ class Control extends Module {
   control.memLock := false.B
   control.latchMemReadData := false.B
   control.latchMemWriteData := false.B
-  control.memReadDataSigned := DontCare
+  control.memReadDataSigned := false.B
 
   printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}\n")
   when (execute) {
@@ -414,6 +415,97 @@ class Control extends Module {
           control.cpsrUpdateFields := Cat(instruction.opcode(3), instruction.opcode(0))
         }
         nextInstruction()
+      }
+      is (InstructionKind.LoadMultiple) {
+        val flag_writeback = instruction.flags(0)
+        val flag_s = instruction.flags(1)
+        val flag_up = instruction.flags(2)
+        val flag_preindex = instruction.flags(3)
+
+        // TODO: handle empty list: transfer R15 only, but increment/decrement a full 64 bytes.
+        val regList = instruction.immediate(15, 0)
+        val regCount = PopCount(regList)
+        val regNextIndex = PriorityEncoder(regList) // TODO handle empty
+
+        printf(cf"==== DEBUG LDM: stage=${stage}, counter=${counter} l=${regList} regNext=${regNextIndex}\n")
+
+        when (stage === 0.U) {
+          // Calculate start address
+          // Note: address is force aligned, which is fine: memory system will align,
+          // and we don't rotate upon read.
+          control.regReadA := instruction.regN
+          control.immediate := Mux(flag_up,
+            flag_preindex,
+            regCount - (!flag_preindex).asUInt
+          )
+          control.busB := BusBValue.Immediate
+          control.aluOpcode := Mux(flag_up, AluOpcode.add, AluOpcode.sub)
+          control.shiftKind := ShiftKind.LogicalShiftLeft
+          control.shiftImmediate := 2.U
+          control.addressSource := AddressSource.Alu
+          control.memTransaction := BusTransactionType.NonSequential
+          control.memWrite := false.B
+          control.memWidth := BusAccessWidth.Word
+          control.memProt.data := true.B
+          counter := regCount - 1.U
+          control.pcNext := PcNext.Incrementer
+          advanceStage()
+        }
+
+        when (stage === 1.U) {
+          // Update base (if writeback)
+          control.regReadA := instruction.regN
+          control.regWriteEnable := flag_writeback
+          control.regWriteIndex := instruction.regN
+          control.immediate := regCount
+          control.busB := BusBValue.Immediate
+          control.aluOpcode := Mux(flag_up, AluOpcode.add, AluOpcode.sub)
+          control.shiftKind := ShiftKind.LogicalShiftLeft
+          control.shiftImmediate := 2.U
+          control.addressSource := AddressSource.Alu
+          advanceStage()
+        }
+
+        when (stage === 1.U || stage === 2.U) {
+          // Sequential memory accesses after the first
+          control.addressSource := AddressSource.Incrementer
+          control.memTransaction := BusTransactionType.Sequential
+          control.memWrite := false.B
+          control.memWidth := BusAccessWidth.Word
+          control.memProt.data := true.B
+          control.latchMemReadData := true.B
+          counter := counter - 1.U
+          when (counter === 0.U) {
+            // Begin I-S prefetch cycle
+            beginPrefetch()
+            control.addressSource := AddressSource.Pc
+            control.pcNext := PcNext.Same
+            advanceStage()
+          }
+        }
+
+        when (stage === 2.U) {
+          // Unset the next bit (unless we're on the last cycle, to not corrupt next instruction).
+          instruction.immediate := regList & (~(1.U << regNextIndex)).asUInt
+        }
+
+        when (stage >= 2.U) {
+          // Write loaded RDATA to the next register in the list.
+          control.busB := BusBValue.MemReadData
+          control.aluOpcode := AluOpcode.mov
+          control.regWriteIndex := regNextIndex
+          control.regWriteEnable := true.B
+        }
+
+        when (stage === 3.U) {
+          // Complete fetch, next cycle
+          when (false.B) {
+            // TODO if PC is written, flush pipeline
+            flushPipeline()
+          } .otherwise {
+            completePrefetch()
+          }
+        }
       }
     }
   } .otherwise {
