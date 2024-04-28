@@ -463,6 +463,7 @@ class Control extends Module {
           control.shiftKind := ShiftKind.LogicalShiftLeft
           control.shiftImmediate := 2.U
           control.addressSource := AddressSource.Alu
+
           advanceStage()
         }
 
@@ -480,7 +481,8 @@ class Control extends Module {
             beginPrefetch()
             control.addressSource := AddressSource.Pc
             control.pcNext := PcNext.Same
-            advanceStage()
+            // Skip stage 2 for single register load
+            advanceStage(Mux(regCount > 1.U, 1.U, 2.U))
           }
         }
 
@@ -599,8 +601,8 @@ class Control extends Module {
     dispatch := true.B
   }
 
-  private def advanceStage(): Unit = {
-    nextStage := stage + 1.U
+  private def advanceStage(by: UInt = 1.U): Unit = {
+    nextStage := stage + by
   }
 }
 
