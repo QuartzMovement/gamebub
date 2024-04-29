@@ -6,17 +6,19 @@ import org.scalatest.funsuite.AnyFunSuite
 class ARM7TDMISpec extends AnyFunSuite {
   /// CPU harness providing memory accesses
   class CpuHarness(dut: ARM7TDMI) {
-    reset()
-
     // Array of 32-bit integers for memory
     private val mem = Array.fill(1 * 1024 * 1024)(0)
 
-    def reset(): Unit = {
+    def reset(reloadPipeline: Boolean = true): Unit = {
       dut.io.enable.poke(true)
       dut.io.mem.RDATA.poke(0xFFFFFFFF)
       dut.reset.poke(true)
       dut.clock.step()
       dut.reset.poke(false)
+
+      if (reloadPipeline) {
+        step(3)
+      }
     }
 
     def copyMem(data: Array[Int], address: Int = 0): Unit = {
@@ -106,6 +108,7 @@ class ARM7TDMISpec extends AnyFunSuite {
         0xe3a01002, // 0x0004: mov r1, 2
         0xe3a02003, // 0x0008: mov r2, 3
       ))
+      cpu.reset(reloadPipeline = false)
 
       // TODO: first read should be NonSequential
       cpu.assertMemRead(0x00, BusTransactionType.Sequential)
@@ -134,7 +137,7 @@ class ARM7TDMISpec extends AnyFunSuite {
         0xe2412005, // 0x0008: sub r2, r1, 5
         0xe2512005, // 0x000c: subs r2, r1, 5
       ))
-      cpu.step(3)
+      cpu.reset()
 
       cpu.step()
       assert(cpu.reg(0) == 1)
@@ -165,33 +168,27 @@ class ARM7TDMISpec extends AnyFunSuite {
         0xe3a02006, // 0x0018: mov r2, 6
         0xe3a02007, // 0x001C: mov r2, 7
       ))
+      cpu.reset()
 
-      cpu.assertMemRead(0, BusTransactionType.Sequential)
-      cpu.step()
-      cpu.assertMemRead(4, BusTransactionType.Sequential)
-      cpu.step()
-      cpu.assertMemRead(8, BusTransactionType.Sequential)
-      cpu.step()
       cpu.assertMemRead(20, BusTransactionType.NonSequential)
-
       cpu.step()
       assert(cpu.reg(15) == 20)
-      cpu.assertMemRead(24, BusTransactionType.Sequential)
 
+      cpu.assertMemRead(24, BusTransactionType.Sequential)
       cpu.step()
       assert(cpu.reg(15) == 24)
-      cpu.assertMemRead(28, BusTransactionType.Sequential)
 
+      cpu.assertMemRead(28, BusTransactionType.Sequential)
       cpu.step()
       assert(cpu.reg(15) == 28)
       assert(cpu.reg(2) == 0)
-      cpu.assertMemRead(32, BusTransactionType.Sequential)
 
+      cpu.assertMemRead(32, BusTransactionType.Sequential)
       cpu.step()
       assert(cpu.reg(1) == 0)
       assert(cpu.reg(2) == 5)
-      cpu.assertMemRead(36, BusTransactionType.Sequential)
 
+      cpu.assertMemRead(36, BusTransactionType.Sequential)
       cpu.step()
       assert(cpu.reg(2) == 6)
 
@@ -208,8 +205,7 @@ class ARM7TDMISpec extends AnyFunSuite {
         0xe3a01cff, // 0x0004: mov r1, 0xFF00
         0xe0812011, // 0x0008: add r2, r1, r1, LSL r0
       ))
-
-      cpu.step(3)
+      cpu.reset()
 
       // mov r0, 12
       cpu.step()
@@ -247,7 +243,7 @@ class ARM7TDMISpec extends AnyFunSuite {
       0xe3a02003, // 0x0014: mov r2, #3
     ))
     cpu.copyMem(Array(0xAABBCCDD, 0x11223344, 0x55667788), 996)
-    cpu.step(3)
+    cpu.reset()
     cpu.step()
     assert(cpu.reg(0) == 1000)
     cpu.step()
@@ -447,7 +443,7 @@ class ARM7TDMISpec extends AnyFunSuite {
       0xe3a02003, // 0x0024: mov r2, #3
     ))
     cpu.copyMem(Array(0xAABBCCDD, 0x99887766, 0x55667788), 996)
-    cpu.step(3)
+    cpu.reset()
     cpu.step(5)
     assert(cpu.reg(1) == 0x44332211)
     cpu.step()
@@ -521,7 +517,7 @@ class ARM7TDMISpec extends AnyFunSuite {
           0xe3a02003, // 0x0020: mov r2, #3
         ))
         cpu.copyMem(Array(0xAABBCCDD), 1000)
-        cpu.step(3)
+        cpu.reset()
         cpu.step(5)
 
         // Swap: load
@@ -590,7 +586,7 @@ class ARM7TDMISpec extends AnyFunSuite {
         0xe3a02002, // 0x1004: mov r2, #2
         0xe3a02003, // 0x1008: mov r2, #3
       ), 0x1000)
-      cpu.step(3)
+      cpu.reset()
 
       // Branch 1: load from branch target
       cpu.assertMemRead(0x1000, BusTransactionType.NonSequential)
@@ -634,7 +630,7 @@ class ARM7TDMISpec extends AnyFunSuite {
         //             0x001E: movs r2, #4   (thumb)
         0x22042203,
       ))
-      cpu.step(3)
+      cpu.reset()
       cpu.step()
 
       // Branch 1
@@ -691,8 +687,7 @@ class ARM7TDMISpec extends AnyFunSuite {
         0x03844004, // 0x002c: orreq r4, #4
         0x43844008, // 0x0030: orrmi r4, #8
       ))
-      cpu.step(3)
-
+      cpu.reset()
       cpu.step()
 
       // MRS
@@ -730,7 +725,7 @@ class ARM7TDMISpec extends AnyFunSuite {
         cpu.copyMem((0 until 16).map(0xB000 + _).toArray, 968)
         cpu.copyMem((0 until 16).map(0xC000 + _).toArray, 1000)
         cpu.copyMem((0 until 16).map(0xD000 + _).toArray, 1032)
-        cpu.step(3)
+        cpu.reset()
         cpu.step()
 
         var registerField = instruction & 0xFFFF
@@ -869,7 +864,7 @@ class ARM7TDMISpec extends AnyFunSuite {
           0xe3a00002, // 0x0044: mov r0, #2
           0xe3a00003, // 0x0048: mov r0, #3
         ))
-        cpu.step(3)
+        cpu.reset()
         cpu.step(15)
 
         var registerField = instruction & 0xFFFF
