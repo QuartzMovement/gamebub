@@ -220,7 +220,7 @@ class Decoder extends Module {
         out.flags := "b10".U(2.W) // [Exchange, Link]
         out.regM := in(3, 0)
       }
-    } .elsewhen (in(21, 20) === "b10".U(2.W) && in(24, 23) === "b10".U(2.W)) {
+    } .elsewhen (in(27, 25) === "b001".U(3.W) && in(21, 20) === "b10".U(2.W) && in(24, 23) === "b10".U(2.W)) {
       // MSR: Move *to* status register (immediate operand)
       out.kind := InstructionKind.MoveToStatusRegister
       out.flags := Cat("b1".U(1.W), in(22)) // [Immediate, SPSR]

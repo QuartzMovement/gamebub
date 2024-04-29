@@ -425,9 +425,9 @@ class Control extends Module {
 
         // Special handling for empty list: transfer R15 only, but increment/decrement base by full 64 bytes.
         val regList = instruction.immediate(15, 0)
-        val listEmpty = regList === 0.U
+        val regListEmpty = regList === 0.U
         val regCount = PopCount(regList)
-        val regNextIndex = Mux(listEmpty, 15.U, PriorityEncoder(regList))
+        val regNextIndex = Mux(regListEmpty, 15.U, PriorityEncoder(regList))
 
         when (stage === 0.U) {
           // Calculate start address
@@ -436,7 +436,7 @@ class Control extends Module {
           control.regReadA := instruction.regN
           control.immediate := Mux(flag_up,
             flag_preindex,
-            Mux(listEmpty, 16.U, regCount) - (!flag_preindex).asUInt
+            Mux(regListEmpty, 16.U, regCount) - (!flag_preindex).asUInt
           )
           control.busB := BusBValue.Immediate
           control.aluOpcode := Mux(flag_up, AluOpcode.add, AluOpcode.sub)
@@ -447,7 +447,7 @@ class Control extends Module {
           control.memWrite := false.B
           control.memWidth := BusAccessWidth.Word
           control.memProt.data := true.B
-          counter := Mux(listEmpty, 1.U, regCount) - 1.U
+          counter := Mux(regListEmpty, 1.U, regCount) - 1.U
           control.pcNext := PcNext.Incrementer
           advanceStage()
         }
@@ -457,7 +457,7 @@ class Control extends Module {
           control.regReadA := instruction.regN
           control.regWriteEnable := flag_writeback
           control.regWriteIndex := instruction.regN
-          control.immediate := Mux(listEmpty, 16.U, regCount)
+          control.immediate := Mux(regListEmpty, 16.U, regCount)
           control.busB := BusBValue.Immediate
           control.aluOpcode := Mux(flag_up, AluOpcode.add, AluOpcode.sub)
           control.shiftKind := ShiftKind.LogicalShiftLeft
@@ -482,7 +482,7 @@ class Control extends Module {
             control.addressSource := AddressSource.Pc
             control.pcNext := PcNext.Same
             // Skip stage 2 for single register load
-            advanceStage(Mux(regCount > 1.U && !listEmpty, 1.U, 2.U))
+            advanceStage(Mux(regCount > 1.U && !regListEmpty, 1.U, 2.U))
           }
         }
 
@@ -506,6 +506,73 @@ class Control extends Module {
             flushPipeline()
           } .otherwise {
             completePrefetch()
+          }
+        }
+      }
+      is (InstructionKind.StoreMultiple) {
+        val flag_writeback = instruction.flags(0)
+        val flag_s = instruction.flags(1)
+        val flag_up = instruction.flags(2)
+        val flag_preindex = instruction.flags(3)
+        // TODO: works differently with 'S' flag (user registers, CPSR restore, etc.)
+
+        // Special handling for empty list: transfer R15 only, but increment/decrement base by full 64 bytes.
+        val regList = instruction.immediate(15, 0)
+        val regListEmpty = regList === 0.U
+        val regCount = PopCount(regList)
+        val regNextIndex = Mux(regListEmpty, 15.U, PriorityEncoder(regList))
+
+        when (stage === 0.U) {
+          // Calculate start address
+          control.regReadA := instruction.regN
+          control.immediate := Mux(flag_up,
+            flag_preindex,
+            Mux(regListEmpty, 16.U, regCount) - (!flag_preindex).asUInt
+          )
+          control.busB := BusBValue.Immediate
+          control.aluOpcode := Mux(flag_up, AluOpcode.add, AluOpcode.sub)
+          control.shiftKind := ShiftKind.LogicalShiftLeft
+          control.shiftImmediate := 2.U
+          control.addressSource := AddressSource.Alu
+          control.memTransaction := BusTransactionType.NonSequential
+          control.memWrite := true.B
+          control.memWidth := BusAccessWidth.Word
+          control.memProt.data := true.B
+          counter := Mux(regListEmpty, 1.U, regCount) - 1.U
+          control.pcNext := PcNext.Incrementer
+          advanceStage()
+        }
+
+        when (stage === 1.U) {
+          // Update base (if writeback)
+          control.regReadA := instruction.regN
+          control.regWriteEnable := flag_writeback
+          control.regWriteIndex := instruction.regN
+          control.immediate := Mux(regListEmpty, 16.U, regCount)
+          control.busB := BusBValue.Immediate
+          control.aluOpcode := Mux(flag_up, AluOpcode.add, AluOpcode.sub)
+          control.shiftKind := ShiftKind.LogicalShiftLeft
+          control.shiftImmediate := 2.U
+          control.addressSource := AddressSource.Alu
+
+          // Store registers
+          control.addressSource := AddressSource.Incrementer
+          control.memTransaction := BusTransactionType.Sequential
+          control.memWrite := true.B
+          control.memWidth := BusAccessWidth.Word
+          control.memProt.data := true.B
+          control.regReadC := regNextIndex
+
+          counter := counter - 1.U
+          when (counter === 0.U) {
+            // Begin next instruction fetch
+            nextInstruction()
+            control.memTransaction := BusTransactionType.NonSequential
+            control.pcNext := PcNext.Same
+            control.addressSource := AddressSource.Pc
+          } .otherwise {
+            // Unset the next bit (unless we're on the last cycle, to not corrupt next instruction).
+            instruction.immediate := regList & (~(1.U << regNextIndex)).asUInt
           }
         }
       }

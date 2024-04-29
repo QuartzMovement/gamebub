@@ -843,4 +843,105 @@ class ARM7TDMISpec extends AnyFunSuite {
       testLDM(instruction = 0xe9300000, start = 936, newBase = 936)
     }
   }
+
+  test("store multiple") {
+    simulate(new ARM7TDMI) { dut =>
+      def testSTM(instruction: Int, start: Int, newBase: Int = 1000): Unit = {
+        val cpu = new CpuHarness(dut)
+        cpu.copyMem(Array(
+          0xe3a000a0, // 0x0000: mov r0, #0xA0
+          0xe3a01ffa, // 0x0004: mov r1, #1000
+          0xe3a020a2, // 0x0008: mov r2, #0xA2
+          0xe3a030a3, // 0x000c: mov r3, #0xA3
+          0xe3a040a4, // 0x0010: mov r4, #0xA4
+          0xe3a050a5, // 0x0014: mov r5, #0xA5
+          0xe3a060a6, // 0x0018: mov r6, #0xA6
+          0xe3a070a7, // 0x001c: mov r7, #0xA7
+          0xe3a080a8, // 0x0020: mov r8, #0xA8
+          0xe3a090a9, // 0x0024: mov r9, #0xA9
+          0xe3a0a0aa, // 0x0028: mov r10, #0xAA
+          0xe3a0b0ab, // 0x002c: mov r11, #0xAB
+          0xe3a0c0ac, // 0x0030: mov r12, #0xAC
+          0xe3a0d0ad, // 0x0034: mov r13, #0xAD
+          0xe3a0e0ae, // 0x0038: mov r14, #0xAE
+          instruction,
+          0xe3a00001, // 0x0040: mov r0, #1
+          0xe3a00002, // 0x0044: mov r0, #2
+          0xe3a00003, // 0x0048: mov r0, #3
+        ))
+        cpu.step(3)
+        cpu.step(15)
+
+        var registerField = instruction & 0xFFFF
+        if (registerField == 0) {
+          // Special behavior with empty list: PC only (but writeback of +/- 64)
+          registerField = 0x8000
+        }
+
+        // STM #1: Calculate start address
+        cpu.assertMemWrite(start, BusTransactionType.NonSequential)
+        cpu.step()
+
+        var address = start + 4
+        for (i <- 0 until 16) {
+          if ((registerField & (1 << i)) != 0) {
+            System.err.println(f"    --> register $i")
+            val expected = i match {
+              case 1 if ((registerField & 1) == 0) => 1000 // r1 is not the first in the list
+              case 1 => newBase
+              case 15 => 0x48  // PC + 12
+              case _ => 0xA0 | i
+            }
+            assert(cpu.memWriteData() == expected)
+            if (registerField >> (i + 1) == 0) {
+              // There are no more registers to write, last cycle.
+              cpu.assertMemRead(0x48 /* PC + 12 */, BusTransactionType.NonSequential)
+            } else {
+              cpu.assertMemWrite(address, BusTransactionType.Sequential)
+              address += 4
+            }
+            cpu.step()
+          }
+        }
+
+        // Check that instructions after work.
+        cpu.step()
+        assert(cpu.reg(0) == 1)
+        cpu.step()
+        assert(cpu.reg(0) == 2)
+        cpu.step()
+        assert(cpu.reg(0) == 3)
+      }
+
+      // Test the four addressing modes
+      // stmia r1!, {r2, r3, r4, r5}
+      testSTM(instruction = 0xe8a1003c, start = 1000, newBase = 1016)
+      // stmib r1!, {r2, r3, r4, r5}
+      testSTM(instruction = 0xe9a1003c, start = 1004, newBase = 1016)
+      // stmda r1!, {r2, r3, r4, r5}
+      testSTM(instruction = 0xe821003c, start = 988, newBase = 984)
+      // stmdb r1!, {r2, r3, r4, r5}
+      testSTM(instruction = 0xe921003c, start = 984, newBase = 984)
+
+      // Test writeback with the register in the list
+      // stmia r1!, {r0, r1, r2, r3}
+      testSTM(instruction = 0xe8a1000f, start = 1000, newBase = 1016)
+      // stmib r1!, {r1, r2, r3}
+      testSTM(instruction = 0xe8a1000e, start = 1000, newBase = 1012)
+
+      // Test single register
+      // stmia r1!, {r2}
+      testSTM(instruction = 0xe8a10004, start = 1000, newBase = 1004)
+
+      // Test PC writeback
+      // stmia r1!, {r2, pc}
+      testSTM(instruction = 0xe8a18004, start = 1000, newBase = 1008)
+      // stmia r1!, {pc}
+      testSTM(instruction = 0xe8a18000, start = 1000, newBase = 1004)
+
+      // Test empty register list
+      // stmia r1!, {}
+      testSTM(instruction = 0xe8a10000, start = 1000, newBase = 1064)
+    }
+  }
 }
