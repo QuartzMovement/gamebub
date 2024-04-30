@@ -103,11 +103,13 @@ class Control extends Module {
     _.condition -> Condition.Nv
   ))
   val stage = RegInit(0.U(3.W))
-  val counter = Reg(UInt(5.W)) // Counter used for LDM/STM
   val nextStage = WireDefault(stage)
+  val counter = Reg(UInt(5.W)) // Counter used for LDM/STM
+  val nextCounter = WireDefault(counter)
   val dispatch = WireDefault(false.B)
   when (io.enable) {
     stage := nextStage
+    counter := nextCounter
     when (dispatch) {
       stage := 0.U
       when (doReset) {
@@ -553,7 +555,7 @@ class Control extends Module {
           control.memWrite := false.B
           control.memWidth := BusAccessWidth.Word
           control.memProt.data := true.B
-          counter := Mux(regListEmpty, 1.U, regCount) - 1.U
+          nextCounter := Mux(regListEmpty, 1.U, regCount) - 1.U
           control.pcNext := PcNext.Incrementer
           advanceStage()
         }
@@ -581,7 +583,7 @@ class Control extends Module {
           control.memWidth := BusAccessWidth.Word
           control.memProt.data := true.B
           control.latchMemReadData := true.B
-          counter := counter - 1.U
+          nextCounter := counter - 1.U
           when (counter === 0.U) {
             // Begin I-S prefetch cycle
             beginPrefetch()
@@ -592,7 +594,7 @@ class Control extends Module {
           }
         }
 
-        when (stage === 2.U) {
+        when (stage === 2.U && io.enable) {
           // Unset the next bit (unless we're on the last cycle, to not corrupt next instruction).
           instruction.immediate := regList & (~(1.U << regNextIndex)).asUInt
         }
@@ -644,7 +646,7 @@ class Control extends Module {
           control.memWrite := true.B
           control.memWidth := BusAccessWidth.Word
           control.memProt.data := true.B
-          counter := Mux(regListEmpty, 1.U, regCount) - 1.U
+          nextCounter := Mux(regListEmpty, 1.U, regCount) - 1.U
           control.pcNext := PcNext.Incrementer
           advanceStage()
         }
@@ -669,14 +671,14 @@ class Control extends Module {
           control.memProt.data := true.B
           control.regReadC := regNextIndex
 
-          counter := counter - 1.U
+          nextCounter := counter - 1.U
           when (counter === 0.U) {
             // Begin next instruction fetch
             nextInstruction()
             control.memTransaction := BusTransactionType.NonSequential
             control.pcNext := PcNext.Same
             control.addressSource := AddressSource.Pc
-          } .otherwise {
+          } .elsewhen (io.enable) {
             // Unset the next bit (unless we're on the last cycle, to not corrupt next instruction).
             instruction.immediate := regList & (~(1.U << regNextIndex)).asUInt
           }

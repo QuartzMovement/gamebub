@@ -104,7 +104,10 @@ class Decoder extends Module {
     Mux(io.readAddress(1), io.readData(31, 16), io.readData(15, 0)),
     io.readData
   )
-  val isNewFetch = RegNext(io.advancePipeline)
+  val isNewFetch = RegInit(true.B)
+  when (io.enable) {
+    isNewFetch := io.advancePipeline
+  }
   val fetchRegValid = RegInit(false.B)
   val fetchReg = Reg(UInt(32.W))
   when (io.enable && (!io.advancePipeline && isNewFetch)) {

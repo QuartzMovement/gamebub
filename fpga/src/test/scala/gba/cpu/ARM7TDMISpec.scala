@@ -35,6 +35,10 @@ class ARM7TDMISpec extends AnyFunSuite {
       val memSize = 1 << dut.io.mem.SIZE.peekValue().asBigInt.toInt
       val memTrans = dut.io.mem.TRANS.peekValue().asBigInt
 
+      // Test that 'enable' works
+//      dut.io.enable.poke(false)
+//      dut.clock.step()
+//      dut.io.enable.poke(true)
       dut.clock.step()
 
       // TODO verify bursts are valid
