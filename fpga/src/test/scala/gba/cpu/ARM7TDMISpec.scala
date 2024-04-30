@@ -1,6 +1,6 @@
 package gba.cpu
 
-import chisel3.simulator.EphemeralSimulator._
+import lib.util.EphemeralSimulator._
 import org.scalatest.funsuite.AnyFunSuite
 
 class ARM7TDMISpec extends AnyFunSuite {
@@ -937,6 +937,78 @@ class ARM7TDMISpec extends AnyFunSuite {
       // Test empty register list
       // stmia r1!, {}
       testSTM(instruction = 0xe8a10000, start = 1000, newBase = 1064)
+    }
+  }
+
+  test("exception") {
+    simulate(new ARM7TDMI) { dut =>
+      val cpu = new CpuHarness(dut)
+      cpu.copyMem(Array(
+        0xea0000f8, // 0x0000: b 1000   (Reset vector)
+        0xe1a00000, // 0x0004: mov r0, r0
+        0xea0001f0, // 0x0008: b 2000   (SWI vector)
+      ))
+      cpu.copyMem(Array(
+        0xe3a0d0ab, // 0x0000: mov r13, #0xAB
+        0xe3a06001, // 0x0004: mov r6, #1
+        0xef000001, // 0x0008: swi #1
+        0xe3a07002, // 0x000c: mov r7, #2
+      ), 1000)
+      cpu.copyMem(Array(
+        0xe3a00001, // 0x0000: mov r0, #1
+        0xe3a00002, // 0x0004: mov r0, #2
+        0xe3a00003, // 0x0008: mov r0, #3
+        0xe10f1000, // 0x000c: mrs r1, cpsr
+        0xe14f2000, // 0x0010: mrs r2, spsr
+        0xe1a0300d, // 0x0014: mov r3, r13
+        0xe1a0400e, // 0x0018: mov r4, r14
+      ), 2000)
+      cpu.reset()
+
+      cpu.step(5) // b, mov, mov
+      assert(cpu.reg(13) == 0xAB)
+      assert(cpu.reg(6) == 1)
+
+      // First cycle: make sure PC is updated.
+      assert(cpu.reg(15) == 1000 + 0x10)
+      cpu.assertMemRead(0x8, BusTransactionType.NonSequential)
+      cpu.step()
+      cpu.assertMemRead(0xC, BusTransactionType.Sequential)
+      cpu.step()
+      cpu.assertMemRead(0x10, BusTransactionType.Sequential)
+      cpu.step()
+
+      // Do the branch
+      assert(cpu.reg(15) == 8 + 8) // PC at SWI vector (+ 8)
+      // It is important that the PC is at the vector area, because
+      // the GBA only allows reading BIOS memory when the PC is in the
+      // BIOS area (perhaps also if it's an instruction fetch? e.g.
+      // for the first few prefetch cycles after a branch/exception?)
+      cpu.step(3)
+
+      cpu.step()
+      assert(cpu.reg(0) == 1)
+      cpu.step()
+      assert(cpu.reg(0) == 2)
+      cpu.step()
+      assert(cpu.reg(0) == 3)
+
+      // Check new CPSR: Supervisor, IRQ disabled, ARM mode.
+      // NOTE: FIQ still disabled from before
+      cpu.step()
+      assert(cpu.reg(1) == 0xD3)
+
+      // Check saved SPSR
+      cpu.step()
+      assert(cpu.reg(2) == 0xDF) // IRQ, FIQ disabled, ARM, System mode
+
+      // Check that r13 is banked properly
+      cpu.step()
+      assert(cpu.reg(3) != 0xAB)
+
+      // Check that r14 (LR) was set properly
+      cpu.step()
+      assert(cpu.reg(4) == 1012) // Instruction after SWI
     }
   }
 }

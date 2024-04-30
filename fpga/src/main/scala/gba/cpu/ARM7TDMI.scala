@@ -3,6 +3,14 @@ package gba.cpu
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
+import _root_.circt.stage.ChiselStage
+
+object HandheldTop extends App {
+  ChiselStage.emitSystemVerilogFile(
+    new ARM7TDMI,
+    args,
+  )
+}
 
 /// ARM7TDMI-S compatible processor as found in the GBA
 class ARM7TDMI extends Module {
@@ -34,6 +42,7 @@ class ARM7TDMI extends Module {
   val incrementerBus = Wire(UInt(32.W))
   val control = Wire(new ControlSignals)
   val cpsrBus = Wire(new ProgramStatusRegister)
+//  printf(cf"CPSR: ${cpsrBus}\n")
   bBus := DontCare
 
   //////////////////////////////// Instruction Fetch & Decode //////////////////////////////
@@ -49,14 +58,40 @@ class ARM7TDMI extends Module {
   val controlUnit = Module(new Control)
   controlUnit.io.enable := io.enable
   controlUnit.io.nextInstruction := decodeUnit.io.decoded
+  controlUnit.io.fiq := io.FIQ
+  controlUnit.io.irq := io.IRQ
   control := controlUnit.io.signals
   when (control.busB === BusBValue.Immediate) {
     bBus := control.immediate
   }
 
   ///////////////////////////////////// Register File //////////////////////////////////////
-  // TODO add banked registers
-  val registers = RegInit(VecInit(Seq.fill(15)(0.U(32.W)) ++ Seq("hFFFFFFFC".U(32.W))))
+  // 0-15: r0-r15
+  // 16: 13_svc, 17: 14_svc,
+  // 18: 13_abt, 19: 14_abt,
+  // 20: 13_und, 21: 14_und,
+  // 22: 13_irq, 23: 14_irq
+  // 24-30: 8-14 _fiq
+  val registers = RegInit(VecInit(Seq.fill(15)(0.U(32.W)) ++ Seq("hFFFFFFFC".U(32.W)) ++ Seq.fill(15)(0.U(32.W))))
+  private def bankRegIndex(index: UInt): UInt = {
+    val mode = control.regBankMode
+    val offset = WireDefault(0.U(5.W))
+    when (mode === CpuMode.Fiq && index >= 8.U && index <= 14.U) {
+      offset := (24 - 8).U(5.W)
+    } .elsewhen (index === 13.U || index === 14.U) {
+      when (mode === CpuMode.Supervisor) {
+        offset := (16 - 13).U(5.W)
+      } .elsewhen (mode === CpuMode.Abort) {
+        offset := (18 - 13).U(5.W)
+      } .elsewhen (mode === CpuMode.Undefined) {
+        offset := (20 - 13).U(5.W)
+      } .elsewhen (mode === CpuMode.Irq) {
+        offset := (22 - 13).U(5.W)
+      }
+    }
+    index + offset
+  }
+
   val cpsr = RegInit((new ProgramStatusRegister).Lit(
     // TODO: should be Supervisor mode
     _.mode -> CpuMode.System,
@@ -71,8 +106,16 @@ class ARM7TDMI extends Module {
       _.v -> false.B,
     ),
   ))
-  val spsr = Reg(new ProgramStatusRegister)
-  val modeHasSpsr = false.B // TODO
+  val spsrVec = Reg(Vec(5, new ProgramStatusRegister))
+  val spsrIndex = MuxLookup(control.regBankMode, 0.U)(Seq(
+    CpuMode.Supervisor -> 0.U,
+    CpuMode.Abort -> 1.U,
+    CpuMode.Undefined -> 2.U,
+    CpuMode.Irq -> 3.U,
+    CpuMode.Fiq -> 4.U,
+  ))
+  val spsr = spsrVec(spsrIndex)
+  val modeHasSpsr = (control.regBankMode =/= CpuMode.User) && (control.regBankMode =/= CpuMode.System)
   val modePrivileged = cpsr.mode =/= CpuMode.User
   val nextCpsr = WireDefault(cpsr)
 
@@ -81,9 +124,9 @@ class ARM7TDMI extends Module {
   cpsrBus := cpsr
   val pc = registers(15)
   pcBus := pc
-  aBus := registers(control.regReadA)
+  aBus := registers(bankRegIndex(control.regReadA))
   when (control.busB === BusBValue.RegisterB) {
-    bBus := registers(control.regReadB)
+    bBus := registers(bankRegIndex(control.regReadB))
   } .elsewhen (control.busB === BusBValue.Cpsr) {
     bBus := cpsr.asUInt
   } .elsewhen (control.busB === BusBValue.Spsr) {
@@ -94,11 +137,11 @@ class ARM7TDMI extends Module {
       bBus := cpsr.asUInt
     }
   }
-  cBus := registers(control.regReadC)
+  cBus := registers(bankRegIndex(control.regReadC))
   when (io.enable) {
     when (control.regWriteEnable) {
       printf(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x\n")
-      registers(control.regWriteIndex) := aluBus
+      registers(bankRegIndex(control.regWriteIndex)) := aluBus
     }
     when (control.cpsrUpdateCond) {
       nextCpsr.cond := aluConditionOut
@@ -126,6 +169,16 @@ class ARM7TDMI extends Module {
     }
     when (control.cpsrRestore && modeHasSpsr) {
       nextCpsr := spsr
+    }
+    when (control.startException) {
+      val newMode = control.regBankMode
+      nextCpsr.mode := newMode
+      nextCpsr.thumb := false.B
+      nextCpsr.irqDisable := true.B
+      when (newMode =/= CpuMode.Fiq) { // also in Reset
+        nextCpsr.fiqDisable := true.B
+      }
+      spsr := cpsrBus
     }
     switch (control.pcNext) {
       is (PcNext.Incrementer) { pc := incrementerBus }
@@ -167,6 +220,7 @@ class ARM7TDMI extends Module {
     is (AddressSource.Incrementer) { io.mem.ADDR := incrementerBus }
     is (AddressSource.Pc) { io.mem.ADDR := pcBus }
     is (AddressSource.Alu) { io.mem.ADDR := aluBus }
+    is (AddressSource.Immediate) { io.mem.ADDR := control.immediate }
   }
   when (io.enable) {
     memAddrReg := io.mem.ADDR
@@ -267,6 +321,6 @@ object CpuMode extends ChiselEnum {
 }
 
 class CpuDebug extends Bundle {
-  val registers = Vec(16, UInt(32.W))
+  val registers = Vec(31, UInt(32.W))
   val cpsr = UInt(32.W)
 }

@@ -14,6 +14,7 @@ object AddressSource extends ChiselEnum {
   val Incrementer = Value
   val Pc = Value
   val Alu = Value
+  val Immediate = Value
 }
 
 object BusBValue extends ChiselEnum {
@@ -24,14 +25,27 @@ object BusBValue extends ChiselEnum {
   val Spsr = Value
 }
 
+object ExceptionKind extends ChiselEnum {
+  val None = Value
+  val Reset = Value
+  val UndefinedInstruction = Value
+  val SoftwareInterrupt = Value
+  val PrefetchAbort = Value
+  val DataAbort = Value
+  val Irq = Value
+  val Fiq = Value
+}
+
 class ControlSignals extends Bundle {
   /// True to start advance the fetch/decode stages of the pipeline.
   val advancePipeline = Bool()
   val flushPipeline = Bool()
+  val startException = Bool()
 
   val pcNext = PcNext()
   val addressSource = AddressSource()
 
+  val regBankMode = CpuMode()
   val regReadA = UInt(4.W)
   val regReadB = UInt(4.W)
   val regReadC = UInt(4.W)
@@ -76,6 +90,11 @@ class Control extends Module {
     val currentStatus = Input(new ProgramStatusRegister)
     /// Next program status register
     val nextStatus = Input(new ProgramStatusRegister)
+
+    /// Active-high fast interrupt request
+    val fiq = Input(Bool())
+    /// Active-high interrupt request
+    val irq = Input(Bool())
   })
   val control = io.signals
 
@@ -89,8 +108,18 @@ class Control extends Module {
   when (io.enable) {
     stage := nextStage
     when (dispatch) {
-      instruction := io.nextInstruction
       stage := 0.U
+      when (io.fiq && !io.currentStatus.fiqDisable) {
+        instruction.kind := InstructionKind.Exception
+        instruction.opcode := ExceptionKind.Fiq.asUInt
+        instruction.condition := Condition.Al
+      } .elsewhen (io.irq && !io.currentStatus.irqDisable) {
+        instruction.kind := InstructionKind.Exception
+        instruction.opcode := ExceptionKind.Irq.asUInt
+        instruction.condition := Condition.Al
+      } .otherwise {
+        instruction := io.nextInstruction
+      }
     }
   }
   val execute = Control.evaluateCondition(instruction.condition, io.currentStatus.cond)
@@ -98,8 +127,10 @@ class Control extends Module {
 
   control.advancePipeline := false.B
   control.flushPipeline := false.B
+  control.startException := false.B
   control.pcNext := PcNext.Same
   control.addressSource := AddressSource.Same
+  control.regBankMode := io.currentStatus.mode
   control.regReadA := DontCare
   control.regReadB := DontCare
   control.regReadC := DontCare
@@ -130,10 +161,79 @@ class Control extends Module {
   printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}\n")
   when (execute) {
     switch (instruction.kind) {
-      is (InstructionKind.Undefined) {
-        printf("Undefined instruction\n")
-        // TODO interrupt
-        nextInstruction()
+      is (InstructionKind.Exception) {
+        val kind = suppressEnumCastWarning { instruction.opcode(2, 0).asTypeOf(ExceptionKind()) }
+        val newAddress = MuxLookup(kind, 0.U)(Seq(
+          ExceptionKind.Reset -> 0.U,
+          ExceptionKind.UndefinedInstruction -> 0x4.U,
+          ExceptionKind.SoftwareInterrupt -> 0x8.U,
+          ExceptionKind.PrefetchAbort -> 0xC.U,
+          ExceptionKind.DataAbort -> 0x10.U,
+          ExceptionKind.Irq -> 0x18.U,
+          ExceptionKind.Fiq -> 0x1C.U,
+        ))
+        val newMode = MuxLookup(kind, CpuMode.Supervisor)(Seq(
+          ExceptionKind.Reset -> CpuMode.Supervisor,
+          ExceptionKind.UndefinedInstruction -> CpuMode.Undefined,
+          ExceptionKind.SoftwareInterrupt -> CpuMode.Supervisor,
+          ExceptionKind.PrefetchAbort -> CpuMode.Abort,
+          ExceptionKind.DataAbort -> CpuMode.Abort,
+          ExceptionKind.Irq -> CpuMode.Irq,
+          ExceptionKind.Fiq -> CpuMode.Fiq,
+        ))
+        val entryThumb = Reg(Bool())
+
+        switch (stage) {
+          is (0.U) {
+            printf(cf"Exception! ${kind}\n")
+            flushPipeline()
+            dispatch := false.B
+            entryThumb := io.currentStatus.thumb
+
+            // Construct forced address
+            control.immediate := newAddress
+            control.addressSource := AddressSource.Immediate
+
+            // Change mode, set ARM mode, set I high.
+            // In Reset and Fiq, set F high too.
+            // Move CPSR -> (new) SPSR
+            control.regBankMode := newMode
+            control.startException := true.B
+
+            // Move PC -> (new) LR
+            control.regReadB := 15.U
+            control.busB := BusBValue.RegisterB
+            control.aluOpcode := AluOpcode.mov
+            control.regWriteIndex := 14.U
+            control.regWriteEnable := true.B
+
+            advanceStage()
+          }
+          is (1.U) {
+            // Modify return address (to facilitate return):
+            // r14 is currently set to (next instruction to be executed + 2i)
+            // IRQ: set it to next instruction + 4  (-2i + 4)
+            // SWI/undef: set it to next instruction after SWI (+ i)
+            control.aluOpcode := AluOpcode.sub
+            control.regReadA := 14.U
+            when (kind === ExceptionKind.SoftwareInterrupt || kind === ExceptionKind.UndefinedInstruction) {
+              control.immediate := Mux(entryThumb, 2.U, 4.U)
+            } .otherwise {
+              control.immediate := Mux(entryThumb, 0.U, 4.U)
+            }
+            control.busB := BusBValue.Immediate
+            control.regWriteIndex := 14.U
+            control.regWriteEnable := true.B
+
+            nextInstruction()
+            dispatch := false.B
+            advanceStage()
+          }
+          is (2.U) {
+            // Refill instruction pipeline.
+            nextInstruction()
+          }
+        }
       }
       is (InstructionKind.DataProcessingImm) {
         // Rd := Alu(Rn, Imm)

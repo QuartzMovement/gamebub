@@ -39,7 +39,7 @@ object Condition extends ChiselEnum {
 }
 
 object InstructionKind extends ChiselEnum {
-  val Undefined = Value
+  val Exception = Value
   val DataProcessingImm = Value
   val DataProcessingImmShift = Value
   val DataProcessingRegShift = Value
@@ -130,14 +130,14 @@ class Decoder extends Module {
   }
 
   val out = io.decoded
-  out.kind := InstructionKind.Undefined
+  out.kind := InstructionKind.Exception
   out.condition := Condition.Al
   out.regN := DontCare
   out.regD := DontCare
   out.regS := DontCare
   out.regM := DontCare
   out.immediate := DontCare
-  out.opcode := DontCare
+  out.opcode := ExceptionKind.UndefinedInstruction.asUInt
   out.flags := DontCare
 
   // Decode table
@@ -251,6 +251,9 @@ class Decoder extends Module {
       out.regN := in(19, 16)
       out.flags := in(24, 21) // [P, U, S, W]
       out.immediate := in(15, 0)
+    } .elsewhen(in(27, 24) === "b1111".U(4.W)) {
+      out.kind := InstructionKind.Exception
+      out.opcode := ExceptionKind.SoftwareInterrupt.asUInt
     }
   } .otherwise {
     // Thumb mode
