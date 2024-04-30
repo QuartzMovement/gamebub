@@ -29,7 +29,7 @@ class ARM7TDMI extends Module {
   })
 
   ////////////////////////////////// Busses and Registers //////////////////////////////////
-  val memAddrReg = RegInit("hFFFFFFFC".U(32.W))
+  val memAddrReg = Reg(UInt(32.W))
   val memWriteDataReg = Reg(UInt(32.W))
   val memReadDataReg = Reg(UInt(32.W))
 
@@ -72,7 +72,7 @@ class ARM7TDMI extends Module {
   // 20: 13_und, 21: 14_und,
   // 22: 13_irq, 23: 14_irq
   // 24-30: 8-14 _fiq
-  val registers = RegInit(VecInit(Seq.fill(15)(0.U(32.W)) ++ Seq("hFFFFFFFC".U(32.W)) ++ Seq.fill(15)(0.U(32.W))))
+  val registers = RegInit(VecInit(Seq.fill(31)(0.U(32.W))))
   private def bankRegIndex(index: UInt): UInt = {
     val mode = control.regBankMode
     val offset = WireDefault(0.U(5.W))
@@ -277,7 +277,9 @@ class ARM7TDMI extends Module {
   io.mem.PROT := control.memProt
 
   ////////////////////////////////////////// Debug /////////////////////////////////////////
-  io.debug.registers := registers
+  io.debug.registers := VecInit(
+    (0 until 16).map(i => registers(bankRegIndex(i.U)))
+  )
   io.debug.cpsr := cpsr.asUInt
   printf(cf" pc is ${pc}%x, addr is ${io.mem.ADDR}%x\n")
 }
@@ -321,6 +323,6 @@ object CpuMode extends ChiselEnum {
 }
 
 class CpuDebug extends Bundle {
-  val registers = Vec(31, UInt(32.W))
+  val registers = Vec(16, UInt(32.W))
   val cpsr = UInt(32.W)
 }

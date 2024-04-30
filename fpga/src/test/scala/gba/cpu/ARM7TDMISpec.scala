@@ -17,7 +17,7 @@ class ARM7TDMISpec extends AnyFunSuite {
       dut.reset.poke(false)
 
       if (reloadPipeline) {
-        step(3)
+        step(4)
       }
     }
 
@@ -109,9 +109,9 @@ class ARM7TDMISpec extends AnyFunSuite {
         0xe3a02003, // 0x0008: mov r2, 3
       ))
       cpu.reset(reloadPipeline = false)
+      cpu.step()
 
-      // TODO: first read should be NonSequential
-      cpu.assertMemRead(0x00, BusTransactionType.Sequential)
+      cpu.assertMemRead(0x00, BusTransactionType.NonSequential)
       cpu.step()
       assert(cpu.reg(15) == 0x0)
       cpu.assertMemRead(0x04, BusTransactionType.Sequential)

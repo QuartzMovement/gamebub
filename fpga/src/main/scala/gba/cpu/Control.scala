@@ -98,6 +98,7 @@ class Control extends Module {
   })
   val control = io.signals
 
+  val doReset = RegInit(true.B)
   val instruction = RegInit((new DecodedInstruction).Lit(
     _.condition -> Condition.Nv
   ))
@@ -109,7 +110,12 @@ class Control extends Module {
     stage := nextStage
     when (dispatch) {
       stage := 0.U
-      when (io.fiq && !io.currentStatus.fiqDisable) {
+      when (doReset) {
+        doReset := false.B
+        instruction.kind := InstructionKind.Exception
+        instruction.opcode := ExceptionKind.Reset.asUInt
+        instruction.condition := Condition.Al
+      } .elsewhen (io.fiq && !io.currentStatus.fiqDisable) {
         instruction.kind := InstructionKind.Exception
         instruction.opcode := ExceptionKind.Fiq.asUInt
         instruction.condition := Condition.Al
