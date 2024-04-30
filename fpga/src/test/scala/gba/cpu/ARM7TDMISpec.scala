@@ -113,14 +113,15 @@ class ARM7TDMISpec extends AnyFunSuite {
 
       cpu.assertMemRead(0x00, BusTransactionType.NonSequential)
       cpu.step()
-      assert(cpu.reg(15) == 0x0)
+
       cpu.assertMemRead(0x04, BusTransactionType.Sequential)
       cpu.step()
-      assert(cpu.reg(15) == 0x4)
+
       cpu.assertMemRead(0x08, BusTransactionType.Sequential)
       cpu.step()
       assert(cpu.reg(15) == 0x8)
       assert(cpu.reg(0) == 0x0)
+
       cpu.assertMemRead(0x0C, BusTransactionType.Sequential)
       cpu.step()
       assert(cpu.reg(15) == 0xC)
@@ -692,7 +693,7 @@ class ARM7TDMISpec extends AnyFunSuite {
 
       // MRS
       cpu.step()
-      assert(cpu.reg(1) == 0x400000DF) // Note: last 'F' means system mode
+      assert(cpu.reg(1) == 0x400000D3) // Note: last '3' means supervisor mode
 
       // MSR (immediate)
       cpu.step(5)
@@ -949,10 +950,11 @@ class ARM7TDMISpec extends AnyFunSuite {
         0xea0001f0, // 0x0008: b 2000   (SWI vector)
       ))
       cpu.copyMem(Array(
-        0xe3a0d0ab, // 0x0000: mov r13, #0xAB
-        0xe3a06001, // 0x0004: mov r6, #1
-        0xef000001, // 0x0008: swi #1
-        0xe3a07002, // 0x000c: mov r7, #2
+        0xe329f010, // 0x0000: msr cpsr, #0x10
+        0xe3a0d0ab, // 0x0004: mov r13, #0xAB
+        0xe3a06001, // 0x0008: mov r6, #1
+        0xef000001, // 0x000C: swi #1
+        0xe3a07002, // 0x0010: mov r7, #2
       ), 1000)
       cpu.copyMem(Array(
         0xe3a00001, // 0x0000: mov r0, #1
@@ -965,12 +967,13 @@ class ARM7TDMISpec extends AnyFunSuite {
       ), 2000)
       cpu.reset()
 
-      cpu.step(5) // b, mov, mov
+      cpu.step(5) // b, msr, mov 1
       assert(cpu.reg(13) == 0xAB)
+      cpu.step()
       assert(cpu.reg(6) == 1)
 
       // First cycle: make sure PC is updated.
-      assert(cpu.reg(15) == 1000 + 0x10)
+      assert(cpu.reg(15) == 1000 + 0x14)
       cpu.assertMemRead(0x8, BusTransactionType.NonSequential)
       cpu.step()
       cpu.assertMemRead(0xC, BusTransactionType.Sequential)
@@ -993,14 +996,13 @@ class ARM7TDMISpec extends AnyFunSuite {
       cpu.step()
       assert(cpu.reg(0) == 3)
 
-      // Check new CPSR: Supervisor, IRQ disabled, ARM mode.
-      // NOTE: FIQ still disabled from before
+      // Check new CPSR: Supervisor, IRQ disabled, FIQ not disabled, ARM mode.
       cpu.step()
-      assert(cpu.reg(1) == 0xD3)
+      assert(cpu.reg(1) == 0x93)
 
       // Check saved SPSR
       cpu.step()
-      assert(cpu.reg(2) == 0xDF) // IRQ, FIQ disabled, ARM, System mode
+      assert(cpu.reg(2) == 0x10)
 
       // Check that r13 is banked properly
       cpu.step()
@@ -1008,7 +1010,7 @@ class ARM7TDMISpec extends AnyFunSuite {
 
       // Check that r14 (LR) was set properly
       cpu.step()
-      assert(cpu.reg(4) == 1012) // Instruction after SWI
+      assert(cpu.reg(4) == 1016) // Instruction after SWI
     }
   }
 }

@@ -93,7 +93,6 @@ class ARM7TDMI extends Module {
   }
 
   val cpsr = RegInit((new ProgramStatusRegister).Lit(
-    // TODO: should be Supervisor mode
     _.mode -> CpuMode.System,
     _.thumb -> false.B,
     _.irqDisable -> true.B,
@@ -175,7 +174,7 @@ class ARM7TDMI extends Module {
       nextCpsr.mode := newMode
       nextCpsr.thumb := false.B
       nextCpsr.irqDisable := true.B
-      when (newMode =/= CpuMode.Fiq) { // also in Reset
+      when (newMode === CpuMode.Fiq) { // also in Reset
         nextCpsr.fiqDisable := true.B
       }
       spsr := cpsrBus
