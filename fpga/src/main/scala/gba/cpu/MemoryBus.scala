@@ -9,6 +9,14 @@ object BusAccessWidth extends ChiselEnum {
     val Halfword = Value
     /// 32-bit word
     val Word = Value
+
+    def toWidth(value: Type): Width = {
+        value match {
+            case Byte => 8.W
+            case Halfword => 16.W
+            case _ => 32.W
+        }
+    }
 }
 
 object BusTransactionType extends ChiselEnum {

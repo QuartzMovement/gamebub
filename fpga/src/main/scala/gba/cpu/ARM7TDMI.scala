@@ -3,14 +3,6 @@ package gba.cpu
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
-import _root_.circt.stage.ChiselStage
-
-object HandheldTop extends App {
-  ChiselStage.emitSystemVerilogFile(
-    new ARM7TDMI,
-    args,
-  )
-}
 
 /// ARM7TDMI-S compatible processor as found in the GBA
 class ARM7TDMI extends Module {
