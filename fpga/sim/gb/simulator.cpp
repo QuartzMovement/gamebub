@@ -10,11 +10,10 @@
 //static const uint32_t palette[4] = {0xffffff, 0xaaaaaa, 0x555555, 0x000000};
 
 Simulator::Simulator(std::filesystem::path rom_path)
+    : framebuffer(width(), height())
 {
     this->cart = std::make_unique<Cartridge>(rom_path);
     this->top = new VSimGameboy;
-    this->framebuffer0.resize(width() * height() * 4, 0xFF);
-    this->framebuffer1.resize(width() * height() * 4, 0xFF);
 }
 
 Simulator::~Simulator()
@@ -88,36 +87,15 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
 
 void Simulator::stepFramebuffer()
 {
-    bool vblank = top->io_ppu_vblank && !prev_vblank;
-    if (vblank) {
-        framebufferIndex = 0;
-        activeFramebuffer = !activeFramebuffer;
-    }
-    prev_hblank = top->io_ppu_hblank;
-    prev_vblank = top->io_ppu_vblank;
-    std::vector<uint8_t>& framebuffer = activeFramebuffer ? framebuffer1 : framebuffer0;
+    framebuffer.update(top->io_ppu_hblank, top->io_ppu_vblank);
 
-    if (top->io_ppu_valid) {
-        if (framebufferIndex >= framebuffer.size() - 4) {
-            // TODO: make this a fatal error (framebuffer overrun).
-            return;
-        }
-
-        uint16_t pixel = top->io_ppu_pixel;
-        uint8_t r = (pixel >> 0) & 0x1F;
-        uint8_t g = (pixel >> 5) & 0x1F;
-        uint8_t b = (pixel >> 10) & 0x1F;
-        framebuffer[framebufferIndex++] = (b << 3) | (b >> 2);
-        framebuffer[framebufferIndex++] = (g << 3) | (g >> 2);
-        framebuffer[framebufferIndex++] = (r << 3) | (r >> 2);
-        framebuffer[framebufferIndex++] = 0xFF;
+    if (top->io_ppu_valid && top->io_ppu_lcdEnable) {
+      framebuffer.pushBGR(top->io_ppu_pixel);
     }
 
     // Blank the screen if the LCD is disabled.
     if (prev_lcd_enabled && !top->io_ppu_lcdEnable) {
-        std::fill(framebuffer0.begin(), framebuffer0.end(), 0xFF);
-        std::fill(framebuffer1.begin(), framebuffer1.end(), 0xFF);
-        framebufferIndex = framebuffer.size();
+      framebuffer.clear();
     }
     prev_lcd_enabled = top->io_ppu_lcdEnable;
 }
@@ -127,15 +105,8 @@ void Simulator::simulate_frame()
     simulate_cycles(70224);
 }
 
-std::vector<uint8_t>& Simulator::getFramebuffer()
-{
-    // Return framebuffer we're not writing to.
-    return activeFramebuffer ? framebuffer0 : framebuffer1;
-}
-
 void Simulator::stepAudio()
 {
-
     audioTimer++;
     if (audioTimer == (clockHz() / audioSampleHz())) {
         int16_t mask = 1U << (10 - 1);
@@ -145,13 +116,6 @@ void Simulator::stepAudio()
         audioTimer = 0;
         audioSampleBuffer.push_back(left * 8);
         audioSampleBuffer.push_back(right * 8);
-
-        // static int test_timer = 0;
-        // test_timer++;
-        // if (test_timer >= 8) {
-        //     test_timer = 0;
-        //     printf("sample: %d   , %d\n", top->io_apu_left, left);
-        // }
     }
 }
 

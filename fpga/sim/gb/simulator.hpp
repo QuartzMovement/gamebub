@@ -3,6 +3,7 @@
 #include <filesystem>
 
 #include "cartridge.hpp"
+#include "framebuffer.hpp"
 #include "input.hpp"
 #include "VSimGameboy.h"
 
@@ -15,7 +16,7 @@ public:
     void simulate_cycles(uint64_t cycles);
     void simulate_frame();
     void reset();
-    std::vector<uint8_t>& getFramebuffer();
+    Framebuffer& getFramebuffer() { return framebuffer; }
     std::vector<int16_t>& getAudioSampleBuffer();
 
     static int width() { return 160; }
@@ -27,15 +28,11 @@ private:
     void stepFramebuffer();
     void stepAudio();
 
+    Framebuffer framebuffer;
+
     std::unique_ptr<Cartridge> cart;
-    std::vector<uint8_t> framebuffer0;
-    std::vector<uint8_t> framebuffer1;
-    bool activeFramebuffer = false;
     uint64_t cycles = 0;
     VSimGameboy* top = nullptr;
-    size_t framebufferIndex = 0;
-    bool prev_vblank = false;
-    bool prev_hblank = false;
     bool prev_lcd_enabled = false;
     std::vector<int16_t> audioSampleBuffer;
     int audioTimer = 0;

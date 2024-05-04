@@ -45,10 +45,10 @@ Window::Window(int width, int height)
     }
 }
 
-void Window::update(std::vector<uint8_t>& framebuffer)
+void Window::update(Framebuffer& framebuffer)
 {
     // Copy over the new data.
-    uint8_t* source = framebuffer.data();
+    uint8_t* source = framebuffer.renderBuffer().data();
     void* pixels;
     int pitch;
     SDL_LockTexture(this->texture, NULL, &pixels, &pitch);

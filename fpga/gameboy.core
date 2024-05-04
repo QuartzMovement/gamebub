@@ -42,9 +42,11 @@ filesets:
     files:
       - sim/audio.hpp : {is_include_file: true}
       - sim/common.hpp : {is_include_file: true}
+      - sim/framebuffer.hpp : {is_include_file: true}
       - sim/input.hpp : {is_include_file: true}
       - sim/window.hpp : {is_include_file: true}
       - sim/audio.cpp
+      - sim/framebuffer.cpp
       - sim/main.cpp
       - sim/window.cpp
     file_type: cppSource
@@ -138,6 +140,6 @@ targets:
     tools:
       verilator:
         verilator_options: [
-            "-CFLAGS \"`pkg-config sdl2 --cflags`\"",
+            "-CFLAGS \"-std=c++20 `pkg-config sdl2 --cflags`\"",
             "-LDFLAGS \"`pkg-config sdl2 --libs`\"",
         ]

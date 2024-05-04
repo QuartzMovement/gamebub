@@ -5,13 +5,15 @@
 
 #include <SDL2/SDL.h>
 
+#include "framebuffer.hpp"
+
 class Window {
 public:
     Window(int width, int height);
     ~Window();
 
     /// Update the window with the contents of the framebuffer.
-    void update(std::vector<uint8_t>& framebuffer);
+    void update(Framebuffer& framebuffer);
 
     void setTitle(const char* title);
     
