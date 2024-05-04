@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 import gba.cpu.{ARM7TDMI, BusAccessWidth}
-import gba.mem.BusTarget
+import gba.mem.{BusTarget, SimpleRam}
 
 object GBA extends App {
   ChiselStage.emitSystemVerilogFile(new GBA, args)
@@ -31,9 +31,19 @@ class GBA extends Module {
   )))
   bus.io.enable := io.enable
   for (i <- 0 until 11) {
-    bus.io.targetPort(i).dataRead := DontCare
-    bus.io.targetPort(i).done := false.B
+    bus.io.targetPort(i).dataRead := 0.U
+    bus.io.targetPort(i).done := true.B
   }
+
+  // Hardcode BIOS to jump to start of cartridge
+  bus.io.targetPort(0).dataRead := "xE3A0F302".U(32.W)
+  // Temporary RAMs
+  val ewram = Module(new SimpleRam(256 * 1024))
+  ewram.io.enable := io.enable
+  bus.io.targetPort(1) <> ewram.io.target
+  val iwram = Module(new SimpleRam(32 * 1024))
+  iwram.io.enable := io.enable
+  bus.io.targetPort(2) <> iwram.io.target
 
   val cpu = Module(new ARM7TDMI)
   cpu.io.enable := io.enable
