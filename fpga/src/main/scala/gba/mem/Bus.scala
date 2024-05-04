@@ -34,7 +34,6 @@ class Bus(
     /// Target ports
     val targetPort = MixedVec(targets.map(t => Flipped(new TargetInterface(t.dataWidth))))
   })
-
   val regCurrentAddress = Reg(UInt(28.W))
   val regCurrentSize = Reg(BusAccessWidth())
   val regCurrentWrite = Reg(Bool())
@@ -49,12 +48,22 @@ class Bus(
   /// Whether a new request is being accepted.
   val isAccepted = io.enable && isAvailable && isRequested
 
+  // Align addresses
+  val initiatorAddress = Wire(UInt(28.W))
+  when (io.initiatorPort.SIZE === BusAccessWidth.Word) {
+    initiatorAddress := Cat(io.initiatorPort.ADDR(31, 2), 0.U(2.W))
+  } .elsewhen (io.initiatorPort.SIZE === BusAccessWidth.Halfword) {
+    initiatorAddress := Cat(io.initiatorPort.ADDR(31, 1), 0.U(1.W))
+  } .otherwise {
+    initiatorAddress := io.initiatorPort.ADDR
+  }
+
   printf(cf"done=$isDone, avail=$isAvailable, req=$isRequested, accept=$isAccepted\n")
 
   when (io.enable) {
     when (isAccepted) {
       regIsBusy := true.B
-      regCurrentAddress := io.initiatorPort.ADDR
+      regCurrentAddress := initiatorAddress
       regCurrentSize := io.initiatorPort.SIZE
       regCurrentWrite := io.initiatorPort.WRITE
     } .elsewhen (isDone) {
@@ -70,14 +79,13 @@ class Bus(
   io.initiatorPort.RDATA := DontCare
 
   // TODO turn 32-bit accesses into 16-bit accesses if needed
-  // TODO align addresses
 
   for ((target, i) <- io.targetPort.zipWithIndex) {
     val metadata  = targets(i)
-    val nextSelected = io.initiatorPort.ADDR(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix
+    val nextSelected = initiatorAddress(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix
     val currentSelected = regCurrentAddress(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix
 
-    target.address := io.initiatorPort.ADDR
+    target.address := initiatorAddress
     target.request := false.B
     target.sequential := false.B // TODO
     target.write := io.initiatorPort.WRITE
