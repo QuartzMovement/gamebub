@@ -38,6 +38,20 @@ filesets:
       - verilog/handheld/clk_wiz_system_clk_wiz.v : {file_type : verilogSource}
       - verilog/handheld/clk_wiz_spi_clk_wiz.v : {file_type : verilogSource}
 
+  sim:
+    files:
+      - sim/main.cpp
+      - sim/common.hpp : {is_include_file: true}
+      - sim/audio.hpp : {is_include_file: true}
+      - sim/audio.cpp
+      - sim/cartridge.hpp : {is_include_file: true}
+      - sim/cartridge.cpp
+      - sim/simulator.hpp : {is_include_file: true}
+      - sim/simulator.cpp
+      - sim/window.hpp : {is_include_file: true}
+      - sim/window.cpp
+    file_type: cppSource
+
 generate:
   gameboy:
     generator: chisel
@@ -60,6 +74,17 @@ generate:
       output:
         files:
           - build/generated/ZynqGameboy.sv: { file_type: systemVerilogSource }
+
+  sim_gameboy:
+    generator: chisel
+    parameters:
+      buildtool: sbt
+      outputdir: build/generated
+      main_class: "platform.SimGameboy"
+      extraargs: ""
+      output:
+        files:
+          - build/generated/SimGameboy.sv: { file_type: systemVerilogSource }
 
   handheld:
     generator: chisel
@@ -100,3 +125,14 @@ targets:
         part: xc7a100tcsg324-2
     toplevel: top_handheld
 
+  sim_gameboy:
+    default_tool: verilator
+    filesets: [base, sim]
+    generate: [sim_gameboy]
+    toplevel: SimGameboy
+    tools:
+      verilator:
+        verilator_options: [
+            "-CFLAGS \"`pkg-config sdl2 --cflags`\"",
+            "-LDFLAGS \"`pkg-config sdl2 --libs`\"",
+        ]
