@@ -1,22 +1,14 @@
 #pragma once
 
-#include "cartridge.hpp"
-#include "VSimGameboy.h"
+#include <filesystem>
 
-struct JoypadState {
-    bool start;
-    bool select;
-    bool b;
-    bool a;
-    bool down;
-    bool up;
-    bool left;
-    bool right;
-};
+#include "cartridge.hpp"
+#include "input.hpp"
+#include "VSimGameboy.h"
 
 class Simulator {
 public:
-    Simulator(std::unique_ptr<Cartridge> cart);
+    Simulator(std::filesystem::path rom_path);
     ~Simulator();
 
     void set_joypad_state(JoypadState state);
@@ -25,6 +17,11 @@ public:
     void reset();
     std::vector<uint8_t>& getFramebuffer();
     std::vector<int16_t>& getAudioSampleBuffer();
+
+    static int width() { return 160; }
+    static int height() { return 144; }
+    static int clockHz() { return 4 * 1024 * 1024; }
+    static int audioSampleHz() { return 256 * 1024; }
 
 private:
     void stepFramebuffer();

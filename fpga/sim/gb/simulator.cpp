@@ -9,13 +9,12 @@
 // gray palette
 //static const uint32_t palette[4] = {0xffffff, 0xaaaaaa, 0x555555, 0x000000};
 
-Simulator::Simulator(std::unique_ptr<Cartridge> cart) : cart(std::move(cart))
+Simulator::Simulator(std::filesystem::path rom_path)
 {
+    this->cart = std::make_unique<Cartridge>(rom_path);
     this->top = new VSimGameboy;
-    this->framebuffer0.resize(WIDTH * HEIGHT * 4, 0xFF);
-    this->framebuffer1.resize(WIDTH * HEIGHT * 4, 0xFF);
-
-    reset();
+    this->framebuffer0.resize(width() * height() * 4, 0xFF);
+    this->framebuffer1.resize(width() * height() * 4, 0xFF);
 }
 
 Simulator::~Simulator()
@@ -138,7 +137,7 @@ void Simulator::stepAudio()
 {
 
     audioTimer++;
-    if (audioTimer == (CLOCK_RATE / AUDIO_SAMPLE_RATE)) {
+    if (audioTimer == (clockHz() / audioSampleHz())) {
         int16_t mask = 1U << (10 - 1);
         int16_t left = (top->io_apu_left ^ mask) - mask;
         int16_t right = (top->io_apu_right ^ mask) - mask;
@@ -160,6 +159,3 @@ std::vector<int16_t>& Simulator::getAudioSampleBuffer()
 {
     return audioSampleBuffer;
 }
-
-// Needed for Verilator with some linkers.
-double sc_time_stamp() { return 0; }

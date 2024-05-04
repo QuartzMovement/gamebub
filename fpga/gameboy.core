@@ -38,18 +38,23 @@ filesets:
       - verilog/handheld/clk_wiz_system_clk_wiz.v : {file_type : verilogSource}
       - verilog/handheld/clk_wiz_spi_clk_wiz.v : {file_type : verilogSource}
 
-  sim:
+  sim_base:
     files:
-      - sim/main.cpp
-      - sim/common.hpp : {is_include_file: true}
       - sim/audio.hpp : {is_include_file: true}
-      - sim/audio.cpp
-      - sim/cartridge.hpp : {is_include_file: true}
-      - sim/cartridge.cpp
-      - sim/simulator.hpp : {is_include_file: true}
-      - sim/simulator.cpp
+      - sim/common.hpp : {is_include_file: true}
+      - sim/input.hpp : {is_include_file: true}
       - sim/window.hpp : {is_include_file: true}
+      - sim/audio.cpp
+      - sim/main.cpp
       - sim/window.cpp
+    file_type: cppSource
+
+  sim_gameboy:
+    files:
+      - sim/gb/cartridge.hpp : {is_include_file: true}
+      - sim/gb/simulator.hpp : {is_include_file: true}
+      - sim/gb/cartridge.cpp
+      - sim/gb/simulator.cpp
     file_type: cppSource
 
 generate:
@@ -127,7 +132,7 @@ targets:
 
   sim_gameboy:
     default_tool: verilator
-    filesets: [base, sim]
+    filesets: [base, sim_base, sim_gameboy]
     generate: [sim_gameboy]
     toplevel: SimGameboy
     tools:

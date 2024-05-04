@@ -7,7 +7,7 @@
 
 class Window {
 public:
-    Window();
+    Window(int width, int height);
     ~Window();
 
     /// Update the window with the contents of the framebuffer.
@@ -18,6 +18,8 @@ public:
     const int SCALE = 2;
 
 private:
+    int width;
+    int height;
     SDL_Window* window = nullptr;
     SDL_Renderer* renderer = nullptr;
     SDL_Texture* texture = nullptr;

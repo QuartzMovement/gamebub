@@ -30,14 +30,15 @@ int main(int argc, char** argv) {
         std::cout << "Usage: sim [rom.gb]" << std::endl;
         return 1;
     }
-    auto cartridge = std::make_unique<Cartridge>(std::filesystem::path(argv[1]));
+    auto cartridge_path = std::filesystem::path(argv[1]);
 
     // Initialize SDL.
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_AUDIO);
-    Window window;
+    Window window(Simulator::width(), Simulator::height());
     Audio audio;
 
-    Simulator simulator(std::move(cartridge));
+    Simulator simulator(cartridge_path);
+    simulator.reset();
 
     bool single_step = false;
     bool paused = false;
@@ -80,7 +81,7 @@ int main(int argc, char** argv) {
         // Update title.
         if (SDL_GetTicks64() - frame_timer >= 1000) {
             char buffer[100];
-            snprintf(buffer, 100, "Game Boy - FPS: %d", frame_counter);
+            snprintf(buffer, 100, "Sim - FPS: %d", frame_counter);
             window.setTitle(buffer);
             frame_counter = 0;
             frame_timer = SDL_GetTicks64();
@@ -89,3 +90,6 @@ int main(int argc, char** argv) {
 
     SDL_Quit();
 }
+
+// Needed for Verilator with some linkers.
+double sc_time_stamp() { return 0; }
