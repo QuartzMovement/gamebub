@@ -59,6 +59,12 @@ filesets:
       - sim/gb/simulator.cpp
     file_type: cppSource
 
+  sim_gba:
+    files:
+      - sim/gba/simulator.hpp : {is_include_file: true}
+      - sim/gba/simulator.cpp
+    file_type: cppSource
+
 generate:
   gameboy:
     generator: chisel
@@ -104,6 +110,17 @@ generate:
         files:
           - build/generated/HandheldTop.sv: { file_type: systemVerilogSource }
 
+  sim_gba:
+    generator: chisel
+    parameters:
+      buildtool: sbt
+      outputdir: build/generated
+      main_class: "gba.GBA"
+      extraargs: ""
+      output:
+        files:
+          - build/generated/GBA.sv: { file_type: systemVerilogSource }
+
 targets:
   pynq_z2:
     default_tool: vivado
@@ -140,6 +157,19 @@ targets:
     tools:
       verilator:
         verilator_options: [
-            "-CFLAGS \"-std=c++20 `pkg-config sdl2 --cflags`\"",
+            "-CFLAGS \"`pkg-config sdl2 --cflags`\"",
             "-LDFLAGS \"`pkg-config sdl2 --libs`\"",
+        ]
+
+  sim_gba:
+    default_tool: verilator
+    filesets: [base, sim_base, sim_gba]
+    generate: [sim_gba]
+    toplevel: GBA
+    tools:
+      verilator:
+        verilator_options: [
+            "-CFLAGS \"`pkg-config sdl2 --cflags`\"",
+            "-LDFLAGS \"`pkg-config sdl2 --libs`\"",
+            "-Wno-WIDTHEXPAND",
         ]

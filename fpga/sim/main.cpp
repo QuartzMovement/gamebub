@@ -7,7 +7,6 @@
 #include <SDL2/SDL.h>
 
 #include "audio.hpp"
-#include "cartridge.hpp"
 #include "simulator.hpp"
 #include "window.hpp"
 
@@ -22,6 +21,8 @@ JoypadState read_joypad_state() {
     joypad.up = keyboard[SDL_SCANCODE_UP];
     joypad.left = keyboard[SDL_SCANCODE_LEFT];
     joypad.right = keyboard[SDL_SCANCODE_RIGHT];
+    joypad.l = keyboard[SDL_SCANCODE_A];
+    joypad.r = keyboard[SDL_SCANCODE_S];
     return joypad;
 }
 

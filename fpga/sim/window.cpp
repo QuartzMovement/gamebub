@@ -10,7 +10,7 @@ Window::Window(int width, int height)
 
     // Create the window.
     this->window = SDL_CreateWindow(
-        "Game Boy",
+        "Sim",
         SDL_WINDOWPOS_CENTERED,
         SDL_WINDOWPOS_CENTERED,
         width * SCALE,
