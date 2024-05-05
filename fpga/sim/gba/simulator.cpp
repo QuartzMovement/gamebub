@@ -52,6 +52,8 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
         }
         if (cart_request) {
           fprintf(stderr, " @@@ (ROM) addr=0x%08X   data=0x%08X\n\n", cart_address, top->io_cartRom_dataRead);
+        } else {
+          fprintf(stderr, "\n\n");
         }
         top->eval();
 

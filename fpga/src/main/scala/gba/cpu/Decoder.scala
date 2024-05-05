@@ -260,16 +260,42 @@ class Decoder extends Module {
     }
   } .otherwise {
     // Thumb mode
-    // TODO
     printf(cf"decoding THUMB\n")
     when (in(15, 13) === "b001".U(3.W)) {
-      // Thumb data processing format 3
+      // THUMB.3: move/compare/add/subtract immediate
       out.kind := InstructionKind.DataProcessingImm
       out.flags := 1.U // [SetCond]
       out.regD := in(10, 8)
       out.regN := in(10, 8)
       out.immediate := in(7, 0)
       out.opcode := VecInit(Seq(AluOpcode.mov, AluOpcode.cmp, AluOpcode.add, AluOpcode.sub))(in(12, 11)).asUInt
+    } .elsewhen (in(15, 10) === "b010001".U(6.W)) {
+      // THUMB.5: Hi register operations/branch exchange
+      val opcode = in(9, 8)
+      out.regM := in(6, 3)
+      out.regS := in(6, 3)
+      out.regD := Cat(in(7), in(2, 0))
+      out.regN := Cat(in(7), in(2, 0))
+      when (opcode === 0.U) {
+        out.kind := InstructionKind.DataProcessingImmShift
+        out.opcode := AluOpcode.add.asUInt
+        out.flags := 0.U // [SetCond]
+        out.immediate := 0.U
+      } .elsewhen (opcode === 1.U) {
+        out.kind := InstructionKind.DataProcessingImmShift
+        out.opcode := AluOpcode.cmp.asUInt
+        out.flags := 1.U // [SetCond]
+        out.immediate := 0.U
+      } .elsewhen (opcode === 2.U) {
+        out.kind := InstructionKind.DataProcessingImmShift
+        out.opcode := AluOpcode.mov.asUInt
+        out.flags := 0.U // [SetCond]
+        out.immediate := 0.U
+      } .otherwise {
+        // Branch exchange
+        out.kind := InstructionKind.ArmBranch
+        out.flags := "b10".U(2.W) // [Exchange, Link]
+      }
     }
     // TODO the rest of thumb
   }
