@@ -795,6 +795,9 @@ class ARM7TDMISpec extends AnyFunSuite {
             }
           }
         }
+        if ((registerField & 1) == 0) {
+          assert(cpu.reg(0) == newBase)
+        }
 
         // Check that instructions after work.
         val base = if (isBranch) { 3 } else { 0 }
@@ -903,6 +906,9 @@ class ARM7TDMISpec extends AnyFunSuite {
             cpu.step()
           }
         }
+
+        // Check the new base is correct after the entire STM.
+        assert(cpu.reg(1) == newBase)
 
         // Check that instructions after work.
         cpu.step()

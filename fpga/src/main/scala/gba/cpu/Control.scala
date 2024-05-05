@@ -661,8 +661,10 @@ class Control extends Module {
           control.aluOpcode := Mux(flag_up, AluOpcode.add, AluOpcode.sub)
           control.shiftKind := ShiftKind.LogicalShiftLeft
           control.shiftImmediate := 2.U
-          control.addressSource := AddressSource.Alu
+          advanceStage()
+        }
 
+        when (stage >= 1.U) {
           // Store registers
           control.addressSource := AddressSource.Incrementer
           control.memTransaction := BusTransactionType.Sequential
