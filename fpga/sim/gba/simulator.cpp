@@ -1,4 +1,5 @@
 #include <iostream>
+#include <cstdio>
 
 #include "audio.hpp"
 #include "common.hpp"
@@ -8,6 +9,7 @@ Simulator::Simulator(std::filesystem::path rom_path)
     : framebuffer(width(), height())
 {
     this->top = new VGBA;
+    this->rom = read_file(rom_path);
 }
 
 Simulator::~Simulator()
@@ -34,9 +36,23 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
         this->stepFramebuffer();
         this->stepAudio();
 
+        bool cart_request = top->io_cartRom_request;
+        int cart_address = top->io_cartRom_address;
+
         top->clock = 0;
         top->eval();
         top->clock = 1;
+        top->eval();
+
+        top->io_cartRom_done = cart_request;
+        // Only works on little endian system
+        if (cart_address <= this->rom.size() - 4) {
+          auto rom_words = reinterpret_cast<uint32_t*>(this->rom.data());
+          top->io_cartRom_dataRead = rom_words[cart_address >> 2];
+        }
+        if (cart_request) {
+          fprintf(stderr, " @@@ (ROM) addr=0x%08X   data=0x%08X\n\n", cart_address, top->io_cartRom_dataRead);
+        }
         top->eval();
 
         this->cycles++;

@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 import gba.cpu.{ARM7TDMI, BusAccessWidth}
-import gba.mem.{BusTarget, SimpleRam}
+import gba.mem.{BusTarget, SimpleRam, TargetInterface}
 
 object GBA extends App {
   ChiselStage.emitSystemVerilogFile(new GBA, args)
@@ -14,6 +14,9 @@ class GBA extends Module {
   val io = IO(new Bundle {
     /// Global enable signal
     val enable = Input(Bool())
+
+    /// (To be replaced) cartridge access
+    val cartRom = Flipped(new TargetInterface(BusAccessWidth.Word))
   })
 
   val bus = Module(new mem.Bus(Seq(
@@ -46,6 +49,8 @@ class GBA extends Module {
   val iwram = Module(new SimpleRam(32 * 1024))
   iwram.io.enable := io.enable
   bus.io.targetPort(2) <> iwram.io.target
+
+  bus.io.targetPort(7) <> io.cartRom
 
   val cpu = Module(new ARM7TDMI)
   cpu.io.enable := io.enable

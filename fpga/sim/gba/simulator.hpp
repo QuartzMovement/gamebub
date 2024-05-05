@@ -27,10 +27,11 @@ private:
     void stepFramebuffer();
     void stepAudio();
 
-
     VGBA* top = nullptr;
 
     uint64_t cycles = 0;
     Framebuffer framebuffer;
     std::vector<int16_t> audioSampleBuffer;
+
+    std::vector<uint8_t> rom;
 };

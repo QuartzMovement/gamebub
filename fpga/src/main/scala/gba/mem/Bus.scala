@@ -58,7 +58,7 @@ class Bus(
     initiatorAddress := io.initiatorPort.ADDR
   }
 
-  printf(cf"done=$isDone, avail=$isAvailable, req=$isRequested, accept=$isAccepted\n")
+  printf(cf"done=$isDone, avail=$isAvailable, req=$isRequested, accept=$isAccepted   (addr=${initiatorAddress}%x), trans=${io.initiatorPort.TRANS}\n")
 
   when (io.enable) {
     when (isAccepted) {
@@ -94,12 +94,12 @@ class Bus(
 
     when (isAccepted && nextSelected) {
       // Accept a new request.
-      printf(s"[Bus] start request for '${metadata.name}' ($i)\n")
+      printf(cf"[Bus] start request for '${metadata.name}' ($i)  addr=0x${initiatorAddress}%x\n")
       target.request := true.B
     }
     when (currentSelected && regIsBusy) {
       when (target.done) {
-        printf(s"[Bus] complete request for '${metadata.name}' ($i)\n")
+        printf(cf"[Bus] complete request for '${metadata.name}' ($i)  addr=0x${regCurrentAddress}%x data=0x${target.dataRead}%x\n")
         isDone := true.B
         io.initiatorPort.RDATA := target.dataRead
       }
