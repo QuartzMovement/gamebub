@@ -20,9 +20,10 @@ class ARM7TDMI extends Module {
     val IRQ = Input(Bool())
   })
 
+  val enable = io.enable && io.mem.CLKEN
+
   ////////////////////////////////// Busses and Registers //////////////////////////////////
   val memAddrReg = Reg(UInt(32.W))
-  val memWriteDataReg = Reg(UInt(32.W))
   val memReadDataReg = Reg(UInt(32.W))
 
   val aBus = Wire(UInt(32.W))
@@ -39,7 +40,7 @@ class ARM7TDMI extends Module {
 
   //////////////////////////////// Instruction Fetch & Decode //////////////////////////////
   val decodeUnit = Module(new Decoder)
-  decodeUnit.io.enable := io.enable
+  decodeUnit.io.enable := enable
   decodeUnit.io.advancePipeline := control.advancePipeline
   decodeUnit.io.flushPipeline := control.flushPipeline
   decodeUnit.io.readData := io.mem.RDATA
@@ -48,7 +49,7 @@ class ARM7TDMI extends Module {
 
   ////////////////////////////////////// Control Unit //////////////////////////////////////
   val controlUnit = Module(new Control)
-  controlUnit.io.enable := io.enable
+  controlUnit.io.enable := enable
   controlUnit.io.nextInstruction := decodeUnit.io.decoded
   controlUnit.io.fiq := io.FIQ
   controlUnit.io.irq := io.IRQ
@@ -129,7 +130,7 @@ class ARM7TDMI extends Module {
     }
   }
   cBus := registers(bankRegIndex(control.regReadC))
-  when (io.enable) {
+  when (enable) {
     when (control.regWriteEnable) {
       printf(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x\n")
       registers(bankRegIndex(control.regWriteIndex)) := aluBus
@@ -183,7 +184,7 @@ class ARM7TDMI extends Module {
   shifter.io.carryIn := cpsrBus.cond.c
   shifter.io.shiftKind := control.shiftKind
   shifter.io.shiftAmount := control.shiftImmediate
-  shifter.io.latchShift := io.enable && control.shiftDoLatch
+  shifter.io.latchShift := enable && control.shiftDoLatch
   shifter.io.useLatchedShift := control.shiftUseLatched
 
   ////////////////////////////////////////// ALU ///////////////////////////////////////////
@@ -213,7 +214,7 @@ class ARM7TDMI extends Module {
     is (AddressSource.Alu) { io.mem.ADDR := aluBus }
     is (AddressSource.Immediate) { io.mem.ADDR := control.immediate }
   }
-  when (io.enable) {
+  when (enable) {
     memAddrReg := io.mem.ADDR
     currentMemReadWidth := io.mem.SIZE
     when (control.latchMemReadData) {
