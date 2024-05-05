@@ -799,7 +799,7 @@ object Control {
       Condition.Ge -> !(flags.n ^ flags.v),
       Condition.Lt -> (flags.n ^ flags.v),
       Condition.Gt -> (!flags.z && !(flags.n ^ flags.v)),
-      Condition.Le -> (flags.z && (flags.n ^ flags.v)),
+      Condition.Le -> (flags.z || (flags.n ^ flags.v)),
       Condition.Al -> true.B,
       Condition.Nv -> false.B,
     ))
