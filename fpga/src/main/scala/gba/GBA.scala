@@ -35,8 +35,10 @@ class GBA extends Module {
     bus.io.targetPort(i).done := true.B
   }
 
-  // Hardcode BIOS to jump to start of cartridge
-  bus.io.targetPort(0).dataRead := "xE3A0F302".U(32.W)
+  // Temporary BIOS
+  val bios = Module(new Bios)
+  bios.io.enable := io.enable
+  bus.io.targetPort(0) <> bios.io.target
   // Temporary RAMs
   val ewram = Module(new SimpleRam(256 * 1024))
   ewram.io.enable := io.enable
