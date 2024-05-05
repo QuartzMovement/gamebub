@@ -296,6 +296,20 @@ class Decoder extends Module {
         out.kind := InstructionKind.ArmBranch
         out.flags := "b10".U(2.W) // [Exchange, Link]
       }
+    } .elsewhen (in(15, 12) === "b1010".U(4.W)) {
+      // THUMB.12: get relative address
+      out.regD := in(10, 8)
+      out.kind := InstructionKind.DataProcessingImm
+      out.opcode := AluOpcode.add.asUInt
+      out.immediate := in(7, 0) << 2
+      when (in(11)) {
+        // ADD  Rd,SP,#nn
+        out.regN := 13.U
+      } .otherwise {
+        // ADD  Rd,PC,#nn
+        // TODO: it's actually added with PC force-aligned to 4 (& 0xFFFFFFFC)
+        out.regN := 15.U
+      }
     }
     // TODO the rest of thumb
   }
