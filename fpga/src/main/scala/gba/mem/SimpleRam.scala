@@ -42,11 +42,11 @@ class SimpleRam(size: Int) extends Module {
   val readEnable = io.enable && io.target.request && !io.target.write
   val readBusy = RegInit(false.B)
   io.target.dataRead := mem.read(queuedWriteAddress >> 2, readEnable).asUInt
-  when (readEnable) {
-    readBusy := true.B
-  }
   when (io.enable && readBusy) {
     io.target.done := true.B
     readBusy := false.B
+  }
+  when (readEnable) {
+    readBusy := true.B
   }
 }
