@@ -15,7 +15,7 @@ class Shifter extends Module {
   val io = IO(new Bundle {
     val in = Input(UInt(32.W))
     val shiftKind = Input(ShiftKind())
-    val shiftAmount = Input(UInt(5.W))
+    val shiftAmount = Input(UInt(6.W))
 
     val out = Output(UInt(32.W))
 

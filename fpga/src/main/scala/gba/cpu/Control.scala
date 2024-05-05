@@ -62,7 +62,7 @@ class ControlSignals extends Bundle {
 
   val aluOpcode = AluOpcode()
   val shiftKind = ShiftKind()
-  val shiftImmediate = UInt(5.W)
+  val shiftImmediate = UInt(6.W)
   val shiftDoLatch = Bool()
   val shiftUseLatched = Bool()
 
