@@ -715,16 +715,20 @@ class Control extends Module {
 
   // Complete a data processing instruction
   private def finishDataProcessing(didPrefetch: Boolean = false): Unit = {
+    val testOnly = instruction.opcode(3, 2) === "b10".U(2.W)
+
     control.regReadA := instruction.regN
     control.aluOpcode := instruction.opcode.asTypeOf(AluOpcode())
     control.regWriteIndex := instruction.regD
-    control.regWriteEnable := true.B
+    control.regWriteEnable := !testOnly
     control.cpsrUpdateCond := instruction.flags(0)
-    when (instruction.regD === 15.U) {
-      when (control.cpsrUpdateCond) {
-        // 'S' instructions restore (CPSR := SPSR) when Rd = PC
-        control.cpsrRestore := true.B
-      }
+
+    when (instruction.regD === 15.U && control.cpsrUpdateCond) {
+      // 'S' instructions restore (CPSR := SPSR) when Rd = PC
+      control.cpsrRestore := true.B
+    }
+    
+    when (instruction.regD === 15.U && !testOnly) {
       flushPipeline()
     } .otherwise {
       if (didPrefetch) {
