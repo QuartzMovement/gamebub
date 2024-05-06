@@ -22,11 +22,12 @@ class SimpleRam(size: Int) extends Module {
     val size = queuedWriteSize
     val address = queuedWriteAddress
 
+    // When converting vecs to/from uint, element 0 is the low byte.
     val mask = Seq(
-      (size === Word) || (size === Halfword && address(1) === 1.U) || (size === Byte && address(1, 0) === 3.U),
-      (size === Word) || (size === Halfword && address(1) === 1.U) || (size === Byte && address(1, 0) === 2.U),
-      (size === Word) || (size === Halfword && address(1) === 0.U) || (size === Byte && address(1, 0) === 1.U),
       (size === Word) || (size === Halfword && address(1) === 0.U) || (size === Byte && address(1, 0) === 0.U),
+      (size === Word) || (size === Halfword && address(1) === 0.U) || (size === Byte && address(1, 0) === 1.U),
+      (size === Word) || (size === Halfword && address(1) === 1.U) || (size === Byte && address(1, 0) === 2.U),
+      (size === Word) || (size === Halfword && address(1) === 1.U) || (size === Byte && address(1, 0) === 3.U),
     )
     mem.write(queuedWriteAddress >> 2, io.target.dataWrite.asTypeOf(Vec(4, UInt(8.W))), mask)
 
