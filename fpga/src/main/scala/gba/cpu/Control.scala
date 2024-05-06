@@ -706,8 +706,20 @@ class Control extends Module {
       control.busB := BusBValue.RegisterB
       val shiftImmediate = instruction.immediate(6, 2)
       val shiftKind = suppressEnumCastWarning { instruction.immediate(1, 0).asTypeOf(ShiftKind()) }
-      control.shiftImmediate := shiftImmediate
       control.shiftKind := shiftKind
+      control.shiftImmediate := shiftImmediate
+      when (shiftImmediate === 0.U) {
+        switch (shiftKind) {
+          // Right shift [both] of 0 is actually shift of 32
+          is (ShiftKind.LogicalShiftRight, ShiftKind.ArithmeticShiftRight) {
+            control.shiftImmediate := 32.U
+          }
+          // Rotate right of 0 is actually rotate right with extend
+          is (ShiftKind.RotateRight) {
+            control.shiftKind := ShiftKind.RotateRightWithExtend
+          }
+        }
+      }
     }
     control.regReadA := instruction.regN
     control.aluOpcode := Mux(flag_add, AluOpcode.add, AluOpcode.sub)
