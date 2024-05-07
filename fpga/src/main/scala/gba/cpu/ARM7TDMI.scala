@@ -136,7 +136,11 @@ class ARM7TDMI extends Module {
   when (enable) {
     when (control.regWriteEnable) {
       printf(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x\n")
-      registers(bankRegIndex(control.regWriteIndex)) := aluBus
+      registers(
+        bankRegIndex(
+          control.regWriteIndex,
+          Mux(control.regUserWrite, CpuMode.User, control.regBankMode)
+        )) := aluBus
     }
     when (control.cpsrUpdateCond) {
       nextCpsr.cond := aluConditionOut

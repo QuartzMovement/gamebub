@@ -52,6 +52,7 @@ class ControlSignals extends Bundle {
   val regWriteIndex = UInt(4.W)
   val regWriteEnable = Bool()
   val regUserReadC = Bool()
+  val regUserWrite = Bool()
   val cpsrUpdateCond = Bool()
   val cpsrUpdateThumb = Bool()
   val cpsrUpdateFields = UInt(2.W)
@@ -147,6 +148,7 @@ class Control extends Module {
   control.regWriteIndex := DontCare
   control.regWriteEnable := false.B
   control.regUserReadC := false.B
+  control.regUserWrite := false.B
   control.cpsrUpdateCond := false.B
   control.cpsrUpdateThumb := false.B
   control.cpsrUpdateFields := 0.U
@@ -298,7 +300,7 @@ class Control extends Module {
       }
       is (InstructionKind.Load) {
         val width = suppressEnumCastWarning { instruction.opcode(1, 0).asTypeOf(BusAccessWidth()) }
-        val flag_user = instruction.flags(5) // TODO
+        val flag_user = instruction.flags(5) // TODO "LDRT"
         val flag_signed = instruction.flags(4)
         val flag_immediate = instruction.flags(3)
         val flag_preindex = instruction.flags(2)
@@ -357,7 +359,7 @@ class Control extends Module {
       }
       is (InstructionKind.Store) {
         val width = suppressEnumCastWarning { instruction.opcode(1, 0).asTypeOf(BusAccessWidth()) }
-        val flag_user = instruction.flags(5) // TODO
+        val flag_user = instruction.flags(5) // TODO "STRT"
         val flag_immediate = instruction.flags(3)
         val flag_preindex = instruction.flags(2)
         val flag_add = instruction.flags(1)
@@ -535,7 +537,6 @@ class Control extends Module {
         val flag_s = instruction.flags(1)
         val flag_up = instruction.flags(2)
         val flag_preindex = instruction.flags(3)
-        // TODO: works differently with 'S' flag (user registers, CPSR restore, etc.)
 
         // Special handling for empty list: transfer R15 only, but increment/decrement base by full 64 bytes.
         val regList = instruction.immediate(15, 0)
@@ -611,6 +612,7 @@ class Control extends Module {
           control.aluOpcode := AluOpcode.mov
           control.regWriteIndex := regNextIndex
           control.regWriteEnable := true.B
+          control.regUserWrite := flag_s
         }
 
         when (stage === 3.U) {
@@ -618,6 +620,7 @@ class Control extends Module {
           when (control.regWriteIndex === 15.U) {
             // If writing PC, flush the pipeline
             flushPipeline()
+            control.cpsrRestore := flag_s
           } .otherwise {
             completePrefetch()
           }
