@@ -1,6 +1,5 @@
-package gba.cpu
+package gba
 
-import gba.GBA
 import lib.util.EphemeralSimulator._
 import org.scalatest.funsuite.AnyFunSuite
 
