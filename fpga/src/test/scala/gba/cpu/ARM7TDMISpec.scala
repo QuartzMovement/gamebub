@@ -11,6 +11,7 @@ class ARM7TDMISpec extends AnyFunSuite {
 
     def reset(reloadPipeline: Boolean = true): Unit = {
       dut.io.enable.poke(true)
+      dut.io.mem.CLKEN.poke(true)
       dut.io.mem.RDATA.poke(0xFFFFFFFF)
       dut.reset.poke(true)
       dut.clock.step()
