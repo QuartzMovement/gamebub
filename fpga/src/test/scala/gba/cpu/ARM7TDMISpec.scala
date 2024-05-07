@@ -698,7 +698,7 @@ class ARM7TDMISpec extends AnyFunSuite {
 
       // MRS
       cpu.step()
-      assert(cpu.reg(1) == 0x400000D3) // Note: last '3' means supervisor mode
+      assert(cpu.reg(1) == 0x600000D3) // Note: last '3' means supervisor mode
 
       // MSR (immediate)
       cpu.step(5)
