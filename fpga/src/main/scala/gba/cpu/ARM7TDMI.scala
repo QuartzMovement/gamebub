@@ -234,7 +234,6 @@ class ARM7TDMI extends Module {
   when (control.busB === BusBValue.MemReadData) {
     val readData = WireDefault(memReadDataReg)
     bBus := readData
-    shifter.io.shiftAmount := lastMemReadAlign << 3
 
     // For halfword and byte loads, mask out / sign extend bits.
     val maskValue = WireDefault(0.U(8.W))
@@ -259,6 +258,9 @@ class ARM7TDMI extends Module {
         Mux(!lastMemReadAlign(1), memReadDataReg(15, 0), Fill(2, maskValue)),
       )
     }
+  }
+  when (control.shiftByAddressAlign) {
+    shifter.io.shiftAmount := lastMemReadAlign << 3
   }
 
   io.mem.WDATA := memWriteData

@@ -65,6 +65,7 @@ class ControlSignals extends Bundle {
   val shiftImmediate = UInt(6.W)
   val shiftDoLatch = Bool()
   val shiftUseLatched = Bool()
+  val shiftByAddressAlign = Bool()
 
   val memTransaction = BusTransactionType()
   val memWrite = Bool()
@@ -156,6 +157,7 @@ class Control extends Module {
   control.shiftImmediate := 0.U
   control.shiftDoLatch := false.B
   control.shiftUseLatched := false.B
+  control.shiftByAddressAlign := false.B
   control.memWrite := false.B
   control.memWidth := DontCare
   control.memTransaction := BusTransactionType.Internal
@@ -340,6 +342,7 @@ class Control extends Module {
             control.memReadDataSigned := flag_signed
             control.aluOpcode := AluOpcode.mov
             control.shiftKind := Mux(flag_signed, ShiftKind.ArithmeticShiftRight, ShiftKind.RotateRight)
+            control.shiftByAddressAlign := true.B
             control.regWriteIndex := instruction.regD
             control.regWriteEnable := true.B
             when (instruction.regD === 15.U) {
@@ -442,6 +445,7 @@ class Control extends Module {
             control.busB := BusBValue.MemReadData
             control.aluOpcode := AluOpcode.mov
             control.shiftKind := ShiftKind.RotateRight
+            control.shiftByAddressAlign := true.B
             control.regWriteIndex := instruction.regD
             control.regWriteEnable := true.B
             completePrefetch()

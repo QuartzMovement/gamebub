@@ -94,12 +94,12 @@ class Bus(
 
     when (isAccepted && nextSelected) {
       // Accept a new request.
-      printf(cf"[Bus] start request for '${metadata.name}' ($i)  addr=0x${initiatorAddress}%x\n")
+      printf(cf"[Bus] start request for '${metadata.name}' addr=0x${initiatorAddress}%x\n")
       target.request := true.B
     }
     when (currentSelected && regIsBusy) {
       when (target.done) {
-        printf(cf"[Bus] complete request for '${metadata.name}' ($i)  addr=0x${regCurrentAddress}%x data=0x${target.dataRead}%x\n")
+        printf(cf"[Bus] complete request for '${metadata.name}' addr=0x${regCurrentAddress}%x rdata=0x${target.dataRead}%x wdata=0x${target.dataWrite}%x\n")
         isDone := true.B
         io.initiatorPort.RDATA := target.dataRead
       }
