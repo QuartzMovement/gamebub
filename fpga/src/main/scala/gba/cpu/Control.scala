@@ -51,6 +51,7 @@ class ControlSignals extends Bundle {
   val regReadC = UInt(4.W)
   val regWriteIndex = UInt(4.W)
   val regWriteEnable = Bool()
+  val regUserReadC = Bool()
   val cpsrUpdateCond = Bool()
   val cpsrUpdateThumb = Bool()
   val cpsrUpdateFields = UInt(2.W)
@@ -145,6 +146,7 @@ class Control extends Module {
   control.regReadC := DontCare
   control.regWriteIndex := DontCare
   control.regWriteEnable := false.B
+  control.regUserReadC := false.B
   control.cpsrUpdateCond := false.B
   control.cpsrUpdateThumb := false.B
   control.cpsrUpdateFields := 0.U
@@ -626,7 +628,6 @@ class Control extends Module {
         val flag_s = instruction.flags(1)
         val flag_up = instruction.flags(2)
         val flag_preindex = instruction.flags(3)
-        // TODO: works differently with 'S' flag (user registers, CPSR restore, etc.)
 
         // Special handling for empty list: transfer R15 only, but increment/decrement base by full 64 bytes.
         val regList = instruction.immediate(15, 0)
@@ -676,6 +677,7 @@ class Control extends Module {
           control.memWidth := BusAccessWidth.Word
           control.memProt.data := true.B
           control.regReadC := regNextIndex
+          control.regUserReadC := flag_s
 
           nextCounter := counter - 1.U
           when (counter === 0.U) {

@@ -66,8 +66,7 @@ class ARM7TDMI extends Module {
   // 22: 13_irq, 23: 14_irq
   // 24-30: 8-14 _fiq
   val registers = RegInit(VecInit(Seq.fill(31)(0.U(32.W))))
-  private def bankRegIndex(index: UInt): UInt = {
-    val mode = control.regBankMode
+  private def bankRegIndex(index: UInt, mode: CpuMode.Type = control.regBankMode): UInt = {
     val offset = WireDefault(0.U(5.W))
     when (mode === CpuMode.Fiq && index >= 8.U && index <= 14.U) {
       offset := (24 - 8).U(5.W)
@@ -129,7 +128,11 @@ class ARM7TDMI extends Module {
       bBus := cpsr.asUInt
     }
   }
-  cBus := registers(bankRegIndex(control.regReadC))
+  cBus := registers(
+    bankRegIndex(
+      control.regReadC,
+      Mux(control.regUserReadC, CpuMode.User, control.regBankMode))
+  )
   when (enable) {
     when (control.regWriteEnable) {
       printf(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x\n")
