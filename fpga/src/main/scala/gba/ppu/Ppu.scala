@@ -2,6 +2,8 @@ package gba.ppu
 
 import chisel3._
 import chisel3.util._
+import gba.cpu.BusAccessWidth
+import gba.mem.TargetInterface
 
 class PpuOutput extends Bundle {
   /** Output pixel value (B G R) */
@@ -21,7 +23,15 @@ class Ppu extends Module {
 
     /// PPU output
     val output = Output(new PpuOutput)
+
+    /// VRAM memory target for CPU
+    val vramTarget = new TargetInterface(BusAccessWidth.Halfword)
   })
+
+  /// VRAM: 96KiB, 16-bit access without byte strobe. Note: actually split into multiple banks for bg/obj
+  val vram = Module(new Vram)
+  vram.io.enable := io.enable
+  vram.io.memTarget <> io.vramTarget
 
   val scanline = RegInit(0.U(8.W))
   val cycle = RegInit(0.U(11.W))

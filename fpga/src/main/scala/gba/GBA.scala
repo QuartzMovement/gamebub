@@ -67,4 +67,5 @@ class GBA extends Module {
   val ppu = Module(new Ppu)
   ppu.io.enable := io.enable
   io.ppu := ppu.io.output
+  bus.io.targetPort(5) <> ppu.io.vramTarget
 }
