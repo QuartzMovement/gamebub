@@ -11,24 +11,26 @@ class Bios extends Module {
     val target = new TargetInterface(BusAccessWidth.Word)
   })
 
-  val data = VecInit(Seq(
-    0xe329f0dfL, // 0x0000: msr cpsr, #0xDF
-    0xe3a0d403L, // 0x0004: mov sp, #0x03000000
-    0xe38ddc7fL, // 0x0008: orr sp, #0x7F00
-    0xe3a0f302L, // 0x000c: mov pc, #0x08000000
-  ).map(x => x.U(32.W)))
+  val rom = SyncReadMem(16 * 1024 / 4, UInt(32.W))
 
-  io.target.done := true.B
+  // dontTouch: hack to ensure Chisel doesn't optimize the mem out
+  val temp = dontTouch(WireDefault(false.B))
+  when (temp) {
+    rom.write(0.U, 0.U)
+  }
 
-  val readAddress = Reg(UInt(14.W)) // 16 KiB
-  when (io.enable) {
-    readAddress := io.target.address
+  val readEnable = io.enable && io.target.request && !io.target.write
+  val readBusy = RegInit(false.B)
+  io.target.done := false.B
+  io.target.dataRead := rom.read(io.target.address >> 2, readEnable).asUInt
+  when (io.enable && readBusy) {
+    io.target.done := true.B
+    readBusy := false.B
   }
-  when (readAddress < (data.size * 4).U) {
-    val address = Wire(UInt(log2Ceil(data.size).W))
-    address := readAddress >> 2
-    io.target.dataRead := data(address)
-  } .otherwise {
-    io.target.dataRead := "hFFFFFFFF".U(32.W)
+  when (readEnable) {
+    readBusy := true.B
   }
+
+  // TODO handle lock/unlock
+  // TODO handle open bus when not in range
 }
