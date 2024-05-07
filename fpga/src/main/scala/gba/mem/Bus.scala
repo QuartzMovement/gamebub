@@ -5,13 +5,23 @@ import chisel3.util._
 import gba.cpu.{BusAccessWidth, BusInterface, BusTransactionType}
 
 class TargetInterface(maxWidth: BusAccessWidth.Type) extends Bundle {
+  /// Byte-wise access address
   val address = Input(UInt(25.W))
+  /// Whether an access is requested
   val request = Input(Bool())
+  /// Whether the access is a sequential request
   val sequential = Input(Bool())
+  /// Whether the access is a write
   val write = Input(Bool())
+  /// The width of the access
   val size = Input(BusAccessWidth())
+  /// Byte mask strobe (if the access were aligned to 32-bits)
+  val mask = Input(UInt(4.W))
+  /// Data write
   val dataWrite = Input(UInt(BusAccessWidth.toWidth(maxWidth)))
+  /// Data read
   val dataRead = Output(UInt(BusAccessWidth.toWidth(maxWidth)))
+  /// True when the access started in the previous cycle has completed
   val done = Output(Bool())
 }
 
@@ -57,6 +67,17 @@ class Bus(
   } .otherwise {
     initiatorAddress := io.initiatorPort.ADDR
   }
+  val initiatorMask = {
+    import BusAccessWidth._
+    val size = io.initiatorPort.SIZE
+    val address = io.initiatorPort.ADDR
+    Cat(
+      (size === Word) || (size === Halfword && address(1) === 1.U) || (size === Byte && address(1, 0) === 3.U),
+      (size === Word) || (size === Halfword && address(1) === 1.U) || (size === Byte && address(1, 0) === 2.U),
+      (size === Word) || (size === Halfword && address(1) === 0.U) || (size === Byte && address(1, 0) === 1.U),
+      (size === Word) || (size === Halfword && address(1) === 0.U) || (size === Byte && address(1, 0) === 0.U),
+    )
+  }
 
   printf(cf"done=$isDone, avail=$isAvailable, req=$isRequested, accept=$isAccepted   (addr=${initiatorAddress}%x), trans=${io.initiatorPort.TRANS}\n")
 
@@ -91,6 +112,7 @@ class Bus(
     target.write := io.initiatorPort.WRITE
     target.size := io.initiatorPort.SIZE
     target.dataWrite := io.initiatorPort.WDATA
+    target.mask := initiatorMask
 
     when (isAccepted && nextSelected) {
       // Accept a new request.
