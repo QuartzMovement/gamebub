@@ -5,6 +5,7 @@ import chisel3.util._
 import _root_.circt.stage.ChiselStage
 import gba.cpu.{ARM7TDMI, BusAccessWidth}
 import gba.mem.{BusTarget, SimpleRam, TargetInterface}
+import gba.ppu.{Ppu, PpuOutput}
 
 object GBA extends App {
   ChiselStage.emitSystemVerilogFile(new GBA, args)
@@ -17,6 +18,9 @@ class GBA extends Module {
 
     /// (To be replaced) cartridge access
     val cartRom = Flipped(new TargetInterface(BusAccessWidth.Word))
+
+    /// PPU video output
+    val ppu = Output(new PpuOutput)
   })
 
   val bus = Module(new mem.Bus(Seq(
@@ -52,9 +56,15 @@ class GBA extends Module {
 
   bus.io.targetPort(7) <> io.cartRom
 
+  // CPU
   val cpu = Module(new ARM7TDMI)
   cpu.io.enable := io.enable
   cpu.io.FIQ := false.B
   cpu.io.IRQ := false.B
   bus.io.initiatorPort <> cpu.io.mem
+
+  // PPU
+  val ppu = Module(new Ppu)
+  ppu.io.enable := io.enable
+  io.ppu := ppu.io.output
 }

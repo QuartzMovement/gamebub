@@ -47,13 +47,13 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
         top->io_cartRom_done = cart_request;
         // Only works on little endian system
         if (cart_address <= this->rom.size() - 4) {
-          auto rom_words = reinterpret_cast<uint32_t*>(this->rom.data());
-          top->io_cartRom_dataRead = rom_words[cart_address >> 2];
+            auto rom_words = reinterpret_cast<uint32_t*>(this->rom.data());
+            top->io_cartRom_dataRead = rom_words[cart_address >> 2];
         }
         if (cart_request) {
-          fprintf(stderr, " @@@ (ROM) addr=0x%08X   data=0x%08X\n\n", cart_address, top->io_cartRom_dataRead);
+            fprintf(stderr, " @@@ (ROM) addr=0x%08X   data=0x%08X\n\n", cart_address, top->io_cartRom_dataRead);
         } else {
-          fprintf(stderr, "\n\n");
+            fprintf(stderr, "\n\n");
         }
         top->eval();
 
@@ -63,7 +63,11 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
 
 void Simulator::stepFramebuffer()
 {
-    // TODO
+    framebuffer.update(top->io_ppu_hblank, top->io_ppu_vblank);
+
+    if (top->io_ppu_valid) {
+      framebuffer.pushBGR(top->io_ppu_pixel);
+    }
 }
 
 void Simulator::simulate_frame()
