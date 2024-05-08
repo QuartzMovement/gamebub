@@ -43,9 +43,9 @@ class GBA extends Module {
   }
 
   // MMIO Bus
-  val mmio = Module(new MMIO)
+  val mmio = Module(new MMIO(1))
   mmio.io.enable := io.enable
-  bus.io.targetPort(4) <> mmio.io.target
+  bus.io.targetPort(3) <> mmio.io.mem
 
   // Temporary BIOS
   val bios = Module(new Bios)
@@ -73,4 +73,5 @@ class GBA extends Module {
   ppu.io.enable := io.enable
   io.ppu := ppu.io.output
   bus.io.targetPort(5) <> ppu.io.vramTarget
+  mmio.targets(0) <> ppu.io.mmio
 }
