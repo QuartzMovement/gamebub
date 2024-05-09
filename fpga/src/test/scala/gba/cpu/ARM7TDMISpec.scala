@@ -1024,4 +1024,68 @@ class ARM7TDMISpec extends AnyFunSuite {
       assert(cpu.reg(4) == 1016) // Instruction after SWI
     }
   }
+
+  test("multiply") {
+    simulate(new ARM7TDMI) { dut =>
+      def testMultiply(instruction: Int, cycles: Int, r1: Int = 0, r2: Int = 0, r3: Int = 0, r4: Int = 0): (Long, Long) = {
+        val cpu = new CpuHarness(dut)
+        cpu.copyMem(Array(
+          0xe3a00a01, // 0x0000: mov r0, #0x1000
+          0xe5901000, // 0x0004: ldr r1, [r0, #0]
+          0xe5902004, // 0x0008: ldr r2, [r0, #4]
+          0xe5903008, // 0x000c: ldr r3, [r0, #8]
+          0xe590400c, // 0x0010: ldr r4, [r0, #12]
+          0xe3a00001, // 0x0014: mov r0, #1
+          instruction,
+        ))
+        cpu.copyMem(Array(
+          r1,
+          r2,
+          r3,
+          r4
+        ), 0x1000)
+        cpu.reset()
+        cpu.step(14)
+        assert(cpu.reg(0) == 1)
+
+        val accumulate = (instruction & (1 << 21)) != 0;
+        for (i <- 0 until cycles) {
+          if (i == 0 && accumulate) {
+            cpu.assertMemRead(0x18 + (2 * 4), BusTransactionType.Internal)
+          } else if (i == cycles - 1) {
+            cpu.assertMemRead(0x18 + (3 * 4), BusTransactionType.Sequential)
+          } else {
+            cpu.assertMemRead(0x18 + (3 * 4), BusTransactionType.Internal)
+          }
+          cpu.step()
+        }
+
+        (cpu.reg(4), cpu.reg(3))
+      }
+
+      // mul r3, r1, r2
+      assert(testMultiply(0xE0030291, cycles = 2, r1 = 0x01020304, r2 = 0xAB)._2 == 0xac5803ac)
+      assert(testMultiply(0xE0030291, cycles = 3, r1 = 0x01020304, r2 = 0xABCD)._2 == 0x26a01634)
+      assert(testMultiply(0xE0030291, cycles = 4, r1 = 0x01020304, r2 = 0xABCDEF)._2 == 0x90f704bc)
+      assert(testMultiply(0xE0030291, cycles = 5, r1 = 0x01020304, r2 = 0xABCDEF12)._2 == 0x928f248)
+
+      // mla r4, r1, r2, r3
+      assert(testMultiply(0xE0243291, cycles = 3, r1 = 0x01020304, r2 = 0x8, r3 = 0x11223344)._1 == 0x19324b64)
+      assert(testMultiply(0xE0243291, cycles = 4, r1 = 0x01020304, r2 = 0x108, r3 = 0x11223344)._1 == 0x1b354f64)
+      assert(testMultiply(0xE0243291, cycles = 5, r1 = 0x01020304, r2 = 0x20108, r3 = 0x11223344)._1 == 0x213d4f64)
+      assert(testMultiply(0xE0243291, cycles = 6, r1 = 0x01020304, r2 = 0x3020108, r3 = 0x11223344)._1 == 0x2d3d4f64)
+
+      // umull r3, r4, r1, r2
+      assert(testMultiply(0xE0843291, cycles = 3, r1 = 0x01020304, r2 = 0xd0) == (0, 0xd1a27340))
+      assert(testMultiply(0xE0843291, cycles = 4, r1 = 0x01020304, r2 = 0xc0d0) == (0xc2, 0x53e57340))
+      assert(testMultiply(0xE0843291, cycles = 5, r1 = 0x01020304, r2 = 0xb0c0d0) == (0xb224, 0x66a57340))
+      assert(testMultiply(0xE0843291, cycles = 6, r1 = 0x01020304, r2 = 0xa0b0c0d0) == (0xa1f406, 0xe6a57340))
+
+      // umlal r3, r4, r1, r2
+      assert(testMultiply(0xE0A43291, cycles = 4, r1 = 0x01020304, r2 = 0xd0, r4 = 0x11111111, r3 = 0x22222222) == (0x11111111, 0xf3c49562))
+      assert(testMultiply(0xE0A43291, cycles = 5, r1 = 0x01020304, r2 = 0xc0d0, r4 = 0x11111111, r3 = 0x22222222) == (0x111111d3, 0x76079562))
+      assert(testMultiply(0xE0A43291, cycles = 6, r1 = 0x01020304, r2 = 0xb0c0d0, r4 = 0x11111111, r3 = 0x22222222) == (0x1111c335, 0x88c79562))
+      assert(testMultiply(0xE0A43291, cycles = 7, r1 = 0x01020304, r2 = 0xa0b0c0d0, r4 = 0x11111111, r3 = 0x22222222) == (0x11b30518, 0x08c79562))
+    }
+  }
 }

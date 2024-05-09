@@ -205,6 +205,25 @@ class ARM7TDMI extends Module {
   aluConditionOut := alu.io.flagOut
 
   /////////////////////////////////////// Multiplier ///////////////////////////////////////
+  val multiplier = Module(new Multiplier)
+  multiplier.io.enable := io.enable
+  multiplier.io.a := aBus
+  multiplier.io.b := bBus
+  multiplier.io.start := control.multiplyEnable
+  multiplier.io.loadAccumulator := control.multiplyLoadAccumulator
+  multiplier.io.accumulate := control.multiplyAccumulate
+  multiplier.io.signed := control.multiplySigned
+  multiplier.io.long := control.multiplyLong
+  when (control.busB === BusBValue.MultiplyLo) {
+    bBus := multiplier.io.outLo
+  } .elsewhen (control.busB === BusBValue.MultiplyHi) {
+    bBus := multiplier.io.outHi
+  }
+  controlUnit.io.multiplierDone := multiplier.io.done
+  when (control.cpsrFromMultiply) {
+    nextCpsr.cond.z := multiplier.io.outFlagZ
+    nextCpsr.cond.n := multiplier.io.outFlagN
+  }
 
   /////////////////////////////////////// Incrementer //////////////////////////////////////
   incrementerBus := memAddrReg + Mux(cpsrBus.thumb, 2.U, 4.U)

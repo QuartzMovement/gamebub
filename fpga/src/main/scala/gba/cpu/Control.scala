@@ -23,6 +23,8 @@ object BusBValue extends ChiselEnum {
   val MemReadData = Value
   val Cpsr = Value
   val Spsr = Value
+  val MultiplyLo = Value
+  val MultiplyHi = Value
 }
 
 object ExceptionKind extends ChiselEnum {
@@ -58,6 +60,7 @@ class ControlSignals extends Bundle {
   val cpsrUpdateFields = UInt(2.W)
   val spsrUpdateFields = UInt(2.W)
   val cpsrRestore = Bool()
+  val cpsrFromMultiply = Bool()
 
   val busB = BusBValue()
   val immediate = UInt(32.W)
@@ -68,6 +71,12 @@ class ControlSignals extends Bundle {
   val shiftDoLatch = Bool()
   val shiftUseLatched = Bool()
   val shiftByAddressAlign = Bool()
+
+  val multiplyEnable = Bool()
+  val multiplySigned = Bool()
+  val multiplyLoadAccumulator = Bool()
+  val multiplyAccumulate = Bool()
+  val multiplyLong = Bool()
 
   val memTransaction = BusTransactionType()
   val memWrite = Bool()
@@ -93,6 +102,8 @@ class Control extends Module {
     val currentStatus = Input(new ProgramStatusRegister)
     /// Next program status register
     val nextStatus = Input(new ProgramStatusRegister)
+    /// Whether the multiplier is finished
+    val multiplierDone = Input(Bool())
 
     /// Active-high fast interrupt request
     val fiq = Input(Bool())
@@ -154,6 +165,7 @@ class Control extends Module {
   control.cpsrUpdateFields := 0.U
   control.spsrUpdateFields := 0.U
   control.cpsrRestore := false.B
+  control.cpsrFromMultiply := false.B
   control.busB := DontCare
   control.immediate := DontCare
   control.aluOpcode := DontCare
@@ -162,6 +174,11 @@ class Control extends Module {
   control.shiftDoLatch := false.B
   control.shiftUseLatched := false.B
   control.shiftByAddressAlign := false.B
+  control.multiplyEnable := false.B
+  control.multiplySigned := DontCare
+  control.multiplyLoadAccumulator := false.B
+  control.multiplyAccumulate := DontCare
+  control.multiplyLong := DontCare
   control.memWrite := false.B
   control.memWidth := DontCare
   control.memTransaction := BusTransactionType.Internal
@@ -695,6 +712,72 @@ class Control extends Module {
           }
         }
       }
+      is (InstructionKind.Multiply) {
+        // Multiply (Long) (Accumulate)
+        // 1) if accumulate, load registers to accumulate into multiplier
+        // 2) Spend "i" cycles (depending on RS's prefix) multiplying
+        // 3) Write back
+        // 4) if long, write back the second register.
+        val flag_setcond = instruction.flags(0)
+        val flag_accumulate = instruction.flags(1)
+        val flag_signed = instruction.flags(2)
+        val flag_long = instruction.flags(3)
+        val regD_Hi = instruction.regD
+        val regD_Lo = instruction.regN
+        control.multiplyAccumulate := flag_accumulate
+        control.multiplySigned := flag_signed
+        control.multiplyLong := flag_long
+
+        // Execution: (1 if accumulate) + mI + (1 if long) + S
+        when (stage === 0.U && flag_accumulate) {
+          // Load accumulator register
+          control.regReadA := regD_Hi
+          control.regReadB := regD_Lo
+          control.multiplyLoadAccumulator := true.B
+          beginPrefetch()
+          control.pcNext := PcNext.Same
+          control.addressSource := AddressSource.Same
+          advanceStage()
+        }
+
+        when ((stage === 0.U && !flag_accumulate) || stage === 1.U) {
+          // Perform the multiply
+          control.regReadA := instruction.regM
+          control.regReadB := instruction.regS
+          control.busB := BusBValue.RegisterB
+          control.multiplyEnable := true.B
+          nextStage := 2.U
+          beginPrefetch()
+        }
+
+        when (stage === 2.U && io.multiplierDone) {
+          // Writeback low register
+          control.aluOpcode := AluOpcode.mov
+          control.regWriteEnable := true.B
+          control.busB := BusBValue.MultiplyLo
+
+          when (flag_setcond) {
+            control.cpsrFromMultiply := true.B
+          }
+
+          when (flag_long) {
+            control.regWriteIndex := regD_Lo
+            advanceStage()
+          } .otherwise {
+            control.regWriteIndex := instruction.regD
+            completePrefetch()
+          }
+        }
+
+        when (stage === 3.U) {
+          // Writeback high register.
+          control.aluOpcode := AluOpcode.mov
+          control.regWriteEnable := true.B
+          control.busB := BusBValue.MultiplyHi
+          control.regWriteIndex := regD_Hi
+          completePrefetch()
+        }
+      }
     }
   } .otherwise {
     // Unexecuted instruction
@@ -766,10 +849,6 @@ class Control extends Module {
     control.memWrite := false.B
     control.memWidth := Mux(nextThumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
     control.memTransaction := BusTransactionType.Internal
-  }
-
-  private def continuePrefetch(): Unit = {
-    // TODO: multi-cycle I-I-I-I-S (middle I), like in a multiply
   }
 
   /// Complete the prefetch of a merged I-S cycle, and go to the next instruction

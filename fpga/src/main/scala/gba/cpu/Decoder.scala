@@ -51,6 +51,7 @@ object InstructionKind extends ChiselEnum {
   val MoveToStatusRegister = Value
   val LoadMultiple = Value
   val StoreMultiple = Value
+  val Multiply = Value
 }
 
 class DecodedInstruction extends Bundle {
@@ -154,9 +155,21 @@ class Decoder extends Module {
     when (in(27, 25) === "b000".U(3.W) && in(4) && in(7)) {
       // Multiply and additional loads/stores
       when (in(7, 4) === "b1001".U(4.W) && in(27, 23) === 0.U) {
-        // TODO Multiply [accumulate]
+        // Multiply [Accumulate]
+        out.kind := InstructionKind.Multiply
+        out.regM := in(3, 0)
+        out.regS := in(11, 8)
+        out.regN := in(15, 12)
+        out.regD := in(19, 16)
+        out.flags := Cat(0.U(2.W), in(21, 20)) // [Long, Signed, Accumulate, SetCond]
       } .elsewhen (in(7, 4) === "b1001".U(4.W) && in(27, 23) === 1.U) {
-        // TODO Multiply [accumulate] long
+        // Multiple [Accumulate] Long
+        out.kind := InstructionKind.Multiply
+        out.regM := in(3, 0)
+        out.regS := in(11, 8)
+        out.regN := in(15, 12)
+        out.regD := in(19, 16)
+        out.flags := Cat(1.U(1.W), in(22, 20)) // [Long, Signed, Accumulate, SetCond]
       } .elsewhen (in(7, 4) === "b1001".U(4.W) && in(27, 23) === 2.U) {
         out.kind := InstructionKind.Swap
         out.opcode := Mux(in(22), BusAccessWidth.Byte, BusAccessWidth.Word).asUInt
