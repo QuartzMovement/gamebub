@@ -58,11 +58,11 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
             auto rom_words = reinterpret_cast<uint32_t*>(this->rom.data());
             top->io_cartRom_dataRead = rom_words[cart_address >> 2];
         }
-        if (cart_request) {
-            fprintf(stderr, " @@@ (ROM) addr=0x%08X   data=0x%08X\n\n", cart_address, top->io_cartRom_dataRead);
-        } else {
-            fprintf(stderr, "\n\n");
-        }
+//        if (cart_request) {
+//            fprintf(stderr, " @@@ (ROM) addr=0x%08X   data=0x%08X\n\n", cart_address, top->io_cartRom_dataRead);
+//        } else {
+//            fprintf(stderr, "\n\n");
+//        }
         top->eval();
 
         this->cycles++;

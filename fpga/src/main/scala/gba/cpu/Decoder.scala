@@ -126,7 +126,7 @@ class Decoder extends Module {
     decodeRegValid := fetchResultValid
   }
   val in = decodeReg
-  printf(cf"decoding ${in}%x, fetching ${fetchResult}%x\n")
+//  printf(cf"decoding ${in}%x, fetching ${fetchResult}%x\n")
 
   when (io.enable && io.flushPipeline) {
     fetchRegValid := false.B
@@ -146,7 +146,6 @@ class Decoder extends Module {
 
   // Decode table
   when (io.flushPipeline || !decodeRegValid) {
-    printf(cf"decode: forcing no-op\n")
     out.condition := Condition.Nv
   } .elsewhen (!io.thumb) {
     // ARM mode
@@ -273,7 +272,6 @@ class Decoder extends Module {
     }
   } .otherwise {
     // Thumb mode
-    printf(cf"decoding THUMB\n")
     when (in(15, 13) === "b001".U(3.W)) {
       // THUMB.3: move/compare/add/subtract immediate
       out.kind := InstructionKind.DataProcessingImm

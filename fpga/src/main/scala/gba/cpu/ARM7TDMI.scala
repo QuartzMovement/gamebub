@@ -135,7 +135,7 @@ class ARM7TDMI extends Module {
   )
   when (enable) {
     when (control.regWriteEnable) {
-      printf(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x\n")
+//      printf(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x\n")
       registers(
         bankRegIndex(
           control.regWriteIndex,
@@ -301,7 +301,7 @@ class ARM7TDMI extends Module {
     (0 until 16).map(i => registers(bankRegIndex(i.U)))
   )
   io.debug.cpsr := cpsr.asUInt
-  printf(cf" pc is ${pc}%x, addr is ${io.mem.ADDR}%x\n")
+//  printf(cf" pc is ${pc}%x, addr is ${io.mem.ADDR}%x\n")
 }
 
 class ConditionFlags extends Bundle {

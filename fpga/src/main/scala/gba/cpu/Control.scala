@@ -189,7 +189,7 @@ class Control extends Module {
   control.latchMemWriteData := false.B
   control.memReadDataSigned := false.B
 
-  printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}\n")
+//  printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}\n")
   when (execute) {
     switch (instruction.kind) {
       is (InstructionKind.Exception) {
@@ -216,7 +216,7 @@ class Control extends Module {
 
         switch (stage) {
           is (0.U) {
-            printf(cf"Exception! ${kind}\n")
+//            printf(cf"Exception! ${kind}\n")
             flushPipeline()
             dispatch := false.B
             entryThumb := io.currentStatus.thumb

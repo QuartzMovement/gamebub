@@ -53,9 +53,9 @@ class MMIO(numTargets: Int) extends Module {
   when (io.enable) {
     when (queuedRequest) {
       when (queuedWrite) {
-        printf(cf"[I/O] write addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataWrite}\n")
+//        printf(cf"[I/O] write addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataWrite}\n")
       } .otherwise {
-        printf(cf"[I/O] read  addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataRead}\n")
+//        printf(cf"[I/O] read  addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataRead}\n")
       }
 
       queuedRequest := false.B
