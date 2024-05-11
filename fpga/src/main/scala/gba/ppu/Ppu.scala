@@ -38,13 +38,13 @@ class Ppu extends Module {
   vram.io.memTarget <> io.vramTarget
 
   val scanline = RegInit(0.U(8.W))
-  val cycle = RegInit(0.U(11.W))
+  val tick = RegInit(0.U(11.W))
 
   when (io.enable) {
-    when (cycle < 1232.U) {
-      cycle := cycle + 1.U
+    when (tick < 1232.U) {
+      tick := tick + 1.U
     } .otherwise {
-      cycle := 0.U
+      tick := 0.U
       when (scanline < 228.U) {
         scanline := scanline + 1.U
       } .otherwise {
@@ -53,11 +53,10 @@ class Ppu extends Module {
     }
   }
 
-  io.output.hblank := cycle >= 960.U
+  io.output.hblank := tick >= 1006.U
   io.output.vblank := scanline >= 160.U
-  io.output.valid := (cycle(1, 0) === 3.U) && !io.output.hblank && !io.output.vblank
-  io.output.pixel := Cat(cycle(6, 2), scanline(4, 0))
 
+  // I/O registers
   io.mmio.valid := false.B
   io.mmio.dataRead := DontCare
   when (io.mmio.request) {
@@ -70,4 +69,19 @@ class Ppu extends Module {
       }
     }
   }
+
+  // Background renderer
+  val bgRender = Module(new BackgroundRenderer)
+  bgRender.io.enable := io.enable
+  bgRender.io.tick := tick
+  bgRender.io.scanline := scanline
+  bgRender.io.vram <> vram.io.portBG
+
+  // Compositor
+  val compositor = Module(new Compositor)
+  compositor.io.enable := io.enable
+  compositor.io.tick := tick
+  compositor.io.bgFifo <> bgRender.io.pixels
+  io.output.valid := compositor.io.valid
+  io.output.pixel := compositor.io.pixel
 }
