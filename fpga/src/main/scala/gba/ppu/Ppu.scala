@@ -28,6 +28,9 @@ class Ppu extends Module {
     /// VRAM memory target for CPU
     val vramTarget = new TargetInterface(BusAccessWidth.Halfword)
 
+    /// Palette memory target for CPU
+    val paletteRamTarget = new TargetInterface(BusAccessWidth.Halfword)
+
     /// MMIO access
     val mmio = new MmioTarget()
   })
@@ -36,6 +39,10 @@ class Ppu extends Module {
   val vram = Module(new Vram)
   vram.io.enable := io.enable
   vram.io.memTarget <> io.vramTarget
+
+  val paletteRam = Module(new PpuMem(1024 / 2, BusAccessWidth.Halfword))
+  paletteRam.io.enable := io.enable
+  paletteRam.io.memTarget <> io.paletteRamTarget
 
   val scanline = RegInit(0.U(8.W))
   val tick = RegInit(0.U(11.W))
@@ -81,6 +88,8 @@ class Ppu extends Module {
   val compositor = Module(new Compositor)
   compositor.io.enable := io.enable
   compositor.io.tick := tick
+  compositor.io.scanline := scanline
+  compositor.io.paletteRam <> paletteRam.io.ppuTarget
   compositor.io.bgFifo <> bgRender.io.pixels
   io.output.valid := compositor.io.valid
   io.output.pixel := compositor.io.pixel
