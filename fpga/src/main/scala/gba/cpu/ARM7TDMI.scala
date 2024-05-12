@@ -202,6 +202,12 @@ class ARM7TDMI extends Module {
   alu.io.flagIn := cpsrBus.cond
   alu.io.shifterCarry := shifter.io.carryOut
   aluBus := alu.io.out
+  when (control.aluOutAlign4) {
+    aluBus := alu.io.out & "hFFFFFFFC".U(32.W)
+  } .elsewhen (cpsr.thumb && control.regWriteIndex === 15.U) {
+    // Special behavior in THUMB: writes to r15 (branches) are force-aligned.
+    aluBus := alu.io.out & "hFFFFFFFE".U(32.W)
+  }
   aluConditionOut := alu.io.flagOut
 
   /////////////////////////////////////// Multiplier ///////////////////////////////////////
@@ -226,8 +232,7 @@ class ARM7TDMI extends Module {
   }
 
   /////////////////////////////////////// Incrementer //////////////////////////////////////
-  incrementerBus := memAddrReg + Mux(cpsrBus.thumb, 2.U, 4.U)
-  // TODO: LDM/STM in Thumb would increment by 4
+  incrementerBus := memAddrReg + Mux(cpsrBus.thumb && !control.incrementerForceWord, 2.U, 4.U)
 
   ///////////////////////////////////////// IO Port ////////////////////////////////////////
   val currentMemReadWidth = Reg(BusAccessWidth())

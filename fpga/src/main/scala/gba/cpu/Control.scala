@@ -66,6 +66,7 @@ class ControlSignals extends Bundle {
   val immediate = UInt(32.W)
 
   val aluOpcode = AluOpcode()
+  val aluOutAlign4 = Bool()
   val shiftKind = ShiftKind()
   val shiftImmediate = UInt(6.W)
   val shiftDoLatch = Bool()
@@ -86,6 +87,7 @@ class ControlSignals extends Bundle {
   val latchMemReadData = Bool()
   val latchMemWriteData = Bool()
   val memReadDataSigned = Bool()
+  val incrementerForceWord = Bool()
 }
 
 /// Control unit
@@ -169,6 +171,7 @@ class Control extends Module {
   control.busB := DontCare
   control.immediate := DontCare
   control.aluOpcode := DontCare
+  control.aluOutAlign4 := false.B
   control.shiftKind := ShiftKind.LogicalShiftLeft
   control.shiftImmediate := 0.U
   control.shiftDoLatch := false.B
@@ -188,6 +191,7 @@ class Control extends Module {
   control.latchMemReadData := false.B
   control.latchMemWriteData := false.B
   control.memReadDataSigned := false.B
+  control.incrementerForceWord := false.B
 
 //  printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}\n")
   when (execute) {
@@ -515,16 +519,48 @@ class Control extends Module {
           }
           is (1.U) {
             when (flag_link) {
-              // If link, save LR := PC - i (to point to the instruction after the branch)
+              // If link, save LR := PC - 4 (to point to the instruction after the branch)
+              // Note: always called from ARM mode.
               control.regWriteEnable := true.B
               control.regWriteIndex := 14.U // LR
               control.regReadA := 15.U // PC
               control.busB := BusBValue.Immediate
-              // In ARM mode, subtract 4.
-              // In THUMB mode, subtract 1 -- previous instruction, with bit 0 set to 1 to allow for BX to return here.
-              control.immediate := Mux(io.currentStatus.thumb, 1.U, 4.U)
+              control.immediate := 4.U
               control.aluOpcode := AluOpcode.sub
             }
+            nextInstruction()
+            dispatch := false.B
+            advanceStage()
+          }
+          is (2.U) {
+            // And update the PC.
+            nextInstruction()
+          }
+        }
+      }
+      is (InstructionKind.ThumbBranch) {
+        switch (stage) {
+          is (0.U) {
+            control.regReadA := 14.U // LR
+            control.busB := BusBValue.Immediate
+            control.immediate := instruction.immediate(10, 0) << 1
+            control.aluOpcode := AluOpcode.add
+
+            flushPipeline()
+            dispatch := false.B
+            advanceStage()
+          }
+          is (1.U) {
+            // Link, save LR := PC - 2 (to point to the instruction after the branch)
+            control.regWriteEnable := true.B
+            control.regWriteIndex := 14.U // LR
+            control.regReadA := 15.U // PC
+            control.busB := BusBValue.Immediate
+            // Actually subtract 1 -- previous instruction, with bit 0 set to 1 to allow for BX to return here.
+            // TODO: check that this definitely works -- make sure PC is aligned?
+            control.immediate := 1.U
+            control.aluOpcode := AluOpcode.sub
+
             nextInstruction()
             dispatch := false.B
             advanceStage()
@@ -617,6 +653,7 @@ class Control extends Module {
         when (stage === 1.U || stage === 2.U) {
           // Sequential memory accesses after the first
           control.addressSource := AddressSource.Incrementer
+          control.incrementerForceWord := true.B
           control.memTransaction := BusTransactionType.Sequential
           control.memWrite := false.B
           control.memWidth := BusAccessWidth.Word
@@ -707,6 +744,7 @@ class Control extends Module {
         when (stage >= 1.U) {
           // Store registers
           control.addressSource := AddressSource.Incrementer
+          control.incrementerForceWord := true.B
           control.memTransaction := BusTransactionType.Sequential
           control.memWrite := true.B
           control.memWidth := BusAccessWidth.Word
@@ -841,6 +879,7 @@ class Control extends Module {
     control.regWriteIndex := instruction.regD
     control.regWriteEnable := !testOnly
     control.cpsrUpdateCond := instruction.flags(0)
+    control.aluOutAlign4 := instruction.flags(2)
 
     when (instruction.regD === 15.U && control.cpsrUpdateCond) {
       // 'S' instructions restore (CPSR := SPSR) when Rd = PC

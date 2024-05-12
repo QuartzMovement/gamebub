@@ -52,6 +52,7 @@ object InstructionKind extends ChiselEnum {
   val LoadMultiple = Value
   val StoreMultiple = Value
   val Multiply = Value
+  val ThumbBranch = Value
 }
 
 class DecodedInstruction extends Bundle {
@@ -142,7 +143,7 @@ class Decoder extends Module {
   out.regM := DontCare
   out.immediate := DontCare
   out.opcode := ExceptionKind.UndefinedInstruction.asUInt
-  out.flags := DontCare
+  out.flags := 0.U
 
   // Decode table
   when (io.flushPipeline || !decodeRegValid) {
@@ -288,13 +289,13 @@ class Decoder extends Module {
         // THUMB.2: add / subtract
         when (in(10)) {
           out.kind := InstructionKind.DataProcessingImm
-          out.immediate := in(8, 6)
+          out.immediate := in(8, 6)  // [rotate (4), immediate (8)]
         } .otherwise {
           out.kind := InstructionKind.DataProcessingImmShift
           out.immediate := 0.U
         }
-        out.regN := in(8, 6)
-        out.regS := in(5, 3)
+        out.regM := in(8, 6)
+        out.regN := in(5, 3)
         out.regD := in(2, 0)
         out.opcode := Mux(in(9), AluOpcode.sub, AluOpcode.add).asUInt
         out.flags := 1.U // [SetCond]
@@ -305,7 +306,7 @@ class Decoder extends Module {
       out.flags := 1.U // [SetCond]
       out.regD := in(10, 8)
       out.regN := in(10, 8)
-      out.immediate := in(7, 0)
+      out.immediate := in(7, 0)  // [rotate (4), immediate (8)]
       out.opcode := VecInit(Seq(AluOpcode.mov, AluOpcode.cmp, AluOpcode.add, AluOpcode.sub))(in(12, 11)).asUInt
     } .elsewhen (in(15, 10) === "b010000".U(6.W)) {
       // THUMB.4: ALU operations
@@ -330,9 +331,10 @@ class Decoder extends Module {
             3.U -> ShiftKind.LogicalShiftRight,
             4.U -> ShiftKind.ArithmeticShiftRight,
           )).asUInt // [shift (2)]
+          out.regM := in(2, 0)
         }
         is (9.U) {
-          out.kind := InstructionKind.DataProcessingImmShift
+          out.kind := InstructionKind.DataProcessingImm
           out.opcode := AluOpcode.rsb.asUInt
           out.immediate := 0.U
         }
@@ -380,7 +382,6 @@ class Decoder extends Module {
       out.regN := 15.U
       out.regD := in(10, 8)
       out.immediate := Cat(in(7, 0), "b00".U(2.W))
-
       // TODO: it actually uses PC force-aligned to 4
     } .elsewhen (in(15, 12) === "b0101".U(4.W)) {
       when (in(9) === 0.U) {
@@ -424,7 +425,7 @@ class Decoder extends Module {
       out.regN := in(5, 3)
       out.regD := in(2, 0)
       out.flags := "b001110".U(6.W)
-    } .elsewhen (in(15, 10) === "b1000".U(4.W)) {
+    } .elsewhen (in(15, 12) === "b1000".U(4.W)) {
       // THUMB.10: load/store halfword with immediate offset
       out.kind := Mux(in(11), InstructionKind.Load, InstructionKind.Store)
       out.opcode := BusAccessWidth.Halfword.asUInt
@@ -444,14 +445,14 @@ class Decoder extends Module {
       out.regD := in(10, 8)
       out.kind := InstructionKind.DataProcessingImm
       out.opcode := AluOpcode.add.asUInt
-      out.immediate := in(7, 0) << 2
+      out.immediate := Cat("b1111".U(4.W), in(7, 0))  // [rotate (4), immediate (8)]
       when (in(11)) {
         // ADD  Rd,SP,#nn
         out.regN := 13.U
       } .otherwise {
         // ADD  Rd,PC,#nn
-        // TODO: it's actually added with PC force-aligned to 4 (& 0xFFFFFFFC)
         out.regN := 15.U
+        out.flags := "b100".U(3.W) // [ForceAlign4, ..., ...]
       }
     } .elsewhen (in(15, 8) === "b10110000".U(8.W)) {
       // THUMB.13: add offset to stack pointer
@@ -459,7 +460,7 @@ class Decoder extends Module {
       out.opcode := Mux(in(7), AluOpcode.sub, AluOpcode.add).asUInt
       out.regD := 13.U
       out.regN := 13.U
-      out.immediate := in(6, 0) << 2
+      out.immediate := Cat("b11110".U(5.W), in(6, 0))  // [rotate (4), immediate (8)]
     } .elsewhen (in(15, 12) === "b1101".U(4.W)) {
       when (in(11, 8) === "b1111".U(4.W)) {
         // THUMB.17: software interrupt
@@ -509,10 +510,11 @@ class Decoder extends Module {
         out.regD := 14.U
         out.regN := 15.U
         out.flags := "b10".U(2.W) // [sign extend 11-bit imm, SetCond]
+        out.immediate := in(10, 0)
+        out.opcode := AluOpcode.add.asUInt
       } .otherwise {
         // Second part: branch
-        out.kind := InstructionKind.ArmBranch
-        out.flags := "b101".U(3.W) // [thumb imm, Exchange, Link]
+        out.kind := InstructionKind.ThumbBranch
         out.immediate := in(10, 0)
       }
     }
