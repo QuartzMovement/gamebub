@@ -149,7 +149,7 @@ class Decoder extends Module {
     out.condition := Condition.Nv
   } .elsewhen (!io.thumb) {
     // ARM mode
-    io.decoded.condition := in(31, 28).asTypeOf(Condition())
+    out.condition := in(31, 28).asTypeOf(Condition())
 
     when (in(27, 25) === "b000".U(3.W) && in(4) && in(7)) {
       // Multiply and additional loads/stores
@@ -272,11 +272,32 @@ class Decoder extends Module {
     }
   } .otherwise {
     // Thumb mode
+    out.condition := Condition.Al
+
     when (in(15, 13) === "b000".U(3.W)) {
       when (in(12, 11) =/= "b11".U(2.W)) {
-        // TODO THUMB.1: shift by immediate
+        // THUMB.1: shift by immediate
+        out.kind := InstructionKind.DataProcessingImmShift
+        out.immediate := Cat(in(10, 6), in(12, 11)) // [shift imm (5), shift (2)]
+        out.opcode := AluOpcode.mov.asUInt
+        out.flags := 1.U // [SetCond]
+        out.regM := in(5, 3)
+        out.regD := in(2, 0)
+        out.regN := in(2, 0)
       } .otherwise {
-        // TODO THUMB.2: add / subtract
+        // THUMB.2: add / subtract
+        when (in(10)) {
+          out.kind := InstructionKind.DataProcessingImm
+          out.immediate := in(8, 6)
+        } .otherwise {
+          out.kind := InstructionKind.DataProcessingImmShift
+          out.immediate := 0.U
+        }
+        out.regN := in(8, 6)
+        out.regS := in(5, 3)
+        out.regD := in(2, 0)
+        out.opcode := Mux(in(9), AluOpcode.sub, AluOpcode.add).asUInt
+        out.flags := 1.U // [SetCond]
       }
     } .elsewhen (in(15, 13) === "b001".U(3.W)) {
       // THUMB.3: move/compare/add/subtract immediate
@@ -287,7 +308,42 @@ class Decoder extends Module {
       out.immediate := in(7, 0)
       out.opcode := VecInit(Seq(AluOpcode.mov, AluOpcode.cmp, AluOpcode.add, AluOpcode.sub))(in(12, 11)).asUInt
     } .elsewhen (in(15, 10) === "b010000".U(6.W)) {
-      // TODO THUMB.4: data-processing register
+      // THUMB.4: ALU operations
+      out.flags := 1.U // [SetCond]
+      out.regD := in(2, 0)
+      out.regN := in(2, 0)
+      out.regM := in(5, 3)
+      out.regS := in(5, 3)
+
+      val opcode = in(9, 6)
+      switch (opcode) {
+        is (0.U, 1.U, 5.U, 6.U, 8.U, 10.U, 11.U, 12.U, 14.U, 15.U) {
+          out.kind := InstructionKind.DataProcessingImmShift
+          out.opcode := opcode
+          out.immediate := 0.U
+        }
+        is (2.U, 3.U, 4.U, 7.U) {
+          out.kind := InstructionKind.DataProcessingRegShift
+          out.opcode := AluOpcode.mov.asUInt
+          out.immediate := MuxLookup(opcode, ShiftKind.RotateRight)(Seq(
+            2.U -> ShiftKind.LogicalShiftLeft,
+            3.U -> ShiftKind.LogicalShiftRight,
+            4.U -> ShiftKind.ArithmeticShiftRight,
+          )).asUInt // [shift (2)]
+        }
+        is (9.U) {
+          out.kind := InstructionKind.DataProcessingImmShift
+          out.opcode := AluOpcode.rsb.asUInt
+          out.immediate := 0.U
+        }
+        is (13.U) {
+          // Multiply Rd = Rd * Rs
+          out.kind := InstructionKind.Multiply
+          out.regM := in(5, 3)
+          out.regS := in(2, 0)
+          out.flags := "b0001".U // [Long, Signed, Accumulate, SetCond]
+        }
+      }
     } .elsewhen (in(15, 10) === "b010001".U(6.W)) {
       // THUMB.5: Hi register operations/branch exchange
       val opcode = in(9, 8)
@@ -316,19 +372,73 @@ class Decoder extends Module {
         out.flags := "b10".U(2.W) // [Exchange, Link]
       }
     } .elsewhen (in(15, 11) === "b01001".U(5.W)) {
-      // TODO THUMB.6: load PC-relative
+      // THUMB.6: load PC-relative
+      out.kind := InstructionKind.Load
+      out.opcode := BusAccessWidth.Word.asUInt
+      // flags: (user mode) (signed) (use immediate) (pre indexed) (*add* offset) (writeback to base)
+      out.flags := "b001110".U(6.W)
+      out.regN := 15.U
+      out.regD := in(10, 8)
+      out.immediate := Cat(in(7, 0), "b00".U(2.W))
+
+      // TODO: it actually uses PC force-aligned to 4
     } .elsewhen (in(15, 12) === "b0101".U(4.W)) {
       when (in(9) === 0.U) {
-        // TODO THUMB.7: load/store with register offset
+        // THUMB.7: load/store with register offset
+        when (in(11)) {
+          out.kind := InstructionKind.Load
+        } .otherwise {
+          out.kind := InstructionKind.Store
+        }
+        out.opcode := Mux(in(10), BusAccessWidth.Byte, BusAccessWidth.Word).asUInt
+        out.regN := in(5, 3)
+        out.regD := in(2, 0)
+        out.regM := in(8, 6)
+        out.immediate := 0.U
+        out.flags := "b000110".U(6.W)
       } .otherwise {
-        // TODO THUMB.8: load/store sign-extended byte/halfword
+        // THUMB.8: load/store sign-extended byte/halfword
+        val opcode = in(11, 10)
+        out.kind := Mux(opcode === 0.U, InstructionKind.Store, InstructionKind.Load)
+        out.regN := in(5, 3)
+        out.regD := in(2, 0)
+        out.regM := in(8, 6)
+        out.immediate := 0.U
+        out.flags := Cat(in(10), "b0110".U(4.W))
+        out.opcode := Mux(opcode === 1.U, BusAccessWidth.Byte, BusAccessWidth.Halfword).asUInt
       }
     } .elsewhen (in(15, 13) === "b011".U(3.W)) {
-      // TODO THUMB.9: load/store word/byte with immediate offset
+      // THUMB.9: load/store word/byte with immediate offset
+      when (in(11)) {
+        out.kind := InstructionKind.Load
+      } .otherwise {
+        out.kind := InstructionKind.Store
+      }
+      when (in(12)) {
+        out.opcode := BusAccessWidth.Byte.asUInt
+        out.immediate := in(10, 6)
+      } .otherwise {
+        out.opcode := BusAccessWidth.Word.asUInt
+        out.immediate := in(10, 6) << 2.U
+      }
+      out.regN := in(5, 3)
+      out.regD := in(2, 0)
+      out.flags := "b001110".U(6.W)
     } .elsewhen (in(15, 10) === "b1000".U(4.W)) {
-      // TODO THUMB.10: load/store halfword with immediate offset
+      // THUMB.10: load/store halfword with immediate offset
+      out.kind := Mux(in(11), InstructionKind.Load, InstructionKind.Store)
+      out.opcode := BusAccessWidth.Halfword.asUInt
+      out.immediate := in(10, 6) << 1.U
+      out.regN := in(5, 3)
+      out.regD := in(2, 0)
+      out.flags := "b001110".U(6.W)
     } .elsewhen (in(15, 12) === "b1001".U(4.W)) {
-      // TODO THUMB.11: load/store SP relative
+      // THUMB.11: load/store SP relative
+      out.kind := Mux(in(11), InstructionKind.Load, InstructionKind.Store)
+      out.opcode := BusAccessWidth.Word.asUInt
+      out.immediate := in(7, 0) << 2.U
+      out.regD := in(10, 8)
+      out.regN := 13.U  // SP
     } .elsewhen (in(15, 12) === "b1010".U(4.W)) {
       // THUMB.12: get relative address
       out.regD := in(10, 8)
@@ -344,21 +454,67 @@ class Decoder extends Module {
         out.regN := 15.U
       }
     } .elsewhen (in(15, 8) === "b10110000".U(8.W)) {
-      // TODO THUMB.13: add offset to stack pointer
+      // THUMB.13: add offset to stack pointer
+      out.kind := InstructionKind.DataProcessingImm
+      out.opcode := Mux(in(7), AluOpcode.sub, AluOpcode.add).asUInt
+      out.regD := 13.U
+      out.regN := 13.U
+      out.immediate := in(6, 0) << 2
     } .elsewhen (in(15, 12) === "b1101".U(4.W)) {
       when (in(11, 8) === "b1111".U(4.W)) {
-        // TODO THUMB.17: software interrupt
+        // THUMB.17: software interrupt
+        out.kind := InstructionKind.Exception
+        out.opcode := ExceptionKind.SoftwareInterrupt.asUInt
       } .elsewhen (in(11, 8) =/= "b1110".U(4.W)) {
-        // TODO THUMB.16: conditional branch
+        // THUMB.16: conditional branch
+        out.kind := InstructionKind.ArmBranch
+        out.condition := in(11, 8).asTypeOf(Condition())
+        out.flags := "b100".U(3.W) // [thumb imm, Exchange, Link]
+        out.immediate := Cat(Fill(3, in(7)), in(7, 0))
       }
     } .elsewhen (in(15, 12) === "b1011".U(4.W) && in(10, 9) === "b10".U(2.W)) {
-      // TODO THUMB.14: push/pop registers
+      // THUMB.14: push/pop registers
+      when (in(11)) {
+        // POP
+        out.kind := InstructionKind.LoadMultiple
+        out.immediate := Cat(in(8), 0.U(7.W), in(7, 0))
+        out.flags := "b0101".U(4.W) // [P, U, S, W]
+      } .otherwise {
+        // PUSH
+        out.kind := InstructionKind.StoreMultiple
+        out.immediate := Cat(0.U(1.W), in(8), 0.U(6.W), in(7, 0))
+        out.flags := "b1001".U(4.W) // [P, U, S, W]
+      }
+      out.regN := 13.U // SP
     } .elsewhen (in(15, 12) === "b1100".U(4.W)) {
-      // TODO THUMB.15: multiple load/store
+      // THUMB.15: multiple load/store
+      when (in(11)) {
+        out.kind := InstructionKind.LoadMultiple
+      } .otherwise {
+        out.kind := InstructionKind.StoreMultiple
+      }
+      out.regN := in(10, 8)
+      out.immediate := in(7, 0)
+      out.flags := "b0101".U(4.W) // [P, U, S, W]
     } .elsewhen (in(15, 11) === "b11100".U(5.W)) {
-      // TODO THUMB.18: branch
+      // THUMB.18: branch
+      out.kind := InstructionKind.ArmBranch
+      out.flags := "b100".U(3.W) // [thumb imm, Exchange, Link]
+      out.immediate := in(10, 0)
     } .elsewhen (in(15, 12) === "b1111".U(4.W)) {
-      // TODO THUMB.19: branch and link
+      // THUMB.19: branch and link
+      when (!in(11)) {
+        // First part: LR = PC + (SignExtend(offset_11) << 12)
+        out.kind := InstructionKind.DataProcessingImm
+        out.regD := 14.U
+        out.regN := 15.U
+        out.flags := "b10".U(2.W) // [sign extend 11-bit imm, SetCond]
+      } .otherwise {
+        // Second part: branch
+        out.kind := InstructionKind.ArmBranch
+        out.flags := "b101".U(3.W) // [thumb imm, Exchange, Link]
+        out.immediate := in(10, 0)
+      }
     }
   }
 }

@@ -268,9 +268,14 @@ class Control extends Module {
       }
       is (InstructionKind.DataProcessingImm) {
         // Rd := Alu(Rn, Imm)
-        control.shiftKind := ShiftKind.RotateRight
-        control.shiftImmediate := instruction.immediate(11, 8) << 1
-        control.immediate := instruction.immediate(7, 0)
+        when (instruction.flags(1) === 0.U) {
+          control.shiftKind := ShiftKind.RotateRight
+          control.shiftImmediate := instruction.immediate(11, 8) << 1
+          control.immediate := instruction.immediate(7, 0)
+        } .otherwise {
+          // Special 11-bit signed immediate, used for Thumb BL (long)
+          control.immediate := Cat(Fill(9, instruction.immediate(10)), instruction.immediate(10, 0), 0.U(12.W))
+        }
         control.busB := BusBValue.Immediate
         finishDataProcessing()
       }
@@ -476,6 +481,7 @@ class Control extends Module {
       is (InstructionKind.ArmBranch) {
         val flag_link = instruction.flags(0)
         val flag_exchange = instruction.flags(1)
+        val flag_thumb_imm = instruction.flags(2)
 
         switch (stage) {
           is (0.U) {
@@ -488,11 +494,19 @@ class Control extends Module {
             } .otherwise {
               control.regReadA := 15.U // PC
               control.busB := BusBValue.Immediate
-              control.immediate := Cat(
-                Fill(6, instruction.immediate(23)),
-                instruction.immediate(23, 0),
-                "b00".U(2.W)
-              )
+              when (!flag_thumb_imm) {
+                control.immediate := Cat(
+                  Fill(6, instruction.immediate(23)),
+                  instruction.immediate(23, 0),
+                  "b00".U(2.W)
+                )
+              } .otherwise {
+                control.immediate := Cat(
+                  Fill(20, instruction.immediate(10)),
+                  instruction.immediate(10, 0),
+                  "b0".U(1.W)
+                )
+              }
               control.aluOpcode := AluOpcode.add
             }
             flushPipeline()
@@ -501,13 +515,14 @@ class Control extends Module {
           }
           is (1.U) {
             when (flag_link) {
-              // If link, save LR := PC - 4 (to point to the instruction after the branch)
-              // Note: this is always executed from ARM mode, so it's always 4.
+              // If link, save LR := PC - i (to point to the instruction after the branch)
               control.regWriteEnable := true.B
               control.regWriteIndex := 14.U // LR
               control.regReadA := 15.U // PC
               control.busB := BusBValue.Immediate
-              control.immediate := 4.U
+              // In ARM mode, subtract 4.
+              // In THUMB mode, subtract 1 -- previous instruction, with bit 0 set to 1 to allow for BX to return here.
+              control.immediate := Mux(io.currentStatus.thumb, 1.U, 4.U)
               control.aluOpcode := AluOpcode.sub
             }
             nextInstruction()
