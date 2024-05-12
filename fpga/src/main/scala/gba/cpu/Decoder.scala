@@ -272,7 +272,13 @@ class Decoder extends Module {
     }
   } .otherwise {
     // Thumb mode
-    when (in(15, 13) === "b001".U(3.W)) {
+    when (in(15, 13) === "b000".U(3.W)) {
+      when (in(12, 11) =/= "b11".U(2.W)) {
+        // TODO THUMB.1: shift by immediate
+      } .otherwise {
+        // TODO THUMB.2: add / subtract
+      }
+    } .elsewhen (in(15, 13) === "b001".U(3.W)) {
       // THUMB.3: move/compare/add/subtract immediate
       out.kind := InstructionKind.DataProcessingImm
       out.flags := 1.U // [SetCond]
@@ -280,6 +286,8 @@ class Decoder extends Module {
       out.regN := in(10, 8)
       out.immediate := in(7, 0)
       out.opcode := VecInit(Seq(AluOpcode.mov, AluOpcode.cmp, AluOpcode.add, AluOpcode.sub))(in(12, 11)).asUInt
+    } .elsewhen (in(15, 10) === "b010000".U(6.W)) {
+      // TODO THUMB.4: data-processing register
     } .elsewhen (in(15, 10) === "b010001".U(6.W)) {
       // THUMB.5: Hi register operations/branch exchange
       val opcode = in(9, 8)
@@ -307,6 +315,20 @@ class Decoder extends Module {
         out.kind := InstructionKind.ArmBranch
         out.flags := "b10".U(2.W) // [Exchange, Link]
       }
+    } .elsewhen (in(15, 11) === "b01001".U(5.W)) {
+      // TODO THUMB.6: load PC-relative
+    } .elsewhen (in(15, 12) === "b0101".U(4.W)) {
+      when (in(9) === 0.U) {
+        // TODO THUMB.7: load/store with register offset
+      } .otherwise {
+        // TODO THUMB.8: load/store sign-extended byte/halfword
+      }
+    } .elsewhen (in(15, 13) === "b011".U(3.W)) {
+      // TODO THUMB.9: load/store word/byte with immediate offset
+    } .elsewhen (in(15, 10) === "b1000".U(4.W)) {
+      // TODO THUMB.10: load/store halfword with immediate offset
+    } .elsewhen (in(15, 12) === "b1001".U(4.W)) {
+      // TODO THUMB.11: load/store SP relative
     } .elsewhen (in(15, 12) === "b1010".U(4.W)) {
       // THUMB.12: get relative address
       out.regD := in(10, 8)
@@ -321,7 +343,22 @@ class Decoder extends Module {
         // TODO: it's actually added with PC force-aligned to 4 (& 0xFFFFFFFC)
         out.regN := 15.U
       }
+    } .elsewhen (in(15, 8) === "b10110000".U(8.W)) {
+      // TODO THUMB.13: add offset to stack pointer
+    } .elsewhen (in(15, 12) === "b1101".U(4.W)) {
+      when (in(11, 8) === "b1111".U(4.W)) {
+        // TODO THUMB.17: software interrupt
+      } .elsewhen (in(11, 8) =/= "b1110".U(4.W)) {
+        // TODO THUMB.16: conditional branch
+      }
+    } .elsewhen (in(15, 12) === "b1011".U(4.W) && in(10, 9) === "b10".U(2.W)) {
+      // TODO THUMB.14: push/pop registers
+    } .elsewhen (in(15, 12) === "b1100".U(4.W)) {
+      // TODO THUMB.15: multiple load/store
+    } .elsewhen (in(15, 11) === "b11100".U(5.W)) {
+      // TODO THUMB.18: branch
+    } .elsewhen (in(15, 12) === "b1111".U(4.W)) {
+      // TODO THUMB.19: branch and link
     }
-    // TODO the rest of thumb
   }
 }
