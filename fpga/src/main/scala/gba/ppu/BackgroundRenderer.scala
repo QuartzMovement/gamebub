@@ -2,6 +2,7 @@ package gba.ppu
 
 import chisel3._
 import chisel3.util._
+import gba.cpu.BusAccessWidth
 
 class BackgroundPixel extends Bundle {
   // These should be palette indices (8-bit) -- layer 2 in mode 3 and 5 is 16-bit color, can just pack into L3 too.
@@ -15,7 +16,7 @@ class BackgroundRenderer extends Module {
     val enable = Input(Bool())
 
     /// BG VRAM access
-    val vram = Flipped(new PpuMemoryInterface(16.W))
+    val vram = Flipped(new PpuMemoryInterface(96 * 1024 / 2, BusAccessWidth.Halfword))
 
     /// Current cycle in the scanline
     val tick = Input(UInt(11.W))
