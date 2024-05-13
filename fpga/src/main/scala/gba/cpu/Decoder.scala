@@ -73,7 +73,7 @@ class DecodedInstruction extends Bundle {
   /// Per-instruction opcode
   val opcode = UInt(4.W)
   /// Per-instruction flags
-  val flags = UInt(6.W)
+  val flags = UInt(7.W)
 }
 
 /// Instruction fetch and decode
@@ -377,12 +377,11 @@ class Decoder extends Module {
       // THUMB.6: load PC-relative
       out.kind := InstructionKind.Load
       out.opcode := BusAccessWidth.Word.asUInt
-      // flags: (user mode) (signed) (use immediate) (pre indexed) (*add* offset) (writeback to base)
-      out.flags := "b001110".U(6.W)
+      // flags: (align a) (user mode) (signed) (use immediate) (pre indexed) (*add* offset) (writeback to base)
+      out.flags := "b1001110".U(7.W)
       out.regN := 15.U
       out.regD := in(10, 8)
       out.immediate := Cat(in(7, 0), "b00".U(2.W))
-      // TODO: it actually uses PC force-aligned to 4
     } .elsewhen (in(15, 12) === "b0101".U(4.W)) {
       when (in(9) === 0.U) {
         // THUMB.7: load/store with register offset

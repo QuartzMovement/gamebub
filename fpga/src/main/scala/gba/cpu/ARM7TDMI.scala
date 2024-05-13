@@ -197,6 +197,9 @@ class ARM7TDMI extends Module {
   ////////////////////////////////////////// ALU ///////////////////////////////////////////
   val alu = Module(new Alu)
   alu.io.a := aBus
+  when (control.aluInAAlign4) {
+    alu.io.a := aBus & "hFFFFFFFC".U(32.W)
+  }
   alu.io.b := shifter.io.out
   alu.io.opcode := control.aluOpcode
   alu.io.flagIn := cpsrBus.cond

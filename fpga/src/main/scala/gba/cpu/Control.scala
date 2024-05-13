@@ -67,6 +67,7 @@ class ControlSignals extends Bundle {
 
   val aluOpcode = AluOpcode()
   val aluOutAlign4 = Bool()
+  val aluInAAlign4 = Bool()
   val shiftKind = ShiftKind()
   val shiftImmediate = UInt(6.W)
   val shiftDoLatch = Bool()
@@ -172,6 +173,7 @@ class Control extends Module {
   control.immediate := DontCare
   control.aluOpcode := DontCare
   control.aluOutAlign4 := false.B
+  control.aluInAAlign4 := false.B
   control.shiftKind := ShiftKind.LogicalShiftLeft
   control.shiftImmediate := 0.U
   control.shiftDoLatch := false.B
@@ -839,6 +841,7 @@ class Control extends Module {
 
   // Setup the ALU to calculate the offset address for a load/store instruction.
   private def setAluLoadStoreAddress(): Unit = {
+    val flag_align_a = instruction.flags(6)
     val flag_immediate = instruction.flags(3)
     val flag_add = instruction.flags(1)
 
@@ -866,6 +869,7 @@ class Control extends Module {
         }
       }
     }
+    control.aluInAAlign4 := flag_align_a
     control.regReadA := instruction.regN
     control.aluOpcode := Mux(flag_add, AluOpcode.add, AluOpcode.sub)
   }
