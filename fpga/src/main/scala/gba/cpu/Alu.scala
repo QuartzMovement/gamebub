@@ -99,13 +99,13 @@ class Alu extends Module {
       val temp = io.b -& io.a
       io.out := temp
       io.flagOut.c := !temp(32)
-      io.flagOut.v := (io.a(31) ^ io.b(31)) && (io.a(31) ^ io.out(31))
+      io.flagOut.v := (io.a(31) ^ io.b(31)) && (io.b(31) ^ io.out(31))
     }
     is (AluOpcode.rsc) {
       val temp = io.b -& io.a -& (!io.flagIn.c).asUInt
       io.out := temp
       io.flagOut.c := !temp(32)
-      io.flagOut.v := (io.a(31) ^ io.b(31)) && (io.a(31) ^ io.out(31))
+      io.flagOut.v := (io.a(31) ^ io.b(31)) && (io.b(31) ^ io.out(31))
     }
     is (AluOpcode.and, AluOpcode.tst) {
       io.out := io.a & io.b
