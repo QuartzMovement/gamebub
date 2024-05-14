@@ -57,27 +57,12 @@ class Bus(
   val isRequested = io.initiatorPort.TRANS === BusTransactionType.Sequential || io.initiatorPort.TRANS === BusTransactionType.NonSequential
   /// Whether a new request is being accepted.
   val isAccepted = io.enable && isAvailable && isRequested
+  /// Whether the request will have to be split (32-bit to 16-bit)
+  val isSplit = WireDefault(false.B)
+
 
   // Align addresses
-  val initiatorAddress = Wire(UInt(28.W))
-  when (io.initiatorPort.SIZE === BusAccessWidth.Word) {
-    initiatorAddress := Cat(io.initiatorPort.ADDR(31, 2), 0.U(2.W))
-  } .elsewhen (io.initiatorPort.SIZE === BusAccessWidth.Halfword) {
-    initiatorAddress := Cat(io.initiatorPort.ADDR(31, 1), 0.U(1.W))
-  } .otherwise {
-    initiatorAddress := io.initiatorPort.ADDR
-  }
-  val initiatorMask = {
-    import BusAccessWidth._
-    val size = io.initiatorPort.SIZE
-    val address = io.initiatorPort.ADDR
-    Cat(
-      (size === Word) || (size === Halfword && address(1) === 1.U) || (size === Byte && address(1, 0) === 3.U),
-      (size === Word) || (size === Halfword && address(1) === 1.U) || (size === Byte && address(1, 0) === 2.U),
-      (size === Word) || (size === Halfword && address(1) === 0.U) || (size === Byte && address(1, 0) === 1.U),
-      (size === Word) || (size === Halfword && address(1) === 0.U) || (size === Byte && address(1, 0) === 0.U),
-    )
-  }
+  val (initiatorAddress, initiatorMask) = alignAddress(io.initiatorPort.ADDR(27, 0), io.initiatorPort.SIZE)
 
 //  printf(cf"done=$isDone, avail=$isAvailable, req=$isRequested, accept=$isAccepted   (addr=${initiatorAddress}%x), trans=${io.initiatorPort.TRANS}\n")
 
@@ -126,5 +111,28 @@ class Bus(
         io.initiatorPort.RDATA := target.dataRead
       }
     }
+  }
+
+  def alignAddress(address: UInt, width: BusAccessWidth.Type): (UInt, UInt) = {
+    val aligned = Wire(UInt(address.getWidth.W))
+    when (width === BusAccessWidth.Word) {
+      aligned := Cat(address(address.getWidth - 1, 2), 0.U(2.W))
+    } .elsewhen (width === BusAccessWidth.Halfword) {
+      aligned := Cat(address(address.getWidth - 1, 1), 0.U(1.W))
+    } .otherwise {
+      aligned := address
+    }
+    import BusAccessWidth._
+    val mask = Cat(
+      (width === Word) || (width === Halfword && address(1) === 1.U) || (width === Byte && address(1, 0) === 3.U),
+      (width === Word) || (width === Halfword && address(1) === 1.U) || (width === Byte && address(1, 0) === 2.U),
+      (width === Word) || (width === Halfword && address(1) === 0.U) || (width === Byte && address(1, 0) === 1.U),
+      (width === Word) || (width === Halfword && address(1) === 0.U) || (width === Byte && address(1, 0) === 0.U),
+    )
+    (aligned, mask)
+  }
+
+  def getMSB(input: UInt, width: Int): UInt = {
+    input(input.getWidth - 1, input.getWidth - width)
   }
 }

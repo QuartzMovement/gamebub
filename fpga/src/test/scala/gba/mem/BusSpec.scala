@@ -7,6 +7,7 @@ import org.scalatest.funsuite.AnyFunSuite
 
 case class TargetAccess(
   address: BigInt,
+  size: BusAccessWidth.Type = BusAccessWidth.Word,
   write: Boolean = false,
   sequential: Boolean = false,
 )
@@ -52,10 +53,24 @@ class BusSpec extends AnyFunSuite {
         val address = dut.io.targetPort(i).address.peek().litValue & 0xFFFFFF
         val write = dut.io.targetPort(i).write.peek().litToBoolean
         val sequential = dut.io.targetPort(i).sequential.peek().litToBoolean
-        Some(TargetAccess(address, write, sequential))
+        val size = dut.io.targetPort(i).size.peekValue().asBigInt.toInt match {
+          case 0 => BusAccessWidth.Byte
+          case 1 => BusAccessWidth.Halfword
+          case 2 => BusAccessWidth.Word
+          case _ => throw new Exception("invalid value")
+        }
+        Some(TargetAccess(address, size, write, sequential))
       } else {
         None
       }
+    }
+
+    def setTargetDataWrite(i: Int, data: BigInt) = {
+      dut.io.targetPort(i).dataWrite.poke(data)
+    }
+
+    def getTargetDataWrite(i: Int): BigInt = {
+      dut.io.targetPort(i).dataWrite.peek().litValue
     }
 
     def setTargetDone(i: Int, dataRead: BigInt = 0): Unit = {
@@ -67,13 +82,15 @@ class BusSpec extends AnyFunSuite {
       dut.io.initiatorPort.CLKEN.peek().litToBoolean
     }
 
-    def step(): Unit = {
+    def step(resetAccess: Boolean = true): Unit = {
       dut.clock.step()
 
-      // Reset some state so accesses don't continue by default
-      dut.io.initiatorPort.TRANS.poke(BusTransactionType.Internal)
-      for (i <- 0 until targets) {
-        dut.io.targetPort(i).done.poke(false)
+      if (resetAccess) {
+        // Reset some state so accesses don't continue by default
+        dut.io.initiatorPort.TRANS.poke(BusTransactionType.Internal)
+        for (i <- 0 until targets) {
+          dut.io.targetPort(i).done.poke(false)
+        }
       }
     }
   }
@@ -175,39 +192,39 @@ class BusSpec extends AnyFunSuite {
 
       // Word
       bus.setAccess(address = 0x01_000000, size = BusAccessWidth.Word)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0, BusAccessWidth.Word)))
       bus.setAccess(address = 0x01_000001, size = BusAccessWidth.Word)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0, BusAccessWidth.Word)))
       bus.setAccess(address = 0x01_000002, size = BusAccessWidth.Word)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0, BusAccessWidth.Word)))
       bus.setAccess(address = 0x01_000003, size = BusAccessWidth.Word)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0, BusAccessWidth.Word)))
       bus.setAccess(address = 0x01_000004, size = BusAccessWidth.Word)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x4)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x4, BusAccessWidth.Word)))
 
       // Halfword
       bus.setAccess(address = 0x01_000000, size = BusAccessWidth.Halfword)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0, BusAccessWidth.Halfword)))
       bus.setAccess(address = 0x01_000001, size = BusAccessWidth.Halfword)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0, BusAccessWidth.Halfword)))
       bus.setAccess(address = 0x01_000002, size = BusAccessWidth.Halfword)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x2)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x2, BusAccessWidth.Halfword)))
       bus.setAccess(address = 0x01_000003, size = BusAccessWidth.Halfword)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x2)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x2, BusAccessWidth.Halfword)))
       bus.setAccess(address = 0x01_000004, size = BusAccessWidth.Halfword)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x4)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x4, BusAccessWidth.Halfword)))
 
       // Byte
       bus.setAccess(address = 0x01_000000, size = BusAccessWidth.Byte)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x0, BusAccessWidth.Byte)))
       bus.setAccess(address = 0x01_000001, size = BusAccessWidth.Byte)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x1)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x1, BusAccessWidth.Byte)))
       bus.setAccess(address = 0x01_000002, size = BusAccessWidth.Byte)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x2)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x2, BusAccessWidth.Byte)))
       bus.setAccess(address = 0x01_000003, size = BusAccessWidth.Byte)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x3)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x3, BusAccessWidth.Byte)))
       bus.setAccess(address = 0x01_000004, size = BusAccessWidth.Byte)
-      assert(bus.getTargetAccess(0).contains(TargetAccess(0x4)))
+      assert(bus.getTargetAccess(0).contains(TargetAccess(0x4, BusAccessWidth.Byte)))
     }
   }
 
@@ -238,16 +255,66 @@ class BusSpec extends AnyFunSuite {
       bus.setTargetDone(1, 0x0002)
       assert(bus.getClockEn())
       assert(bus.getReadData() === 0x0002)
-      bus.setAccess(address = 0x03_DEF000)
+      bus.setAccess(address = 0x03_DEF000, size = BusAccessWidth.Halfword)
       assert(bus.getTargetAccess(0).isEmpty)
       assert(bus.getTargetAccess(1).isEmpty)
-      assert(bus.getTargetAccess(2).contains(TargetAccess(0xDEF000)))
+      assert(bus.getTargetAccess(2).contains(TargetAccess(0xDEF000, size = BusAccessWidth.Halfword)))
       bus.step()
 
       // Read 3
       bus.setTargetDone(2, 0x0003)
       assert(bus.getClockEn())
       assert(bus.getReadData() === 0x0003)
+      bus.step()
+    }
+  }
+
+  test("split write") {
+    simulate(makeBus()) { dut =>
+      val bus = new BusHarness(dut)
+
+      // Do a 32-bit write to target C
+      bus.setAccess(address = 0x03_ABC000, size = BusAccessWidth.Word, write = true, sequential = false)
+      assert(bus.getTargetAccess(0).isEmpty)
+      assert(bus.getTargetAccess(1).isEmpty)
+      assert(bus.getTargetAccess(2).contains(TargetAccess(0xABC000, size = BusAccessWidth.Halfword, write = true, sequential = false)))
+      assert(bus.getClockEn())
+      bus.step(resetAccess = false)
+
+      bus.setTargetDataWrite(2, 0xABCD1234)
+      assert(bus.getTargetDataWrite(2) == BigInt(0x1234))
+      bus.setTargetDone(2)
+      assert(!bus.getClockEn())
+      assert(bus.getTargetAccess(2).contains(TargetAccess(0xABC002, size = BusAccessWidth.Halfword, write = true, sequential = true)))
+      bus.step()
+
+      assert(bus.getTargetDataWrite(2) == BigInt(0xABCD))
+      bus.setTargetDone(2)
+      assert(bus.getClockEn())
+      bus.step()
+    }
+  }
+
+  test("split read") {
+    simulate(makeBus()) { dut =>
+      val bus = new BusHarness(dut)
+
+      // Do a 32-bit read from target C
+      bus.setAccess(address = 0x03_DEF000, size = BusAccessWidth.Word, write = false, sequential = false)
+      assert(bus.getTargetAccess(0).isEmpty)
+      assert(bus.getTargetAccess(1).isEmpty)
+      assert(bus.getTargetAccess(2).contains(TargetAccess(0xDEF000, size = BusAccessWidth.Halfword, write = false, sequential = false)))
+      assert(bus.getClockEn())
+      bus.step(resetAccess = false)
+
+      bus.setTargetDone(2, 0x1234)
+      assert(!bus.getClockEn())
+      assert(bus.getTargetAccess(2).contains(TargetAccess(0xDEF002, size = BusAccessWidth.Halfword, write = false, sequential = true)))
+      bus.step()
+
+      bus.setTargetDone(2, 0xABCD)
+      assert(bus.getReadData() == 0xABCD1234)
+      assert(bus.getClockEn())
       bus.step()
     }
   }
