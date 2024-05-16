@@ -8,7 +8,7 @@ import gba.mem.TargetInterface
 class Bios extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
-    val target = new TargetInterface(BusAccessWidth.Word)
+    val target = new TargetInterface(32.W)
   })
 
   val rom = SyncReadMem(16 * 1024 / 4, UInt(32.W))

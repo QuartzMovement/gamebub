@@ -16,7 +16,7 @@ class BackgroundRenderer extends Module {
     val enable = Input(Bool())
 
     /// BG VRAM access
-    val vram = Flipped(new PpuMemoryInterface(96 * 1024 / 2, BusAccessWidth.Halfword))
+    val vram = Flipped(new PpuMemoryInterface(96 * 1024 / 2, 16.W))
 
     /// Current cycle in the scanline
     val tick = Input(UInt(11.W))

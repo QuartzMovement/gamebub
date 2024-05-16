@@ -215,7 +215,7 @@ class ARM7TDMI extends Module {
 
   /////////////////////////////////////// Multiplier ///////////////////////////////////////
   val multiplier = Module(new Multiplier)
-  multiplier.io.enable := io.enable
+  multiplier.io.enable := enable
   multiplier.io.a := aBus
   multiplier.io.b := bBus
   multiplier.io.start := control.multiplyEnable

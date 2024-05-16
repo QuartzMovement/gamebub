@@ -17,7 +17,7 @@ class GBA extends Module {
     val enable = Input(Bool())
 
     /// Cartridge access
-    val cartRom = Flipped(new TargetInterface(BusAccessWidth.Halfword))
+    val cartRom = Flipped(new TargetInterface(16.W))
 
     /// PPU video output
     val ppu = Output(new PpuOutput)
@@ -25,7 +25,7 @@ class GBA extends Module {
 
   val bus = Module(new mem.Bus(Seq(
     BusTarget("BIOS", 0x0.U(4.W), BusAccessWidth.Word),
-    BusTarget("EWRAM", 0x2.U(4.W), BusAccessWidth.Halfword),
+    BusTarget("EWRAM", 0x2.U(4.W), BusAccessWidth.Word),
     BusTarget("IWRAM", 0x3.U(4.W), BusAccessWidth.Word),
     BusTarget("I/O", 0x4.U(4.W), BusAccessWidth.Word),
     BusTarget("Palette Ram", 0x5.U(4.W), BusAccessWidth.Halfword),

@@ -8,7 +8,7 @@ import gba.cpu.BusAccessWidth
 class SimpleRam(size: Int) extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
-    val target = new TargetInterface(BusAccessWidth.Word)
+    val target = new TargetInterface(32.W)
   })
 
   io.target.done := false.B

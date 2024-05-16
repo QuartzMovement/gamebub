@@ -5,11 +5,11 @@ import chisel3.util._
 import gba.cpu.BusAccessWidth
 import gba.mem.TargetInterface
 
-class PpuMemoryInterface(size: Int, width: BusAccessWidth.Type) extends Bundle {
+class PpuMemoryInterface(size: Int, width: Width) extends Bundle {
   /// Word address
   val address = Input(UInt(log2Ceil(size).W))
   val read = Input(Bool())
-  val readData = Output(UInt(BusAccessWidth.toWidth(width)))
+  val readData = Output(UInt(width))
 }
 
 /// Module for PPU-owned memory that is also exposed to the CPU:
@@ -17,7 +17,7 @@ class PpuMemoryInterface(size: Int, width: BusAccessWidth.Type) extends Bundle {
 ///
 /// PPU port is always read-only and takes priority over CPU.
 /// Byte strobe is not supported, but halfword writes are
-class PpuMem(size: Int, width: BusAccessWidth.Type) extends Module {
+class PpuMem(size: Int, width: Width) extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
 
@@ -28,7 +28,7 @@ class PpuMem(size: Int, width: BusAccessWidth.Type) extends Module {
     val ppuTarget = new PpuMemoryInterface(size, width)
   })
 
-  val mem = SyncReadMem(size, UInt(BusAccessWidth.toWidth(width)))
+  val mem = SyncReadMem(size, UInt(width))
 
   // CPU access
   {

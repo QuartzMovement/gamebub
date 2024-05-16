@@ -24,7 +24,7 @@ class MmioTarget extends Bundle {
 class MMIO(numTargets: Int) extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
-    val mem = new TargetInterface(BusAccessWidth.Word)
+    val mem = new TargetInterface(32.W)
   })
   val targets: Seq[MmioTarget] = Seq.fill(numTargets)(IO(Flipped(new MmioTarget)))
 

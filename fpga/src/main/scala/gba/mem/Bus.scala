@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import gba.cpu.{BusAccessWidth, BusInterface, BusTransactionType}
 
-class TargetInterface(maxWidth: BusAccessWidth.Type) extends Bundle {
+class TargetInterface(maxWidth: Width) extends Bundle {
   /// Byte-wise access address
   val address = Input(UInt(25.W))
   /// Whether an access is requested
@@ -18,9 +18,9 @@ class TargetInterface(maxWidth: BusAccessWidth.Type) extends Bundle {
   /// Byte mask strobe (if the access were aligned to 32-bits)
   val mask = Input(UInt(4.W))
   /// Data write
-  val dataWrite = Input(UInt(BusAccessWidth.toWidth(maxWidth)))
+  val dataWrite = Input(UInt(maxWidth))
   /// Data read
-  val dataRead = Output(UInt(BusAccessWidth.toWidth(maxWidth)))
+  val dataRead = Output(UInt(maxWidth))
   /// True when the access started in the previous cycle has completed
   val done = Output(Bool())
 }
@@ -42,7 +42,7 @@ class Bus(
     val initiatorPort = Flipped(new BusInterface)
 
     /// Target ports
-    val targetPort = MixedVec(targets.map(t => Flipped(new TargetInterface(t.dataWidth))))
+    val targetPort = MixedVec(targets.map(t => Flipped(new TargetInterface(BusAccessWidth.toWidth(t.dataWidth)))))
   })
 
   val requestEnable = WireDefault(false.B)

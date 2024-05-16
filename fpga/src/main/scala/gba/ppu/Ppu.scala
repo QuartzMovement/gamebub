@@ -26,10 +26,10 @@ class Ppu extends Module {
     val output = Output(new PpuOutput)
 
     /// VRAM memory target for CPU
-    val vramTarget = new TargetInterface(BusAccessWidth.Halfword)
+    val vramTarget = new TargetInterface(16.W)
 
     /// Palette memory target for CPU
-    val paletteRamTarget = new TargetInterface(BusAccessWidth.Halfword)
+    val paletteRamTarget = new TargetInterface(16.W)
 
     /// MMIO access
     val mmio = new MmioTarget()
@@ -40,7 +40,7 @@ class Ppu extends Module {
   vram.io.enable := io.enable
   vram.io.memTarget <> io.vramTarget
 
-  val paletteRam = Module(new PpuMem(1024 / 2, BusAccessWidth.Halfword))
+  val paletteRam = Module(new PpuMem(1024 / 2, 16.W))
   paletteRam.io.enable := io.enable
   paletteRam.io.memTarget <> io.paletteRamTarget
 

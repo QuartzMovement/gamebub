@@ -9,14 +9,14 @@ class Vram extends Module {
     val enable = Input(Bool())
 
     /// Target interface for main CPU memory bus
-    val memTarget = new TargetInterface(BusAccessWidth.Halfword)
+    val memTarget = new TargetInterface(16.W)
 
     /// PPU read interface for Backgrounds
-    val portBG = new PpuMemoryInterface(96 * 1024 / 2, BusAccessWidth.Halfword)
+    val portBG = new PpuMemoryInterface(96 * 1024 / 2, 16.W)
   })
 
   /// VRAM: 96KiB, 16-bit access without byte strobe.
-  val mem = Module(new PpuMem(96 * 1024 / 2, BusAccessWidth.Halfword))
+  val mem = Module(new PpuMem(96 * 1024 / 2, 16.W))
   mem.io.enable := io.enable
   mem.io.memTarget <> io.memTarget
   /// TODO: Note: actually split into multiple banks for bg/obj

@@ -10,7 +10,7 @@ class Compositor extends Module {
     val tick = Input(UInt(11.W))
     val scanline = Input(UInt(8.W))
 
-    val paletteRam = Flipped(new PpuMemoryInterface(1024 / 2, BusAccessWidth.Halfword))
+    val paletteRam = Flipped(new PpuMemoryInterface(1024 / 2, 16.W))
 
     val valid = Output(Bool())
     val pixel = Output(UInt(15.W))
