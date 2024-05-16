@@ -307,12 +307,12 @@ class BusSpec extends AnyFunSuite {
       assert(bus.getClockEn())
       bus.step(resetAccess = false)
 
-      bus.setTargetDone(2, 0x1234)
+      bus.setTargetDone(2, 0x00001234)
       assert(!bus.getClockEn())
       assert(bus.getTargetAccess(2).contains(TargetAccess(0xDEF002, size = BusAccessWidth.Halfword, write = false, sequential = true)))
       bus.step()
 
-      bus.setTargetDone(2, 0xABCD)
+      bus.setTargetDone(2, 0xABCD0000)
       assert(bus.getReadData() == 0xABCD1234L)
       assert(bus.getClockEn())
       bus.step()

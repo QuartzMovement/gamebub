@@ -19,7 +19,7 @@ class Bios extends Module {
     rom.write(0.U, 0.U)
   }
 
-  val readEnable = io.enable && io.target.request && !io.target.write
+  val readEnable = io.enable && io.target.request
   val readBusy = RegInit(false.B)
   io.target.done := false.B
   io.target.dataRead := rom.read(io.target.address >> 2, readEnable).asUInt
