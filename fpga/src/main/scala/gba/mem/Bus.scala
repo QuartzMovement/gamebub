@@ -105,9 +105,6 @@ class Bus(
     when (selectedNow && regAccessBusy) {
       accessDone := target.done
     }
-    when (selectedNext && requestEnable) {
-       printf(cf"doing request for: ${metadata.name}\n")
-    }
   }
 
   /// Whether there is an incoming request.
@@ -132,7 +129,7 @@ class Bus(
 
       when (regAccessSplit) {
         when (regAccessSplitPhase === 0.U) {
-           printf(cf"Split: First phase complete, start addr=0x${requestAddress}%x, data=0x${requestDataRead}%x\n")
+//           printf(cf"Split: First phase complete, start addr=0x${requestAddress}%x, data=0x${requestDataRead}%x\n")
           // Start the second half.
           requestEnable := true.B
           requestAddress := regAccessAddress | 2.U
@@ -147,14 +144,14 @@ class Bus(
             regSplitBuffer := requestDataRead
           }
         } .otherwise {
-           printf(cf"Split: Second phase complete: rdata=0x${io.initiatorPort.RDATA}%x\n")
+//           printf(cf"Split: Second phase complete: rdata=0x${io.initiatorPort.RDATA}%x\n")
           io.initiatorPort.RDATA := Cat(requestDataRead(15, 0), regSplitBuffer)
           // io.initiatorPort.CLKEN is set above, because isAvailable is true.
         }
       }
     }
     when (initiatorRequested && isAvailable) {
-       printf(cf"Accepting new request: write=${requestWrite} address=0x${requestAddressAligned}%x size=${io.initiatorPort.SIZE}\n")
+//       printf(cf"Accepting new request: write=${requestWrite} address=0x${requestAddressAligned}%x size=${io.initiatorPort.SIZE}\n")
       requestEnable := true.B
       regAccessBusy := true.B
       regAccessAddress := requestAddressAligned
@@ -166,11 +163,11 @@ class Bus(
         regAccessSplit := true.B
         regAccessSplitPhase := 0.U
         requestSize := BusAccessWidth.Halfword
-         printf(cf"... it's a split request!\n")
+//         printf(cf"... it's a split request!\n")
       }
     }
 
-     printf(cf"===============   accessDone=${accessDone} | in=${io.initiatorPort.CLKEN} avail=${isAvailable}\n")
+//     printf(cf"===============   accessDone=${accessDone} | in=${io.initiatorPort.CLKEN} avail=${isAvailable}\n")
   }
 
   def alignAddress(address: UInt, width: BusAccessWidth.Type): (UInt, UInt) = {
