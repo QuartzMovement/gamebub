@@ -16,8 +16,8 @@ class GBA extends Module {
     /// Global enable signal
     val enable = Input(Bool())
 
-    /// (To be replaced) cartridge access
-    val cartRom = Flipped(new TargetInterface(BusAccessWidth.Word))
+    /// Cartridge access
+    val cartRom = Flipped(new TargetInterface(BusAccessWidth.Halfword))
 
     /// PPU video output
     val ppu = Output(new PpuOutput)
