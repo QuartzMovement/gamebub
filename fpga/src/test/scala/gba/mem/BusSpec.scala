@@ -65,8 +65,8 @@ class BusSpec extends AnyFunSuite {
       }
     }
 
-    def setTargetDataWrite(i: Int, data: BigInt) = {
-      dut.io.targetPort(i).dataWrite.poke(data)
+    def setWriteData(data: BigInt) = {
+      dut.io.initiatorPort.WDATA.poke(data)
     }
 
     def getTargetDataWrite(i: Int): BigInt = {
@@ -281,7 +281,7 @@ class BusSpec extends AnyFunSuite {
       assert(bus.getClockEn())
       bus.step(resetAccess = false)
 
-      bus.setTargetDataWrite(2, 0xABCD1234)
+      bus.setWriteData(0xABCD1234)
       assert(bus.getTargetDataWrite(2) == BigInt(0x1234))
       bus.setTargetDone(2)
       assert(!bus.getClockEn())
@@ -313,7 +313,7 @@ class BusSpec extends AnyFunSuite {
       bus.step()
 
       bus.setTargetDone(2, 0xABCD)
-      assert(bus.getReadData() == 0xABCD1234)
+      assert(bus.getReadData() == 0xABCD1234L)
       assert(bus.getClockEn())
       bus.step()
     }

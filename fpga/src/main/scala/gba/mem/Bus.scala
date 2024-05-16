@@ -53,11 +53,16 @@ class Bus(
   val requestDataWrite = Wire(UInt(32.W))
   val requestDataRead = Wire(UInt(32.W))
   val (requestAddressAligned, requestMask) = alignAddress(requestAddress, requestSize)
+  val selectedTargetHalfword = WireDefault(false.B)
 
   val regAccessBusy = RegInit(false.B)
   val regAccessAddress = Reg(UInt(28.W))
+  val regAccessWrite = Reg(Bool())
+  val regAccessSplit = Reg(Bool())
+  val regAccessSplitPhase = Reg(UInt())
   /// Whether the active request is completing.
   val accessDone = WireDefault(false.B)
+  val regSplitBuffer = Reg(UInt(16.W))
 
   requestDataRead := 0.U // TODO open-bus?
 
@@ -71,7 +76,6 @@ class Bus(
     target.sequential := requestSequential
     target.write := requestWrite
     target.size := requestSize
-    target.dataWrite := io.initiatorPort.WDATA
     target.mask := requestMask
 
     metadata.dataWidth match {
@@ -82,9 +86,12 @@ class Bus(
         }
       }
       case BusAccessWidth.Halfword => {
-        target.dataWrite := Mux(requestAddress(1), requestDataWrite(31, 16), requestDataWrite(15, 0))
+        target.dataWrite := Mux(regAccessAddress(1), requestDataWrite(31, 16), requestDataWrite(15, 0))
         when (selectedNow) {
           requestDataRead := Fill(2, target.dataRead)
+        }
+        when (selectedNext) {
+          selectedTargetHalfword := true.B
         }
       }
       case BusAccessWidth.Word => {
@@ -105,18 +112,7 @@ class Bus(
     (io.initiatorPort.TRANS === BusTransactionType.Sequential ||
       io.initiatorPort.TRANS === BusTransactionType.NonSequential)
   /// Whether we can accept a new request.
-  val isAvailable = !regAccessBusy || accessDone
-
-  when (io.enable) {
-    when (accessDone) {
-      regAccessBusy := false.B
-    }
-    when (initiatorRequested && isAvailable) {
-      requestEnable := true.B
-      regAccessBusy := true.B
-      regAccessAddress := requestAddress
-    }
-  }
+  val isAvailable = (!regAccessBusy || accessDone) && (!regAccessSplit || regAccessSplitPhase === 1.U)
 
   requestAddress := io.initiatorPort.ADDR
   requestSequential := io.initiatorPort.TRANS === BusTransactionType.Sequential // TODO multi-initiator
@@ -126,6 +122,53 @@ class Bus(
   io.initiatorPort.RDATA := requestDataRead
   io.initiatorPort.CLKEN := isAvailable
   io.initiatorPort.ABORT := false.B
+
+  when (io.enable) {
+    when (accessDone) {
+      regAccessBusy := false.B
+
+      when (regAccessSplit) {
+        when (regAccessSplitPhase === 0.U) {
+          printf(cf"Split: First phase complete, start addr=0x${requestAddress}%x\n")
+          // Start the second half.
+          requestEnable := true.B
+          requestAddress := regAccessAddress | 2.U
+          requestSequential := true.B
+          requestWrite := regAccessWrite
+          requestSize := BusAccessWidth.Halfword
+          regAccessBusy := true.B
+          regAccessSplitPhase := 1.U
+          regAccessAddress := requestAddress
+
+          when (!regAccessWrite) {
+            regSplitBuffer := requestDataRead
+          }
+        } .otherwise {
+          printf(cf"Split: Second phase complete\n")
+          io.initiatorPort.RDATA := Cat(requestDataRead(15, 0), regSplitBuffer)
+          // io.initiatorPort.CLKEN is set above, because isAvailable is true.
+        }
+      }
+    }
+    when (initiatorRequested && isAvailable) {
+      printf(cf"Accepting new request: write=${requestWrite}\n")
+      requestEnable := true.B
+      regAccessBusy := true.B
+      regAccessAddress := requestAddressAligned
+      regAccessSplit := false.B
+      regAccessWrite := requestWrite
+
+      when (selectedTargetHalfword && io.initiatorPort.SIZE === BusAccessWidth.Word) {
+        // Split the incoming request into two Halfword requests.
+        regAccessSplit := true.B
+        regAccessSplitPhase := 0.U
+        requestSize := BusAccessWidth.Halfword
+        printf(cf"... it's a split request!\n")
+      }
+    }
+
+    printf(cf"===============   accessDone=${accessDone} | in=${io.initiatorPort.CLKEN} avail=${isAvailable}\n")
+  }
 
   def alignAddress(address: UInt, width: BusAccessWidth.Type): (UInt, UInt) = {
     val aligned = Wire(UInt(address.getWidth.W))
