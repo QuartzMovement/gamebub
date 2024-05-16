@@ -44,74 +44,88 @@ class Bus(
     /// Target ports
     val targetPort = MixedVec(targets.map(t => Flipped(new TargetInterface(t.dataWidth))))
   })
-  val regCurrentAddress = Reg(UInt(28.W))
-  val regCurrentSize = Reg(BusAccessWidth())
-  val regCurrentWrite = Reg(Bool())
-  val regIsBusy = RegInit(false.B)
 
-  /// Whether a request is completing.
-  val isDone = WireDefault(false.B)
-  /// Whether we can accept a new request.
-  val isAvailable = !regIsBusy || isDone
-  /// Whether there is an incoming request.
-  val isRequested = io.initiatorPort.TRANS === BusTransactionType.Sequential || io.initiatorPort.TRANS === BusTransactionType.NonSequential
-  /// Whether a new request is being accepted.
-  val isAccepted = io.enable && isAvailable && isRequested
-  /// Whether the request will have to be split (32-bit to 16-bit)
-  val isSplit = WireDefault(false.B)
+  val requestEnable = WireDefault(false.B)
+  val requestAddress = Wire(UInt(28.W))
+  val requestSequential = Wire(Bool())
+  val requestWrite = Wire(Bool())
+  val requestSize = Wire(BusAccessWidth())
+  val requestDataWrite = Wire(UInt(32.W))
+  val requestDataRead = Wire(UInt(32.W))
+  val (requestAddressAligned, requestMask) = alignAddress(requestAddress, requestSize)
 
+  val regAccessBusy = RegInit(false.B)
+  val regAccessAddress = Reg(UInt(28.W))
+  /// Whether the active request is completing.
+  val accessDone = WireDefault(false.B)
 
-  // Align addresses
-  val (initiatorAddress, initiatorMask) = alignAddress(io.initiatorPort.ADDR(27, 0), io.initiatorPort.SIZE)
-
-//  printf(cf"done=$isDone, avail=$isAvailable, req=$isRequested, accept=$isAccepted   (addr=${initiatorAddress}%x), trans=${io.initiatorPort.TRANS}\n")
-
-  when (io.enable) {
-    when (isAccepted) {
-      regIsBusy := true.B
-      regCurrentAddress := initiatorAddress
-      regCurrentSize := io.initiatorPort.SIZE
-      regCurrentWrite := io.initiatorPort.WRITE
-    } .elsewhen (isDone) {
-      regIsBusy := false.B
-    }
-  }
-
-  // Memory bus is pipelined:
-  // At each rising clock edge (when CLKEN is 1), ADDR/TRANS/WRITE/SIZE are broadcast
-  // to initiate an access, and RDATA/WDATA from the previous access are sampled.
-  io.initiatorPort.CLKEN := isAvailable
-  io.initiatorPort.ABORT := false.B
-  io.initiatorPort.RDATA := DontCare
-
-  // TODO turn 32-bit accesses into 16-bit accesses if needed
+  requestDataRead := 0.U // TODO open-bus?
 
   for ((target, i) <- io.targetPort.zipWithIndex) {
-    val metadata  = targets(i)
-    val nextSelected = initiatorAddress(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix
-    val currentSelected = regCurrentAddress(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix
+    val metadata = targets(i)
+    val selectedNext = requestAddress(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix
+    val selectedNow = regAccessAddress(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix
 
-    target.address := initiatorAddress
-    target.request := false.B
-    target.sequential := false.B // TODO
-    target.write := io.initiatorPort.WRITE
-    target.size := io.initiatorPort.SIZE
+    target.address := requestAddressAligned
+    target.request := requestEnable && selectedNext
+    target.sequential := requestSequential
+    target.write := requestWrite
+    target.size := requestSize
     target.dataWrite := io.initiatorPort.WDATA
-    target.mask := initiatorMask
+    target.mask := requestMask
 
-    when (isAccepted && nextSelected) {
-      // Accept a new request.
-//      printf(cf"[Bus] start request for '${metadata.name}' addr=0x${initiatorAddress}%x\n")
-      target.request := true.B
-    }
-    when (currentSelected && regIsBusy) {
-      when (target.done) {
-//        printf(cf"[Bus] complete request for '${metadata.name}' addr=0x${regCurrentAddress}%x rdata=0x${target.dataRead}%x wdata=0x${target.dataWrite}%x\n")
-        isDone := true.B
-        io.initiatorPort.RDATA := target.dataRead
+    metadata.dataWidth match {
+      case BusAccessWidth.Byte => {
+        target.dataWrite := VecInit((0 until 4).map(i => requestDataWrite(i * 8 + 7, i * 8)))(requestAddress(1, 0))
+        when (selectedNow) {
+          requestDataRead := Fill(4, target.dataRead)
+        }
+      }
+      case BusAccessWidth.Halfword => {
+        target.dataWrite := Mux(requestAddress(1), requestDataWrite(31, 16), requestDataWrite(15, 0))
+        when (selectedNow) {
+          requestDataRead := Fill(2, target.dataRead)
+        }
+      }
+      case BusAccessWidth.Word => {
+        target.dataWrite := requestDataWrite
+        when (selectedNow) {
+          requestDataRead := target.dataRead
+        }
       }
     }
+
+    when (selectedNow && regAccessBusy) {
+      accessDone := target.done
+    }
   }
+
+  /// Whether there is an incoming request.
+  val initiatorRequested =
+    (io.initiatorPort.TRANS === BusTransactionType.Sequential ||
+      io.initiatorPort.TRANS === BusTransactionType.NonSequential)
+  /// Whether we can accept a new request.
+  val isAvailable = !regAccessBusy || accessDone
+
+  when (io.enable) {
+    when (accessDone) {
+      regAccessBusy := false.B
+    }
+    when (initiatorRequested && isAvailable) {
+      requestEnable := true.B
+      regAccessBusy := true.B
+      regAccessAddress := requestAddress
+    }
+  }
+
+  requestAddress := io.initiatorPort.ADDR
+  requestSequential := io.initiatorPort.TRANS === BusTransactionType.Sequential // TODO multi-initiator
+  requestWrite := io.initiatorPort.WRITE
+  requestSize := io.initiatorPort.SIZE
+  requestDataWrite := io.initiatorPort.WDATA
+  io.initiatorPort.RDATA := requestDataRead
+  io.initiatorPort.CLKEN := isAvailable
+  io.initiatorPort.ABORT := false.B
 
   def alignAddress(address: UInt, width: BusAccessWidth.Type): (UInt, UInt) = {
     val aligned = Wire(UInt(address.getWidth.W))
