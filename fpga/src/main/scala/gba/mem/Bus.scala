@@ -92,7 +92,7 @@ class Bus(
           requestDataRead := Fill(2, target.dataRead)
         }
         when (selectedNext) {
-          printf(cf"halfword mask=${requestMask}%b (regAddr=0x${regAccessAddress}%x) (thisAddr=0x${requestAddress}%x)  size=${requestSize}\n")
+//          printf(cf"halfword mask=${requestMask}%b (regAddr=0x${regAccessAddress}%x) (thisAddr=0x${requestAddress}%x)  size=${requestSize}\n")
           selectedTargetHalfword := true.B
         }
       }
@@ -168,7 +168,7 @@ class Bus(
       regAccessWrite := requestWrite
 
       when (selectedTargetHalfword && io.initiatorPort.SIZE === BusAccessWidth.Byte) {
-        printf(cf"BYTE!! raw addr=0x${io.initiatorPort.ADDR}%x  -- align:0x${requestAddressAligned}%x\n")
+//        printf(cf"BYTE!! raw addr=0x${io.initiatorPort.ADDR}%x  -- align:0x${requestAddressAligned}%x\n")
       }
 
       when (selectedTargetHalfword && io.initiatorPort.SIZE === BusAccessWidth.Word) {
@@ -177,6 +177,7 @@ class Bus(
         regAccessSplitPhase := 0.U
         requestSize := BusAccessWidth.Halfword
         requestMask := "b1111".U(4.W)
+        requestAddressAligned := requestAddress & "hFFFFFFFC".U(32.W)
          printf(cf"... it's a split request!\n")
 
         when (requestWrite) {
