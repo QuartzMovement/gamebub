@@ -195,7 +195,7 @@ class Control extends Module {
   control.memReadDataSigned := false.B
   control.incrementerForceWord := false.B
 
-//  printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}\n")
+  printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}\n")
   when (execute) {
     switch (instruction.kind) {
       is (InstructionKind.Exception) {
