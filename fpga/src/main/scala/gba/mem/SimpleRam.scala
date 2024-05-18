@@ -21,7 +21,7 @@ class SimpleRam(size: Int, width: Width) extends Module {
   val queuedWriteAddress = Reg(UInt(log2Ceil(numWords).W))
   val queuedWriteMask = Reg(UInt(widthBytes.W))
   when (io.enable && queuedWrite) {
-    printf(cf"  write data=0x${io.target.dataWrite}%x  mask=${queuedWriteMask} to: 0x${queuedWriteAddress}%x\n")
+//    printf(cf"  write data=0x${io.target.dataWrite}%x  mask=${queuedWriteMask} to: 0x${queuedWriteAddress}%x\n")
     mem.write(queuedWriteAddress, io.target.dataWrite.asTypeOf(Vec(widthBytes, UInt(8.W))), queuedWriteMask.asBools)
 
     queuedWrite := false.B
@@ -31,19 +31,19 @@ class SimpleRam(size: Int, width: Width) extends Module {
     queuedWrite := true.B
     queuedWriteAddress := io.target.address >> log2Ceil(widthBytes)
     queuedWriteMask := io.target.mask
-    printf(cf"start write: addr=0x${io.target.address}%x mask=${io.target.mask}%b\n")
+//    printf(cf"start write: addr=0x${io.target.address}%x mask=${io.target.mask}%b\n")
   }
 
   val readEnable = io.enable && io.target.request && !io.target.write
   val readBusy = RegInit(false.B)
   io.target.dataRead := mem.read(io.target.address >> log2Ceil(widthBytes)).asUInt
   when (io.enable && readBusy) {
-    printf(cf"  read data=0x${io.target.dataRead}%x\n")
+//    printf(cf"  read data=0x${io.target.dataRead}%x\n")
     io.target.done := true.B
     readBusy := false.B
   }
   when (readEnable) {
-    printf(cf"start read: addr=0x${io.target.address}%x\n")
+//    printf(cf"start read: addr=0x${io.target.address}%x\n")
     readBusy := true.B
   }
 }

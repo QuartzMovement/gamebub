@@ -255,7 +255,7 @@ class ARM7TDMI extends Module {
       lastMemReadWidth := currentMemReadWidth
       lastMemReadAlign := memAddrReg(1, 0)
       memReadDataReg := io.mem.RDATA
-      printf(cf"## cpu read: 0x${io.mem.RDATA}%x\n")
+//      printf(cf"## cpu read: 0x${io.mem.RDATA}%x\n")
     }
   }
   val memWriteData = Wire(UInt(32.W))

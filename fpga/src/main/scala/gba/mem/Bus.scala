@@ -92,7 +92,6 @@ class Bus(
           requestDataRead := Fill(2, target.dataRead)
         }
         when (selectedNext) {
-//          printf(cf"halfword mask=${requestMask}%b (regAddr=0x${regAccessAddress}%x) (thisAddr=0x${requestAddress}%x)  size=${requestSize}\n")
           selectedTargetHalfword := true.B
         }
       }
@@ -131,11 +130,7 @@ class Bus(
       regAccessBusy := false.B
 
       when (regAccessSplit) {
-        when (regAccessWrite) {
-//          printf(cf"     wdata=0x${requestDataWrite}%x\n")
-        }
         when (regAccessSplitPhase === 0.U) {
-           printf(cf"Split: First phase complete, start addr=0x${requestAddress}%x, data=0x${requestDataRead}%x\n")
           // Start the second half.
           requestEnable := true.B
           requestAddress := regAccessAddress | 2.U
@@ -147,46 +142,31 @@ class Bus(
           regAccessSplitPhase := 1.U
           regAccessAddress := requestAddress
 
-//          printf(cf"       (phase 2 start): reg access address: ${requestAddress}%x mask=${requestMask}%b| \n")
-
           when (!regAccessWrite) {
             regSplitBuffer := requestDataRead
           }
         } .otherwise {
-           printf(cf"Split: Second phase complete: rdata=0x${io.initiatorPort.RDATA}%x\n")
           io.initiatorPort.RDATA := Cat(requestDataRead(15, 0), regSplitBuffer)
           // io.initiatorPort.CLKEN is set above, because isAvailable is true.
         }
       }
     }
     when (initiatorRequested && isAvailable) {
-       printf(cf"Accepting new request: write=${requestWrite} address=0x${requestAddressAligned}%x size=${io.initiatorPort.SIZE}\n")
       requestEnable := true.B
       regAccessBusy := true.B
       regAccessAddress := requestAddressAligned
       regAccessSplit := false.B
       regAccessWrite := requestWrite
 
-      when (selectedTargetHalfword && io.initiatorPort.SIZE === BusAccessWidth.Byte) {
-//        printf(cf"BYTE!! raw addr=0x${io.initiatorPort.ADDR}%x  -- align:0x${requestAddressAligned}%x\n")
-      }
-
       when (selectedTargetHalfword && io.initiatorPort.SIZE === BusAccessWidth.Word) {
-        // Split the incoming request into two Halfword requests.
         regAccessSplit := true.B
         regAccessSplitPhase := 0.U
         requestSize := BusAccessWidth.Halfword
+        // Ensure the initial request is aligned to the word (to handle misaligned word requests).
         requestMask := "b1111".U(4.W)
         requestAddressAligned := requestAddress & "hFFFFFFFC".U(32.W)
-         printf(cf"... it's a split request!\n")
-
-        when (requestWrite) {
-//          printf(cf"--- split write! at ${requestAddressAligned}%x\n")
-        }
       }
     }
-
-//     printf(cf"===============   accessDone=${accessDone} | in=${io.initiatorPort.CLKEN} avail=${isAvailable}\n")
   }
 
   def alignAddress(address: UInt, width: BusAccessWidth.Type): (UInt, UInt) = {

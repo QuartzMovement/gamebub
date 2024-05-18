@@ -59,15 +59,12 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
             top->io_cartRom_dataRead = rom_words[cart_address >> 1];
         }
 
-        fprintf(stderr, "====================\n");
 //        if (cart_request) {
 //            fprintf(stderr, " @@@ (ROM) addr=0x%08X data=0x%08X\n\n", cart_address, this->rom.size(), top->io_cartRom_dataRead);
 //        } else {
 //            fprintf(stderr, "\n\n");
 //        }
 
-// 7efc
-//        fprintf(stderr, "---> %x %x\n", this->top->rootp->GBA__DOT__iwram__DOT__mem_ext__DOT__Memory[0x7efc >> 1], this->top->rootp->GBA__DOT__iwram__DOT__mem_ext__DOT__Memory[(0x7efc >> 1) + 1]);
         top->eval();
 
         this->cycles++;
