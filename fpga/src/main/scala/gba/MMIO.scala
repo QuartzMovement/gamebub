@@ -2,12 +2,11 @@ package gba
 
 import chisel3._
 import chisel3.util._
-import gba.cpu.BusAccessWidth
 import gba.mem.TargetInterface
 
 class MmioTarget extends Bundle {
   /// *Word* address
-  val address = Input(UInt(8.W))
+  val address = Input(UInt(9.W))
   val request = Input(Bool())
   val write = Input(Bool())
   val mask = Input(UInt(4.W))
@@ -68,5 +67,74 @@ class MMIO(numTargets: Int) extends Module {
       queuedAddress := io.mem.address >> 2
       queuedMask := io.mem.mask
     }
+  }
+}
+
+object MmioMap {
+  def apply (entries: (Int, Entry)*): MmioTarget = {
+    // Ensure addresses are word-aligned and in bounds.
+    for ((addr, i) <- entries.map(_._1).zipWithIndex) {
+      if (addr % 4 != 0) {
+        throw new IllegalArgumentException(f"entry $i (at 0x$addr%x) is not aligned")
+      }
+      if (addr >= (1 << 11)) {
+        throw new IllegalArgumentException(f"entry $i (at 0x$addr%x) is larger than address width")
+      }
+    }
+
+    val interface = Wire(new MmioTarget)
+    interface.dataRead := DontCare
+    interface.valid := false.B
+
+    entries.foreach { case (address, reg) =>
+      when (interface.request && interface.address === (address / 4).U) {
+        val (readData, readValid) = reg.read.fn(!interface.write)
+        reg.write.fn(interface.write, interface.dataWrite, interface.mask)
+        interface.valid := readValid
+
+        when (!interface.write) {
+          interface.dataRead := readData
+        }
+      }
+    }
+
+    interface
+  }
+
+  // (enable) => (data, valid)
+  case class ReadFn(fn: Bool => (UInt, Bool))
+  object ReadFn {
+    // Simple read from a register or wire.
+    def apply(reg: Data): ReadFn = ReadFn(_ => (reg.asUInt, true.B))
+
+    // No-op read.
+    def apply(): ReadFn = ReadFn(_ => (0.U, false.B))
+  }
+
+  // (enable, data, mask) => ()
+  case class WriteFn(fn: (Bool, UInt, UInt) => Unit)
+  object WriteFn {
+    // Simple write to a register.
+    def apply(reg: Data): WriteFn = WriteFn((enable, data, mask) => {
+      when (enable) {
+        val newDataVec = VecInit((0 until 4).map(i => data(i * 4 + 7, i * 4)))
+        val oldData = reg.asUInt.pad(32)
+        val oldDataVec = VecInit((0 until 4).map(i => oldData(i * 4 + 7, i * 4)))
+        val combined = VecInit((0 until 4).map(i => Mux(mask(i), newDataVec(i), oldDataVec(i))))
+        reg := combined.asTypeOf(reg)
+      }
+    })
+
+    // No-op write.
+    def apply(): WriteFn = WriteFn((_, _, _) => ())
+  }
+
+  case class Entry(read: ReadFn, write: WriteFn)
+  object Entry {
+    def r(reg: Data): Entry = Entry(ReadFn(reg), WriteFn())
+
+    def w(reg: Data): Entry = Entry(ReadFn(), WriteFn(reg))
+
+    def rw(reg: Data): Entry = Entry(ReadFn(reg), WriteFn(reg))
   }
 }

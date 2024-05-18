@@ -2,7 +2,7 @@ package gba.ppu
 
 import chisel3._
 import chisel3.util._
-import gba.MmioTarget
+import gba.{MmioMap, MmioTarget}
 import gba.cpu.BusAccessWidth
 import gba.mem.TargetInterface
 
@@ -64,18 +64,13 @@ class Ppu extends Module {
   io.output.vblank := scanline >= 160.U
 
   // I/O registers
-  io.mmio.valid := false.B
-  io.mmio.dataRead := DontCare
-  when (io.mmio.request) {
-    // TODO Make better
-    switch (io.mmio.address) {
-      is ((0x4 / 4).U) {
-        // DISPSTAT and VCOUNT
-        io.mmio.valid := true.B
-        io.mmio.dataRead := Cat(io.output.hblank, io.output.vblank)
-      }
-    }
-  }
+  io.mmio <> MmioMap(
+    0x4 -> MmioMap.Entry.r(
+      // DISPSTAT and VCOUNT
+      // TODO complete
+      Cat(io.output.hblank, io.output.vblank)
+    )
+  )
 
   // Background renderer
   val bgRender = Module(new BackgroundRenderer)
