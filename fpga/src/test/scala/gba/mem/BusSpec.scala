@@ -244,7 +244,7 @@ class BusSpec extends AnyFunSuite {
       assert(!bus.getClockEn())
       bus.setTargetDone(0, 0x0001)
       assert(bus.getClockEn())
-      assert(bus.getReadData() === 0x0001)
+      assert(bus.getReadData() == 0x0001)
       bus.setAccess(address = 0x02_ABC000)
       assert(bus.getTargetAccess(0).isEmpty)
       assert(bus.getTargetAccess(1).contains(TargetAccess(0xABC000)))
@@ -254,7 +254,7 @@ class BusSpec extends AnyFunSuite {
       // Read 2, Start read 3
       bus.setTargetDone(1, 0x0002)
       assert(bus.getClockEn())
-      assert(bus.getReadData() === 0x0002)
+      assert(bus.getReadData() == 0x0002)
       bus.setAccess(address = 0x03_DEF000, size = BusAccessWidth.Halfword)
       assert(bus.getTargetAccess(0).isEmpty)
       assert(bus.getTargetAccess(1).isEmpty)
@@ -264,7 +264,7 @@ class BusSpec extends AnyFunSuite {
       // Read 3
       bus.setTargetDone(2, 0x0003)
       assert(bus.getClockEn())
-      assert(bus.getReadData() === 0x0003)
+      assert(bus.getReadData() == 0x0003_0003)
       bus.step()
     }
   }
