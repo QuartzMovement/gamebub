@@ -36,6 +36,16 @@ void Simulator::reset()
 
 void Simulator::set_joypad_state(JoypadState state)
 {
+    top->io_keypad_start = state.start;
+    top->io_keypad_select = state.select;
+    top->io_keypad_b = state.b;
+    top->io_keypad_a = state.a;
+    top->io_keypad_down = state.down;
+    top->io_keypad_up = state.up;
+    top->io_keypad_left = state.left;
+    top->io_keypad_right = state.right;
+    top->io_keypad_l = state.l;
+    top->io_keypad_r = state.r;
 }
 
 void Simulator::simulate_cycles(uint64_t num_cycles)

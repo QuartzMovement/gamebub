@@ -21,6 +21,9 @@ class GBA extends Module {
 
     /// PPU video output
     val ppu = Output(new PpuOutput)
+
+    /// Keypad state
+    val keypad = Input(new Keypad.State)
   })
 
   val bus = Module(new mem.Bus(Seq(
@@ -43,7 +46,7 @@ class GBA extends Module {
   }
 
   // MMIO Bus
-  val mmio = Module(new MMIO(1))
+  val mmio = Module(new MMIO(numTargets = 2))
   mmio.io.enable := io.enable
   bus.io.targetPort(3) <> mmio.io.mem
 
@@ -75,4 +78,10 @@ class GBA extends Module {
   bus.io.targetPort(4) <> ppu.io.paletteRamTarget
   bus.io.targetPort(5) <> ppu.io.vramTarget
   mmio.targets(0) <> ppu.io.mmio
+
+  // Keypad input
+  val keypad = Module(new Keypad)
+  keypad.io.enable := io.enable
+  keypad.io.state := io.keypad
+  mmio.targets(1) <> keypad.io.mmio
 }
