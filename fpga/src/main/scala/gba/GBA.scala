@@ -26,7 +26,7 @@ class GBA extends Module {
   val bus = Module(new mem.Bus(Seq(
     BusTarget("BIOS", 0x0.U(4.W), BusAccessWidth.Word),
     BusTarget("EWRAM", 0x2.U(4.W), BusAccessWidth.Halfword),
-    BusTarget("IWRAM", 0x3.U(4.W), BusAccessWidth.Halfword), // TODO back to Word
+    BusTarget("IWRAM", 0x3.U(4.W), BusAccessWidth.Word),
     BusTarget("I/O", 0x4.U(4.W), BusAccessWidth.Word),
     BusTarget("Palette Ram", 0x5.U(4.W), BusAccessWidth.Halfword),
     BusTarget("Video Ram", 0x6.U(4.W), BusAccessWidth.Halfword),
@@ -55,7 +55,7 @@ class GBA extends Module {
   val ewram = Module(new SimpleRam(256 * 1024, 16.W))
   ewram.io.enable := io.enable
   bus.io.targetPort(1) <> ewram.io.target
-  val iwram = Module(new SimpleRam(32 * 1024, 16.W)) // TODO this is just temp, set this to 32.W
+  val iwram = Module(new SimpleRam(32 * 1024, 32.W))
   iwram.io.enable := io.enable
   bus.io.targetPort(2) <> iwram.io.target
 
