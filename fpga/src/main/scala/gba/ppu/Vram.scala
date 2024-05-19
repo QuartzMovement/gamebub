@@ -1,7 +1,6 @@
 package gba.ppu
 
 import chisel3._
-import gba.cpu.BusAccessWidth
 import gba.mem.TargetInterface
 
 class Vram extends Module {

@@ -2,7 +2,6 @@ package gba.ppu
 
 import chisel3._
 import chisel3.util._
-import gba.cpu.BusAccessWidth
 import gba.mem.TargetInterface
 
 class PpuMemoryInterface(size: Int, width: Width) extends Bundle {

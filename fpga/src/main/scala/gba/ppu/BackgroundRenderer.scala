@@ -2,7 +2,6 @@ package gba.ppu
 
 import chisel3._
 import chisel3.util._
-import gba.cpu.BusAccessWidth
 
 class BackgroundPixel extends Bundle {
   // These should be palette indices (8-bit) -- layer 2 in mode 3 and 5 is 16-bit color, can just pack into L3 too.
@@ -52,6 +51,7 @@ class BackgroundRenderer extends Module {
   when (isBitmapMode && layerActive(2)) {
     when (subFetch === 3.U) {
       io.vram.read := true.B
+      val frameOffset = Mux(io.displayControl.frame === 1.U, (0xA000 / 2).U, 0.U)
       switch (io.displayControl.mode) {
         is (3.U) {
           // 240x160, 16bpp
@@ -59,13 +59,11 @@ class BackgroundRenderer extends Module {
         }
         is (4.U) {
           // 240x160, indexed 8bpp
-          // TODO page flip
-          io.vram.address := ((io.scanline * 240.U) + layerPos(2)) >> 1
+          io.vram.address := (((io.scanline * 240.U) + layerPos(2)) >> 1).asUInt.pad(16) + frameOffset
         }
         is (5.U) {
           // 160x128, 16bpp
-          // TODO page flip
-          io.vram.address := ((io.scanline * 160.U) + layerPos(2))
+          io.vram.address := ((io.scanline * 160.U) + layerPos(2)) + frameOffset
         }
       }
 //      printf(cf"[BG] fetch ${io.vram.address}%x | tick=${io.tick} | scan=${io.scanline} p=${layerPos(2)}  \n")
