@@ -8,7 +8,7 @@
 
 class Simulator {
 public:
-    Simulator(std::filesystem::path rom_path);
+    Simulator(std::filesystem::path rom_path, std::filesystem::path bios_path);
     ~Simulator();
 
     void set_joypad_state(JoypadState state);

@@ -27,18 +27,22 @@ JoypadState read_joypad_state() {
 }
 
 int main(int argc, char** argv) {
-    if (argc != 2) {
-        std::cout << "Usage: sim [rom.gb]" << std::endl;
+    if (argc < 2) {
+        std::cout << "Usage: sim [rom] [bios]" << std::endl;
         return 1;
     }
     auto cartridge_path = std::filesystem::path(argv[1]);
+    std::filesystem::path bios_path;
+    if (argc >= 3) {
+        bios_path = std::filesystem::path(argv[2]);
+    }
 
     // Initialize SDL.
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_AUDIO);
     Window window(Simulator::width(), Simulator::height());
     Audio audio;
 
-    Simulator simulator(cartridge_path);
+    Simulator simulator(cartridge_path, bios_path);
     simulator.reset();
 
     bool single_step = false;

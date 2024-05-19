@@ -1,5 +1,7 @@
 #include <iostream>
 #include <cstdio>
+#include <stdexcept>
+#include <cstdlib>
 
 #include "audio.hpp"
 #include "common.hpp"
@@ -7,17 +9,27 @@
 
 #include "VSimGba___024root.h"
 
-Simulator::Simulator(std::filesystem::path rom_path)
+Simulator::Simulator(std::filesystem::path rom_path, std::filesystem::path bios_path)
     : framebuffer(width(), height())
 {
     this->top = new VSimGba;
     this->rom = read_file(rom_path);
 
-    // TODO setup BIOS image
-    this->top->rootp->SimGba__DOT__biosRom_ext__DOT__Memory[0] = 0xe329f0df;
-    this->top->rootp->SimGba__DOT__biosRom_ext__DOT__Memory[1] = 0xe3a0d403;
-    this->top->rootp->SimGba__DOT__biosRom_ext__DOT__Memory[2] = 0xe38ddc7f;
-    this->top->rootp->SimGba__DOT__biosRom_ext__DOT__Memory[3] = 0xe3a0f302;
+    if (bios_path.empty()) {
+        std::cerr << "ERROR: must specify bios path\n";
+        std::exit(1);
+    }
+    auto bios = read_file(bios_path);
+    if (bios.size() != 16 * 1024) {
+        std::cerr << "ERROR: incorrect bios size: " << bios.size() << "\n";
+        std::exit(1);
+    }
+    // Note: assumes little-endian
+    memcpy(
+        reinterpret_cast<uint32_t*>(&this->top->rootp->SimGba__DOT__biosRom_ext__DOT__Memory),
+        reinterpret_cast<uint32_t*>(bios.data()),
+        16 * 1024 / 4
+    );
 }
 
 Simulator::~Simulator()

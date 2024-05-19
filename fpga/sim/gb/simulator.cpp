@@ -9,7 +9,7 @@
 // gray palette
 //static const uint32_t palette[4] = {0xffffff, 0xaaaaaa, 0x555555, 0x000000};
 
-Simulator::Simulator(std::filesystem::path rom_path)
+Simulator::Simulator(std::filesystem::path rom_path, std::filesystem::path /* bios_path */)
     : framebuffer(width(), height())
 {
     this->cart = std::make_unique<Cartridge>(rom_path);
