@@ -337,6 +337,7 @@ class Decoder extends Module {
           out.kind := InstructionKind.DataProcessingImm
           out.opcode := AluOpcode.rsb.asUInt
           out.immediate := 0.U
+          out.regN := in(5, 3)
         }
         is (13.U) {
           // Multiply Rd = Rd * Rs
