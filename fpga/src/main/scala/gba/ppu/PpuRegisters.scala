@@ -16,4 +16,18 @@ object PpuRegisters {
     val cgbMode = Bool()  // TODO only settable in BIOS
     val mode = UInt(3.W)
   }
+
+  class DisplayStatus extends Bundle {
+    val scanline = UInt(8.W)
+
+    val vcount = UInt(8.W)
+
+    val _padding = UInt(2.W)
+    val irqVcount = Bool()
+    val irqHblank = Bool()
+    val irqVblank = Bool()
+    val vcountHit = Bool()
+    val hblank = Bool()
+    val vblank = Bool()
+  }
 }

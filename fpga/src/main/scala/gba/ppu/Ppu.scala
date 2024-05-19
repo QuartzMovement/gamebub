@@ -3,7 +3,6 @@ package gba.ppu
 import chisel3._
 import chisel3.util._
 import gba.{MmioMap, MmioTarget}
-import gba.cpu.BusAccessWidth
 import gba.mem.TargetInterface
 
 class PpuOutput extends Bundle {
@@ -68,11 +67,15 @@ class Ppu extends Module {
   // I/O registers
   io.mmio <> MmioMap(
     0x0 -> MmioMap.Entry.rw(regDisplayControl),
-    0x4 -> MmioMap.Entry.r(
+    0x4 -> MmioMap.Entry.r({
       // DISPSTAT and VCOUNT
       // TODO complete
-      Cat(io.output.hblank, io.output.vblank)
-    )
+      val out = WireDefault(0.U.asTypeOf(new PpuRegisters.DisplayStatus))
+      out.vblank := io.output.vblank
+      out.hblank := io.output.hblank
+      out.scanline := scanline
+      out
+    })
   )
 
   // Background renderer
