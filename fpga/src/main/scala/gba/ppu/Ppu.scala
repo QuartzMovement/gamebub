@@ -35,6 +35,8 @@ class Ppu extends Module {
     val mmio = new MmioTarget()
   })
 
+  val regDisplayControl = RegInit(0.U.asTypeOf(new PpuRegisters.DisplayControl))
+
   /// VRAM: 96KiB, 16-bit access without byte strobe. Note: actually split into multiple banks for bg/obj
   val vram = Module(new Vram)
   vram.io.enable := io.enable
@@ -65,6 +67,7 @@ class Ppu extends Module {
 
   // I/O registers
   io.mmio <> MmioMap(
+    0x0 -> MmioMap.Entry.rw(regDisplayControl),
     0x4 -> MmioMap.Entry.r(
       // DISPSTAT and VCOUNT
       // TODO complete
@@ -75,6 +78,7 @@ class Ppu extends Module {
   // Background renderer
   val bgRender = Module(new BackgroundRenderer)
   bgRender.io.enable := io.enable
+  bgRender.io.displayControl := regDisplayControl
   bgRender.io.tick := tick
   bgRender.io.scanline := scanline
   bgRender.io.vram <> vram.io.portBG
@@ -82,6 +86,7 @@ class Ppu extends Module {
   // Compositor
   val compositor = Module(new Compositor)
   compositor.io.enable := io.enable
+  compositor.io.displayControl := regDisplayControl
   compositor.io.tick := tick
   compositor.io.scanline := scanline
   compositor.io.paletteRam <> paletteRam.io.ppuTarget

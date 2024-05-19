@@ -117,9 +117,9 @@ object MmioMap {
     // Simple write to a register.
     def apply(reg: Data): WriteFn = WriteFn((enable, data, mask) => {
       when (enable) {
-        val newDataVec = VecInit((0 until 4).map(i => data(i * 4 + 7, i * 4)))
+        val newDataVec = VecInit((0 until 4).map(i => data(i * 8 + 7, i * 8)))
         val oldData = reg.asUInt.pad(32)
-        val oldDataVec = VecInit((0 until 4).map(i => oldData(i * 4 + 7, i * 4)))
+        val oldDataVec = VecInit((0 until 4).map(i => oldData(i * 8 + 7, i * 8)))
         val combined = VecInit((0 until 4).map(i => Mux(mask(i), newDataVec(i), oldDataVec(i))))
         reg := combined.asTypeOf(reg)
       }

@@ -15,6 +15,8 @@ class BackgroundRenderer extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
 
+    val displayControl = Input(new PpuRegisters.DisplayControl)
+
     /// BG VRAM access
     val vram = Flipped(new PpuMemoryInterface(96 * 1024 / 2, 16.W))
 
@@ -25,6 +27,7 @@ class BackgroundRenderer extends Module {
     /// Pixel fifo dequeue interface
     val pixels = DecoupledIO(new BackgroundPixel)
   })
+  val isBitmapMode = io.displayControl.mode >= 3.U
 
   // Output pixel FIFO
   val fifo = Wire(EnqIO(new BackgroundPixel))
@@ -69,11 +72,10 @@ class BackgroundRenderer extends Module {
   }
 
   when (io.enable && io.scanline < 160.U) {
-    when (io.tick === 30.U) {
-      /// Assume BG 2 is active
-      /// TODO fix
-      layerActive(2) := true.B
-//      printf(cf"[BG] Enable 2\n")
+    when (isBitmapMode) {
+      when (io.tick === 30.U && io.displayControl.enableBg(2)) {
+        layerActive(2) := true.B
+      }
     }
     when (io.tick === 1005.U) {
       // Begin HBlank
