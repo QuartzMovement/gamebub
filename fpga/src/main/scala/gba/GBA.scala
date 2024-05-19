@@ -24,6 +24,9 @@ class GBA extends Module {
 
     /// Keypad state
     val keypad = Input(new Keypad.State)
+
+    /// BIOS ROM access
+    val biosRom = new BiosRomAccess
   })
 
   val bus = Module(new mem.Bus(Seq(
@@ -50,10 +53,12 @@ class GBA extends Module {
   mmio.io.enable := io.enable
   bus.io.targetPort(3) <> mmio.io.mem
 
-  // Temporary BIOS
+  // BIOS
   val bios = Module(new Bios)
   bios.io.enable := io.enable
+  bios.io.access <> io.biosRom
   bus.io.targetPort(0) <> bios.io.target
+
   // Temporary RAMs
   val ewram = Module(new SimpleRam(256 * 1024, 16.W))
   ewram.io.enable := io.enable

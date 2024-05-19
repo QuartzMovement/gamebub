@@ -23,4 +23,16 @@ class SimGba extends Module {
   gba.io.cartRom <> io.cartRom
   gba.io.ppu <> io.ppu
   gba.io.keypad <> io.keypad
+
+  // BIOS, to be filled in by verilator simulator
+  val biosRom = {
+    val rom = SyncReadMem(16 * 1024 / 4, UInt(32.W))
+    // dontTouch: hack to ensure Chisel doesn't optimize the mem out
+    val temp = dontTouch(WireDefault(false.B))
+    when (temp) {
+      rom.write(0.U, 0.U)
+    }
+    rom
+  }
+  gba.io.biosRom.data := biosRom.read(gba.io.biosRom.address, gba.io.biosRom.read)
 }
