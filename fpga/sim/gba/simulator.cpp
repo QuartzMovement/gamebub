@@ -5,19 +5,19 @@
 #include "common.hpp"
 #include "simulator.hpp"
 
-#include "VGBA___024root.h"
+#include "VSimGba___024root.h"
 
 Simulator::Simulator(std::filesystem::path rom_path)
     : framebuffer(width(), height())
 {
-    this->top = new VGBA;
+    this->top = new VSimGba;
     this->rom = read_file(rom_path);
 
     // TODO setup BIOS image
-    this->top->rootp->GBA__DOT__bios__DOT__rom_ext__DOT__Memory[0] = 0xe329f0df;
-    this->top->rootp->GBA__DOT__bios__DOT__rom_ext__DOT__Memory[1] = 0xe3a0d403;
-    this->top->rootp->GBA__DOT__bios__DOT__rom_ext__DOT__Memory[2] = 0xe38ddc7f;
-    this->top->rootp->GBA__DOT__bios__DOT__rom_ext__DOT__Memory[3] = 0xe3a0f302;
+    this->top->rootp->SimGba__DOT__gba__DOT__bios__DOT__rom_ext__DOT__Memory[0] = 0xe329f0df;
+    this->top->rootp->SimGba__DOT__gba__DOT__bios__DOT__rom_ext__DOT__Memory[1] = 0xe3a0d403;
+    this->top->rootp->SimGba__DOT__gba__DOT__bios__DOT__rom_ext__DOT__Memory[2] = 0xe38ddc7f;
+    this->top->rootp->SimGba__DOT__gba__DOT__bios__DOT__rom_ext__DOT__Memory[3] = 0xe3a0f302;
 }
 
 Simulator::~Simulator()

@@ -4,7 +4,7 @@
 
 #include "framebuffer.hpp"
 #include "input.hpp"
-#include "VGBA.h"
+#include "VSimGba.h"
 
 class Simulator {
 public:
@@ -27,7 +27,7 @@ private:
     void stepFramebuffer();
     void stepAudio();
 
-    VGBA* top = nullptr;
+    VSimGba* top = nullptr;
 
     uint64_t cycles = 0;
     Framebuffer framebuffer;

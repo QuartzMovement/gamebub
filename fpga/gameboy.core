@@ -115,11 +115,11 @@ generate:
     parameters:
       buildtool: sbt
       outputdir: build/generated
-      main_class: "gba.GBA"
+      main_class: "platform.sim.SimGba"
       extraargs: ""
       output:
         files:
-          - build/generated/GBA.sv: { file_type: systemVerilogSource }
+          - build/generated/SimGba.sv: { file_type: systemVerilogSource }
 
 targets:
   pynq_z2:
@@ -165,7 +165,7 @@ targets:
     default_tool: verilator
     filesets: [base, sim_base, sim_gba]
     generate: [sim_gba]
-    toplevel: GBA
+    toplevel: SimGba
     tools:
       verilator:
         verilator_options: [
