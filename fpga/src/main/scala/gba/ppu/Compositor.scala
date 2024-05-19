@@ -72,7 +72,7 @@ class Compositor extends Module {
         // Start palette RAM read 1
         when (topLayer.valid) {
           when (topLayer.isBg && isBitmap16bpp) {
-            // TODO: come up with 16bpp BG2 color
+            regLayerTop.color := Cat(bgData.color(3), bgData.color(2))
           } .otherwise {
             io.paletteRam.read := true.B
             io.paletteRam.address := topLayer.color

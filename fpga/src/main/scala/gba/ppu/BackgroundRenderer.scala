@@ -48,25 +48,46 @@ class BackgroundRenderer extends Module {
   // TODO: this is hardcoded to 8bpp bitmap
   io.vram.read := false.B
   io.vram.address := DontCare
-  when (layerActive(2)) {
+
+  when (isBitmapMode && layerActive(2)) {
     when (subFetch === 3.U) {
       io.vram.read := true.B
-      io.vram.address := ((io.scanline * 240.U) + layerPos(2)) >> 1
+      switch (io.displayControl.mode) {
+        is (3.U) {
+          // 240x160, 16bpp
+          io.vram.address := ((io.scanline * 240.U) + layerPos(2))
+        }
+        is (4.U) {
+          // 240x160, indexed 8bpp
+          // TODO page flip
+          io.vram.address := ((io.scanline * 240.U) + layerPos(2)) >> 1
+        }
+        is (5.U) {
+          // 160x128, 16bpp
+          // TODO page flip
+          io.vram.address := ((io.scanline * 160.U) + layerPos(2))
+        }
+      }
 //      printf(cf"[BG] fetch ${io.vram.address}%x | tick=${io.tick} | scan=${io.scanline} p=${layerPos(2)}  \n")
-
-
-      // TODO: !!!! it doesn't seem to be reading the right data. Either it's not getting written or we're not reading it properly somehow
-      // note: it's getting written fine (checked with simulator.cpp)
-      // note: removing the 'read enable' parameter from mem.read in Vram seems to fix it?
     }
     when (subUse === 3.U) {
       layerPos(2) := layerPos(2) + 1.U
       fifo.bits.valid(2) := true.B
-      fifo.bits.color(2) := Mux(
-        layerPos(2)(0) === 0.U,
-        io.vram.readData(7, 0), io.vram.readData(15, 8)
-      )
       fifo.valid := true.B
+
+      switch (io.displayControl.mode) {
+        is (4.U) {
+          fifo.bits.color(2) := Mux(
+            layerPos(2)(0) === 0.U,
+            io.vram.readData(7, 0), io.vram.readData(15, 8)
+          )
+        }
+        is (3.U, 5.U) {
+          fifo.bits.color(2) := io.vram.readData(7, 0)
+          fifo.bits.color(3) := io.vram.readData(15, 8)
+          // TODO handle mode 5 OOB
+        }
+      }
 //      printf(cf"[BG] inserting pix ${io.vram.readData}\n")
     }
   }
