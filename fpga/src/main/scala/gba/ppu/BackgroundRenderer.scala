@@ -70,7 +70,6 @@ class BackgroundRenderer extends Module {
     }
     when (subUse === 3.U) {
       layerPos(2) := layerPos(2) + 1.U
-      fifo.bits.valid(2) := true.B
       fifo.valid := true.B
 
       switch (io.displayControl.mode) {
@@ -79,11 +78,17 @@ class BackgroundRenderer extends Module {
             layerPos(2)(0) === 0.U,
             io.vram.readData(7, 0), io.vram.readData(15, 8)
           )
+          fifo.bits.valid(2) := true.B
         }
         is (3.U, 5.U) {
           fifo.bits.color(2) := io.vram.readData(7, 0)
           fifo.bits.color(3) := io.vram.readData(15, 8)
-          // TODO handle mode 5 OOB
+          fifo.bits.valid(2) := true.B
+          when (io.displayControl.mode === 5.U) {
+            when (io.scanline >= 128.U || layerPos(2) >= 160.U) {
+              fifo.bits.valid(2) := false.B
+            }
+          }
         }
       }
 //      printf(cf"[BG] inserting pix ${io.vram.readData}\n")

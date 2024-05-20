@@ -63,7 +63,7 @@ class Compositor extends Module {
         val bgData = io.bgFifo.bits
 
         val topLayer = Wire(new Compositor.Layer)
-        topLayer.valid := true.B
+        topLayer.valid := bgData.valid(2)
         topLayer.color := bgData.color(2)
         topLayer.bgIndex := 2.U
         topLayer.isBg := true.B
@@ -77,11 +77,15 @@ class Compositor extends Module {
             io.paletteRam.read := true.B
             io.paletteRam.address := topLayer.color
           }
+        } .otherwise {
+          // No valid layer, use the backdrop (palette index 0)
+          io.paletteRam.read := true.B
+          io.paletteRam.address := 0.U
         }
       }
       // Store top layer palette entry
       is (1.U) {
-        when (!(regLayerTop.isBg && isBitmap16bpp)) {
+        when (!(regLayerTop.isBg && isBitmap16bpp && regLayerTop.valid)) {
           regLayerTop.color := io.paletteRam.readData
         }
       }
