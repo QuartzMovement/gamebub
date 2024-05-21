@@ -24,11 +24,14 @@ class Compositor extends Module {
     val valid = Output(Bool())
     val pixel = Output(UInt(15.W))
 
-    val bgFifo = Flipped(DecoupledIO(new BackgroundPixel))
+    val bgFifo = Vec(4, Flipped(DecoupledIO(new BackgroundPixel)))
   })
   val isBitmap16bpp = io.displayControl.mode === 3.U || io.displayControl.mode === 5.U
 
-  io.bgFifo.ready := false.B
+  val fifoReady = WireDefault(false.B)
+  for (i <- 0 until 4) {
+    io.bgFifo(i).ready := fifoReady
+  }
   io.paletteRam.read := false.B
   io.paletteRam.address := DontCare
 
@@ -59,12 +62,11 @@ class Compositor extends Module {
         // TODO background priority
 
         // Pull the next pixel.
-        io.bgFifo.ready := true.B
-        val bgData = io.bgFifo.bits
+        fifoReady := true.B
 
         val topLayer = Wire(new Compositor.Layer)
-        topLayer.valid := bgData.valid(2)
-        topLayer.color := bgData.color(2)
+        topLayer.valid := io.bgFifo(2).bits.valid
+        topLayer.color := io.bgFifo(2).bits.color
         topLayer.bgIndex := 2.U
         topLayer.isBg := true.B
         regLayerTop := topLayer
@@ -72,7 +74,7 @@ class Compositor extends Module {
         // Start palette RAM read 1
         when (topLayer.valid) {
           when (topLayer.isBg && isBitmap16bpp) {
-            regLayerTop.color := Cat(bgData.color(3), bgData.color(2))
+            regLayerTop.color := Cat(io.bgFifo(3).bits.color, io.bgFifo(2).bits.color)
           } .otherwise {
             io.paletteRam.read := true.B
             io.paletteRam.address := topLayer.color

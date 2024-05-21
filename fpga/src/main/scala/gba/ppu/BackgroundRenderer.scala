@@ -4,10 +4,10 @@ import chisel3._
 import chisel3.util._
 
 class BackgroundPixel extends Bundle {
-  // These should be palette indices (8-bit) -- layer 2 in mode 3 and 5 is 16-bit color, can just pack into L3 too.
-
-  val valid = Vec(4, Bool())
-  val color = Vec(4, UInt(8.W))
+  // Whether the pixel is valid and opaque.
+  val valid = Bool()
+  // Palette index (or, layer 2 and 3 in mode 3 and 5 combine to form a 16-bit color).
+  val color = UInt(8.W)
 }
 
 class BackgroundLayerState extends Bundle {
@@ -30,16 +30,17 @@ class BackgroundRenderer extends Module {
     val scanline = Input(UInt(8.W))
 
     /// Pixel fifo dequeue interface
-    val pixels = DecoupledIO(new BackgroundPixel)
+    val pixels = Vec(4, DecoupledIO(new BackgroundPixel))
   })
 
-  // Output pixel FIFO
-  val fifo = Wire(EnqIO(new BackgroundPixel))
-  fifo.valid := false.B
-  fifo.bits.valid := VecInit(Seq.fill(4)(false.B))
-  fifo.bits.color := DontCare
+  // Output pixel FIFOs
+  val fifo = (0 until 4).map(_ => Wire(EnqIO(new BackgroundPixel)))
+  for (i <- 0 until 4) {
+    fifo(i).valid := false.B
+    fifo(i).bits := DontCare
+  }
   val fifoFlush = WireDefault(false.B)
-  io.pixels <> Queue(fifo, entries = 5, flush = Some(fifoFlush))
+  io.pixels <> VecInit((0 until 4).map(i => Queue(fifo(i), entries = 5, flush = Some(fifoFlush))))
 
   // Per-layer state
   val layer = Reg(Vec(4, new BackgroundLayerState))
@@ -123,23 +124,24 @@ class BackgroundRenderer extends Module {
       }
       when (subUse === 3.U) {
         layer(index).pos := layer(index).pos + 1.U
-        fifo.valid := true.B
+        fifo(index).valid := true.B
+        fifo(index).bits.valid := true.B
 
         switch (io.displayControl.mode) {
           is (4.U) {
-            fifo.bits.color(index) := Mux(
+            fifo(index).bits.color := Mux(
               layer(index).pos(0) === 0.U,
               io.vram.readData(7, 0), io.vram.readData(15, 8)
             )
-            fifo.bits.valid(index) := true.B
           }
           is (3.U, 5.U) {
-            fifo.bits.color(index) := io.vram.readData(7, 0)
-            fifo.bits.color(index + 1) := io.vram.readData(15, 8)
-            fifo.bits.valid(index) := true.B
+            fifo(index + 1).valid := true.B
+
+            fifo(index).bits.color := io.vram.readData(7, 0)
+            fifo(index + 1).bits.color := io.vram.readData(15, 8)
             when (io.displayControl.mode === 5.U) {
               when (io.scanline >= 128.U || layer(index).pos >= 160.U) {
-                fifo.bits.valid(index) := false.B
+                fifo(index).bits.valid := false.B
               }
             }
           }
