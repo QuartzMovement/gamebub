@@ -10,6 +10,12 @@ class BackgroundPixel extends Bundle {
   val color = Vec(4, UInt(8.W))
 }
 
+class BackgroundLayerState extends Bundle {
+  /// Whether the layer is active during this part of the scanline.
+  val active = Bool()
+  val pos = UInt(8.W)
+}
+
 class BackgroundRenderer extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
@@ -26,7 +32,6 @@ class BackgroundRenderer extends Module {
     /// Pixel fifo dequeue interface
     val pixels = DecoupledIO(new BackgroundPixel)
   })
-  val isBitmapMode = io.displayControl.mode >= 3.U
 
   // Output pixel FIFO
   val fifo = Wire(EnqIO(new BackgroundPixel))
@@ -36,77 +41,111 @@ class BackgroundRenderer extends Module {
   val fifoFlush = WireDefault(false.B)
   io.pixels <> Queue(fifo, entries = 5, flush = Some(fifoFlush))
 
-  /// Whether each layer is active during this part of the line.
-  val layerActive = Reg(Vec(4, Bool()))
-  val layerPos = Reg(Vec(4, UInt(8.W)))
+  // Per-layer state
+  val layer = Reg(Vec(4, new BackgroundLayerState))
 
   // Index within a subpixel (0..3) that is being fetched, then is being used.
   val subFetch = io.tick(1, 0) + 1.U
   val subUse = io.tick(1, 0) + 2.U
+  val isVdraw = io.scanline < 160.U
 
   // TODO: this is hardcoded to 8bpp bitmap
   io.vram.read := false.B
   io.vram.address := DontCare
 
-  when (isBitmapMode && layerActive(2)) {
-    when (subFetch === 3.U) {
-      io.vram.read := true.B
-      val frameOffset = Mux(io.displayControl.frame === 1.U, (0xA000 / 2).U, 0.U)
-      switch (io.displayControl.mode) {
-        is (3.U) {
-          // 240x160, 16bpp
-          io.vram.address := ((io.scanline * 240.U) + layerPos(2))
-        }
-        is (4.U) {
-          // 240x160, indexed 8bpp
-          io.vram.address := (((io.scanline * 240.U) + layerPos(2)) >> 1).asUInt.pad(16) + frameOffset
-        }
-        is (5.U) {
-          // 160x128, 16bpp
-          io.vram.address := ((io.scanline * 160.U) + layerPos(2)) + frameOffset
-        }
-      }
-//      printf(cf"[BG] fetch ${io.vram.address}%x | tick=${io.tick} | scan=${io.scanline} p=${layerPos(2)}  \n")
+  switch (io.displayControl.mode) {
+    is (0.U) {
+      when (io.displayControl.enableBg(0)) { renderRegularLayer(0) }
+      when (io.displayControl.enableBg(1)) { renderRegularLayer(1) }
+      when (io.displayControl.enableBg(2)) { renderRegularLayer(2) }
+      when (io.displayControl.enableBg(3)) { renderRegularLayer(3) }
     }
-    when (subUse === 3.U) {
-      layerPos(2) := layerPos(2) + 1.U
-      fifo.valid := true.B
-
-      switch (io.displayControl.mode) {
-        is (4.U) {
-          fifo.bits.color(2) := Mux(
-            layerPos(2)(0) === 0.U,
-            io.vram.readData(7, 0), io.vram.readData(15, 8)
-          )
-          fifo.bits.valid(2) := true.B
-        }
-        is (3.U, 5.U) {
-          fifo.bits.color(2) := io.vram.readData(7, 0)
-          fifo.bits.color(3) := io.vram.readData(15, 8)
-          fifo.bits.valid(2) := true.B
-          when (io.displayControl.mode === 5.U) {
-            when (io.scanline >= 128.U || layerPos(2) >= 160.U) {
-              fifo.bits.valid(2) := false.B
-            }
-          }
-        }
-      }
-//      printf(cf"[BG] inserting pix ${io.vram.readData}\n")
+    is (1.U) {
+      when (io.displayControl.enableBg(0)) { renderRegularLayer(0) }
+      when (io.displayControl.enableBg(1)) { renderRegularLayer(1) }
+      when (io.displayControl.enableBg(2)) { renderAffineLayer(2) }
+    }
+    is (2.U) {
+      when (io.displayControl.enableBg(2)) { renderAffineLayer(2) }
+      when (io.displayControl.enableBg(3)) { renderAffineLayer(3) }
+    }
+    is (3.U, 4.U, 5.U) {
+      when (io.displayControl.enableBg(2)) { renderBitmapLayer(2) }
     }
   }
 
-  when (io.enable && io.scanline < 160.U) {
-    when (isBitmapMode) {
-      when (io.tick === 30.U && io.displayControl.enableBg(2)) {
-        layerActive(2) := true.B
-      }
-    }
+  when (io.enable && isVdraw) {
     when (io.tick === 1005.U) {
       // Begin HBlank
 //      printf(cf"[BG] hblank for ${io.scanline}\n")
-      layerActive := VecInit(Seq.fill(4)(false.B))
-      layerPos := VecInit(Seq.fill(4)(0.U))
+      for (i <- 0 until 4) {
+        layer(i).active := false.B
+        layer(i).pos := 0.U
+      }
       fifoFlush := true.B
+    }
+  }
+
+  private def renderRegularLayer(index: Int): Unit = {
+    // TODO
+  }
+
+  private def renderAffineLayer(index: Int): Unit = {
+    // TODO
+  }
+
+  private def renderBitmapLayer(index: Int): Unit = {
+    // Activate
+    when (io.enable && isVdraw && io.tick === 30.U) {
+      layer(index).active := true.B
+    }
+
+    // Render
+    when (layer(index).active) {
+      when (subFetch === 3.U) {
+        io.vram.read := true.B
+        val frameOffset = Mux(io.displayControl.frame === 1.U, (0xA000 / 2).U, 0.U)
+        switch (io.displayControl.mode) {
+          is (3.U) {
+            // 240x160, 16bpp
+            io.vram.address := ((io.scanline * 240.U) + layer(index).pos)
+          }
+          is (4.U) {
+            // 240x160, indexed 8bpp
+            io.vram.address := (((io.scanline * 240.U) + layer(index).pos) >> 1).asUInt.pad(16) + frameOffset
+          }
+          is (5.U) {
+            // 160x128, 16bpp
+            io.vram.address := ((io.scanline * 160.U) + layer(index).pos) + frameOffset
+          }
+        }
+        //      printf(cf"[BG] fetch ${io.vram.address}%x | tick=${io.tick} | scan=${io.scanline} p=${layerPos(2)}  \n")
+      }
+      when (subUse === 3.U) {
+        layer(index).pos := layer(index).pos + 1.U
+        fifo.valid := true.B
+
+        switch (io.displayControl.mode) {
+          is (4.U) {
+            fifo.bits.color(index) := Mux(
+              layer(index).pos(0) === 0.U,
+              io.vram.readData(7, 0), io.vram.readData(15, 8)
+            )
+            fifo.bits.valid(index) := true.B
+          }
+          is (3.U, 5.U) {
+            fifo.bits.color(index) := io.vram.readData(7, 0)
+            fifo.bits.color(index + 1) := io.vram.readData(15, 8)
+            fifo.bits.valid(index) := true.B
+            when (io.displayControl.mode === 5.U) {
+              when (io.scanline >= 128.U || layer(index).pos >= 160.U) {
+                fifo.bits.valid(index) := false.B
+              }
+            }
+          }
+        }
+        //      printf(cf"[BG] inserting pix ${io.vram.readData}\n")
+      }
     }
   }
 }
