@@ -59,16 +59,25 @@ class Compositor extends Module {
       // Sort layers, fetch top layer palette entry
       is (0.U) {
         // TODO bring objects
-        // TODO background priority
 
         // Pull the next pixel.
         fifoReady := true.B
 
         val topLayer = Wire(new Compositor.Layer)
-        topLayer.valid := io.bgFifo(2).bits.valid
-        topLayer.color := io.bgFifo(2).bits.color
-        topLayer.bgIndex := 2.U
-        topLayer.isBg := true.B
+        topLayer.valid := false.B
+        topLayer.color := DontCare
+        topLayer.bgIndex := DontCare
+        topLayer.isBg := DontCare
+
+        for (i <- (0 until 4).reverse) {
+          // TODO background priority
+          when (io.bgFifo(i).bits.valid) {
+            topLayer.valid := true.B
+            topLayer.color := io.bgFifo(i).bits.color
+            topLayer.bgIndex := i.U
+            topLayer.isBg := true.B
+          }
+        }
         regLayerTop := topLayer
 
         // Start palette RAM read 1
