@@ -160,6 +160,8 @@ object MmioMap {
 
     def rw(reg: Data): Entry = Entry(ReadFn(reg), WriteFn(reg))
 
+    def w16(reg0: Data, reg1: Data): Entry = Entry(ReadFn(), WriteFn(reg0, reg1))
+
     def rw16(reg0: Data, reg1: Data): Entry = Entry(ReadFn(reg0, reg1), WriteFn(reg0, reg1))
   }
 }
