@@ -71,7 +71,7 @@ class BackgroundRenderer extends Module {
       when (io.displayControl.enableBg(3)) { renderAffineLayer(3) }
     }
     is (3.U, 4.U, 5.U) {
-      when (io.displayControl.enableBg(2)) { renderBitmapLayer(2) }
+      when (io.displayControl.enableBg(2)) { renderBitmapLayer() }
     }
   }
 
@@ -95,53 +95,53 @@ class BackgroundRenderer extends Module {
     // TODO
   }
 
-  private def renderBitmapLayer(index: Int): Unit = {
+  private def renderBitmapLayer(): Unit = {
     // Activate
     when (io.enable && isVdraw && io.tick === 30.U) {
-      layer(index).active := true.B
+      layer(2).active := true.B
     }
 
     // Render
-    when (layer(index).active) {
+    when (layer(2).active) {
       when (subFetch === 3.U) {
         io.vram.read := true.B
         val frameOffset = Mux(io.displayControl.frame === 1.U, (0xA000 / 2).U, 0.U)
         switch (io.displayControl.mode) {
           is (3.U) {
             // 240x160, 16bpp
-            io.vram.address := ((io.scanline * 240.U) + layer(index).pos)
+            io.vram.address := ((io.scanline * 240.U) + layer(2).pos)
           }
           is (4.U) {
             // 240x160, indexed 8bpp
-            io.vram.address := (((io.scanline * 240.U) + layer(index).pos) >> 1).asUInt.pad(16) + frameOffset
+            io.vram.address := (((io.scanline * 240.U) + layer(2).pos) >> 1).asUInt.pad(16) + frameOffset
           }
           is (5.U) {
             // 160x128, 16bpp
-            io.vram.address := ((io.scanline * 160.U) + layer(index).pos) + frameOffset
+            io.vram.address := ((io.scanline * 160.U) + layer(2).pos) + frameOffset
           }
         }
         //      printf(cf"[BG] fetch ${io.vram.address}%x | tick=${io.tick} | scan=${io.scanline} p=${layerPos(2)}  \n")
       }
       when (subUse === 3.U) {
-        layer(index).pos := layer(index).pos + 1.U
-        fifo(index).valid := true.B
-        fifo(index).bits.valid := true.B
+        layer(2).pos := layer(2).pos + 1.U
+        fifo(2).valid := true.B
+        fifo(2).bits.valid := true.B
 
         switch (io.displayControl.mode) {
           is (4.U) {
-            fifo(index).bits.color := Mux(
-              layer(index).pos(0) === 0.U,
+            fifo(2).bits.color := Mux(
+              layer(2).pos(0) === 0.U,
               io.vram.readData(7, 0), io.vram.readData(15, 8)
             )
           }
           is (3.U, 5.U) {
-            fifo(index + 1).valid := true.B
+            fifo(3).valid := true.B
 
-            fifo(index).bits.color := io.vram.readData(7, 0)
-            fifo(index + 1).bits.color := io.vram.readData(15, 8)
+            fifo(2).bits.color := io.vram.readData(7, 0)
+            fifo(3).bits.color := io.vram.readData(15, 8)
             when (io.displayControl.mode === 5.U) {
-              when (io.scanline >= 128.U || layer(index).pos >= 160.U) {
-                fifo(index).bits.valid := false.B
+              when (io.scanline >= 128.U || layer(2).pos >= 160.U) {
+                fifo(2).bits.valid := false.B
               }
             }
           }

@@ -52,9 +52,9 @@ class MMIO(numTargets: Int) extends Module {
   when (io.enable) {
     when (queuedRequest) {
       when (queuedWrite) {
-//        printf(cf"[I/O] write addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataWrite}\n")
+//        printf(cf"[I/O] write addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataWrite}%x mask=${io.mem.mask}%b\n")
       } .otherwise {
-//        printf(cf"[I/O] read  addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataRead}\n")
+//        printf(cf"[I/O] read  addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataRead}%x\n")
       }
 
       queuedRequest := false.B
@@ -107,6 +107,9 @@ object MmioMap {
     // Simple read from a register or wire.
     def apply(reg: Data): ReadFn = ReadFn(_ => (reg.asUInt, true.B))
 
+    // Read from two 16-bit registers.
+    def apply(reg0: Data, reg1: Data): ReadFn = ReadFn(_ => (Cat(reg1.asUInt, reg0.asUInt), true.B))
+
     // No-op read.
     def apply(): ReadFn = ReadFn(_ => (0.U, false.B))
   }
@@ -125,6 +128,26 @@ object MmioMap {
       }
     })
 
+    // Write to two 16-bit registers.
+    def apply(reg0: Data, reg1: Data): WriteFn = WriteFn((enable, data, mask) => {
+      when (enable) {
+        {
+          val newDataVec = VecInit((0 until 2).map(i => data(i * 8 + 7, i * 8)))
+          val oldData = reg0.asUInt.pad(16)
+          val oldDataVec = VecInit((0 until 2).map(i => oldData(i * 8 + 7, i * 8)))
+          val combined = VecInit((0 until 2).map(i => Mux(mask(i), newDataVec(i), oldDataVec(i))))
+          reg0 := combined.asTypeOf(reg0)
+        }
+        {
+          val newDataVec = VecInit((2 until 4).map(i => data(i * 8 + 7, i * 8)))
+          val oldData = reg1.asUInt.pad(16)
+          val oldDataVec = VecInit((0 until 2).map(i => oldData(i * 8 + 7, i * 8)))
+          val combined = VecInit((0 until 2).map(i => Mux(mask(i + 2), newDataVec(i), oldDataVec(i))))
+          reg1 := combined.asTypeOf(reg1)
+        }
+      }
+    })
+
     // No-op write.
     def apply(): WriteFn = WriteFn((_, _, _) => ())
   }
@@ -136,5 +159,7 @@ object MmioMap {
     def w(reg: Data): Entry = Entry(ReadFn(), WriteFn(reg))
 
     def rw(reg: Data): Entry = Entry(ReadFn(reg), WriteFn(reg))
+
+    def rw16(reg0: Data, reg1: Data): Entry = Entry(ReadFn(reg0, reg1), WriteFn(reg0, reg1))
   }
 }

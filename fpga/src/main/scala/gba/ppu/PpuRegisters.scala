@@ -30,4 +30,15 @@ object PpuRegisters {
     val hblank = Bool()
     val vblank = Bool()
   }
+
+  class BackgroundControl extends Bundle {
+    val size = UInt(2.W)
+    val affineWrap = Bool()
+    val screenBase = UInt(5.W)
+    val bpp8 = Bool()
+    val mosaic = Bool()
+    val _padding = UInt(2.W)
+    val charBase = UInt(2.W)
+    val priority = UInt(2.W)
+  }
 }

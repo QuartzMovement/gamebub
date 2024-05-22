@@ -35,6 +35,7 @@ class Ppu extends Module {
   })
 
   val regDisplayControl = RegInit(0.U.asTypeOf(new PpuRegisters.DisplayControl))
+  val regBgControl = RegInit(VecInit(Seq.fill(4)(0.U.asTypeOf(new PpuRegisters.BackgroundControl))))
 
   /// VRAM: 96KiB, 16-bit access without byte strobe. Note: actually split into multiple banks for bg/obj
   val vram = Module(new Vram)
@@ -75,7 +76,9 @@ class Ppu extends Module {
       out.hblank := io.output.hblank
       out.scanline := scanline
       out
-    })
+    }),
+    0x8 -> MmioMap.Entry.rw16(regBgControl(0), regBgControl(1)),
+    0xC -> MmioMap.Entry.rw16(regBgControl(2), regBgControl(3)),
   )
 
   // Background renderer
