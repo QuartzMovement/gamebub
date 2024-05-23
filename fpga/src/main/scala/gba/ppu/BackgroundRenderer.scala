@@ -105,8 +105,8 @@ class BackgroundRenderer extends Module {
     val control = io.bgControl(index)
     val state = layer(index)
     // Activate
-    when (io.enable && isVdraw && io.tick === 30.U) {
-      // TODO handle sub-tile scrolling
+    val start = 30.U - (io.bgOffX(index)(2, 0) << 2).asUInt
+    when (io.enable && isVdraw && io.tick === start) {
       state.active := true.B
     }
 
@@ -149,6 +149,11 @@ class BackgroundRenderer extends Module {
           state.pixels(0) := state.pixels(1)
           state.pixels(1) := state.pixels(2)
           state.pixels(2) := state.pixels(3)
+
+          when (io.tick < 43.U) {
+            // Discard pixels for shift % 8.
+            fifo(index).valid := false.B
+          }
         }
       }
       when (subUse === index.U) {
@@ -160,8 +165,8 @@ class BackgroundRenderer extends Module {
           for (i <- 0 until 4) {
             val data = Mux(
               state.screenEntry.flipX,
-              io.vram.readData(4 * i + 3, 4 * i),
               io.vram.readData(4 * (3 - i) + 3, 4 * (3 - i)),
+              io.vram.readData(4 * i + 3, 4 * i),
             )
             state.pixels(i).valid := (data =/= 0.U)
             state.pixels(i).color := Cat(state.screenEntry.paletteBank, data)
