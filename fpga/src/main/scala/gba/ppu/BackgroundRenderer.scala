@@ -10,10 +10,21 @@ class BackgroundPixel extends Bundle {
   val color = UInt(8.W)
 }
 
+class BackgroundScreenEntry extends Bundle {
+  val paletteBank = UInt(4.W)
+  val flipY = Bool()
+  val flipX = Bool()
+  val tile = UInt(10.W)
+}
+
 class BackgroundLayerState extends Bundle {
   /// Whether the layer is active during this part of the scanline.
   val active = Bool()
   val pos = UInt(8.W)
+  /// For regular tilemaps, the screen entry.
+  val screenEntry = new BackgroundScreenEntry()
+  /// Queued up tile data (for regular tilemaps)
+  val pixels = Vec(4, new BackgroundPixel)
 }
 
 class BackgroundRenderer extends Module {
@@ -21,6 +32,9 @@ class BackgroundRenderer extends Module {
     val enable = Input(Bool())
 
     val displayControl = Input(new PpuRegisters.DisplayControl)
+    val bgControl = Input(Vec(4, new PpuRegisters.BackgroundControl))
+    val bgOffX = Input(Vec(4, UInt(16.W)))
+    val bgOffY = Input(Vec(4, UInt(16.W)))
 
     /// BG VRAM access
     val vram = Flipped(new PpuMemoryInterface(96 * 1024 / 2, 16.W))
@@ -88,7 +102,73 @@ class BackgroundRenderer extends Module {
   }
 
   private def renderRegularLayer(index: Int): Unit = {
-    // TODO
+    val control = io.bgControl(index)
+    val state = layer(index)
+    // Activate
+    when (io.enable && isVdraw && io.tick === 30.U) {
+      // TODO handle sub-tile scrolling
+      state.active := true.B
+    }
+
+    // Render
+    when (state.active) {
+      // TODO
+      val x = state.pos + io.bgOffX(index)
+      val y = io.scanline + io.bgOffY(index)
+      val step = state.pos(2, 0)
+      val fetch4bpp = (step(1, 0) === 1.U) && !control.bpp8
+      val fetch8bpp = (step(0) === 1.U) && control.bpp8
+      when (subFetch === index.U) {
+        when (step === 0.U) {
+          // Fetch map entry
+          // 64KiB of vram for charblocks and screenblocks
+          // TODO larger than 1x1 bgs
+          val tileX = x(7, 3)
+          val tileY = y(7, 3)
+          io.vram.read := true.B
+          io.vram.address := Cat(control.screenBase, tileY, tileX)
+          // mapAddress should index 64KiB -- width should be 15.
+        }
+        // TODO 4bpp *and* 8bpp
+        when (fetch4bpp) {
+          // Tiles are 32 bytes long
+          // (16 bit full address)
+          // (2 bits char block) (9 bit tile index (4bpp)) (5 bit byte)
+          val col = step(2) ^ state.screenEntry.flipX
+          val row = Mux(state.screenEntry.flipY, ~y(2, 0), y(2, 0))
+          val tile = Cat(control.charBase, 0.U(9.W)) + state.screenEntry.tile
+          io.vram.read := true.B
+          io.vram.address := Cat(tile, row, col)(14, 0)
+        }
+
+        // TODO TEMP TEMP TEMP OUTPUT PIXEL TO FIFO !!! MAKE SURE TO SHIFT IT! AND CHECK TIMING!
+        // TODO ONLY OUTPUT IF THE DATA IS VALID (i.e. not the first two pixels when activated)
+        when (state.pos > 2.U) {
+          fifo(index).valid := true.B
+          fifo(index).bits := state.pixels(0)
+          state.pixels(0) := state.pixels(1)
+          state.pixels(1) := state.pixels(2)
+          state.pixels(2) := state.pixels(3)
+        }
+      }
+      when (subUse === index.U) {
+        state.pos := state.pos + 1.U
+        when (step === 0.U) {
+          state.screenEntry := io.vram.readData.asTypeOf(new BackgroundScreenEntry)
+        }
+        when (fetch4bpp) {
+          for (i <- 0 until 4) {
+            val data = Mux(
+              state.screenEntry.flipX,
+              io.vram.readData(4 * i + 3, 4 * i),
+              io.vram.readData(4 * (3 - i) + 3, 4 * (3 - i)),
+            )
+            state.pixels(i).valid := (data =/= 0.U)
+            state.pixels(i).color := Cat(state.screenEntry.paletteBank, data)
+          }
+        }
+      }
+    }
   }
 
   private def renderAffineLayer(index: Int): Unit = {

@@ -91,6 +91,9 @@ class Ppu extends Module {
   val bgRender = Module(new BackgroundRenderer)
   bgRender.io.enable := io.enable
   bgRender.io.displayControl := regDisplayControl
+  bgRender.io.bgControl := regBgControl
+  bgRender.io.bgOffX := regBgOffX
+  bgRender.io.bgOffY := regBgOffY
   bgRender.io.tick := tick
   bgRender.io.scanline := scanline
   bgRender.io.vram <> vram.io.portBG
