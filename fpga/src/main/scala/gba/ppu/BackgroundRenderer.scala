@@ -122,11 +122,17 @@ class BackgroundRenderer extends Module {
         when (step === 0.U) {
           // Fetch map entry
           // 64KiB of vram for charblocks and screenblocks
-          // TODO larger than 1x1 bgs
           val tileX = x(7, 3)
           val tileY = y(7, 3)
+          val screenOffset = VecInit(
+            0.U(2.W), // 1x1
+            x(8), // 2x1
+            y(8), // 1x2
+            Cat(y(8), x(8)),  // 2x2
+          )
+          val screenBlock = (control.screenBase + screenOffset(control.size))(4, 0)
           io.vram.read := true.B
-          io.vram.address := Cat(control.screenBase, tileY, tileX)
+          io.vram.address := Cat(screenBlock, tileY, tileX)
           // mapAddress should index 64KiB -- width should be 15.
         }
         // TODO 4bpp *and* 8bpp
