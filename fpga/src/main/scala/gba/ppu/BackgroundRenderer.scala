@@ -141,16 +141,14 @@ class BackgroundRenderer extends Module {
           io.vram.address := Cat(tile, row, col)(14, 0)
         }
 
-        // TODO TEMP TEMP TEMP OUTPUT PIXEL TO FIFO !!! MAKE SURE TO SHIFT IT! AND CHECK TIMING!
-        // TODO ONLY OUTPUT IF THE DATA IS VALID (i.e. not the first two pixels when activated)
-        when (state.pos > 2.U) {
+        when (state.pos >= 2.U) {
           fifo(index).valid := true.B
           fifo(index).bits := state.pixels(0)
           state.pixels(0) := state.pixels(1)
           state.pixels(1) := state.pixels(2)
           state.pixels(2) := state.pixels(3)
 
-          when (io.tick < 43.U) {
+          when (io.tick < 39.U) {
             // Discard pixels for shift % 8.
             fifo(index).valid := false.B
           }
