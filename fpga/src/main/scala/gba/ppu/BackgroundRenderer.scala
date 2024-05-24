@@ -61,7 +61,7 @@ class BackgroundRenderer extends Module {
 
   // Index within a subpixel (0..3) that is being fetched, then is being used.
   val subFetch = io.tick(1, 0) + 1.U
-  val subUse = io.tick(1, 0) + 2.U
+  val subUse = io.tick(1, 0) + 0.U
   val isVdraw = io.scanline < 160.U
 
   // TODO: this is hardcoded to 8bpp bitmap
