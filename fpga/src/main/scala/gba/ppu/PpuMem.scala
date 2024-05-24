@@ -64,7 +64,6 @@ class PpuMem(size: Int, width: Width) extends Module {
 
   // PPU access
   // TODO: make sure there's a single port -- (or maybe one write port and one read port)
-  io.ppuTarget.readData := mem.read(io.ppuTarget.address) //io.ppuTarget.read)
-  // TODO: ^^ adding the read enable parameter breaks it? always reads 0? check how this works
+  io.ppuTarget.readData := mem.read(io.ppuTarget.address, io.ppuTarget.read)
 }
 

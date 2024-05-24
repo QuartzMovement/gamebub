@@ -140,17 +140,19 @@ class BackgroundRenderer extends Module {
           // (2 bits char block) (9 bit tile index (4bpp)) (5 bit byte)
           val col = step(2) ^ state.screenEntry.flipX
           val row = Mux(state.screenEntry.flipY, ~y(2, 0), y(2, 0))
-          val tile = Cat(control.charBase, 0.U(9.W)) + state.screenEntry.tile
-          io.vram.read := true.B
-          io.vram.address := Cat(tile, row, col)(14, 0)
+          val tile = Cat(control.charBase, 0.U(9.W)) +& state.screenEntry.tile
+          val address = Cat(tile, row, col)
+          io.vram.read := address < (32 * 1024).U // Reads above 64 KiB return open-bus.
+          io.vram.address := address
         }
         when (fetch8bpp) {
           // Tiles are 64 bytes long
           val col = Mux(state.screenEntry.flipX, ~step(2, 1), step(2, 1))
           val row = Mux(state.screenEntry.flipY, ~y(2, 0), y(2, 0))
-          val tile = Cat(control.charBase, 0.U(8.W)) + state.screenEntry.tile
-          io.vram.read := true.B
-          io.vram.address := Cat(tile, row, col)(14, 0)
+          val tile = Cat(control.charBase, 0.U(8.W)) +& state.screenEntry.tile
+          val address = Cat(tile, row, col)
+          io.vram.read := address < (32 * 1024).U // Reads above 64 KiB return open-bus.
+          io.vram.address := address
         }
         when (state.pos >= 2.U) {
           fifo(index).valid := true.B
