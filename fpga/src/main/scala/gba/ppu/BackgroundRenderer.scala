@@ -64,7 +64,6 @@ class BackgroundRenderer extends Module {
   val subUse = io.tick(1, 0) + 0.U
   val isVdraw = io.scanline < 160.U
 
-  // TODO: this is hardcoded to 8bpp bitmap
   io.vram.read := false.B
   io.vram.address := DontCare
 
@@ -135,7 +134,6 @@ class BackgroundRenderer extends Module {
           io.vram.address := Cat(screenBlock, tileY, tileX)
           // mapAddress should index 64KiB -- width should be 15.
         }
-        // TODO 4bpp *and* 8bpp
         when (fetch4bpp) {
           // Tiles are 32 bytes long
           // (16 bit full address)
@@ -146,7 +144,14 @@ class BackgroundRenderer extends Module {
           io.vram.read := true.B
           io.vram.address := Cat(tile, row, col)(14, 0)
         }
-
+        when (fetch8bpp) {
+          // Tiles are 64 bytes long
+          val col = Mux(state.screenEntry.flipX, ~step(2, 1), step(2, 1))
+          val row = Mux(state.screenEntry.flipY, ~y(2, 0), y(2, 0))
+          val tile = Cat(control.charBase, 0.U(8.W)) + state.screenEntry.tile
+          io.vram.read := true.B
+          io.vram.address := Cat(tile, row, col)(14, 0)
+        }
         when (state.pos >= 2.U) {
           fifo(index).valid := true.B
           fifo(index).bits := state.pixels(0)
@@ -174,6 +179,17 @@ class BackgroundRenderer extends Module {
             )
             state.pixels(i).valid := (data =/= 0.U)
             state.pixels(i).color := Cat(state.screenEntry.paletteBank, data)
+          }
+        }
+        when (fetch8bpp) {
+          for (i <- 0 until 2) {
+            val data = Mux(
+              state.screenEntry.flipX,
+              io.vram.readData(8 * (1 - i) + 7, 8 * (1 - i)),
+              io.vram.readData(8 * i + 7, 8 * i),
+            )
+            state.pixels(i).valid := (data =/= 0.U)
+            state.pixels(i).color := data
           }
         }
       }
