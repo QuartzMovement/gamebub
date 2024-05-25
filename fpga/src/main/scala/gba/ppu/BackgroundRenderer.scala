@@ -2,6 +2,7 @@ package gba.ppu
 
 import chisel3._
 import chisel3.util._
+import gba.ppu.PpuRegisters.AffineReferencePoint
 
 class BackgroundPixel extends Bundle {
   // Whether the pixel is valid and opaque.
@@ -35,6 +36,9 @@ class BackgroundRenderer extends Module {
     val bgControl = Input(Vec(4, new PpuRegisters.BackgroundControl))
     val bgOffX = Input(Vec(4, UInt(16.W)))
     val bgOffY = Input(Vec(4, UInt(16.W)))
+    val bgAff = Input(Vec(2, new PpuRegisters.BackgroundAffineParams))
+    val bgAffX = Input(Vec(2, new PpuRegisters.AffineReferencePoint))
+    val bgAffY = Input(Vec(2, new PpuRegisters.AffineReferencePoint))
 
     /// BG VRAM access
     val vram = Flipped(new PpuMemoryInterface(96 * 1024 / 2, 16.W))
@@ -58,6 +62,10 @@ class BackgroundRenderer extends Module {
 
   // Per-layer state
   val layer = Reg(Vec(4, new BackgroundLayerState))
+  val affX = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
+  val affY = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
+  val affXLine = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
+  val affYLine = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
 
   // Index within a subpixel (0..3) that is being fetched, then is being used.
   val subFetch = io.tick(1, 0) + 1.U
@@ -96,7 +104,25 @@ class BackgroundRenderer extends Module {
         layer(i).active := false.B
         layer(i).pos := 0.U
       }
+      for (i <- 0 until 2) {
+        val newX = (affXLine(i).asUInt + io.bgAff(i).pb.asUInt).asTypeOf(new AffineReferencePoint)
+        val newY = (affYLine(i).asUInt + io.bgAff(i).pd.asUInt).asTypeOf(new AffineReferencePoint)
+        affX(i) := newX
+        affY(i) := newY
+        affXLine(i) := newX
+        affYLine(i) := newY
+      }
       fifoFlush := true.B
+    }
+  }
+
+  // Update affine background params.
+  when (io.enable) {
+    when (!isVdraw) {
+      affX := io.bgAffX
+      affY := io.bgAffY
+      affXLine := io.bgAffX
+      affYLine := io.bgAffY
     }
   }
 
@@ -111,7 +137,6 @@ class BackgroundRenderer extends Module {
 
     // Render
     when (state.active) {
-      // TODO
       val x = state.pos + io.bgOffX(index)
       val y = io.scanline + io.bgOffY(index)
       val step = state.pos(2, 0)
@@ -199,7 +224,61 @@ class BackgroundRenderer extends Module {
   }
 
   private def renderAffineLayer(index: Int): Unit = {
-    // TODO
+    val control = io.bgControl(index)
+    val state = layer(index)
+    val matrix = io.bgAff(index - 2)
+    val refX = affX(index - 2)
+    val refY = affY(index - 2)
+    val subIndex = if (index == 2) { 2 } else { 0 }
+
+    // Activate
+    when (io.enable && isVdraw && io.tick === 30.U) {
+      state.active := true.B
+    }
+
+    // Render
+    when (state.active) {
+      // TODO handle different widths: hard-coded to 512x512 (64x64 tiles)
+      val tileX = refX.int(8, 3)
+      val tileY = refY.int(8, 3)
+      val subtileX = refX.int(2, 0)
+      val subtileY = refY.int(2, 0)
+
+      when (subFetch === (subIndex + 0).U) {
+        // Fetch tile coordinate
+        val screenBlock = Cat(control.screenBase, 0.U(11.W))
+        // TODO handle differing widths
+        val entry = screenBlock + Cat(tileY, tileX)
+        io.vram.read := true.B
+        io.vram.address := entry >> 1.U
+      }
+      when (subUse === (subIndex + 0).U) {
+        // Use tile coordinate to fetch data
+        // Affine always uses 8bpp
+        val tileIndex = Mux(
+          tileX(0),
+          io.vram.readData(15, 8),
+          io.vram.readData(7, 0),
+        )
+        val tile = Cat(control.charBase, 0.U(9.W)) +& tileIndex
+        val address = Cat(tile, subtileY, subtileX)
+        io.vram.read := true.B
+        io.vram.address := address >> 1.U
+      }
+      when (subUse === (subIndex + 1).U) {
+        // Use tile data
+        refX := (refX.asUInt + matrix.pa.asUInt).asTypeOf(new AffineReferencePoint)
+        refY := (refY.asUInt + matrix.pc.asUInt).asTypeOf(new AffineReferencePoint)
+
+        fifo(index).valid := true.B
+        fifo(index).bits.valid := true.B
+        fifo(index).bits.color := Mux(
+          subtileX(0),
+          io.vram.readData(15, 8),
+          io.vram.readData(7, 0),
+        )
+      }
+    }
   }
 
   private def renderBitmapLayer(): Unit = {

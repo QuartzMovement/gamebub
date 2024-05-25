@@ -41,4 +41,19 @@ object PpuRegisters {
     val charBase = UInt(2.W)
     val priority = UInt(2.W)
   }
+
+  class FixedPoint(intWidth: Int) extends Bundle {
+    val sign = UInt(1.W)
+    val int = UInt(intWidth.W)
+    val frac = UInt(8.W)
+  }
+
+  class AffineReferencePoint extends FixedPoint(19) {}
+
+  class BackgroundAffineParams extends Bundle {
+    val pa = new FixedPoint(7)
+    val pb = new FixedPoint(7)
+    val pc = new FixedPoint(7)
+    val pd = new FixedPoint(7)
+  }
 }

@@ -38,6 +38,10 @@ class Ppu extends Module {
   val regBgControl = RegInit(VecInit(Seq.fill(4)(0.U.asTypeOf(new PpuRegisters.BackgroundControl))))
   val regBgOffX = RegInit(VecInit(Seq.fill(4)(0.U(16.W))))
   val regBgOffY = RegInit(VecInit(Seq.fill(4)(0.U(16.W))))
+  // TODO: should this be initialized with pa and pd at 0x100?
+  val regBgAff = RegInit(VecInit(Seq.fill(2)(0.U.asTypeOf(new PpuRegisters.BackgroundAffineParams))))
+  val regBgAffX = RegInit(VecInit(Seq.fill(2)(0.U.asTypeOf(new PpuRegisters.AffineReferencePoint))))
+  val regBgAffY = RegInit(VecInit(Seq.fill(2)(0.U.asTypeOf(new PpuRegisters.AffineReferencePoint))))
 
   /// VRAM: 96KiB, 16-bit access without byte strobe. Note: actually split into multiple banks for bg/obj
   val vram = Module(new Vram)
@@ -85,6 +89,16 @@ class Ppu extends Module {
     0x14 -> MmioMap.Entry.w16(regBgOffX(1), regBgOffY(1)),
     0x18 -> MmioMap.Entry.w16(regBgOffX(2), regBgOffY(2)),
     0x1C -> MmioMap.Entry.w16(regBgOffX(3), regBgOffY(3)),
+    0x20 -> MmioMap.Entry.w16(regBgAff(0).pa, regBgAff(0).pb),
+    0x24 -> MmioMap.Entry.w16(regBgAff(0).pc, regBgAff(0).pd),
+    // TODO: writing these is supposed to update the latched value immediately?
+    0x28 -> MmioMap.Entry.w(regBgAffX(0)),
+    0x2C -> MmioMap.Entry.w(regBgAffY(0)),
+    0x30 -> MmioMap.Entry.w16(regBgAff(1).pa, regBgAff(1).pb),
+    0x34 -> MmioMap.Entry.w16(regBgAff(1).pc, regBgAff(1).pd),
+    // TODO: writing these is supposed to update the latched value immediately?
+    0x38 -> MmioMap.Entry.w(regBgAffX(1)),
+    0x3C -> MmioMap.Entry.w(regBgAffY(1)),
   )
 
   // Background renderer
@@ -94,6 +108,9 @@ class Ppu extends Module {
   bgRender.io.bgControl := regBgControl
   bgRender.io.bgOffX := regBgOffX
   bgRender.io.bgOffY := regBgOffY
+  bgRender.io.bgAff := regBgAff
+  bgRender.io.bgAffX := regBgAffX
+  bgRender.io.bgAffY := regBgAffY
   bgRender.io.tick := tick
   bgRender.io.scanline := scanline
   bgRender.io.vram <> vram.io.portBG
