@@ -277,6 +277,14 @@ class BackgroundRenderer extends Module {
           io.vram.readData(15, 8),
           io.vram.readData(7, 0),
         )
+
+        when (!control.affineWrap) {
+          // TODO use correct size
+          val sizePx = 512
+          when (refX.sign.asBool || refY.sign.asBool || refX.int >= sizePx.U || refY.int >= sizePx.U) {
+            fifo(index).bits.valid := false.B
+          }
+        }
       }
     }
   }
@@ -288,6 +296,7 @@ class BackgroundRenderer extends Module {
     }
 
     // Render
+    // TODO use affine coordinates
     when (layer(2).active) {
       when (subFetch === 3.U) {
         io.vram.read := true.B
