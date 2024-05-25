@@ -44,7 +44,7 @@ class ARM7TDMI extends Module {
   decodeUnit.io.advancePipeline := control.advancePipeline
   decodeUnit.io.flushPipeline := control.flushPipeline
   decodeUnit.io.readData := io.mem.RDATA
-  decodeUnit.io.readAddress := memAddrReg(1, 0)
+  decodeUnit.io.readAddress := memAddrReg
   decodeUnit.io.thumb := cpsrBus.thumb
 
   ////////////////////////////////////// Control Unit //////////////////////////////////////
@@ -311,6 +311,11 @@ class ARM7TDMI extends Module {
   )
   io.debug.cpsr := cpsr.asUInt
 //  printf(cf" pc is ${pc}%x, addr is ${io.mem.ADDR}%x\n")
+//  printf(cf" r0: ${registers(0)}%x   r1: ${registers(1)}%x   r2: ${registers(2)}%x   r3: ${registers(3)}%x\n")
+//  printf(cf" r4: ${registers(4)}%x   r5: ${registers(5)}%x   r6: ${registers(6)}%x   r7: ${registers(7)}%x\n")
+//  printf(cf" r8: ${registers(8)}%x   r9: ${registers(9)}%x  r10: ${registers(10)}%x  r11: ${registers(11)}%x\n")
+//  printf(cf"r12: ${registers(12)}%x  r13: ${registers(13)}%x  r14: ${registers(14)}%x  r15: ${registers(15)}%x\n")
+//  printf(cf"cpsr: ${cpsr.asUInt}%x\n")
 }
 
 class ConditionFlags extends Bundle {

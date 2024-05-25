@@ -74,6 +74,11 @@ class DecodedInstruction extends Bundle {
   val opcode = UInt(4.W)
   /// Per-instruction flags
   val flags = UInt(7.W)
+
+  // Debug only
+  val debugAddress = UInt(32.W)
+  val debugRaw = UInt(32.W)
+  val debugThumb = Bool()
 }
 
 /// Instruction fetch and decode
@@ -93,7 +98,7 @@ class Decoder extends Module {
     /// Memory read data
     val readData = Input(UInt(32.W))
     /// Memory read address (alignment)
-    val readAddress = Input(UInt(2.W))
+    val readAddress = Input(UInt(32.W))
 
     /// Decoded instruction
     val decoded = Output(new DecodedInstruction)
@@ -112,19 +117,24 @@ class Decoder extends Module {
   }
   val fetchRegValid = RegInit(false.B)
   val fetchReg = Reg(UInt(32.W))
+  val fetchAddrReg = Reg(UInt(32.W))
   when (io.enable && (!io.advancePipeline && isNewFetch)) {
     fetchReg := currentFetch
     fetchRegValid := true.B
+    fetchAddrReg := io.readAddress
   }
   val fetchResult = Mux(isNewFetch, currentFetch, fetchReg)
   val fetchResultValid = Mux(isNewFetch, true.B, fetchRegValid)
+  val fetchAddress = Mux(isNewFetch, io.readAddress, fetchAddrReg)
 
   // Decode stage.
   val decodeReg = Reg(UInt(32.W))
   val decodeRegValid = RegInit(false.B)
+  val decodeAddrReg = Reg(UInt(32.W))
   when (io.enable && io.advancePipeline) {
     decodeReg := fetchResult
     decodeRegValid := fetchResultValid
+    decodeAddrReg := fetchAddress
   }
   val in = decodeReg
 //  printf(cf"decoding ${in}%x, fetching ${fetchResult}%x\n")
@@ -135,6 +145,9 @@ class Decoder extends Module {
   }
 
   val out = io.decoded
+  out.debugRaw := in
+  out.debugThumb := io.thumb
+  out.debugAddress := decodeAddrReg
   out.kind := InstructionKind.Exception
   out.condition := Condition.Al
   out.regN := DontCare

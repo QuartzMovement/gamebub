@@ -144,6 +144,13 @@ class Control extends Module {
         instruction.condition := Condition.Al
       } .otherwise {
         instruction := io.nextInstruction
+
+        // Debug output of each instruction executed
+//        when (io.nextInstruction.debugThumb) {
+//          printf(cf"${io.nextInstruction.debugAddress}%x:  ${io.nextInstruction.debugRaw(15, 0)}%x\n")
+//        } .otherwise {
+//          printf(cf"${io.nextInstruction.debugAddress}%x:  ${io.nextInstruction.debugRaw}%x\n")
+//        }
       }
     }
   }
