@@ -90,6 +90,20 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
         top->eval();
 
         this->cycles++;
+
+//        fprintf(stderr, "cycle=%llu", this->cycles);
+//        if (cycles == 473799) {
+//            size_t size = 256 * 1024;
+//            std::vector<uint8_t> dump;
+//            dump.resize(size);
+//            memcpy(
+//                dump.data(),
+//                reinterpret_cast<uint8_t*>(&this->top->rootp->SimGba__DOT__gba__DOT__ewram__DOT__mem_ext__DOT__Memory),
+//                size
+//            );
+//            write_file("/tmp/dump.bin", dump);
+//            exit(0);
+//        }
     }
 }
 

@@ -453,6 +453,7 @@ class Decoder extends Module {
       out.immediate := in(7, 0) << 2.U
       out.regD := in(10, 8)
       out.regN := 13.U  // SP
+      out.flags := "b001110".U(6.W)
     } .elsewhen (in(15, 12) === "b1010".U(4.W)) {
       // THUMB.12: get relative address
       out.regD := in(10, 8)
