@@ -238,17 +238,19 @@ class BackgroundRenderer extends Module {
 
     // Render
     when (state.active) {
-      // TODO handle different widths: hard-coded to 512x512 (64x64 tiles)
-      val tileX = refX.int(8, 3)
-      val tileY = refY.int(8, 3)
       val subtileX = refX.int(2, 0)
       val subtileY = refY.int(2, 0)
 
       when (subFetch === (subIndex + 0).U) {
         // Fetch tile coordinate
         val screenBlock = Cat(control.screenBase, 0.U(11.W))
-        // TODO handle differing widths
-        val entry = screenBlock + Cat(tileY, tileX)
+        val tileIndex = VecInit(
+          Cat(0.U(3.W), refY.int(6, 3), refX.int(6, 3)),
+          Cat(0.U(2.W), refY.int(7, 3), refX.int(7, 3)),
+          Cat(0.U(1.W), refY.int(8, 3), refX.int(8, 3)),
+          Cat(0.U(0.W), refY.int(9, 3), refX.int(9, 3)),
+        )(control.size)
+        val entry = screenBlock + tileIndex
         io.vram.read := true.B
         io.vram.address := entry >> 1.U
       }
@@ -256,7 +258,7 @@ class BackgroundRenderer extends Module {
         // Use tile coordinate to fetch data
         // Affine always uses 8bpp
         val tileIndex = Mux(
-          tileX(0),
+          refX.int(3),
           io.vram.readData(15, 8),
           io.vram.readData(7, 0),
         )
@@ -279,9 +281,8 @@ class BackgroundRenderer extends Module {
         )
 
         when (!control.affineWrap) {
-          // TODO use correct size
-          val sizePx = 512
-          when (refX.sign.asBool || refY.sign.asBool || refX.int >= sizePx.U || refY.int >= sizePx.U) {
+          val sizePx = (128.U << control.size).asUInt
+          when (refX.sign.asBool || refY.sign.asBool || refX.int >= sizePx || refY.int >= sizePx) {
             fifo(index).bits.valid := false.B
           }
         }
