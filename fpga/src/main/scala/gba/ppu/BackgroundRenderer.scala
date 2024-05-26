@@ -265,7 +265,7 @@ class BackgroundRenderer extends Module {
         io.vram.read := true.B
         io.vram.address := address >> 1.U
       }
-      when (subUse === (subIndex + 1).U) {
+      when (subUse === (subIndex + 1).U && io.tick > 31.U) {
         // Use tile data
         refX := (refX.asUInt + matrix.pa.asUInt).asTypeOf(new AffineReferencePoint)
         refY := (refY.asUInt + matrix.pc.asUInt).asTypeOf(new AffineReferencePoint)
