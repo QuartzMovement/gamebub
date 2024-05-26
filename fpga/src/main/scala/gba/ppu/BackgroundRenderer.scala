@@ -105,8 +105,8 @@ class BackgroundRenderer extends Module {
         layer(i).pos := 0.U
       }
       for (i <- 0 until 2) {
-        val newX = (affXLine(i).asUInt + io.bgAff(i).pb.asUInt).asTypeOf(new AffineReferencePoint)
-        val newY = (affYLine(i).asUInt + io.bgAff(i).pd.asUInt).asTypeOf(new AffineReferencePoint)
+        val newX = (affXLine(i).asUInt.asSInt + io.bgAff(i).pb.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
+        val newY = (affYLine(i).asUInt.asSInt + io.bgAff(i).pd.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
         affX(i) := newX
         affY(i) := newY
         affXLine(i) := newX
@@ -267,8 +267,8 @@ class BackgroundRenderer extends Module {
       }
       when (subUse === (subIndex + 1).U && io.tick > 31.U) {
         // Use tile data
-        refX := (refX.asUInt + matrix.pa.asUInt).asTypeOf(new AffineReferencePoint)
-        refY := (refY.asUInt + matrix.pc.asUInt).asTypeOf(new AffineReferencePoint)
+        refX := (refX.asUInt.asSInt + matrix.pa.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
+        refY := (refY.asUInt.asSInt + matrix.pc.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
 
         fifo(index).valid := true.B
         fifo(index).bits.valid := true.B
