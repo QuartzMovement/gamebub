@@ -150,6 +150,26 @@ class Bus(
           // io.initiatorPort.CLKEN is set above, because isAvailable is true.
         }
       }
+    } .otherwise {
+      when (regAccessSplit && regAccessBusy) {
+        // Over a multi-cycle split access (e.g. multiple wait states within each access),
+        // ensure that the access is continuously put on the target bus.
+        when (regAccessSplitPhase === 0.U) {
+          requestEnable := true.B
+          requestSize := BusAccessWidth.Halfword
+          // Ensure the initial request is aligned to the word (to handle misaligned word requests).
+          requestMask := "b1111".U(4.W)
+          requestAddress := regAccessAddress
+          requestAddressAligned := requestAddress & "hFFFFFFFC".U(32.W)
+        } .otherwise {
+          requestEnable := true.B
+          requestAddress := regAccessAddress | 2.U
+          requestSequential := true.B
+          requestWrite := regAccessWrite
+          requestSize := BusAccessWidth.Halfword
+          requestMask := "b1111".U(4.W)
+        }
+      }
     }
     when (initiatorRequested && isAvailable) {
       requestEnable := true.B

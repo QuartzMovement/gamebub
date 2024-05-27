@@ -318,4 +318,48 @@ class BusSpec extends AnyFunSuite {
       bus.step()
     }
   }
+
+  test("split read with delay") {
+    simulate(makeBus()) { dut =>
+      val bus = new BusHarness(dut)
+
+      // Do a 32-bit read from target C
+      bus.setAccess(address = 0x03_DEF000, size = BusAccessWidth.Word, write = false, sequential = false)
+      assert(bus.getTargetAccess(0).isEmpty)
+      assert(bus.getTargetAccess(1).isEmpty)
+      assert(bus.getTargetAccess(2).contains(TargetAccess(0xDEF000, size = BusAccessWidth.Halfword, write = false, sequential = false)))
+      assert(bus.getClockEn())
+      bus.step(resetAccess = false)
+
+      // Step a few times without being complete
+      dut.io.targetPort(2).done.poke(false)
+      for (_ <- 0 until 3) {
+        assert(!bus.getClockEn())
+        assert(bus.getTargetAccess(2).contains(TargetAccess(0xDEF000, size = BusAccessWidth.Halfword, write = false, sequential = false)))
+        bus.step(resetAccess = false)
+      }
+
+      // Complete the first access.
+      bus.setTargetDone(2, 0x1234)
+      assert(!bus.getClockEn())
+      assert(bus.getTargetAccess(2).contains(TargetAccess(0xDEF002, size = BusAccessWidth.Halfword, write = false, sequential = true)))
+      bus.step(resetAccess = false)
+
+      // Step a few times without being complete
+      dut.io.targetPort(2).done.poke(false)
+      for (_ <- 0 until 3) {
+        assert(!bus.getClockEn())
+        assert(bus.getTargetAccess(2).contains(TargetAccess(0xDEF002, size = BusAccessWidth.Halfword, write = false, sequential = true)))
+        bus.step(resetAccess = false)
+      }
+
+      // Complete and make sure next access works.
+      bus.setTargetDone(2, 0xABCD)
+      assert(bus.getReadData() == 0xABCD1234L)
+      assert(bus.getClockEn())
+      bus.setAccess(address = 0x03_444000, size = BusAccessWidth.Halfword, write = false, sequential = false)
+      assert(bus.getTargetAccess(2).contains(TargetAccess(0x444000, size = BusAccessWidth.Halfword)))
+      bus.step()
+    }
+  }
 }
