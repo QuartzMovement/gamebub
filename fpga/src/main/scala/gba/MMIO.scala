@@ -70,6 +70,21 @@ class MMIO(numTargets: Int) extends Module {
   }
 }
 
+object MMIO {
+  def mask[T <: Data](oldData: T, newData: Data, byteMask: UInt): T = {
+    val width = oldData.getWidth.max(newData.getWidth)
+    val numBytes = (width + 8 - 1) / 8
+    assert(byteMask.getWidth == numBytes, "mask is wrong width")
+
+    val newPad = newData.asUInt.pad(numBytes * 8)
+    val oldPad = oldData.asUInt.pad(numBytes * 8)
+    val newVec = VecInit((0 until numBytes).map(i => newPad(i * 8 + 7, i * 8)))
+    val oldVec = VecInit((0 until numBytes).map(i => oldPad(i * 8 + 7, i * 8)))
+    val combined = VecInit((0 until numBytes).map(i => Mux(byteMask(i), newVec(i), oldVec(i))))
+    combined.asTypeOf(oldData)
+  }
+}
+
 object MmioMap {
   def apply (entries: (Int, Entry)*): MmioTarget = {
     // Ensure addresses are word-aligned and in bounds.
@@ -120,31 +135,15 @@ object MmioMap {
     // Simple write to a register.
     def apply(reg: Data): WriteFn = WriteFn((enable, data, mask) => {
       when (enable) {
-        val newDataVec = VecInit((0 until 4).map(i => data(i * 8 + 7, i * 8)))
-        val oldData = reg.asUInt.pad(32)
-        val oldDataVec = VecInit((0 until 4).map(i => oldData(i * 8 + 7, i * 8)))
-        val combined = VecInit((0 until 4).map(i => Mux(mask(i), newDataVec(i), oldDataVec(i))))
-        reg := combined.asTypeOf(reg)
+        reg := MMIO.mask(reg, data, mask)
       }
     })
 
     // Write to two 16-bit registers.
     def apply(reg0: Data, reg1: Data): WriteFn = WriteFn((enable, data, mask) => {
       when (enable) {
-        {
-          val newDataVec = VecInit((0 until 2).map(i => data(i * 8 + 7, i * 8)))
-          val oldData = reg0.asUInt.pad(16)
-          val oldDataVec = VecInit((0 until 2).map(i => oldData(i * 8 + 7, i * 8)))
-          val combined = VecInit((0 until 2).map(i => Mux(mask(i), newDataVec(i), oldDataVec(i))))
-          reg0 := combined.asTypeOf(reg0)
-        }
-        {
-          val newDataVec = VecInit((2 until 4).map(i => data(i * 8 + 7, i * 8)))
-          val oldData = reg1.asUInt.pad(16)
-          val oldDataVec = VecInit((0 until 2).map(i => oldData(i * 8 + 7, i * 8)))
-          val combined = VecInit((0 until 2).map(i => Mux(mask(i + 2), newDataVec(i), oldDataVec(i))))
-          reg1 := combined.asTypeOf(reg1)
-        }
+        reg0 := MMIO.mask(reg0, data(15, 0), mask(1, 0))
+        reg1 := MMIO.mask(reg1, data(31, 16), mask(3, 2))
       }
     })
 
