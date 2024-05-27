@@ -40,6 +40,10 @@ class Ppu extends Module {
   })
 
   val regDisplayControl = RegInit(0.U.asTypeOf(new PpuRegisters.DisplayControl))
+  val regIrqEnableVblank = RegInit(false.B)
+  val regIrqEnableHblank = RegInit(false.B)
+  val regIrqEnableVcount = RegInit(false.B)
+  val regVcount = RegInit(0.U(8.W))
   val regBgControl = RegInit(VecInit(Seq.fill(4)(0.U.asTypeOf(new PpuRegisters.BackgroundControl))))
   val regBgOffX = RegInit(VecInit(Seq.fill(4)(0.U(16.W))))
   val regBgOffY = RegInit(VecInit(Seq.fill(4)(0.U(16.W))))
@@ -59,6 +63,7 @@ class Ppu extends Module {
 
   val scanline = RegInit(0.U(8.W))
   val tick = RegInit(0.U(11.W))
+  val vcountHit = scanline === regVcount
 
   when (io.enable) {
     when (tick < 1232.U) {
@@ -79,15 +84,38 @@ class Ppu extends Module {
   // I/O registers
   io.mmio <> MmioMap(
     0x0 -> MmioMap.Entry.rw(regDisplayControl),
-    0x4 -> MmioMap.Entry.r({
+    0x4 -> MmioMap.Entry(
       // DISPSTAT and VCOUNT
-      // TODO complete
-      val out = WireDefault(0.U.asTypeOf(new PpuRegisters.DisplayStatus))
-      out.vblank := io.output.vblank
-      out.hblank := io.output.hblank
-      out.scanline := scanline
-      out
-    }),
+      MmioMap.ReadFn(_ => {
+        val status = Wire(new PpuRegisters.DisplayStatus)
+        status.vblank := io.output.vblank
+        status.hblank := io.output.hblank
+        status.vcountHit := vcountHit
+        status.irqVblank := regIrqEnableVblank
+        status.irqHblank := regIrqEnableHblank
+        status.irqVcount := regIrqEnableVcount
+        val data = Cat(
+          0.U(8.W),
+          scanline,
+          regVcount,
+          status.asUInt.pad(8),
+        )
+        (data, true.B)
+      }),
+      MmioMap.WriteFn((enable, data, mask) => {
+        when (enable) {
+          when (mask(0)) {
+            val newData = data(7, 0).asTypeOf(new PpuRegisters.DisplayStatus)
+            regIrqEnableVblank := newData.irqVblank
+            regIrqEnableHblank := newData.irqHblank
+            regIrqEnableVcount := newData.irqVcount
+          }
+          when (mask(1)) {
+            regVcount := data(15, 8)
+          }
+        }
+      })
+    ),
     0x8 -> MmioMap.Entry.rw16(regBgControl(0), regBgControl(1)),
     0xC -> MmioMap.Entry.rw16(regBgControl(2), regBgControl(3)),
     0x10 -> MmioMap.Entry.w16(regBgOffX(0), regBgOffY(0)),
@@ -135,14 +163,14 @@ class Ppu extends Module {
   {
     val lastVblank = RegInit(false.B)
     val lastHblank = RegInit(false.B)
+    val lastVcountHit = RegInit(false.B)
     when (io.enable) {
       lastHblank := io.output.hblank
       lastVblank := io.output.vblank
+      lastVcountHit := vcountHit
     }
-    // TODO: only if these bits are set in DISPSTAT
-    io.irqHblank := io.output.hblank && !lastHblank
-    io.irqVblank := io.output.vblank && !lastVblank
-    // TODO: vcount
-    io.irqVcount := false.B
+    io.irqHblank := regIrqEnableHblank && io.output.hblank && !lastHblank
+    io.irqVblank := regIrqEnableVblank && io.output.vblank && !lastVblank
+    io.irqVcount := regIrqEnableVcount && vcountHit && !lastVcountHit
   }
 }

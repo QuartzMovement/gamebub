@@ -17,12 +17,8 @@ object PpuRegisters {
     val mode = UInt(3.W)
   }
 
+  /// Lower byte of DISPSTAT
   class DisplayStatus extends Bundle {
-    val scanline = UInt(8.W)
-
-    val vcount = UInt(8.W)
-
-    val _padding = UInt(2.W)
     val irqVcount = Bool()
     val irqHblank = Bool()
     val irqVblank = Bool()
