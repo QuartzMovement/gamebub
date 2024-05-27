@@ -50,7 +50,7 @@ class GBA extends Module {
   }
 
   // MMIO Bus
-  val mmio = Module(new MMIO(numTargets = 2))
+  val mmio = Module(new MMIO(numTargets = 3))
   mmio.io.enable := io.enable
   bus.io.targetPort(3) <> mmio.io.mem
 
@@ -74,8 +74,14 @@ class GBA extends Module {
   val cpu = Module(new ARM7TDMI)
   cpu.io.enable := io.enable
   cpu.io.FIQ := false.B
-  cpu.io.IRQ := false.B
   bus.io.initiatorPort <> cpu.io.mem
+
+  // Interrupt manager
+  val interrupt = Module(new Interrupt)
+  interrupt.io.enable := io.enable
+  mmio.targets(0) <> interrupt.io.mmio
+  cpu.io.IRQ := interrupt.io.irq
+  interrupt.io.peripheralIrq := 0.U.asTypeOf(new Interrupt.Flags)
 
   // PPU
   val ppu = Module(new Ppu)
@@ -83,7 +89,10 @@ class GBA extends Module {
   io.ppu := ppu.io.output
   bus.io.targetPort(4) <> ppu.io.paletteRamTarget
   bus.io.targetPort(5) <> ppu.io.vramTarget
-  mmio.targets(0) <> ppu.io.mmio
+  mmio.targets(1) <> ppu.io.mmio
+  interrupt.io.peripheralIrq.vblank := ppu.io.irqVblank
+  interrupt.io.peripheralIrq.hblank := ppu.io.irqHblank
+  interrupt.io.peripheralIrq.vcount := ppu.io.irqVcount
 
   // Temporary OAM (TODO fix and improve and move into PPU)
   val oam = Module(new SimpleRam(1 * 1024, 32.W))
@@ -94,5 +103,5 @@ class GBA extends Module {
   val keypad = Module(new Keypad)
   keypad.io.enable := io.enable
   keypad.io.state := io.keypad
-  mmio.targets(1) <> keypad.io.mmio
+  mmio.targets(2) <> keypad.io.mmio
 }

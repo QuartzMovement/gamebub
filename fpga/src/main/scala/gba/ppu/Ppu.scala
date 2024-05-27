@@ -32,6 +32,11 @@ class Ppu extends Module {
 
     /// MMIO access
     val mmio = new MmioTarget()
+
+    /// Interrupts
+    val irqVblank = Output(Bool())
+    val irqHblank = Output(Bool())
+    val irqVcount = Output(Bool())
   })
 
   val regDisplayControl = RegInit(0.U.asTypeOf(new PpuRegisters.DisplayControl))
@@ -125,4 +130,19 @@ class Ppu extends Module {
   compositor.io.bgFifo <> bgRender.io.pixels
   io.output.valid := compositor.io.valid
   io.output.pixel := compositor.io.pixel
+
+  // IRQs
+  {
+    val lastVblank = RegInit(false.B)
+    val lastHblank = RegInit(false.B)
+    when (io.enable) {
+      lastHblank := io.output.hblank
+      lastVblank := io.output.vblank
+    }
+    // TODO: only if these bits are set in DISPSTAT
+    io.irqHblank := io.output.hblank && !lastHblank
+    io.irqVblank := io.output.vblank && !lastVblank
+    // TODO: vcount
+    io.irqVcount := false.B
+  }
 }
