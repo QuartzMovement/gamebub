@@ -21,7 +21,10 @@ class BackgroundScreenEntry extends Bundle {
 class BackgroundLayerState extends Bundle {
   /// Whether the layer is active during this part of the scanline.
   val active = Bool()
+  /// Output pixel index.
   val pos = UInt(8.W)
+  /// Step in the repeating 16-cycle rendering process.
+  val cycle = UInt(4.W)
   /// For regular tilemaps, the screen entry.
   val screenEntry = new BackgroundScreenEntry()
   /// Queued up tile data (for regular tilemaps)
@@ -97,12 +100,18 @@ class BackgroundRenderer extends Module {
   }
 
   when (io.enable && isVdraw) {
+    for (i <- 0 until 4) {
+      when (layer(i).active) {
+        layer(i).cycle := layer(i).cycle + 1.U
+      }
+    }
     when (io.tick === 1005.U) {
       // Begin HBlank
 //      printf(cf"[BG] hblank for ${io.scanline}\n")
       for (i <- 0 until 4) {
         layer(i).active := false.B
         layer(i).pos := 0.U
+        layer(i).cycle := 0.U
       }
       for (i <- 0 until 2) {
         val newX = (affXLine(i).asUInt.asSInt + io.bgAff(i).pb.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
@@ -291,42 +300,47 @@ class BackgroundRenderer extends Module {
   }
 
   private def renderBitmapLayer(): Unit = {
+    val state = layer(2)
+    val step = state.cycle(1, 0)
+
     // Activate
-    when (io.enable && isVdraw && io.tick === 30.U) {
-      layer(2).active := true.B
+    when (io.enable && isVdraw && io.tick === 33.U) {
+      state.active := true.B
     }
 
     // Render
     // TODO use affine coordinates
-    when (layer(2).active) {
-      when (subFetch === 3.U) {
+    when (state.active) {
+      // Fetch
+      when (step === 0.U) {
         io.vram.read := true.B
         val frameOffset = Mux(io.displayControl.frame === 1.U, (0xA000 / 2).U, 0.U)
         switch (io.displayControl.mode) {
           is (3.U) {
             // 240x160, 16bpp
-            io.vram.address := ((io.scanline * 240.U) + layer(2).pos)
+            io.vram.address := ((io.scanline * 240.U) + state.pos)
           }
           is (4.U) {
             // 240x160, indexed 8bpp
-            io.vram.address := (((io.scanline * 240.U) + layer(2).pos) >> 1).asUInt.pad(16) + frameOffset
+            io.vram.address := (((io.scanline * 240.U) + state.pos) >> 1).asUInt.pad(16) + frameOffset
           }
           is (5.U) {
             // 160x128, 16bpp
-            io.vram.address := ((io.scanline * 160.U) + layer(2).pos) + frameOffset
+            io.vram.address := ((io.scanline * 160.U) + state.pos) + frameOffset
           }
         }
         //      printf(cf"[BG] fetch ${io.vram.address}%x | tick=${io.tick} | scan=${io.scanline} p=${layerPos(2)}  \n")
       }
-      when (subUse === 3.U) {
-        layer(2).pos := layer(2).pos + 1.U
+      // Use
+      when (step === 1.U) {
+        state.pos := state.pos + 1.U
         fifo(2).valid := true.B
         fifo(2).bits.valid := true.B
 
         switch (io.displayControl.mode) {
           is (4.U) {
             fifo(2).bits.color := Mux(
-              layer(2).pos(0) === 0.U,
+              state.pos(0) === 0.U,
               io.vram.readData(7, 0), io.vram.readData(15, 8)
             )
           }
@@ -336,7 +350,7 @@ class BackgroundRenderer extends Module {
             fifo(2).bits.color := io.vram.readData(7, 0)
             fifo(3).bits.color := io.vram.readData(15, 8)
             when (io.displayControl.mode === 5.U) {
-              when (io.scanline >= 128.U || layer(2).pos >= 160.U) {
+              when (io.scanline >= 128.U || state.pos >= 160.U) {
                 fifo(2).bits.valid := false.B
               }
             }
