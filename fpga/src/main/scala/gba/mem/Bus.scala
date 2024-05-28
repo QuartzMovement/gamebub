@@ -60,6 +60,8 @@ class Bus(
   val regAccessWrite = Reg(Bool())
   val regAccessSplit = Reg(Bool())
   val regAccessSplitPhase = Reg(UInt())
+  val regAccessSequential = Reg(Bool())
+  val regAccessSize = Reg(BusAccessWidth())
   /// Whether the active request is completing.
   val accessDone = WireDefault(false.B)
   val regSplitBuffer = Reg(UInt(16.W))
@@ -125,6 +127,14 @@ class Bus(
   io.initiatorPort.CLKEN := isAvailable
   io.initiatorPort.ABORT := false.B
 
+  // During a long access, propagate the current request.
+  when (regAccessBusy && !regAccessSplit && !accessDone) {
+    requestEnable := true.B
+    requestAddress := regAccessAddress
+    requestSequential := regAccessSequential
+    requestSize := regAccessSize
+  }
+
   when (io.enable) {
     when (accessDone) {
       regAccessBusy := false.B
@@ -177,6 +187,8 @@ class Bus(
       regAccessAddress := requestAddressAligned
       regAccessSplit := false.B
       regAccessWrite := requestWrite
+      regAccessSequential := requestSequential
+      regAccessSize := requestSize
 
       when (selectedTargetHalfword && io.initiatorPort.SIZE === BusAccessWidth.Word) {
         regAccessSplit := true.B

@@ -136,12 +136,12 @@ class BusSpec extends AnyFunSuite {
       assert(bus.getTargetAccess(0).contains(TargetAccess(0x0)))
 
       // Clock a few times, check that the request is not satisfied.
-      bus.step()
-      assert(!bus.getClockEn())
-      bus.step()
-      assert(!bus.getClockEn())
-      bus.step()
-      assert(!bus.getClockEn())
+      for (_ <- 0 until 4) {
+        bus.step()
+        bus.setAccess(address = 0x02_000000) // Set a new access somewhere else
+        assert(bus.getTargetAccess(0).contains(TargetAccess(0x0)))
+        assert(!bus.getClockEn())
+      }
 
       // Mark the request as done:
       bus.setTargetDone(0, 0xABCD1234)
