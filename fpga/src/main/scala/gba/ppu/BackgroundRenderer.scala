@@ -22,9 +22,10 @@ class BackgroundLayerState extends Bundle {
   /// Whether the layer is active during this part of the scanline.
   val active = Bool()
   /// Output pixel index.
+  /// TODO: get rid of this altogether once bitmaps use affine rendering
   val pos = UInt(8.W)
-  /// Step in the repeating 16-cycle rendering process.
-  val cycle = UInt(4.W)
+  /// Step in the repeating 32-cycle rendering process.
+  val cycle = UInt(5.W)
   /// For regular tilemaps, the screen entry.
   val screenEntry = new BackgroundScreenEntry()
   /// Queued up tile data (for regular tilemaps)
@@ -70,9 +71,6 @@ class BackgroundRenderer extends Module {
   val affXLine = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
   val affYLine = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
 
-  // Index within a subpixel (0..3) that is being fetched, then is being used.
-  val subFetch = io.tick(1, 0) + 1.U
-  val subUse = io.tick(1, 0) + 0.U
   val isVdraw = io.scanline < 160.U
 
   io.vram.read := false.B
@@ -139,8 +137,8 @@ class BackgroundRenderer extends Module {
     val control = io.bgControl(index)
     val state = layer(index)
     // Activate
-    val start = 30.U - (io.bgOffX(index)(2, 0) << 2).asUInt
-    when (io.enable && isVdraw && io.tick === start) {
+    val startTick = (30 + index).U - (io.bgOffX(index)(2, 0) << 2).asUInt
+    when (io.enable && isVdraw && io.tick === startTick) {
       state.active := true.B
     }
 
@@ -148,11 +146,12 @@ class BackgroundRenderer extends Module {
     when (state.active) {
       val x = state.pos + io.bgOffX(index)
       val y = io.scanline + io.bgOffY(index)
-      val step = state.pos(2, 0)
-      val fetch4bpp = (step(1, 0) === 1.U) && !control.bpp8
-      val fetch8bpp = (step(0) === 1.U) && control.bpp8
-      when (subFetch === index.U) {
-        when (step === 0.U) {
+      val stage = state.cycle(4, 2)
+      val fetch4bpp = (stage(1, 0) === 1.U) && !control.bpp8
+      val fetch8bpp = (stage(0) === 1.U) && control.bpp8
+      // Fetch
+      when (state.cycle(1, 0) === 0.U) {
+        when (stage === 0.U) {
           // Fetch map entry
           // 64KiB of vram for charblocks and screenblocks
           val tileX = x(7, 3)
@@ -172,7 +171,7 @@ class BackgroundRenderer extends Module {
           // Tiles are 32 bytes long
           // (16 bit full address)
           // (2 bits char block) (9 bit tile index (4bpp)) (5 bit byte)
-          val col = step(2) ^ state.screenEntry.flipX
+          val col = stage(2) ^ state.screenEntry.flipX
           val row = Mux(state.screenEntry.flipY, ~y(2, 0), y(2, 0))
           val tile = Cat(control.charBase, 0.U(9.W)) +& state.screenEntry.tile
           val address = Cat(tile, row, col)
@@ -181,7 +180,7 @@ class BackgroundRenderer extends Module {
         }
         when (fetch8bpp) {
           // Tiles are 64 bytes long
-          val col = Mux(state.screenEntry.flipX, ~step(2, 1), step(2, 1))
+          val col = Mux(state.screenEntry.flipX, ~stage(2, 1), stage(2, 1))
           val row = Mux(state.screenEntry.flipY, ~y(2, 0), y(2, 0))
           val tile = Cat(control.charBase, 0.U(8.W)) +& state.screenEntry.tile
           val address = Cat(tile, row, col)
@@ -201,9 +200,10 @@ class BackgroundRenderer extends Module {
           }
         }
       }
-      when (subUse === index.U) {
+      // Use
+      when (state.cycle(1, 0) === 1.U) {
         state.pos := state.pos + 1.U
-        when (step === 0.U) {
+        when (stage === 0.U) {
           state.screenEntry := io.vram.readData.asTypeOf(new BackgroundScreenEntry)
         }
         when (fetch4bpp) {
@@ -235,13 +235,14 @@ class BackgroundRenderer extends Module {
   private def renderAffineLayer(index: Int): Unit = {
     val control = io.bgControl(index)
     val state = layer(index)
+    val step = state.cycle(1, 0)
     val matrix = io.bgAff(index - 2)
     val refX = affX(index - 2)
     val refY = affY(index - 2)
-    val subIndex = if (index == 2) { 2 } else { 0 }
 
     // Activate
-    when (io.enable && isVdraw && io.tick === 30.U) {
+    val startTick = if (index == 2) { 32 } else { 30 }
+    when (io.enable && isVdraw && io.tick === startTick.U) {
       state.active := true.B
     }
 
@@ -250,7 +251,7 @@ class BackgroundRenderer extends Module {
       val subtileX = refX.int(2, 0)
       val subtileY = refY.int(2, 0)
 
-      when (subFetch === (subIndex + 0).U) {
+      when (step === 0.U) {
         // Fetch tile coordinate
         val screenBlock = Cat(control.screenBase, 0.U(11.W))
         val tileIndex = VecInit(
@@ -263,7 +264,7 @@ class BackgroundRenderer extends Module {
         io.vram.read := true.B
         io.vram.address := entry >> 1.U
       }
-      when (subUse === (subIndex + 0).U) {
+      when (step === 1.U) {
         // Use tile coordinate to fetch data
         // Affine always uses 8bpp
         val tileIndex = Mux(
@@ -276,7 +277,7 @@ class BackgroundRenderer extends Module {
         io.vram.read := true.B
         io.vram.address := address >> 1.U
       }
-      when (subUse === (subIndex + 1).U && io.tick > 31.U) {
+      when (step === 2.U) {
         // Use tile data
         refX := (refX.asUInt.asSInt + matrix.pa.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
         refY := (refY.asUInt.asSInt + matrix.pc.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
