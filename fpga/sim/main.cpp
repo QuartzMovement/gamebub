@@ -3,6 +3,7 @@
 #include <vector>
 #include <cstdio>
 #include <cmath>
+#include <getopt.h>
 
 #include <SDL2/SDL.h>
 
@@ -26,15 +27,46 @@ JoypadState read_joypad_state() {
     return joypad;
 }
 
+void print_help() {
+    std::cout << "Usage: sim"
+        << " --bios path/to/bios"
+        << " [rom path]\n";
+    std::exit(1);
+}
+
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::cout << "Usage: sim [rom] [bios]" << std::endl;
-        return 1;
-    }
-    auto cartridge_path = std::filesystem::path(argv[1]);
     std::filesystem::path bios_path;
-    if (argc >= 3) {
-        bios_path = std::filesystem::path(argv[2]);
+    std::filesystem::path rom_path;
+
+    const char* const short_opts = "b:";
+    const option long_opts[] = {
+        {"bios-path", required_argument, nullptr, 'b'},
+        {"help", no_argument, nullptr, 'h'},
+        {nullptr, no_argument, nullptr, 0}
+    };
+
+    while (true) {
+        const auto opt = getopt_long(argc, argv, short_opts, long_opts, nullptr);
+        if (opt == -1) {
+            break;
+        }
+
+        switch (opt) {
+            case 'b':
+                bios_path = optarg;
+                break;
+            case 'h':
+            case '?':
+            default:
+                print_help();
+                break;
+        }
+    }
+    if (optind < argc) {
+        rom_path = argv[optind++];
+    }
+    if (rom_path.empty()) {
+        print_help();
     }
 
     // Initialize SDL.
@@ -42,7 +74,7 @@ int main(int argc, char** argv) {
     Window window(Simulator::width(), Simulator::height());
     Audio audio;
 
-    Simulator simulator(cartridge_path, bios_path);
+    Simulator simulator(rom_path, bios_path);
     simulator.reset();
 
     bool single_step = false;
