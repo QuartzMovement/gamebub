@@ -89,15 +89,11 @@ class GBA extends Module {
   io.ppu := ppu.io.output
   bus.io.targetPort(4) <> ppu.io.paletteRamTarget
   bus.io.targetPort(5) <> ppu.io.vramTarget
+  bus.io.targetPort(6) <> ppu.io.oamTarget
   mmio.targets(1) <> ppu.io.mmio
   interrupt.io.peripheralIrq.vblank := ppu.io.irqVblank
   interrupt.io.peripheralIrq.hblank := ppu.io.irqHblank
   interrupt.io.peripheralIrq.vcount := ppu.io.irqVcount
-
-  // Temporary OAM (TODO fix and improve and move into PPU)
-  val oam = Module(new SimpleRam(1 * 1024, 32.W))
-  oam.io.enable := io.enable
-  bus.io.targetPort(6) <> oam.io.target
 
   // Keypad input
   val keypad = Module(new Keypad)

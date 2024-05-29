@@ -38,6 +38,7 @@ class PpuMem(size: Int, width: Width) extends Module {
     val queuedWriteAddress = Reg(UInt((log2Ceil(size) + 2).W))
     when (io.enable && queuedWrite) {
       // TODO support halfword strobe if width > halfword (OAM)
+      // OAM also apparently doesn't support 8 bit writes? TODO: see what happens
       mem.write(queuedWriteAddress >> 1, io.memTarget.dataWrite)
       queuedWrite := false.B
       io.memTarget.done := true.B

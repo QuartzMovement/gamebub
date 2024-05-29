@@ -12,6 +12,9 @@ class Vram extends Module {
 
     /// PPU read interface for Backgrounds
     val portBG = new PpuMemoryInterface(96 * 1024 / 2, 16.W)
+
+    /// PPU read interface for Objects
+    val portOBJ = new PpuMemoryInterface(32 * 1024 / 2, 16.W)
   })
 
   /// VRAM: 96KiB, 16-bit access without byte strobe.
@@ -20,4 +23,6 @@ class Vram extends Module {
   mem.io.memTarget <> io.memTarget
   /// TODO: Note: actually split into multiple banks for bg/obj
   mem.io.ppuTarget <> io.portBG
+
+  io.portOBJ.readData := 0.U // TODO
 }
