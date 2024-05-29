@@ -25,6 +25,10 @@ class Compositor extends Module {
     val pixel = Output(UInt(15.W))
 
     val bgFifo = Vec(4, Flipped(DecoupledIO(new BackgroundPixel)))
+
+    val objectIndex = Output(UInt(8.W))
+    val objectRead = Output(Bool())
+    val objectData = Input(new ObjectBufferEntry)
   })
   val isBitmap16bpp = io.displayControl.mode === 3.U || io.displayControl.mode === 5.U
 
@@ -34,6 +38,7 @@ class Compositor extends Module {
   }
   io.paletteRam.read := false.B
   io.paletteRam.address := DontCare
+  io.objectRead := false.B
 
   val outX = Reg(UInt(8.W))
   val active = Reg(Bool())
@@ -43,6 +48,7 @@ class Compositor extends Module {
     }
     when (io.tick === 45.U && io.scanline < 160.U) {
       active := true.B
+      io.objectRead := true.B
     }
     when (outX === 240.U) {
       active := false.B
@@ -54,12 +60,11 @@ class Compositor extends Module {
 
   io.valid := false.B
   io.pixel := DontCare
+  io.objectIndex := outX
   when (io.enable && active) {
     switch (subCycle) {
       // Sort layers, fetch top layer palette entry
       is (0.U) {
-        // TODO bring objects
-
         // Pull the next pixel.
         fifoReady := true.B
 
@@ -78,6 +83,11 @@ class Compositor extends Module {
             topLayer.isBg := true.B
           }
         }
+        when (io.objectData.valid) {
+          topLayer.valid := true.B
+          topLayer.color := io.objectData.color
+          topLayer.isBg := false.B
+        }
         regLayerTop := topLayer
 
         // Start palette RAM read 1
@@ -86,7 +96,7 @@ class Compositor extends Module {
             regLayerTop.color := Cat(io.bgFifo(3).bits.color, io.bgFifo(2).bits.color)
           } .otherwise {
             io.paletteRam.read := true.B
-            io.paletteRam.address := topLayer.color
+            io.paletteRam.address := Cat(!topLayer.isBg, topLayer.color(7, 0))
           }
         } .otherwise {
           // No valid layer, use the backdrop (palette index 0)
@@ -109,6 +119,7 @@ class Compositor extends Module {
         io.valid := true.B
         io.pixel := regLayerTop.color
         outX := outX + 1.U
+        io.objectRead := true.B
       }
     }
   }

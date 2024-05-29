@@ -27,6 +27,12 @@ class ObjectAttribute2 extends Bundle {
   val tile = UInt(10.W)
 }
 
+class ObjectBufferEntry extends Bundle {
+  val valid = Bool()
+  val color = UInt(8.W)
+  val priority = UInt(2.W)
+}
+
 class ObjectRenderer extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
@@ -42,6 +48,11 @@ class ObjectRenderer extends Module {
     /// Current cycle in the scanline
     val tick = Input(UInt(11.W))
     val scanline = Input(UInt(8.W))
+
+    /// Compositor access of buffer
+    val bufferIndex = Input(UInt(8.W))
+    val bufferRead = Input(Bool())
+    val bufferData = Output(new ObjectBufferEntry)
   })
 
   io.vram.read := false.B
@@ -49,4 +60,13 @@ class ObjectRenderer extends Module {
 
   io.oam.read := false.B
   io.oam.address := DontCare
+
+  io.bufferData := DontCare
+  io.bufferData.valid := false.B
+
+  // Testing:
+  when (io.bufferIndex > 50.U && io.bufferIndex < 80.U && io.scanline > 100.U && io.scanline < 120.U) {
+    io.bufferData.valid := true.B
+    io.bufferData.color := 1.U
+  }
 }

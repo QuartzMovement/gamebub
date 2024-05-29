@@ -169,6 +169,9 @@ class Ppu extends Module {
   compositor.io.scanline := scanline
   compositor.io.paletteRam <> paletteRam.io.ppuTarget
   compositor.io.bgFifo <> bgRender.io.pixels
+  objRender.io.bufferRead := compositor.io.objectRead
+  objRender.io.bufferIndex := compositor.io.objectIndex
+  compositor.io.objectData := objRender.io.bufferData
   io.output.valid := compositor.io.valid
   io.output.pixel := compositor.io.pixel
 
