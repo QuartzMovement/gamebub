@@ -71,7 +71,7 @@ class Compositor extends Module {
 
         for (i <- (0 until 4).reverse) {
           // TODO background priority
-          when (io.bgFifo(i).bits.valid) {
+          when (io.bgFifo(i).ready && io.bgFifo(i).bits.valid) {
             topLayer.valid := true.B
             topLayer.color := io.bgFifo(i).bits.color
             topLayer.bgIndex := i.U

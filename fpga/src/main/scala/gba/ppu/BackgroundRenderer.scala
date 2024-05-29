@@ -22,7 +22,6 @@ class BackgroundLayerState extends Bundle {
   /// Whether the layer is active during this part of the scanline.
   val active = Bool()
   /// Output pixel index.
-  /// TODO: get rid of this altogether once bitmaps use affine rendering
   val pos = UInt(8.W)
   /// Step in the repeating 32-cycle rendering process.
   val cycle = UInt(5.W)
@@ -299,6 +298,9 @@ class BackgroundRenderer extends Module {
   private def renderBitmapLayer(): Unit = {
     val state = layer(2)
     val step = state.cycle(1, 0)
+    val matrix = io.bgAff(0)
+    val refX = affX(0)
+    val refY = affY(0)
 
     // Activate
     when (io.enable && isVdraw && io.tick === 33.U) {
@@ -306,54 +308,61 @@ class BackgroundRenderer extends Module {
     }
 
     // Render
-    // TODO use affine coordinates
     when (io.enable && state.active) {
       // Fetch
       when (step === 0.U) {
         io.vram.read := true.B
         val frameOffset = Mux(io.displayControl.frame === 1.U, (0xA000 / 2).U, 0.U)
+        // TODO determine if there's a good way to get rid of the multiply by width
         switch (io.displayControl.mode) {
           is (3.U) {
             // 240x160, 16bpp
-            io.vram.address := ((io.scanline * 240.U) + state.pos)
+            io.vram.address := ((refY.int * 240.U) + refX.int)
           }
           is (4.U) {
             // 240x160, indexed 8bpp
-            io.vram.address := (((io.scanline * 240.U) + state.pos) >> 1).asUInt.pad(16) + frameOffset
+            io.vram.address := (((refY.int * 240.U) + refX.int) >> 1).asUInt.pad(16) + frameOffset
           }
           is (5.U) {
             // 160x128, 16bpp
-            io.vram.address := ((io.scanline * 160.U) + state.pos) + frameOffset
+            io.vram.address := ((refY.int * 160.U) + refX.int) + frameOffset
           }
         }
-        //      printf(cf"[BG] fetch ${io.vram.address}%x | tick=${io.tick} | scan=${io.scanline} p=${layerPos(2)}  \n")
       }
       // Use
       when (step === 1.U) {
-        state.pos := state.pos + 1.U
+        refX := (refX.asUInt.asSInt + matrix.pa.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
+        refY := (refY.asUInt.asSInt + matrix.pc.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
+
         fifo(2).valid := true.B
         fifo(2).bits.valid := true.B
 
         switch (io.displayControl.mode) {
           is (4.U) {
             fifo(2).bits.color := Mux(
-              state.pos(0) === 0.U,
+              refX.int(0) === 0.U,
               io.vram.readData(7, 0), io.vram.readData(15, 8)
             )
           }
           is (3.U, 5.U) {
             fifo(3).valid := true.B
+            fifo(3).bits.valid := false.B
 
             fifo(2).bits.color := io.vram.readData(7, 0)
             fifo(3).bits.color := io.vram.readData(15, 8)
-            when (io.displayControl.mode === 5.U) {
-              when (io.scanline >= 128.U || state.pos >= 160.U) {
-                fifo(2).bits.valid := false.B
-              }
-            }
           }
         }
-        //      printf(cf"[BG] inserting pix ${io.vram.readData}\n")
+
+        // Clip sides (always)
+        val widthPx = WireDefault(240.U)
+        val heightPx = WireDefault(160.U)
+        when (io.displayControl.mode === 5.U) {
+          widthPx := 160.U
+          heightPx := 128.U
+        }
+        when (refX.sign.asBool || refY.sign.asBool || refX.int >= widthPx || refY.int >= heightPx) {
+          fifo(2).bits.valid := false.B
+        }
       }
     }
   }
