@@ -143,7 +143,7 @@ class BackgroundRenderer extends Module {
     }
 
     // Render
-    when (state.active) {
+    when (io.enable && state.active) {
       val x = state.pos + io.bgOffX(index)
       val y = io.scanline + io.bgOffY(index)
       val stage = state.cycle(4, 2)
@@ -187,17 +187,13 @@ class BackgroundRenderer extends Module {
           io.vram.read := address < (32 * 1024).U // Reads above 64 KiB return open-bus.
           io.vram.address := address
         }
-        when (state.pos >= 2.U) {
+
+        state.pixels(0) := state.pixels(1)
+        state.pixels(1) := state.pixels(2)
+        state.pixels(2) := state.pixels(3)
+        when (io.tick >= 39.U) {
           fifo(index).valid := true.B
           fifo(index).bits := state.pixels(0)
-          state.pixels(0) := state.pixels(1)
-          state.pixels(1) := state.pixels(2)
-          state.pixels(2) := state.pixels(3)
-
-          when (io.tick < 39.U) {
-            // Discard pixels for shift % 8.
-            fifo(index).valid := false.B
-          }
         }
       }
       // Use
@@ -247,7 +243,7 @@ class BackgroundRenderer extends Module {
     }
 
     // Render
-    when (state.active) {
+    when (io.enable && state.active) {
       val subtileX = refX.int(2, 0)
       val subtileY = refY.int(2, 0)
 
@@ -311,7 +307,7 @@ class BackgroundRenderer extends Module {
 
     // Render
     // TODO use affine coordinates
-    when (state.active) {
+    when (io.enable && state.active) {
       // Fetch
       when (step === 0.U) {
         io.vram.read := true.B
