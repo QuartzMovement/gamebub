@@ -55,18 +55,47 @@ class ObjectRenderer extends Module {
     val bufferData = Output(new ObjectBufferEntry)
   })
 
+  val active = RegInit(false.B)
+  val renderY = Reg(UInt(8.W))
+
+  // Object scanline buffer. 240 entries, times two, rounded to power-of-two.
+  val buffer = SyncReadMem(512, UInt((new ObjectBufferEntry).getWidth.W))
+  val bufferWriteIndex = Wire(UInt(8.W))
+  val bufferWriteData = Wire(new ObjectBufferEntry)
+  val bufferWriteEnable = WireDefault(false.B)
+  val bufferPage = Reg(UInt(1.W))
+  bufferWriteIndex := DontCare
+  bufferWriteData := DontCare
+  io.bufferData := buffer.read(
+    Cat(!bufferPage, io.bufferIndex),
+    io.bufferRead && io.enable
+  ).asTypeOf(new ObjectBufferEntry)
+  when (bufferWriteEnable && io.enable) {
+    buffer.write(Cat(bufferPage, io.bufferIndex), bufferWriteData.asUInt)
+  }
+
+  // Object render activation
+  when (io.enable) {
+    when (active && io.tick === Mux(io.displayControl.hblankFree, 1005.U, 39.U)) {
+//      printf(cf"[${io.scanline} | ${io.tick}] obj done (for ${renderY})\n")
+      active := false.B
+    }
+    when (io.displayControl.enableObj && (io.scanline < 160.U || io.scanline === 227.U) && io.tick === 39.U) {
+//      printf(cf"[${io.scanline} | ${io.tick}] obj activate\n")
+      active := true.B
+      renderY := io.scanline + 1.U
+      when (io.scanline === 227.U) {
+        renderY := 0.U
+      }
+      bufferPage := !bufferPage
+      // TODO reset other state
+    }
+  }
+
+
   io.vram.read := false.B
   io.vram.address := DontCare
 
   io.oam.read := false.B
   io.oam.address := DontCare
-
-  io.bufferData := DontCare
-  io.bufferData.valid := false.B
-
-  // Testing:
-  when (io.bufferIndex > 50.U && io.bufferIndex < 80.U && io.scanline > 100.U && io.scanline < 120.U) {
-    io.bufferData.valid := true.B
-    io.bufferData.color := 1.U
-  }
 }

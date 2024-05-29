@@ -70,11 +70,11 @@ class Ppu extends Module {
   val vcountHit = scanline === regVcount
 
   when (io.enable) {
-    when (tick < 1232.U) {
+    when (tick < (1232 - 1).U) {
       tick := tick + 1.U
     } .otherwise {
       tick := 0.U
-      when (scanline < 228.U) {
+      when (scanline < (228 - 1).U) {
         scanline := scanline + 1.U
       } .otherwise {
         scanline := 0.U
