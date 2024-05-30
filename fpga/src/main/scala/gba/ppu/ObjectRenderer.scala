@@ -71,19 +71,57 @@ class ObjectRenderer extends Module {
   val evenTick = io.tick(0) === 0.U
 
   // Object scanline buffer. 240 entries, times two, rounded to power-of-two.
-  val buffer = SyncReadMem(512, UInt((new ObjectBufferEntry).getWidth.W))
+  // TODO: this absolutely kills simulation performance relative to a SyncReadMem
+  val buffer0 = Reg(Vec(240, UInt((new ObjectBufferEntry).getWidth.W)))
+  val buffer1 = Reg(Vec(240, UInt((new ObjectBufferEntry).getWidth.W)))
   val bufferWriteIndex = Wire(UInt(8.W))
   val bufferWriteData = Wire(new ObjectBufferEntry)
   val bufferWriteEnable = WireDefault(false.B)
   val bufferPage = Reg(UInt(1.W))
   bufferWriteIndex := DontCare
   bufferWriteData := DontCare
-  io.bufferData := buffer.read(
-    Cat(!bufferPage, io.bufferIndex),
-    io.bufferRead && io.enable
-  ).asTypeOf(new ObjectBufferEntry)
+  io.bufferData := Mux(bufferPage === 1.U, buffer0(io.bufferIndex), buffer1(io.bufferIndex)).asTypeOf(new ObjectBufferEntry)
   when (bufferWriteEnable && io.enable) {
-    buffer.write(Cat(bufferPage, io.bufferIndex), bufferWriteData.asUInt)
+    when (bufferPage === 0.U) {
+      buffer0(bufferWriteIndex) := bufferWriteData.asUInt
+    } .otherwise {
+      buffer1(bufferWriteIndex) := bufferWriteData.asUInt
+    }
+  }
+
+  // VRAM fetch and draw
+  io.vram.read := false.B
+  io.vram.address := DontCare
+  val drawObj = Reg(new ObjectAttributeFull)
+  val drawCol = Reg(UInt(7.W))
+  val drawActive = RegInit(false.B)
+  when (io.enable && drawActive) {
+    when (evenTick) {
+      // TODO do a vram fetch
+    } .otherwise {
+      // TODO use the vram fetch
+    }
+
+    // Draw pixels
+    val color = 1.U
+    when (drawCol > 0.U || !evenTick) {
+      val screenX = drawObj.x + drawCol
+      when (screenX < 240.U) {
+        // TODO draw
+        // TODO check if we should overwrite
+        bufferWriteEnable := true.B
+        bufferWriteIndex := screenX
+        bufferWriteData.valid := true.B
+        bufferWriteData.color := color
+      }
+      val nextCol = drawCol + 1.U
+      when (nextCol >> 3.U === drawObj.w) {
+        // Done drawing.
+        drawActive := false.B
+      } .otherwise {
+        drawCol := nextCol
+      }
+    }
   }
 
   // OAM Fetch
@@ -119,7 +157,7 @@ class ObjectRenderer extends Module {
 
       when ((objRow >> 3).asUInt < height && !(attr0.double && !attr0.affine)) {
         // This object is in range, and will be rendered.
-        printf(cf"[${renderY}] obj visible: i=${oamIndex} row=${objRow}\n")
+//        printf(cf"[${renderY}] obj visible: i=${oamIndex} row=${objRow}\n")
         oamStage := 1.U
       } .otherwise {
         oamIndex := oamIndex + 1.U
@@ -130,18 +168,19 @@ class ObjectRenderer extends Module {
       io.oam.read := true.B
       io.oam.address := Cat(oamIndex, 1.U(1.W))
     }
-    // Kick off VRAM fetch stage
+    // Kick off draw stage
     when (oamStage === 1.U && !evenTick) {
       val attr2 = io.oam.readData(15, 0).asTypeOf(new ObjectAttribute2)
       // TODO: pass oamAttrs to VRAM fetch stage
 
+      // Set up draw stage state
+      drawObj := oamAttrs
+      drawCol := 0.U
+      drawActive := true.B
+
       oamStage := 2.U // XXX TEMPORARY: stop here
     }
   }
-
-  // VRAM fetch
-  io.vram.read := false.B
-  io.vram.address := DontCare
 
   // Object render activation
   when (io.enable) {
@@ -157,6 +196,11 @@ class ObjectRenderer extends Module {
         renderY := 0.U
       }
       bufferPage := !bufferPage
+      when (bufferPage === 0.U) {
+        buffer1 := VecInit(Seq.fill(240)(0.U))
+      } .otherwise {
+        buffer0 := VecInit(Seq.fill(240)(0.U))
+      }
       oamIndex := 0.U
       oamStage := 0.U
     }
