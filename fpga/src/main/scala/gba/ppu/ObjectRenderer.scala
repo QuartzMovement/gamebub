@@ -118,9 +118,10 @@ class ObjectRenderer extends Module {
     // Draw pixels
     val tileData = Mux(evenTick, drawData, io.vram.readData)
     val tileVec = tileData.asTypeOf(Vec(4, UInt(4.W)))
-    val color = Cat(drawObj.paletteBank, tileVec(drawCol(1, 0) ^ "b10".U(2.W))) // TODO fix this weird indexing?
-    when (drawCol > 0.U || !evenTick) {
-      val screenX = drawObj.x + drawCol
+    when (drawCol > 0.U) {
+      val drawX = drawCol - 1.U
+      val screenX = drawObj.x + drawX
+      val color = Cat(drawObj.paletteBank, tileVec(drawX(1, 0)))
       when (screenX < 240.U) {
         // TODO draw
         // TODO check if we should overwrite
@@ -129,13 +130,15 @@ class ObjectRenderer extends Module {
         bufferWriteData.valid := color =/= 0.U
         bufferWriteData.color := color
       }
-      val nextCol = drawCol + 1.U
-      when (nextCol >> 3.U === drawObj.w) {
-        // Done drawing.
-        drawActive := false.B
-      } .otherwise {
-        drawCol := nextCol
-      }
+    }
+
+    // Increment draw column or end stage.
+    val nextCol = drawCol + 1.U
+    when ((nextCol - 1.U) >> 3.U === drawObj.w) {
+      // Done drawing.
+      drawActive := false.B
+    } .otherwise {
+      drawCol := nextCol
     }
   }
 
