@@ -121,13 +121,13 @@ class ObjectRenderer extends Module {
     when (drawCol > 0.U) {
       val drawX = drawCol - 1.U
       val screenX = drawObj.x + drawX
-      val color = Cat(drawObj.paletteBank, tileVec(drawX(1, 0)))
+      val paletteEntry = tileVec(drawX(1, 0))
+      val color = Cat(drawObj.paletteBank, paletteEntry)
       when (screenX < 240.U) {
-        // TODO draw
         // TODO check if we should overwrite
         bufferWriteEnable := true.B
         bufferWriteIndex := screenX
-        bufferWriteData.valid := color =/= 0.U
+        bufferWriteData.valid := paletteEntry =/= 0.U
         bufferWriteData.color := color
       }
     }
