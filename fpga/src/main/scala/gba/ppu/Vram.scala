@@ -62,9 +62,9 @@ class Vram extends Module {
 
     // OBJ read
     when (!currObjAddr) {
-      memObjLo.io.ppuTarget.read := io.portBG.read
+      memObjLo.io.ppuTarget.read := io.portOBJ.read
     } .otherwise {
-      memObjHi.io.ppuTarget.read := io.portBG.read
+      memObjHi.io.ppuTarget.read := io.portOBJ.read
     }
     when (!lastObjAddr) {
       io.portOBJ.readData := memObjLo.io.ppuTarget.readData
@@ -99,7 +99,7 @@ class Vram extends Module {
 
     // OBJ read
     when (currObjAddr) {
-      memObjHi.io.ppuTarget.read := io.portBG.read
+      memObjHi.io.ppuTarget.read := io.portOBJ.read
     }
     when (!lastObjAddr) {
       io.portOBJ.readData := 0.U

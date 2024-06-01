@@ -42,6 +42,10 @@ class ObjectAttributeFull extends Bundle {
   val w = UInt(4.W)
   /// Height in tiles (8 pixels)
   val h = UInt(4.W)
+  /// Base tile index
+  val tile = UInt(10.W)
+  val paletteBank = UInt(4.W)
+  val bpp8 = Bool()
 }
 
 class ObjectRenderer extends Module {
@@ -95,15 +99,26 @@ class ObjectRenderer extends Module {
   val drawObj = Reg(new ObjectAttributeFull)
   val drawCol = Reg(UInt(7.W))
   val drawActive = RegInit(false.B)
+  val drawData = Reg(UInt(16.W))
   when (io.enable && drawActive) {
     when (evenTick) {
-      // TODO do a vram fetch
+      // TODO handle bpp8
+      val tileX = drawCol(6, 3)
+      val tileY = drawObj.row(5, 3)
+      val subtileX = drawCol(2, 0)
+      val subtileY = drawObj.row(2, 0)
+      val tile = drawObj.tile + tileX + (tileY << 3.U /* todo based on width */)
+      val offset = Cat(subtileY, subtileX(2))
+      io.vram.read := true.B
+      io.vram.address := Cat(tile, offset)
     } .otherwise {
-      // TODO use the vram fetch
+      drawData := io.vram.readData
     }
 
     // Draw pixels
-    val color = 1.U
+    val tileData = Mux(evenTick, drawData, io.vram.readData)
+    val tileVec = tileData.asTypeOf(Vec(4, UInt(4.W)))
+    val color = Cat(drawObj.paletteBank, tileVec(drawCol(1, 0) ^ "b10".U(2.W))) // TODO fix this weird indexing?
     when (drawCol > 0.U || !evenTick) {
       val screenX = drawObj.x + drawCol
       when (screenX < 240.U) {
@@ -111,7 +126,7 @@ class ObjectRenderer extends Module {
         // TODO check if we should overwrite
         bufferWriteEnable := true.B
         bufferWriteIndex := screenX
-        bufferWriteData.valid := true.B
+        bufferWriteData.valid := color =/= 0.U
         bufferWriteData.color := color
       }
       val nextCol = drawCol + 1.U
@@ -154,6 +169,7 @@ class ObjectRenderer extends Module {
       oamAttrs.row := objRow
       oamAttrs.w := width
       oamAttrs.h := height
+      oamAttrs.bpp8 := attr0.bpp8
 
       when ((objRow >> 3).asUInt < height && !(attr0.double && !attr0.affine)) {
         // This object is in range, and will be rendered.
@@ -171,10 +187,12 @@ class ObjectRenderer extends Module {
     // Kick off draw stage
     when (oamStage === 1.U && !evenTick) {
       val attr2 = io.oam.readData(15, 0).asTypeOf(new ObjectAttribute2)
-      // TODO: pass oamAttrs to VRAM fetch stage
 
       // Set up draw stage state
       drawObj := oamAttrs
+      // TODO: pass oamAttrs to VRAM fetch stage
+      drawObj.tile := attr2.tile
+      drawObj.paletteBank := attr2.paletteBank
       drawCol := 0.U
       drawActive := true.B
 
