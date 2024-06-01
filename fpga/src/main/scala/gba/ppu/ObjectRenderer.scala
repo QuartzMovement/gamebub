@@ -129,7 +129,7 @@ class ObjectRenderer extends Module {
       val tileY = fetchObj.row(5, 3)
       val subtileX = fetchCol(2, 0)
       val subtileY = fetchObj.row(2, 0)
-      val tile = fetchObj.tile + tileX + (tileY << 3.U /* todo based on width */)
+      val tile = fetchObj.tile + tileX + (tileY << OHToUInt(fetchObj.w))
       val offset = Cat(subtileY, subtileX(2))
       io.vram.read := true.B
       io.vram.address := Cat(tile, offset)
@@ -167,6 +167,7 @@ class ObjectRenderer extends Module {
   val oamStage = Reg(UInt(3.W))
   val oamAttrs = Reg(new ObjectAttributeFull)
   when (io.enable && active && allowOam) {
+    val advanceIndex = WireDefault(false.B)
     // Fetch OAM attribute 0 and 1
     when (oamStage === 0.U && evenTick) {
       io.oam.read := true.B
@@ -196,7 +197,7 @@ class ObjectRenderer extends Module {
 //        printf(cf"[${renderY}] obj visible: i=${oamIndex} row=${objRow}\n")
         oamStage := 1.U
       } .otherwise {
-        oamIndex := oamIndex + 1.U
+        advanceIndex := true.B
       }
     }
     // Fetch OAM attribute 2
@@ -210,15 +211,24 @@ class ObjectRenderer extends Module {
 
       // Set up draw stage state
       fetchObj := oamAttrs
-      // TODO: pass oamAttrs to VRAM fetch stage
       fetchObj.tile := attr2.tile
       fetchObj.paletteBank := attr2.paletteBank
       fetchObj.priority := attr2.priority
       fetchCol := 0.U
       fetchActive := true.B
 
-      oamStage := 0.U
-      oamIndex := oamIndex + 1.U
+      advanceIndex := true.B
+    }
+
+    when (advanceIndex) {
+      val nextOamIndex = oamIndex + 1.U
+      when (nextOamIndex === 0.U) {
+        // End of scan
+        oamStage := 2.U
+      } .otherwise {
+        oamStage := 0.U
+        oamIndex := nextOamIndex
+      }
     }
   }
 
@@ -243,6 +253,9 @@ class ObjectRenderer extends Module {
       }
       oamIndex := 0.U
       oamStage := 0.U
+      allowOam := true.B
+      fetchActive := false.B
+      drawCount := 0.U
     }
   }
 
