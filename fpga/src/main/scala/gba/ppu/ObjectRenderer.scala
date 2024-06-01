@@ -28,7 +28,7 @@ class ObjectAttribute2 extends Bundle {
 }
 
 class ObjectBufferEntry extends Bundle {
-  val valid = Bool()
+  val opaque = Bool()
   val color = UInt(8.W)
   val priority = UInt(2.W)
 }
@@ -46,6 +46,7 @@ class ObjectAttributeFull extends Bundle {
   val tile = UInt(10.W)
   val paletteBank = UInt(4.W)
   val bpp8 = Bool()
+  val priority = UInt(2.W)
 }
 
 class ObjectRenderer extends Module {
@@ -93,52 +94,59 @@ class ObjectRenderer extends Module {
     }
   }
 
-  // VRAM fetch and draw
+  // Pixel draw
+  val drawX = Reg(UInt(8.W))
+  val drawCount = RegInit(0.U(2.W))
+  val drawData = Reg(Vec(2, new ObjectBufferEntry))
+  when (io.enable && drawCount > 0.U) {
+    // TODO check if we should overwrite (based on priority)
+    bufferWriteEnable := drawX < 240.U
+    bufferWriteIndex := drawX
+    bufferWriteData := drawData(0)
+    drawData(0) := drawData(1)
+    drawCount := drawCount - 1.U
+    drawX := drawX + 1.U
+  }
+
+  // VRAM fetch
   io.vram.read := false.B
   io.vram.address := DontCare
-  val drawObj = Reg(new ObjectAttributeFull)
-  val drawCol = Reg(UInt(7.W))
-  val drawActive = RegInit(false.B)
-  val drawData = Reg(UInt(16.W))
-  when (io.enable && drawActive) {
+  val fetchObj = Reg(new ObjectAttributeFull)
+  val fetchCol = Reg(UInt(7.W))
+  val fetchActive = RegInit(false.B)
+  when (io.enable && fetchActive) {
     when (evenTick) {
+      // Fetch from VRAM
       // TODO handle bpp8
-      val tileX = drawCol(6, 3)
-      val tileY = drawObj.row(5, 3)
-      val subtileX = drawCol(2, 0)
-      val subtileY = drawObj.row(2, 0)
-      val tile = drawObj.tile + tileX + (tileY << 3.U /* todo based on width */)
+      val tileX = fetchCol(6, 3)
+      val tileY = fetchObj.row(5, 3)
+      val subtileX = fetchCol(2, 0)
+      val subtileY = fetchObj.row(2, 0)
+      val tile = fetchObj.tile + tileX + (tileY << 3.U /* todo based on width */)
       val offset = Cat(subtileY, subtileX(2))
       io.vram.read := true.B
       io.vram.address := Cat(tile, offset)
     } .otherwise {
-      drawData := io.vram.readData
-    }
-
-    // Draw pixels
-    val tileData = Mux(evenTick, drawData, io.vram.readData)
-    val tileVec = tileData.asTypeOf(Vec(4, UInt(4.W)))
-    when (drawCol > 0.U) {
-      val drawX = drawCol - 1.U
-      val screenX = drawObj.x + drawX
-      val paletteEntry = tileVec(drawX(1, 0))
-      val color = Cat(drawObj.paletteBank, paletteEntry)
-      when (screenX < 240.U) {
-        // TODO check if we should overwrite
-        bufferWriteEnable := true.B
-        bufferWriteIndex := screenX
-        bufferWriteData.valid := paletteEntry =/= 0.U
-        bufferWriteData.color := color
+      // Move from VRAM to draw queue
+      // TODO handle bpp8
+      val tileData = io.vram.readData.asTypeOf(Vec(4, UInt(4.W)))
+      drawX := fetchObj.x + fetchCol - 1.U
+      drawCount := 2.U
+      for (i <- 0 until 2) {
+        val color = tileData((fetchCol - (1 - i).U)(1, 0))
+        drawData(i).opaque := color =/= 0.U
+        drawData(i).color := Cat(fetchObj.paletteBank, color)
+        drawData(i).priority := fetchObj.priority
       }
     }
 
     // Increment draw column or end stage.
-    val nextCol = drawCol + 1.U
-    when ((nextCol - 1.U) >> 3.U === drawObj.w) {
+    val nextCol = fetchCol + 1.U
+    when (fetchCol >> 3.U === fetchObj.w) {
       // Done drawing.
-      drawActive := false.B
+      fetchActive := false.B
     } .otherwise {
-      drawCol := nextCol
+      fetchCol := nextCol
     }
   }
 
@@ -192,12 +200,13 @@ class ObjectRenderer extends Module {
       val attr2 = io.oam.readData(15, 0).asTypeOf(new ObjectAttribute2)
 
       // Set up draw stage state
-      drawObj := oamAttrs
+      fetchObj := oamAttrs
       // TODO: pass oamAttrs to VRAM fetch stage
-      drawObj.tile := attr2.tile
-      drawObj.paletteBank := attr2.paletteBank
-      drawCol := 0.U
-      drawActive := true.B
+      fetchObj.tile := attr2.tile
+      fetchObj.paletteBank := attr2.paletteBank
+      fetchObj.priority := attr2.priority
+      fetchCol := 0.U
+      fetchActive := true.B
 
       oamStage := 2.U // XXX TEMPORARY: stop here
     }

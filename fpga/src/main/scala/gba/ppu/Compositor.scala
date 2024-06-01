@@ -83,7 +83,7 @@ class Compositor extends Module {
             topLayer.isBg := true.B
           }
         }
-        when (io.objectData.valid) {
+        when (io.objectData.opaque) {
           topLayer.valid := true.B
           topLayer.color := io.objectData.color
           topLayer.isBg := false.B
