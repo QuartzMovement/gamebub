@@ -82,6 +82,7 @@ class ObjectRenderer extends Module {
   val bufferWriteIndex = Wire(UInt(8.W))
   val bufferWriteData = Wire(new ObjectBufferEntry)
   val bufferWriteEnable = WireDefault(false.B)
+  val bufferWriteReadback = Wire(new ObjectBufferEntry)
   val bufferPage = Reg(UInt(1.W))
   bufferWriteIndex := DontCare
   bufferWriteData := DontCare
@@ -93,14 +94,19 @@ class ObjectRenderer extends Module {
       buffer1(bufferWriteIndex) := bufferWriteData.asUInt
     }
   }
+  when (bufferPage === 0.U) {
+    bufferWriteReadback := buffer0(bufferWriteIndex).asTypeOf(new ObjectBufferEntry)
+  } .otherwise {
+    bufferWriteReadback := buffer1(bufferWriteIndex).asTypeOf(new ObjectBufferEntry)
+  }
 
   // Pixel draw
   val drawX = Reg(UInt(8.W))
   val drawCount = RegInit(0.U(2.W))
   val drawData = Reg(Vec(2, new ObjectBufferEntry))
   when (io.enable && drawCount > 0.U) {
-    // TODO check if we should overwrite (based on priority)
-    bufferWriteEnable := drawX < 240.U
+    bufferWriteEnable := (drawX < 240.U) &&
+      (!bufferWriteReadback.opaque || bufferWriteReadback.priority > bufferWriteData.priority)
     bufferWriteIndex := drawX
     bufferWriteData := drawData(0)
     drawData(0) := drawData(1)
@@ -114,6 +120,7 @@ class ObjectRenderer extends Module {
   val fetchObj = Reg(new ObjectAttributeFull)
   val fetchCol = Reg(UInt(7.W))
   val fetchActive = RegInit(false.B)
+  val allowOam = RegInit(true.B) // Whether the VRAM fetch is blocking OAM fetch
   when (io.enable && fetchActive) {
     when (evenTick) {
       // Fetch from VRAM
@@ -138,6 +145,9 @@ class ObjectRenderer extends Module {
         drawData(i).color := Cat(fetchObj.paletteBank, color)
         drawData(i).priority := fetchObj.priority
       }
+
+      // Allow OAM fetch at the last VRAM fetch cycle.
+      allowOam := ((fetchCol + 3.U) >> 3.U) === fetchObj.w
     }
 
     // Increment draw column or end stage.
@@ -156,8 +166,7 @@ class ObjectRenderer extends Module {
   io.oam.address := DontCare
   val oamStage = Reg(UInt(3.W))
   val oamAttrs = Reg(new ObjectAttributeFull)
-  when (io.enable && active) {
-    // TODO don't do all the steps if VRAM fetcher is active
+  when (io.enable && active && allowOam) {
     // Fetch OAM attribute 0 and 1
     when (oamStage === 0.U && evenTick) {
       io.oam.read := true.B
@@ -208,7 +217,8 @@ class ObjectRenderer extends Module {
       fetchCol := 0.U
       fetchActive := true.B
 
-      oamStage := 2.U // XXX TEMPORARY: stop here
+      oamStage := 0.U
+      oamIndex := oamIndex + 1.U
     }
   }
 
