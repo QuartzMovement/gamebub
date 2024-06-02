@@ -131,7 +131,9 @@ class ObjectRenderer extends Module {
       val tileY = fetchObj.row(5, 3)
       val subtileX = col(2, 0)
       val subtileY = fetchObj.row(2, 0)
-      val tile = fetchObj.tile + tileX + (tileY << OHToUInt(fetchObj.w))
+      // objMapping 1 is 1D, otherwise 2D
+      val tileStride = Mux(io.displayControl.objMapping === 1.U, OHToUInt(fetchObj.w), 5.U)
+      val tile = fetchObj.tile + tileX + (tileY << tileStride)
       val offset = Cat(subtileY, subtileX(2))
       io.vram.read := true.B
       io.vram.address := Cat(tile, offset)
