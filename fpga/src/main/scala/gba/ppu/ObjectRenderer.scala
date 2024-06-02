@@ -186,8 +186,9 @@ class ObjectRenderer extends Module {
       val objRow = renderY.pad(9) - y
 
       // TODO store remaining relevant attributes
+      // TODO handle horizontal flip
       oamAttrs.x := attr1.x
-      oamAttrs.row := objRow
+      oamAttrs.row := Mux(attr1.flipY, objRow ^ ((height << 3.U).asUInt - 1.U), objRow)
       oamAttrs.w := width
       oamAttrs.h := height
       oamAttrs.bpp8 := attr0.bpp8
