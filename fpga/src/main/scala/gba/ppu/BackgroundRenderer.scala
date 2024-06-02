@@ -39,7 +39,7 @@ class BackgroundRenderer extends Module {
     val bgControl = Input(Vec(4, new PpuRegisters.BackgroundControl))
     val bgOffX = Input(Vec(4, UInt(16.W)))
     val bgOffY = Input(Vec(4, UInt(16.W)))
-    val bgAff = Input(Vec(2, new PpuRegisters.BackgroundAffineParams))
+    val bgAff = Input(Vec(2, new PpuRegisters.AffineParams))
     val bgAffX = Input(Vec(2, new PpuRegisters.AffineReferencePoint))
     val bgAffY = Input(Vec(2, new PpuRegisters.AffineReferencePoint))
 

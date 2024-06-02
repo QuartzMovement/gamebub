@@ -46,7 +46,7 @@ object PpuRegisters {
 
   class AffineReferencePoint extends FixedPoint(19) {}
 
-  class BackgroundAffineParams extends Bundle {
+  class AffineParams extends Bundle {
     val pa = new FixedPoint(7)
     val pb = new FixedPoint(7)
     val pc = new FixedPoint(7)

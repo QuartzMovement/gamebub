@@ -48,7 +48,7 @@ class Ppu extends Module {
   val regBgControl = RegInit(VecInit(Seq.fill(4)(0.U.asTypeOf(new PpuRegisters.BackgroundControl))))
   val regBgOffX = RegInit(VecInit(Seq.fill(4)(0.U(16.W))))
   val regBgOffY = RegInit(VecInit(Seq.fill(4)(0.U(16.W))))
-  val regBgAff = RegInit(VecInit(Seq.fill(2)("h0100_0000_0000_0100".U.asTypeOf(new PpuRegisters.BackgroundAffineParams))))
+  val regBgAff = RegInit(VecInit(Seq.fill(2)("h0100_0000_0000_0100".U.asTypeOf(new PpuRegisters.AffineParams))))
   val regBgAffX = RegInit(VecInit(Seq.fill(2)(0.U.asTypeOf(new PpuRegisters.AffineReferencePoint))))
   val regBgAffY = RegInit(VecInit(Seq.fill(2)(0.U.asTypeOf(new PpuRegisters.AffineReferencePoint))))
 

@@ -189,6 +189,7 @@ class ObjectRenderer extends Module {
   val oamStage = Reg(UInt(3.W))
   val oamAttrs = Reg(new ObjectAttributeFull)
   val oamAffineIndex = Reg(UInt(5.W))
+  val oamAffineParams = Reg(new PpuRegisters.AffineParams)
   when (io.enable && active && allowOam) {
     val advanceIndex = WireDefault(false.B)
 
@@ -253,6 +254,56 @@ class ObjectRenderer extends Module {
             advanceIndex := true.B
           }
         }
+      }
+      is (2.U) {
+        // Read affine parameter 0: PA
+        when (evenTick) {
+          io.oam.read := true.B
+          io.oam.address := Cat(oamAffineIndex, 1.U(3.W))
+        } .otherwise {
+          val data = io.oam.readData(31, 16)
+          oamAffineParams.pa := data.asTypeOf(new PpuRegisters.FixedPoint(7))
+          oamStage := 3.U
+        }
+      }
+      is (3.U) {
+        // Read affine parameter 1: PB
+        when (evenTick) {
+          io.oam.read := true.B
+          io.oam.address := Cat(oamAffineIndex, 3.U(3.W))
+        } .otherwise {
+          val data = io.oam.readData(31, 16)
+          oamAffineParams.pb := data.asTypeOf(new PpuRegisters.FixedPoint(7))
+          oamStage := 4.U
+        }
+      }
+      is (4.U) {
+        // Read affine parameter 2: PC
+        when (evenTick) {
+          io.oam.read := true.B
+          io.oam.address := Cat(oamAffineIndex, 5.U(3.W))
+        } .otherwise {
+          val data = io.oam.readData(31, 16)
+          oamAffineParams.pc := data.asTypeOf(new PpuRegisters.FixedPoint(7))
+          oamStage := 5.U
+        }
+      }
+      is (5.U) {
+        // Read affine parameter 3: PD
+        when (evenTick) {
+          io.oam.read := true.B
+          io.oam.address := Cat(oamAffineIndex, 7.U(3.W))
+        } .otherwise {
+          val data = io.oam.readData(31, 16)
+          oamAffineParams.pd := data.asTypeOf(new PpuRegisters.FixedPoint(7))
+          oamStage := 6.U
+        }
+      }
+      is (6.U) {
+
+        // TEMP:
+        printf(cf"[${renderY}] OAM params: a=${oamAffineParams.pa.asUInt}%x b=${oamAffineParams.pb.asUInt}%x c=${oamAffineParams.pc.asUInt}%x d=${oamAffineParams.pd.asUInt}%x\n")
+        oamStage := 7.U
       }
     }
 
