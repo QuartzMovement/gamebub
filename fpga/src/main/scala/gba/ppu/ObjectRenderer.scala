@@ -48,6 +48,7 @@ class ObjectAttributeFull extends Bundle {
   val bpp8 = Bool()
   val priority = UInt(2.W)
   val flipX = Bool()
+  val affine = Bool()
 }
 
 class ObjectRenderer extends Module {
@@ -187,66 +188,79 @@ class ObjectRenderer extends Module {
   io.oam.address := DontCare
   val oamStage = Reg(UInt(3.W))
   val oamAttrs = Reg(new ObjectAttributeFull)
+  val oamAffineIndex = Reg(UInt(5.W))
   when (io.enable && active && allowOam) {
     val advanceIndex = WireDefault(false.B)
-    // Fetch OAM attribute 0 and 1
-    when (oamStage === 0.U && evenTick) {
-      io.oam.read := true.B
-      io.oam.address := Cat(oamIndex, 0.U(1.W))
-    }
-    // Determine if object is visible
-    when (oamStage === 0.U && !evenTick) {
-      val attr0 = io.oam.readData(15, 0).asTypeOf(new ObjectAttribute0)
-      val attr1 = io.oam.readData(31, 16).asTypeOf(new ObjectAttribute1)
-      val (width, height) = getObjectSize(attr0, attr1)
-      val y = Wire(UInt(9.W))
-      y := attr0.y
-      when (attr0.y >= 160.U) {
-        y := attr0.y - 256.U
+
+    switch (oamStage) {
+      is (0.U) {
+        // Fetch OAM attribute 0 and 1
+        when (evenTick) {
+          io.oam.read := true.B
+          io.oam.address := Cat(oamIndex, 0.U(1.W))
+        } .otherwise {
+          val attr0 = io.oam.readData(15, 0).asTypeOf(new ObjectAttribute0)
+          val attr1 = io.oam.readData(31, 16).asTypeOf(new ObjectAttribute1)
+          val (width, height) = getObjectSize(attr0, attr1)
+          val y = Wire(UInt(9.W))
+          y := attr0.y
+          when (attr0.y >= 160.U) {
+            y := attr0.y - 256.U
+          }
+          val objRow = renderY.pad(9) - y
+
+          oamAttrs.x := attr1.x
+          oamAttrs.row := Mux(attr1.flipY, objRow ^ ((height << 3.U).asUInt - 1.U), objRow)
+          oamAttrs.w := width
+          oamAttrs.h := height
+          oamAttrs.bpp8 := attr0.bpp8
+          oamAttrs.flipX := attr1.flipX
+          oamAttrs.affine := attr0.affine
+          oamAffineIndex := Cat(attr1.flipY, attr1.flipX, attr1.affineIndexLo)
+
+          val affineDouble = attr0.affine && attr0.double
+          val inRange = (objRow >> Mux(affineDouble, 4.U, 3.U)).asUInt < height
+          when (inRange && !(attr0.double && !attr0.affine)) {
+            // This object is in range, and will be rendered.
+            //        printf(cf"[${renderY}] obj visible: i=${oamIndex} row=${objRow}\n")
+            oamStage := 1.U
+          } .otherwise {
+            advanceIndex := true.B
+          }
+        }
       }
-      val objRow = renderY.pad(9) - y
+      is (1.U) {
+        // Fetch OAM attribute 2
+        when (evenTick) {
+          io.oam.read := true.B
+          io.oam.address := Cat(oamIndex, 1.U(1.W))
+        } .otherwise {
+          val attr2 = io.oam.readData(15, 0).asTypeOf(new ObjectAttribute2)
 
-      // TODO store remaining relevant attributes
-      oamAttrs.x := attr1.x
-      oamAttrs.row := Mux(attr1.flipY, objRow ^ ((height << 3.U).asUInt - 1.U), objRow)
-      oamAttrs.w := width
-      oamAttrs.h := height
-      oamAttrs.bpp8 := attr0.bpp8
-      oamAttrs.flipX := attr1.flipX
+          // Set up draw stage state
+          fetchObj := oamAttrs
+          fetchObj.tile := attr2.tile
+          fetchObj.paletteBank := attr2.paletteBank
+          fetchObj.priority := attr2.priority
 
-      when ((objRow >> 3).asUInt < height && !(attr0.double && !attr0.affine)) {
-        // This object is in range, and will be rendered.
-//        printf(cf"[${renderY}] obj visible: i=${oamIndex} row=${objRow}\n")
-        oamStage := 1.U
-      } .otherwise {
-        advanceIndex := true.B
+          when (fetchObj.affine) {
+            // Fetch matrix coefficients
+            oamStage := 2.U
+          } .otherwise {
+            // Go to draw stage
+            fetchCol := 0.U
+            fetchActive := true.B
+            advanceIndex := true.B
+          }
+        }
       }
-    }
-    // Fetch OAM attribute 2
-    when (oamStage === 1.U && evenTick) {
-      io.oam.read := true.B
-      io.oam.address := Cat(oamIndex, 1.U(1.W))
-    }
-    // Kick off draw stage
-    when (oamStage === 1.U && !evenTick) {
-      val attr2 = io.oam.readData(15, 0).asTypeOf(new ObjectAttribute2)
-
-      // Set up draw stage state
-      fetchObj := oamAttrs
-      fetchObj.tile := attr2.tile
-      fetchObj.paletteBank := attr2.paletteBank
-      fetchObj.priority := attr2.priority
-      fetchCol := 0.U
-      fetchActive := true.B
-
-      advanceIndex := true.B
     }
 
     when (advanceIndex) {
       val nextOamIndex = oamIndex + 1.U
       when (nextOamIndex === 0.U) {
         // End of scan
-        oamStage := 2.U
+        oamStage := 7.U
       } .otherwise {
         oamStage := 0.U
         oamIndex := nextOamIndex
