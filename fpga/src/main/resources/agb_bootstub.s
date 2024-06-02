@@ -1,7 +1,7 @@
 @ GBA boot stub
-@ 
-@ Sets up proper CPU state before jumping to cartridge entrypoint.
-@ Usable in place of BIOS (or patched in at 0x68, the official BIOS reset vector).
+@
+@ Patched into official BIOS at 0x68 (reset vector). Runs the BIOS initialization,
+@ memory clearing, I/O setup, etc, without doing the boot animation.
 @
 @ From mGBA:
 @   r0: 00000000   r1: 00000000   r2: 00000000   r3: 00000000
@@ -13,20 +13,16 @@
 .arm
 .align 4
 
-mov r0, #0x3000000
-orr r0, r0, #0x7f00
-msr cpsr_fc, #0x11     @ FIQ
-mov sp, r0
-msr cpsr_fc, #0x12     @ IRQ
-orr sp, r0, #0xA0
-msr cpsr_fc, #0x13     @ SVC
-orr sp, r0, #0xE0
-msr cpsr_fc, #0x17     @ ABT
-mov sp, r0
-msr cpsr_fc, #0x1B     @ UND
-mov sp, r0
-msr cpsr_fc, #0x1F     @ System
-mov sp, r0
-mov r0, #0
-mov lr, #0x8000000
-mov pc, lr
+@ Disable interrupts (set REG_IME to 0)
+ldr		r3, =0x04000208
+mov		r2, #0
+strb	r2, [r3, #0]
+
+@ Setup stack pointer
+ldr		r1, =0x03007f00
+mov		sp, r1
+
+@ Call BIOS 'RegisterRamReset'
+swi		1
+@ Call BIOS 'SoftReset'
+swi		0
