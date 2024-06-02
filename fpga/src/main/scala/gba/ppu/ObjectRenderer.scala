@@ -47,6 +47,7 @@ class ObjectAttributeFull extends Bundle {
   val paletteBank = UInt(4.W)
   val bpp8 = Bool()
   val priority = UInt(2.W)
+  val flipX = Bool()
 }
 
 class ObjectRenderer extends Module {
@@ -125,9 +126,10 @@ class ObjectRenderer extends Module {
     when (evenTick) {
       // Fetch from VRAM
       // TODO handle bpp8
-      val tileX = fetchCol(6, 3)
+      val col = Mux(fetchObj.flipX, fetchCol ^ ((fetchObj.w << 3.U).asUInt - 1.U), fetchCol)
+      val tileX = col(6, 3)
       val tileY = fetchObj.row(5, 3)
-      val subtileX = fetchCol(2, 0)
+      val subtileX = col(2, 0)
       val subtileY = fetchObj.row(2, 0)
       val tile = fetchObj.tile + tileX + (tileY << OHToUInt(fetchObj.w))
       val offset = Cat(subtileY, subtileX(2))
@@ -140,7 +142,8 @@ class ObjectRenderer extends Module {
       drawX := fetchObj.x + fetchCol - 1.U
       drawCount := 2.U
       for (i <- 0 until 2) {
-        val color = tileData((fetchCol - (1 - i).U)(1, 0))
+        val subtileCol = (fetchCol - (1 - i).U)(1, 0)
+        val color = tileData(Mux(fetchObj.flipX, (~subtileCol).asUInt, subtileCol))
         drawData(i).opaque := color =/= 0.U
         drawData(i).color := Cat(fetchObj.paletteBank, color)
         drawData(i).priority := fetchObj.priority
@@ -186,12 +189,12 @@ class ObjectRenderer extends Module {
       val objRow = renderY.pad(9) - y
 
       // TODO store remaining relevant attributes
-      // TODO handle horizontal flip
       oamAttrs.x := attr1.x
       oamAttrs.row := Mux(attr1.flipY, objRow ^ ((height << 3.U).asUInt - 1.U), objRow)
       oamAttrs.w := width
       oamAttrs.h := height
       oamAttrs.bpp8 := attr0.bpp8
+      oamAttrs.flipX := attr1.flipX
 
       when ((objRow >> 3).asUInt < height && !(attr0.double && !attr0.affine)) {
         // This object is in range, and will be rendered.
