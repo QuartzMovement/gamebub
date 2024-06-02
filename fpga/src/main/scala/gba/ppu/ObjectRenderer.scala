@@ -125,7 +125,6 @@ class ObjectRenderer extends Module {
   when (io.enable && fetchActive) {
     when (evenTick) {
       // Fetch from VRAM
-      // TODO handle bpp8
       val col = Mux(fetchObj.flipX, fetchCol ^ ((fetchObj.w << 3.U).asUInt - 1.U), fetchCol)
       val tileX = col(6, 3)
       val tileY = fetchObj.row(5, 3)
@@ -133,22 +132,39 @@ class ObjectRenderer extends Module {
       val subtileY = fetchObj.row(2, 0)
       // objMapping 1 is 1D, otherwise 2D
       val tileStride = Mux(io.displayControl.objMapping === 1.U, OHToUInt(fetchObj.w), 5.U)
-      val tile = fetchObj.tile + tileX + (tileY << tileStride)
-      val offset = Cat(subtileY, subtileX(2))
+      val tileOffset = tileX + (tileY << tileStride)
       io.vram.read := true.B
-      io.vram.address := Cat(tile, offset)
+      when (fetchObj.bpp8) {
+        // 8BPP tiles are 0x40 bytes long, but fetchObj.tile is always in multiples of 0x20 bytes.
+        val subtile = Cat(subtileY, subtileX(2, 1))
+        io.vram.address := Cat(tileOffset, subtile) + Cat(fetchObj.tile, 0.U(4.W))
+      } .otherwise {
+        val tile = fetchObj.tile + tileOffset
+        val subtile = Cat(subtileY, subtileX(2))
+        io.vram.address := Cat(tile, subtile)
+      }
     } .otherwise {
       // Move from VRAM to draw queue
-      // TODO handle bpp8
-      val tileData = io.vram.readData.asTypeOf(Vec(4, UInt(4.W)))
       drawX := fetchObj.x + fetchCol - 1.U
       drawCount := 2.U
-      for (i <- 0 until 2) {
-        val subtileCol = (fetchCol - (1 - i).U)(1, 0)
-        val color = tileData(Mux(fetchObj.flipX, (~subtileCol).asUInt, subtileCol))
-        drawData(i).opaque := color =/= 0.U
-        drawData(i).color := Cat(fetchObj.paletteBank, color)
-        drawData(i).priority := fetchObj.priority
+
+      when (fetchObj.bpp8) {
+        val tileData = io.vram.readData.asTypeOf(Vec(2, UInt(8.W)))
+        for (i <- 0 until 2) {
+          val color = tileData(i.U ^ fetchObj.flipX)
+          drawData(i).opaque := color =/= 0.U
+          drawData(i).color := color
+          drawData(i).priority := fetchObj.priority
+        }
+      } .otherwise {
+        val tileData = io.vram.readData.asTypeOf(Vec(4, UInt(4.W)))
+        for (i <- 0 until 2) {
+          val subtileCol = Cat(fetchCol(1), i.U(1.W))
+          val color = tileData(Mux(fetchObj.flipX, (~subtileCol).asUInt, subtileCol))
+          drawData(i).opaque := color =/= 0.U
+          drawData(i).color := Cat(fetchObj.paletteBank, color)
+          drawData(i).priority := fetchObj.priority
+        }
       }
 
       // Allow OAM fetch at the last VRAM fetch cycle.
