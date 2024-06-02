@@ -40,8 +40,8 @@ class PpuMem(size: Int, width: Width) extends Module {
     val queuedWriteMask = Reg(UInt((width.get / 8).W))
     when (io.enable && queuedWrite) {
       val mask = if (width == 32.W) {
-        // TODO verify this is the correct 8-bit write behavior for OAM
-        Seq(queuedWriteMask(3) || queuedWriteMask(2), queuedWriteMask(1) || queuedWriteMask(0))
+        // TODO verify this is the correct 8-bit write behavior for OAM. It might just ignore 8-bit writes?
+        Seq(queuedWriteMask(0) || queuedWriteMask(1), queuedWriteMask(2) || queuedWriteMask(3))
       } else {
         Seq(true.B)
       }
