@@ -128,22 +128,28 @@ class ObjectRenderer extends Module {
   val fetchAffY = Reg(new AffineReferencePoint)
   val fetchAffineParams = Reg(new PpuRegisters.AffineParams)
   when (io.enable && fetchActive) {
+    val col = Wire(UInt(16.W))
+    val row = Wire(UInt(16.W))
     val tileX = Wire(UInt(4.W))
     val tileY = Wire(UInt(4.W))
     val subtileX = Wire(UInt(3.W))
     val subtileY = Wire(UInt(3.W))
     when (!fetchObj.affine) {
-      val col = Mux(fetchObj.flipX, fetchCol ^ ((fetchObj.w << 3.U).asUInt - 1.U), fetchCol)
+      col := Mux(fetchObj.flipX, fetchCol ^ ((fetchObj.w << 3.U).asUInt - 1.U), fetchCol)
+      row := fetchObj.row
       tileX := col(6, 3)
-      tileY := fetchObj.row(5, 3)
+      tileY := row(5, 3)
       subtileX := col(2, 0)
-      subtileY := fetchObj.row(2, 0)
+      subtileY := row(2, 0)
     } .otherwise {
-      tileX := fetchAffX.int(6, 3)
-      tileY := fetchAffY.int(6, 3)
-      subtileX := fetchAffX.int(2, 0)
-      subtileY := fetchAffY.int(2, 0)
+      col := fetchAffX.int + (fetchObj.w << 2).asUInt
+      row := fetchAffY.int + (fetchObj.h << 2).asUInt
+      tileX := col(6, 3)
+      tileY := row(6, 3)
+      subtileX := col(2, 0)
+      subtileY := row(2, 0)
     }
+//    printf(cf"[$renderY][t=${io.tick}] - x=$col y=$row\n")
 
     when (evenTick) {
       // Fetch from VRAM
@@ -187,6 +193,7 @@ class ObjectRenderer extends Module {
       } .otherwise {
         drawX := fetchObj.x + fetchCol
         drawCount := 1.U
+        // TODO: if outside of sprite render area, make transparent
         when (fetchObj.bpp8) {
           // TODO check
           val tileData = io.vram.readData.asTypeOf(Vec(2, UInt(8.W)))
@@ -349,8 +356,16 @@ class ObjectRenderer extends Module {
 
           // TODO handle double-size affine
           // TODO, make more efficient? pipelineable?
-          fetchAffX := (fetchAffineParams.pb.asUInt.asSInt * oamAttrs.row).asTypeOf(new AffineReferencePoint)
-          fetchAffY := (fetchAffineParams.pd.asUInt.asSInt * oamAttrs.row).asTypeOf(new AffineReferencePoint)
+          val halfwidth = (fetchObj.w << 2).asUInt.zext
+          val halfheight = (fetchObj.h << 2).asUInt.zext
+          fetchAffX := (
+            (fetchAffineParams.pb.asUInt.asSInt * (oamAttrs.row.zext - halfheight)) -&
+              (fetchAffineParams.pa.asUInt.asSInt * halfwidth)
+          ).asTypeOf(new AffineReferencePoint)
+          fetchAffY := (
+            (fetchAffineParams.pd.asUInt.asSInt * (oamAttrs.row.zext - halfheight)) -&
+              (fetchAffineParams.pc.asUInt.asSInt * halfwidth)
+          ).asTypeOf(new AffineReferencePoint)
         }
       }
     }
