@@ -162,9 +162,9 @@ class ObjectRenderer extends Module {
       }
     } .otherwise {
       // Move from VRAM to draw queue
-      drawX := fetchObj.x + fetchCol - 1.U
 
       when (!fetchObj.affine) {
+        drawX := fetchObj.x + fetchCol - 1.U
         drawCount := 2.U
         when (fetchObj.bpp8) {
           val tileData = io.vram.readData.asTypeOf(Vec(2, UInt(8.W)))
@@ -185,6 +185,7 @@ class ObjectRenderer extends Module {
           }
         }
       } .otherwise {
+        drawX := fetchObj.x + fetchCol
         drawCount := 1.U
         when (fetchObj.bpp8) {
           // TODO check
