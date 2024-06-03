@@ -2,6 +2,7 @@ package gba.ppu
 
 import chisel3._
 import chisel3.util._
+import gba.ppu.PpuRegisters.AffineReferencePoint
 
 class ObjectAttribute0 extends Bundle {
   val shape = UInt(2.W)
@@ -123,14 +124,29 @@ class ObjectRenderer extends Module {
   val fetchCol = Reg(UInt(7.W))
   val fetchActive = RegInit(false.B)
   val allowOam = RegInit(true.B) // Whether the VRAM fetch is blocking OAM fetch
+  val fetchAffX = Reg(new AffineReferencePoint)
+  val fetchAffY = Reg(new AffineReferencePoint)
+  val fetchAffineParams = Reg(new PpuRegisters.AffineParams)
   when (io.enable && fetchActive) {
+    val tileX = Wire(UInt(4.W))
+    val tileY = Wire(UInt(4.W))
+    val subtileX = Wire(UInt(3.W))
+    val subtileY = Wire(UInt(3.W))
+    when (!fetchObj.affine) {
+      val col = Mux(fetchObj.flipX, fetchCol ^ ((fetchObj.w << 3.U).asUInt - 1.U), fetchCol)
+      tileX := col(6, 3)
+      tileY := fetchObj.row(5, 3)
+      subtileX := col(2, 0)
+      subtileY := fetchObj.row(2, 0)
+    } .otherwise {
+      tileX := fetchAffX.int(6, 3)
+      tileY := fetchAffY.int(6, 3)
+      subtileX := fetchAffX.int(2, 0)
+      subtileY := fetchAffY.int(2, 0)
+    }
+
     when (evenTick) {
       // Fetch from VRAM
-      val col = Mux(fetchObj.flipX, fetchCol ^ ((fetchObj.w << 3.U).asUInt - 1.U), fetchCol)
-      val tileX = col(6, 3)
-      val tileY = fetchObj.row(5, 3)
-      val subtileX = col(2, 0)
-      val subtileY = fetchObj.row(2, 0)
       // objMapping 1 is 1D, otherwise 2D
       val tileStride = Mux(io.displayControl.objMapping === 1.U, OHToUInt(fetchObj.w), 5.U)
       val tileOffset = tileX + (tileY << tileStride)
@@ -147,25 +163,46 @@ class ObjectRenderer extends Module {
     } .otherwise {
       // Move from VRAM to draw queue
       drawX := fetchObj.x + fetchCol - 1.U
-      drawCount := 2.U
 
-      when (fetchObj.bpp8) {
-        val tileData = io.vram.readData.asTypeOf(Vec(2, UInt(8.W)))
-        for (i <- 0 until 2) {
-          val color = tileData(i.U ^ fetchObj.flipX)
-          drawData(i).opaque := color =/= 0.U
-          drawData(i).color := color
-          drawData(i).priority := fetchObj.priority
+      when (!fetchObj.affine) {
+        drawCount := 2.U
+        when (fetchObj.bpp8) {
+          val tileData = io.vram.readData.asTypeOf(Vec(2, UInt(8.W)))
+          for (i <- 0 until 2) {
+            val color = tileData(i.U ^ fetchObj.flipX)
+            drawData(i).opaque := color =/= 0.U
+            drawData(i).color := color
+            drawData(i).priority := fetchObj.priority
+          }
+        } .otherwise {
+          val tileData = io.vram.readData.asTypeOf(Vec(4, UInt(4.W)))
+          for (i <- 0 until 2) {
+            val subtileCol = Cat(fetchCol(1), i.U(1.W))
+            val color = tileData(Mux(fetchObj.flipX, (~subtileCol).asUInt, subtileCol))
+            drawData(i).opaque := color =/= 0.U
+            drawData(i).color := Cat(fetchObj.paletteBank, color)
+            drawData(i).priority := fetchObj.priority
+          }
         }
       } .otherwise {
-        val tileData = io.vram.readData.asTypeOf(Vec(4, UInt(4.W)))
-        for (i <- 0 until 2) {
-          val subtileCol = Cat(fetchCol(1), i.U(1.W))
-          val color = tileData(Mux(fetchObj.flipX, (~subtileCol).asUInt, subtileCol))
-          drawData(i).opaque := color =/= 0.U
-          drawData(i).color := Cat(fetchObj.paletteBank, color)
-          drawData(i).priority := fetchObj.priority
+        drawCount := 1.U
+        when (fetchObj.bpp8) {
+          // TODO check
+          val tileData = io.vram.readData.asTypeOf(Vec(2, UInt(8.W)))
+          val color = tileData(subtileX(0))
+          drawData(0).opaque := color =/= 0.U
+          drawData(0).color := color
+          drawData(0).priority := fetchObj.priority
+        } .otherwise {
+          val tileData = io.vram.readData.asTypeOf(Vec(4, UInt(4.W)))
+          val color = tileData(subtileX(1, 0))
+          drawData(0).opaque := color =/= 0.U
+          drawData(0).color := Cat(fetchObj.paletteBank, color)
+          drawData(0).priority := fetchObj.priority
         }
+
+        fetchAffX := (fetchAffX.asUInt.asSInt + fetchAffineParams.pa.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
+        fetchAffY := (fetchAffY.asUInt.asSInt + fetchAffineParams.pc.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
       }
 
       // Allow OAM fetch at the last VRAM fetch cycle.
@@ -173,7 +210,7 @@ class ObjectRenderer extends Module {
     }
 
     // Increment draw column or end stage.
-    val nextCol = fetchCol + 1.U
+    val nextCol = fetchCol + (!fetchObj.affine || !evenTick).asUInt
     when (fetchCol >> 3.U === fetchObj.w) {
       // Done drawing.
       fetchActive := false.B
@@ -189,7 +226,6 @@ class ObjectRenderer extends Module {
   val oamStage = Reg(UInt(3.W))
   val oamAttrs = Reg(new ObjectAttributeFull)
   val oamAffineIndex = Reg(UInt(5.W))
-  val oamAffineParams = Reg(new PpuRegisters.AffineParams)
   when (io.enable && active && allowOam) {
     val advanceIndex = WireDefault(false.B)
 
@@ -211,7 +247,7 @@ class ObjectRenderer extends Module {
           val objRow = renderY.pad(9) - y
 
           oamAttrs.x := attr1.x
-          oamAttrs.row := Mux(attr1.flipY, objRow ^ ((height << 3.U).asUInt - 1.U), objRow)
+          oamAttrs.row := Mux(attr1.flipY && !attr0.affine, objRow ^ ((height << 3.U).asUInt - 1.U), objRow)
           oamAttrs.w := width
           oamAttrs.h := height
           oamAttrs.bpp8 := attr0.bpp8
@@ -262,7 +298,7 @@ class ObjectRenderer extends Module {
           io.oam.address := Cat(oamAffineIndex, 1.U(3.W))
         } .otherwise {
           val data = io.oam.readData(31, 16)
-          oamAffineParams.pa := data.asTypeOf(new PpuRegisters.FixedPoint(7))
+          fetchAffineParams.pa := data.asTypeOf(new PpuRegisters.FixedPoint(7))
           oamStage := 3.U
         }
       }
@@ -273,7 +309,7 @@ class ObjectRenderer extends Module {
           io.oam.address := Cat(oamAffineIndex, 3.U(3.W))
         } .otherwise {
           val data = io.oam.readData(31, 16)
-          oamAffineParams.pb := data.asTypeOf(new PpuRegisters.FixedPoint(7))
+          fetchAffineParams.pb := data.asTypeOf(new PpuRegisters.FixedPoint(7))
           oamStage := 4.U
         }
       }
@@ -284,7 +320,7 @@ class ObjectRenderer extends Module {
           io.oam.address := Cat(oamAffineIndex, 5.U(3.W))
         } .otherwise {
           val data = io.oam.readData(31, 16)
-          oamAffineParams.pc := data.asTypeOf(new PpuRegisters.FixedPoint(7))
+          fetchAffineParams.pc := data.asTypeOf(new PpuRegisters.FixedPoint(7))
           oamStage := 5.U
         }
       }
@@ -295,15 +331,22 @@ class ObjectRenderer extends Module {
           io.oam.address := Cat(oamAffineIndex, 7.U(3.W))
         } .otherwise {
           val data = io.oam.readData(31, 16)
-          oamAffineParams.pd := data.asTypeOf(new PpuRegisters.FixedPoint(7))
+          fetchAffineParams.pd := data.asTypeOf(new PpuRegisters.FixedPoint(7))
           oamStage := 6.U
         }
       }
       is (6.U) {
+        // Go to draw stage
+        when (!evenTick) {
+          fetchCol := 0.U
+          fetchActive := true.B
+          advanceIndex := true.B
 
-        // TEMP:
-        printf(cf"[${renderY}] OAM params: a=${oamAffineParams.pa.asUInt}%x b=${oamAffineParams.pb.asUInt}%x c=${oamAffineParams.pc.asUInt}%x d=${oamAffineParams.pd.asUInt}%x\n")
-        oamStage := 7.U
+          // TODO handle double-size affine
+          // TODO, make more efficient? pipelineable?
+          fetchAffX := (fetchAffineParams.pb.asUInt.asSInt * oamAttrs.row).asTypeOf(new AffineReferencePoint)
+          fetchAffY := (fetchAffineParams.pd.asUInt.asSInt * oamAttrs.row).asTypeOf(new AffineReferencePoint)
+        }
       }
     }
 
