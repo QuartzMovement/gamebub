@@ -149,7 +149,6 @@ class ObjectRenderer extends Module {
       subtileX := col(2, 0)
       subtileY := row(2, 0)
     }
-//    printf(cf"[$renderY][t=${io.tick}] - x=$col y=$row\n")
 
     when (evenTick) {
       // Fetch from VRAM
@@ -191,20 +190,21 @@ class ObjectRenderer extends Module {
           }
         }
       } .otherwise {
+        // Bounds check only needs to consider positive numbers, as negative numbers will be way out of bounds.
+        val inBounds = (col < (fetchObj.w << 3.U).asUInt) && (row < (fetchObj.h << 3.U).asUInt)
         drawX := fetchObj.x + fetchCol
         drawCount := 1.U
-        // TODO: if outside of sprite render area, make transparent
+
         when (fetchObj.bpp8) {
-          // TODO check
           val tileData = io.vram.readData.asTypeOf(Vec(2, UInt(8.W)))
           val color = tileData(subtileX(0))
-          drawData(0).opaque := color =/= 0.U
+          drawData(0).opaque := inBounds && (color =/= 0.U)
           drawData(0).color := color
           drawData(0).priority := fetchObj.priority
         } .otherwise {
           val tileData = io.vram.readData.asTypeOf(Vec(4, UInt(4.W)))
           val color = tileData(subtileX(1, 0))
-          drawData(0).opaque := color =/= 0.U
+          drawData(0).opaque := inBounds && (color =/= 0.U)
           drawData(0).color := Cat(fetchObj.paletteBank, color)
           drawData(0).priority := fetchObj.priority
         }
@@ -361,11 +361,11 @@ class ObjectRenderer extends Module {
           fetchAffX := (
             (fetchAffineParams.pb.asUInt.asSInt * (oamAttrs.row.zext - halfheight)) -&
               (fetchAffineParams.pa.asUInt.asSInt * halfwidth)
-          ).asTypeOf(new AffineReferencePoint)
+          ).pad((new AffineReferencePoint).getWidth).asTypeOf(new AffineReferencePoint)
           fetchAffY := (
             (fetchAffineParams.pd.asUInt.asSInt * (oamAttrs.row.zext - halfheight)) -&
               (fetchAffineParams.pc.asUInt.asSInt * halfwidth)
-          ).asTypeOf(new AffineReferencePoint)
+          ).pad((new AffineReferencePoint).getWidth).asTypeOf(new AffineReferencePoint)
         }
       }
     }
