@@ -255,12 +255,7 @@ class ObjectRenderer extends Module {
           val attr0 = io.oam.readData(15, 0).asTypeOf(new ObjectAttribute0)
           val attr1 = io.oam.readData(31, 16).asTypeOf(new ObjectAttribute1)
           val (width, height) = getObjectSize(attr0, attr1)
-          val y = Wire(UInt(9.W))
-          y := attr0.y
-          when (attr0.y >= 160.U) {
-            y := attr0.y - 256.U
-          }
-          val objRow = renderY.pad(9) - y
+          val objRow = (renderY -& attr0.y)(7, 0)
 
           oamAttrs.x := attr1.x
           oamAttrs.row := Mux(attr1.flipY && !attr0.affine, objRow ^ ((height << 3.U).asUInt - 1.U), objRow)
@@ -273,10 +268,11 @@ class ObjectRenderer extends Module {
           oamAttrs.affine := attr0.affine
           oamAffineIndex := Cat(attr1.flipY, attr1.flipX, attr1.affineIndexLo)
 
-          val inRange = (objRow >> Mux(attr0.double, 4.U, 3.U)).asUInt < height
+          val boundingH = Mux(attr0.double, height << 4, height << 3).asUInt
+          val yMax = attr0.y + boundingH
+          val inRange = (renderY >= attr0.y || yMax < attr0.y) && renderY < yMax
           when (inRange && !(attr0.double && !attr0.affine)) {
             // This object is in range, and will be rendered.
-            //        printf(cf"[${renderY}] obj visible: i=${oamIndex} row=${objRow}\n")
             oamStage := 1.U
           } .otherwise {
             advanceIndex := true.B
