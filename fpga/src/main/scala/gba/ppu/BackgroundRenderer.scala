@@ -257,7 +257,7 @@ class BackgroundRenderer extends Module {
         )(control.size)
         val entry = screenBlock + tileIndex
         io.vram.read := true.B
-        io.vram.address := entry >> 1.U
+        io.vram.address := entry >> 1
       }
       when (step === 1.U) {
         // Use tile coordinate to fetch data
@@ -270,7 +270,7 @@ class BackgroundRenderer extends Module {
         val tile = Cat(control.charBase, 0.U(9.W)) +& tileIndex
         val address = Cat(tile, subtileY, subtileX)
         io.vram.read := true.B
-        io.vram.address := address >> 1.U
+        io.vram.address := address >> 1
       }
       when (step === 2.U) {
         // Use tile data

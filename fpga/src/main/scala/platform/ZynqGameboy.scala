@@ -303,7 +303,7 @@ class ZynqGameboy extends Module {
 
     when (bufferedBlitActive) {
       // Handle accessing blit data
-      axiInitiator.io.address := configRegBlitAddress + (bufferedBlitIndex << 1.U)
+      axiInitiator.io.address := configRegBlitAddress + (bufferedBlitIndex << 1)
       axiInitiator.io.enable := bufferedBlitReadEnable && !bufferedBlitReadEnableLast
       axiInitiator.io.read := true.B
       axiInitiator.io.writeData := DontCare

@@ -457,7 +457,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   when (overlayInterface.enable) {
     when (overlayInterface.write) {
       overlayFramebuffer.write(
-        (overlayInterface.address >> 1.U).asUInt,
+        (overlayInterface.address >> 1).asUInt,
         overlayInterface.dataWrite
       )
       overlayInterface.done := true.B
@@ -471,7 +471,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // Framebuffer read via memory.
   val framebufferInterfaceRead = framebufferInterface.enable && !framebufferInterface.write
   framebufferInterface.dataRead := RegNext(RegNext(
-    framebuffer.read((framebufferInterface.address >> 1.U).asUInt, framebufferInterfaceRead)
+    framebuffer.read((framebufferInterface.address >> 1).asUInt, framebufferInterfaceRead)
   ))
   framebufferInterface.done := RegNext(RegNext(framebufferInterfaceRead))
   when (framebufferInterface.write) {

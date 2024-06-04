@@ -139,7 +139,7 @@ class ObjectRenderer extends Module {
     val subtileX = Wire(UInt(3.W))
     val subtileY = Wire(UInt(3.W))
     when (!fetchObj.affine) {
-      col := Mux(fetchObj.flipX, fetchCol ^ ((fetchObj.w << 3.U).asUInt - 1.U), fetchCol)
+      col := Mux(fetchObj.flipX, fetchCol ^ ((fetchObj.w << 3).asUInt - 1.U), fetchCol)
       row := fetchObj.row
       tileX := col(6, 3)
       tileY := row(5, 3)
@@ -195,7 +195,7 @@ class ObjectRenderer extends Module {
         }
       } .otherwise {
         // Bounds check only needs to consider positive numbers, as negative numbers will be way out of bounds.
-        val inBounds = (col < (fetchObj.texW << 3.U).asUInt) && (row < (fetchObj.texH << 3.U).asUInt)
+        val inBounds = (col < (fetchObj.texW << 3).asUInt) && (row < (fetchObj.texH << 3).asUInt)
         drawX := fetchObj.x + fetchCol
         drawCount := 1.U
 
@@ -219,15 +219,15 @@ class ObjectRenderer extends Module {
 
       // Allow OAM fetch at the last VRAM fetch cycle.
       when (fetchObj.affine) {
-        allowOam := ((fetchCol + 1.U) >> 3.U) === fetchObj.w
+        allowOam := ((fetchCol + 1.U) >> 3) === fetchObj.w
       } .otherwise {
-        allowOam := ((fetchCol + 3.U) >> 3.U) === fetchObj.w
+        allowOam := ((fetchCol + 3.U) >> 3) === fetchObj.w
       }
     }
 
     // Increment draw column or end stage.
     val nextCol = fetchCol + (!fetchObj.affine || !evenTick).asUInt
-    when (fetchCol >> 3.U === fetchObj.w) {
+    when (fetchCol >> 3 === fetchObj.w) {
       // Done drawing.
       fetchActive := false.B
     } .otherwise {
@@ -258,9 +258,9 @@ class ObjectRenderer extends Module {
           val objRow = (renderY -& attr0.y)(7, 0)
 
           oamAttrs.x := attr1.x
-          oamAttrs.row := Mux(attr1.flipY && !attr0.affine, objRow ^ ((height << 3.U).asUInt - 1.U), objRow)
-          oamAttrs.w := Mux(attr0.double, width << 1.U, width)
-          oamAttrs.h := Mux(attr0.double, height << 1.U, height)
+          oamAttrs.row := Mux(attr1.flipY && !attr0.affine, objRow ^ ((height << 3).asUInt - 1.U), objRow)
+          oamAttrs.w := Mux(attr0.double, width << 1, width)
+          oamAttrs.h := Mux(attr0.double, height << 1, height)
           oamAttrs.texW := width
           oamAttrs.texH := height
           oamAttrs.bpp8 := attr0.bpp8

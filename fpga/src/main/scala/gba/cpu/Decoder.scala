@@ -433,7 +433,7 @@ class Decoder extends Module {
         out.immediate := in(10, 6)
       } .otherwise {
         out.opcode := BusAccessWidth.Word.asUInt
-        out.immediate := in(10, 6) << 2.U
+        out.immediate := in(10, 6) << 2
       }
       out.regN := in(5, 3)
       out.regD := in(2, 0)
@@ -442,7 +442,7 @@ class Decoder extends Module {
       // THUMB.10: load/store halfword with immediate offset
       out.kind := Mux(in(11), InstructionKind.Load, InstructionKind.Store)
       out.opcode := BusAccessWidth.Halfword.asUInt
-      out.immediate := in(10, 6) << 1.U
+      out.immediate := in(10, 6) << 1
       out.regN := in(5, 3)
       out.regD := in(2, 0)
       out.flags := "b001110".U(6.W)
@@ -450,7 +450,7 @@ class Decoder extends Module {
       // THUMB.11: load/store SP relative
       out.kind := Mux(in(11), InstructionKind.Load, InstructionKind.Store)
       out.opcode := BusAccessWidth.Word.asUInt
-      out.immediate := in(7, 0) << 2.U
+      out.immediate := in(7, 0) << 2
       out.regD := in(10, 8)
       out.regN := 13.U  // SP
       out.flags := "b001110".U(6.W)
