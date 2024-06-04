@@ -6,7 +6,7 @@ import gba.ppu.PpuRegisters.AffineReferencePoint
 
 class BackgroundPixel extends Bundle {
   // Whether the pixel is valid and opaque.
-  val valid = Bool()
+  val opaque = Bool()
   // Palette index (or, layer 2 and 3 in mode 3 and 5 combine to form a 16-bit color).
   val color = UInt(8.W)
 }
@@ -208,7 +208,7 @@ class BackgroundRenderer extends Module {
               io.vram.readData(4 * (3 - i) + 3, 4 * (3 - i)),
               io.vram.readData(4 * i + 3, 4 * i),
             )
-            state.pixels(i).valid := (data =/= 0.U)
+            state.pixels(i).opaque := (data =/= 0.U)
             state.pixels(i).color := Cat(state.screenEntry.paletteBank, data)
           }
         }
@@ -219,7 +219,7 @@ class BackgroundRenderer extends Module {
               io.vram.readData(8 * (1 - i) + 7, 8 * (1 - i)),
               io.vram.readData(8 * i + 7, 8 * i),
             )
-            state.pixels(i).valid := (data =/= 0.U)
+            state.pixels(i).opaque := (data =/= 0.U)
             state.pixels(i).color := data
           }
         }
@@ -278,7 +278,7 @@ class BackgroundRenderer extends Module {
         refY := (refY.asUInt.asSInt + matrix.pc.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
 
         fifo(index).valid := true.B
-        fifo(index).bits.valid := true.B
+        fifo(index).bits.opaque := true.B
         fifo(index).bits.color := Mux(
           subtileX(0),
           io.vram.readData(15, 8),
@@ -288,7 +288,7 @@ class BackgroundRenderer extends Module {
         when (!control.affineWrap) {
           val sizePx = (128.U << control.size).asUInt
           when (refX.sign.asBool || refY.sign.asBool || refX.int >= sizePx || refY.int >= sizePx) {
-            fifo(index).bits.valid := false.B
+            fifo(index).bits.opaque := false.B
           }
         }
       }
@@ -335,7 +335,7 @@ class BackgroundRenderer extends Module {
         refY := (refY.asUInt.asSInt + matrix.pc.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
 
         fifo(2).valid := true.B
-        fifo(2).bits.valid := true.B
+        fifo(2).bits.opaque := true.B
 
         switch (io.displayControl.mode) {
           is (4.U) {
@@ -346,7 +346,7 @@ class BackgroundRenderer extends Module {
           }
           is (3.U, 5.U) {
             fifo(3).valid := true.B
-            fifo(3).bits.valid := false.B
+            fifo(3).bits.opaque := false.B
 
             fifo(2).bits.color := io.vram.readData(7, 0)
             fifo(3).bits.color := io.vram.readData(15, 8)
@@ -361,7 +361,7 @@ class BackgroundRenderer extends Module {
           heightPx := 128.U
         }
         when (refX.sign.asBool || refY.sign.asBool || refX.int >= widthPx || refY.int >= heightPx) {
-          fifo(2).bits.valid := false.B
+          fifo(2).bits.opaque := false.B
         }
       }
     }

@@ -166,6 +166,7 @@ class Ppu extends Module {
   val compositor = Module(new Compositor)
   compositor.io.enable := io.enable
   compositor.io.displayControl := regDisplayControl
+  compositor.io.bgControl := regBgControl
   compositor.io.tick := tick
   compositor.io.scanline := scanline
   compositor.io.paletteRam <> paletteRam.io.ppuTarget
