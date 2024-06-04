@@ -38,11 +38,15 @@ class ObjectBufferEntry extends Bundle {
 class ObjectAttributeFull extends Bundle {
   val x = UInt(9.W)
   /// Pixel row within the object
-  val row = UInt(6.W)
-  /// Width in tiles (8 pixels)
-  val w = UInt(4.W)
-  /// Height in tiles (8 pixels)
-  val h = UInt(4.W)
+  val row = UInt(7.W)
+  /// Sprite width in tiles (8 pixels)
+  val w = UInt(5.W)
+  /// Sprite height in tiles (8 pixels)
+  val h = UInt(5.W)
+  /// Texture width in tiles
+  val texW = UInt(4.W)
+  /// Texture height in tiles
+  val texH = UInt(4.W)
   /// Base tile index
   val tile = UInt(10.W)
   val paletteBank = UInt(4.W)
@@ -121,7 +125,7 @@ class ObjectRenderer extends Module {
   io.vram.read := false.B
   io.vram.address := DontCare
   val fetchObj = Reg(new ObjectAttributeFull)
-  val fetchCol = Reg(UInt(7.W))
+  val fetchCol = Reg(UInt(8.W))
   val fetchActive = RegInit(false.B)
   val allowOam = RegInit(true.B) // Whether the VRAM fetch is blocking OAM fetch
   val fetchAffX = Reg(new AffineReferencePoint)
@@ -142,8 +146,8 @@ class ObjectRenderer extends Module {
       subtileX := col(2, 0)
       subtileY := row(2, 0)
     } .otherwise {
-      col := fetchAffX.int + (fetchObj.w << 2).asUInt
-      row := fetchAffY.int + (fetchObj.h << 2).asUInt
+      col := fetchAffX.int + (fetchObj.texW << 2).asUInt
+      row := fetchAffY.int + (fetchObj.texH << 2).asUInt
       tileX := col(6, 3)
       tileY := row(6, 3)
       subtileX := col(2, 0)
@@ -153,7 +157,7 @@ class ObjectRenderer extends Module {
     when (evenTick) {
       // Fetch from VRAM
       // objMapping 1 is 1D, otherwise 2D
-      val tileStride = Mux(io.displayControl.objMapping === 1.U, OHToUInt(fetchObj.w), 5.U)
+      val tileStride = Mux(io.displayControl.objMapping === 1.U, OHToUInt(fetchObj.texW), 5.U)
       val tileOffset = tileX + (tileY << tileStride)
       io.vram.read := true.B
       when (fetchObj.bpp8) {
@@ -191,7 +195,7 @@ class ObjectRenderer extends Module {
         }
       } .otherwise {
         // Bounds check only needs to consider positive numbers, as negative numbers will be way out of bounds.
-        val inBounds = (col < (fetchObj.w << 3.U).asUInt) && (row < (fetchObj.h << 3.U).asUInt)
+        val inBounds = (col < (fetchObj.texW << 3.U).asUInt) && (row < (fetchObj.texH << 3.U).asUInt)
         drawX := fetchObj.x + fetchCol
         drawCount := 1.U
 
@@ -260,15 +264,16 @@ class ObjectRenderer extends Module {
 
           oamAttrs.x := attr1.x
           oamAttrs.row := Mux(attr1.flipY && !attr0.affine, objRow ^ ((height << 3.U).asUInt - 1.U), objRow)
-          oamAttrs.w := width
-          oamAttrs.h := height
+          oamAttrs.w := Mux(attr0.double, width << 1.U, width)
+          oamAttrs.h := Mux(attr0.double, height << 1.U, height)
+          oamAttrs.texW := width
+          oamAttrs.texH := height
           oamAttrs.bpp8 := attr0.bpp8
           oamAttrs.flipX := attr1.flipX
           oamAttrs.affine := attr0.affine
           oamAffineIndex := Cat(attr1.flipY, attr1.flipX, attr1.affineIndexLo)
 
-          val affineDouble = attr0.affine && attr0.double
-          val inRange = (objRow >> Mux(affineDouble, 4.U, 3.U)).asUInt < height
+          val inRange = (objRow >> Mux(attr0.double, 4.U, 3.U)).asUInt < height
           when (inRange && !(attr0.double && !attr0.affine)) {
             // This object is in range, and will be rendered.
             //        printf(cf"[${renderY}] obj visible: i=${oamIndex} row=${objRow}\n")
@@ -354,7 +359,6 @@ class ObjectRenderer extends Module {
           fetchActive := true.B
           advanceIndex := true.B
 
-          // TODO handle double-size affine
           // TODO, make more efficient? pipelineable?
           val halfwidth = (fetchObj.w << 2).asUInt.zext
           val halfheight = (fetchObj.h << 2).asUInt.zext
