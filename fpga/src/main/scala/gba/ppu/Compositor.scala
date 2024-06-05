@@ -13,11 +13,27 @@ object Compositor {
   }
 }
 
+/// PPU compositor
+///
+/// 1) Pull data from object render buffer and background render FIFOs
+/// 2) Apply windowing to layers
+/// 3) Sort by priority
+/// 4) Fetch palette entries for top two layers
+/// 5) Apply blend effects (TODO)
+/// 6) Output final pixel
 class Compositor extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
+
     val displayControl = Input(new PpuRegisters.DisplayControl)
     val bgControl = Input(Vec(4, new PpuRegisters.BackgroundControl))
+    val win0Bounds = Input(new PpuRegisters.WindowBounds)
+    val win1Bounds = Input(new PpuRegisters.WindowBounds)
+    val win0Control = Input(new PpuRegisters.WindowControl)
+    val win1Control = Input(new PpuRegisters.WindowControl)
+    val winOutControl = Input(new PpuRegisters.WindowControl)
+    val winObjControl = Input(new PpuRegisters.WindowControl)
+
     val tick = Input(UInt(11.W))
     val scanline = Input(UInt(8.W))
 
@@ -38,21 +54,21 @@ class Compositor extends Module {
   io.paletteRam.read := false.B
   io.paletteRam.address := DontCare
   io.objectRead := false.B
+  io.objectIndex := DontCare
   for (i <- 0 until 4) {
     io.bgFifo(i).ready := false.B
   }
 
-  val outX = Reg(UInt(8.W))
+  val fetchX = Reg(UInt(8.W))
   val active = Reg(Bool())
   when (io.enable) {
     when (io.tick === 0.U) {
-      outX := 0.U
+      fetchX := 0.U
     }
-    when (io.tick === 41.U && io.scanline < 160.U) {
+    when (io.tick === 40.U && io.scanline < 160.U) {
       active := true.B
-      io.objectRead := true.B
     }
-    when (outX === 240.U) {
+    when (io.tick === 1006.U) {
       active := false.B
     }
   }
@@ -62,7 +78,6 @@ class Compositor extends Module {
   val regLayerSecond = Reg(new Compositor.Layer)
   io.valid := false.B
   io.pixel := DontCare
-  io.objectIndex := outX
   when (io.enable && active && io.tick >= 46.U) {
     switch (subCycle) {
       // Start top layer palette entry fetch
@@ -96,8 +111,6 @@ class Compositor extends Module {
       is (3.U) {
         io.valid := true.B
         io.pixel := regLayerFirst.color
-        outX := outX + 1.U
-        io.objectRead := true.B
       }
     }
   }
@@ -136,11 +149,14 @@ class Compositor extends Module {
       regLayerSecond := nextSecondLayer
 
       // Set up the next set by fetching an object.
+      io.objectRead := true.B
+      io.objectIndex := fetchX
       regSortFirst.opaque := io.objectData.opaque
       regSortFirst.color := io.objectData.color
       regSortFirst.priority := io.objectData.priority
       regSortFirst.isBg := false.B
       regSortSecond.opaque := false.B
+      fetchX := fetchX + 1.U
     } .otherwise {
       regSortFirst := nextFirstLayer
       regSortSecond := nextSecondLayer

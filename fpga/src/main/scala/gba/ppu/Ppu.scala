@@ -176,6 +176,12 @@ class Ppu extends Module {
   compositor.io.enable := io.enable
   compositor.io.displayControl := regDisplayControl
   compositor.io.bgControl := regBgControl
+  compositor.io.win0Bounds := regWin0Bounds
+  compositor.io.win1Bounds := regWin1Bounds
+  compositor.io.win0Control := regWin0Control
+  compositor.io.win1Control := regWin1Control
+  compositor.io.winOutControl := regWinOutControl
+  compositor.io.winObjControl := regWinObjControl
   compositor.io.tick := tick
   compositor.io.scanline := scanline
   compositor.io.paletteRam <> paletteRam.io.ppuTarget
