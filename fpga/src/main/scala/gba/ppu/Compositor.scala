@@ -32,11 +32,15 @@ class Compositor extends Module {
     val objectRead = Output(Bool())
     val objectData = Input(new ObjectBufferEntry)
   })
+
   val isBitmap16bpp = io.displayControl.mode === 3.U || io.displayControl.mode === 5.U
 
   io.paletteRam.read := false.B
   io.paletteRam.address := DontCare
   io.objectRead := false.B
+  for (i <- 0 until 4) {
+    io.bgFifo(i).ready := false.B
+  }
 
   val outX = Reg(UInt(8.W))
   val active = Reg(Bool())
@@ -65,7 +69,9 @@ class Compositor extends Module {
       is (0.U) {
         when (regLayerFirst.opaque) {
           when (regLayerFirst.isBg && isBitmap16bpp) {
-            regLayerFirst.color := Cat(io.bgFifo(3).bits.color, io.bgFifo(2).bits.color)
+            // Special case: 16bpp bitmap, take bits from the BG3 fifo as well.
+            io.bgFifo(3).ready := true.B
+            regLayerFirst.color := Cat(io.bgFifo(3).bits.color, regLayerFirst.color(7, 0))
           } .otherwise {
             io.paletteRam.read := true.B
             io.paletteRam.address := Cat(!regLayerFirst.isBg, regLayerFirst.color(7, 0))
@@ -97,9 +103,6 @@ class Compositor extends Module {
   }
 
   // First stage: priority sorting: should start on cycle 42 (subCycle = 3)
-  for (i <- 0 until 4) {
-    io.bgFifo(i).ready := false.B
-  }
   val regSortFirst = Reg(new Compositor.Layer)
   val regSortSecond = Reg(new Compositor.Layer)
   when (io.enable && active) {
@@ -107,9 +110,11 @@ class Compositor extends Module {
     val nextSecondLayer = WireDefault(regSortSecond)
 
     val bgFifo = io.bgFifo(subCycle)
-    bgFifo.ready := true.B
     val bgPriority = io.bgControl(subCycle).priority
-    when (bgFifo.valid /* XXX was ready before, a tautology*/ && bgFifo.bits.opaque) {
+    when (io.displayControl.enableBg(subCycle)) {
+      bgFifo.ready := true.B
+    }
+    when (bgFifo.valid && bgFifo.bits.opaque && io.displayControl.enableBg(subCycle)) {
       when (!regSortFirst.opaque || bgPriority < regSortFirst.priority) {
         nextFirstLayer.opaque := true.B
         nextFirstLayer.color := bgFifo.bits.color
