@@ -112,10 +112,21 @@ class ObjectRenderer extends Module {
   val drawCount = RegInit(0.U(2.W))
   val drawData = Reg(Vec(2, new ObjectBufferEntry))
   when (io.enable && drawCount > 0.U) {
-    bufferWriteEnable := (drawX < 240.U) &&
-      (!bufferWriteReadback.opaque || bufferWriteReadback.priority > bufferWriteData.priority)
+    val pixel = drawData(0)
+    bufferWriteEnable := drawX < 240.U
     bufferWriteIndex := drawX
-    bufferWriteData := drawData(0)
+    bufferWriteData := bufferWriteReadback
+
+    when (!bufferWriteReadback.opaque || pixel.priority < bufferWriteReadback.priority) {
+      when (pixel.opaque) {
+        bufferWriteData := pixel
+      } .otherwise {
+        // GBA compositing bug: a *transparent* pixel drawn over an opaque pixel of lower priority
+        // overwrites the priority. Not present in DS or later.
+        bufferWriteData.priority := pixel.priority
+      }
+    }
+
     drawData(0) := drawData(1)
     drawCount := drawCount - 1.U
     drawX := drawX + 1.U
