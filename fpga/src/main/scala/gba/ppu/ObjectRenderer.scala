@@ -32,6 +32,7 @@ class ObjectBufferEntry extends Bundle {
   val opaque = Bool()
   val color = UInt(8.W)
   val priority = UInt(2.W)
+  val window = Bool()
 }
 
 /// Combined and calculated object attributes from the OAM fetch stage.

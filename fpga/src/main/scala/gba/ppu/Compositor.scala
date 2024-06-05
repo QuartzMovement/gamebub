@@ -59,17 +59,53 @@ class Compositor extends Module {
     io.bgFifo(i).ready := false.B
   }
 
+  val win0ActiveX = Reg(Bool())
+  val win1ActiveX = Reg(Bool())
+  val win0ActiveY = Reg(Bool())
+  val win1ActiveY = Reg(Bool())
+
   val fetchX = Reg(UInt(8.W))
   val active = Reg(Bool())
   when (io.enable) {
     when (io.tick === 0.U) {
       fetchX := 0.U
+
+      // Window Y activation / deactivation
+      when (io.scanline === io.win0Bounds.yStart) {
+        win0ActiveY := true.B
+      }
+      when (io.scanline === io.win0Bounds.yEnd) {
+        win0ActiveY := false.B
+      }
+      when (io.scanline === io.win1Bounds.yStart) {
+        win1ActiveY := true.B
+      }
+      when (io.scanline === io.win1Bounds.yEnd) {
+        win1ActiveY := false.B
+      }
     }
     when (io.tick === 40.U && io.scanline < 160.U) {
       active := true.B
     }
     when (io.tick === 1006.U) {
       active := false.B
+    }
+
+    // Window X activation / deactivation. Happens even during vblank.
+    when (io.tick >= 40.U && io.tick(1, 0) === 0.U) {
+      val x = (io.tick - 40.U) >> 2
+      when (x === io.win0Bounds.xStart) {
+        win0ActiveX := true.B
+      }
+      when (x === io.win0Bounds.xEnd) {
+        win0ActiveX := false.B
+      }
+      when (x === io.win1Bounds.xStart) {
+        win1ActiveX := true.B
+      }
+      when (x === io.win1Bounds.xEnd) {
+        win1ActiveX := false.B
+      }
     }
   }
   val subCycle = (io.tick - 2.U)(1, 0)
@@ -118,6 +154,7 @@ class Compositor extends Module {
   // First stage: priority sorting: should start on cycle 42 (subCycle = 3)
   val regSortFirst = Reg(new Compositor.Layer)
   val regSortSecond = Reg(new Compositor.Layer)
+  val regSortWindow = Reg(new PpuRegisters.WindowControl)
   when (io.enable && active) {
     val nextFirstLayer = WireDefault(regSortFirst)
     val nextSecondLayer = WireDefault(regSortSecond)
@@ -127,7 +164,7 @@ class Compositor extends Module {
     when (io.displayControl.enableBg(subCycle)) {
       bgFifo.ready := true.B
     }
-    when (bgFifo.valid && bgFifo.bits.opaque && io.displayControl.enableBg(subCycle)) {
+    when (bgFifo.valid && bgFifo.bits.opaque && io.displayControl.enableBg(subCycle) && regSortWindow.bg(subCycle)) {
       when (!regSortFirst.opaque || bgPriority < regSortFirst.priority) {
         nextFirstLayer.opaque := true.B
         nextFirstLayer.color := bgFifo.bits.color
@@ -148,10 +185,28 @@ class Compositor extends Module {
       regLayerFirst := nextFirstLayer
       regLayerSecond := nextSecondLayer
 
+      // Evaluate windows
+      val windowsEnabled = io.displayControl.displayWindow.orR || io.displayControl.objWindow
+      val windowControl = Wire(new PpuRegisters.WindowControl)
+      when (!windowsEnabled) {
+        windowControl.blend := true.B
+        windowControl.obj := true.B
+        windowControl.bg := "b1111".U(4.W)
+      } .elsewhen (io.displayControl.displayWindow(0) && win0ActiveX && win0ActiveY) {
+        windowControl := io.win0Control
+      } .elsewhen (io.displayControl.displayWindow(1) && win1ActiveX && win1ActiveY) {
+        windowControl := io.win1Control
+      } .elsewhen (io.displayControl.objWindow && io.objectData.window) {
+        windowControl := io.winOutControl
+      } .otherwise {
+        windowControl := io.winOutControl
+      }
+      regSortWindow := windowControl
+
       // Set up the next set by fetching an object.
       io.objectRead := true.B
       io.objectIndex := fetchX
-      regSortFirst.opaque := io.objectData.opaque
+      regSortFirst.opaque := io.objectData.opaque && windowControl.obj
       regSortFirst.color := io.objectData.color
       regSortFirst.priority := io.objectData.priority
       regSortFirst.isBg := false.B
