@@ -51,6 +51,12 @@ class Ppu extends Module {
   val regBgAff = RegInit(VecInit(Seq.fill(2)("h0100_0000_0000_0100".U.asTypeOf(new PpuRegisters.AffineParams))))
   val regBgAffX = RegInit(VecInit(Seq.fill(2)(0.U.asTypeOf(new PpuRegisters.AffineReferencePoint))))
   val regBgAffY = RegInit(VecInit(Seq.fill(2)(0.U.asTypeOf(new PpuRegisters.AffineReferencePoint))))
+  val regWin0Bounds = RegInit(0.U.asTypeOf(new PpuRegisters.WindowBounds))
+  val regWin1Bounds = RegInit(0.U.asTypeOf(new PpuRegisters.WindowBounds))
+  val regWin0Control = RegInit(0.U.asTypeOf(new PpuRegisters.WindowControl))
+  val regWin1Control = RegInit(0.U.asTypeOf(new PpuRegisters.WindowControl))
+  val regWinOutControl = RegInit(0.U.asTypeOf(new PpuRegisters.WindowControl))
+  val regWinObjControl = RegInit(0.U.asTypeOf(new PpuRegisters.WindowControl))
 
   /// VRAM: 96KiB, 16-bit access without byte strobe. Note: actually split into multiple banks for bg/obj
   val vram = Module(new Vram)
@@ -137,6 +143,9 @@ class Ppu extends Module {
     // TODO: writing these is supposed to update the latched value immediately?
     0x38 -> MmioMap.Entry.w(regBgAffX(1)),
     0x3C -> MmioMap.Entry.w(regBgAffY(1)),
+    0x40 -> MmioMap.Entry.w8(regWin0Bounds.xEnd, regWin0Bounds.xStart, regWin1Bounds.xEnd, regWin1Bounds.xStart),
+    0x44 -> MmioMap.Entry.w8(regWin0Bounds.yEnd, regWin0Bounds.yStart, regWin1Bounds.yEnd, regWin1Bounds.yStart),
+    0x48 -> MmioMap.Entry.rw8(regWin0Control, regWin1Control, regWinOutControl, regWinObjControl),
   )
 
   // Background renderer

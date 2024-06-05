@@ -52,4 +52,17 @@ object PpuRegisters {
     val pc = new FixedPoint(7)
     val pd = new FixedPoint(7)
   }
+
+  class WindowBounds extends Bundle {
+    val xStart = UInt(8.W)
+    val xEnd = UInt(8.W)
+    val yStart = UInt(8.W)
+    val yEnd = UInt(8.W)
+  }
+
+  class WindowControl extends Bundle {
+    val blend = Bool()
+    val obj = Bool()
+    val bg = UInt(4.W)
+  }
 }

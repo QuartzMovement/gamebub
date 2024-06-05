@@ -125,6 +125,10 @@ object MmioMap {
     // Read from two 16-bit registers.
     def apply(reg0: Data, reg1: Data): ReadFn = ReadFn(_ => (Cat(reg1.asUInt, reg0.asUInt), true.B))
 
+    // Read from four 8-bit registers.
+    def apply(reg0: Data, reg1: Data, reg2: Data, reg3: Data): ReadFn =
+      ReadFn(_ => (Cat(reg3.asUInt, reg2.asUInt, reg1.asUInt, reg0.asUInt), true.B))
+
     // No-op read.
     def apply(): ReadFn = ReadFn(_ => (0.U, false.B))
   }
@@ -147,6 +151,16 @@ object MmioMap {
       }
     })
 
+    // Write to four 8-bit registers.
+    def apply(reg0: Data, reg1: Data, reg2: Data, reg3: Data): WriteFn = WriteFn((enable, data, mask) => {
+      when (enable) {
+        reg0 := MMIO.mask(reg0, data(7, 0), mask(0))
+        reg1 := MMIO.mask(reg1, data(15, 8), mask(1))
+        reg2 := MMIO.mask(reg2, data(23, 16), mask(2))
+        reg3 := MMIO.mask(reg3, data(31, 24), mask(3))
+      }
+    })
+
     // No-op write.
     def apply(): WriteFn = WriteFn((_, _, _) => ())
   }
@@ -162,5 +176,11 @@ object MmioMap {
     def w16(reg0: Data, reg1: Data): Entry = Entry(ReadFn(), WriteFn(reg0, reg1))
 
     def rw16(reg0: Data, reg1: Data): Entry = Entry(ReadFn(reg0, reg1), WriteFn(reg0, reg1))
+
+    def w8(reg0: Data, reg1: Data, reg2: Data, reg3: Data): Entry
+      = Entry(ReadFn(), WriteFn(reg0, reg1, reg2, reg3))
+
+    def rw8(reg0: Data, reg1: Data, reg2: Data, reg3: Data): Entry
+      = Entry(ReadFn(reg0, reg1, reg2, reg3), WriteFn(reg0, reg1, reg2, reg3))
   }
 }
