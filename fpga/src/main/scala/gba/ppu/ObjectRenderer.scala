@@ -108,7 +108,7 @@ class ObjectRenderer extends Module {
   }
 
   // Pixel draw
-  val drawX = Reg(UInt(8.W))
+  val drawX = Reg(UInt(9.W))
   val drawCount = RegInit(0.U(2.W))
   val drawData = Reg(Vec(2, new ObjectBufferEntry))
   when (io.enable && drawCount > 0.U) {
