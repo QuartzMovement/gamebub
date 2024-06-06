@@ -4,11 +4,18 @@ import chisel3._
 import chisel3.util._
 import gba.ppu.PpuRegisters.AffineReferencePoint
 
+object ObjectEffectKind extends ChiselEnum {
+  val Normal = Value
+  val Alpha = Value
+  val Window = Value
+  val Forbidden = Value
+}
+
 class ObjectAttribute0 extends Bundle {
   val shape = UInt(2.W)
   val bpp8 = Bool()
   val mosaic = Bool()
-  val effect = UInt(2.W)
+  val effect = ObjectEffectKind()
   val double = Bool()
   val affine = Bool()
   val y = UInt(8.W)
@@ -55,6 +62,7 @@ class ObjectAttributeFull extends Bundle {
   val priority = UInt(2.W)
   val flipX = Bool()
   val affine = Bool()
+  val window = Bool()
 }
 
 class ObjectRenderer extends Module {
@@ -119,7 +127,11 @@ class ObjectRenderer extends Module {
     bufferWriteData := bufferWriteReadback
 
     when (!bufferWriteReadback.opaque || pixel.priority < bufferWriteReadback.priority) {
-      when (pixel.opaque) {
+      when (pixel.window) {
+        when (pixel.opaque) {
+          bufferWriteData.window := true.B
+        }
+      } .elsewhen (pixel.opaque) {
         bufferWriteData := pixel
       } .otherwise {
         // GBA compositing bug: a *transparent* pixel drawn over an opaque pixel of lower priority
@@ -194,6 +206,7 @@ class ObjectRenderer extends Module {
             drawData(i).opaque := color =/= 0.U
             drawData(i).color := color
             drawData(i).priority := fetchObj.priority
+            drawData(i).window := fetchObj.window
           }
         } .otherwise {
           val tileData = io.vram.readData.asTypeOf(Vec(4, UInt(4.W)))
@@ -203,6 +216,7 @@ class ObjectRenderer extends Module {
             drawData(i).opaque := color =/= 0.U
             drawData(i).color := Cat(fetchObj.paletteBank, color)
             drawData(i).priority := fetchObj.priority
+            drawData(i).window := fetchObj.window
           }
         }
       } .otherwise {
@@ -217,12 +231,14 @@ class ObjectRenderer extends Module {
           drawData(0).opaque := inBounds && (color =/= 0.U)
           drawData(0).color := color
           drawData(0).priority := fetchObj.priority
+          drawData(0).window := fetchObj.window
         } .otherwise {
           val tileData = io.vram.readData.asTypeOf(Vec(4, UInt(4.W)))
           val color = tileData(subtileX(1, 0))
           drawData(0).opaque := inBounds && (color =/= 0.U)
           drawData(0).color := Cat(fetchObj.paletteBank, color)
           drawData(0).priority := fetchObj.priority
+          drawData(0).window := fetchObj.window
         }
 
         fetchAffX := (fetchAffX.asUInt.asSInt + fetchAffineParams.pa.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
@@ -278,6 +294,7 @@ class ObjectRenderer extends Module {
           oamAttrs.bpp8 := attr0.bpp8
           oamAttrs.flipX := attr1.flipX
           oamAttrs.affine := attr0.affine
+          oamAttrs.window := attr0.effect === ObjectEffectKind.Window
           oamAffineIndex := Cat(attr1.flipY, attr1.flipX, attr1.affineIndexLo)
 
           val boundingH = Mux(attr0.double, height << 4, height << 3).asUInt

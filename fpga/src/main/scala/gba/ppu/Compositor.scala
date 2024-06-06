@@ -197,7 +197,7 @@ class Compositor extends Module {
       } .elsewhen (io.displayControl.displayWindow(1) && win1ActiveX && win1ActiveY) {
         windowControl := io.win1Control
       } .elsewhen (io.displayControl.objWindow && io.objectData.window) {
-        windowControl := io.winOutControl
+        windowControl := io.winObjControl
       } .otherwise {
         windowControl := io.winOutControl
       }
