@@ -2,7 +2,7 @@ package gba.ppu
 
 import chisel3._
 import chisel3.util._
-import gba.{MmioMap, MmioTarget}
+import gba.{MMIO, MmioMap, MmioTarget}
 import gba.mem.TargetInterface
 
 class PpuOutput extends Bundle {
@@ -57,6 +57,10 @@ class Ppu extends Module {
   val regWin1Control = RegInit(0.U.asTypeOf(new PpuRegisters.WindowControl))
   val regWinOutControl = RegInit(0.U.asTypeOf(new PpuRegisters.WindowControl))
   val regWinObjControl = RegInit(0.U.asTypeOf(new PpuRegisters.WindowControl))
+  val regBlendControl = RegInit(0.U.asTypeOf(new PpuRegisters.BlendControl))
+  val regBlendA = RegInit(0.U(5.W))
+  val regBlendB = RegInit(0.U(5.W))
+  val regBlendFade = RegInit(0.U(5.W))
 
   /// VRAM: 96KiB, 16-bit access without byte strobe. Note: actually split into multiple banks for bg/obj
   val vram = Module(new Vram)
@@ -146,6 +150,24 @@ class Ppu extends Module {
     0x40 -> MmioMap.Entry.w8(regWin0Bounds.xEnd, regWin0Bounds.xStart, regWin1Bounds.xEnd, regWin1Bounds.xStart),
     0x44 -> MmioMap.Entry.w8(regWin0Bounds.yEnd, regWin0Bounds.yStart, regWin1Bounds.yEnd, regWin1Bounds.yStart),
     0x48 -> MmioMap.Entry.rw8(regWin0Control, regWin1Control, regWinOutControl, regWinObjControl),
+    0x50 -> MmioMap.Entry(
+      MmioMap.ReadFn(_ => {
+        val data = Cat(
+          regBlendB.asUInt.pad(8),
+          regBlendA.asUInt.pad(8),
+          regBlendControl.asUInt.pad(16),
+        )
+        (data, true.B)
+      }),
+      MmioMap.WriteFn((enable, data, mask) => {
+        when (enable) {
+          regBlendControl := MMIO.mask(regBlendControl, data(15, 0), mask(1, 0))
+          regBlendA := MMIO.mask(regBlendA, data(23, 16), mask(2))
+          regBlendB := MMIO.mask(regBlendB, data(31, 24), mask(3))
+        }
+      })
+    ),
+    0x54 -> MmioMap.Entry.w(regBlendFade),
   )
 
   // Background renderer

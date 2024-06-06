@@ -65,4 +65,21 @@ object PpuRegisters {
     val obj = Bool()
     val bg = UInt(4.W)
   }
+
+  object BlendEffect extends ChiselEnum {
+    val none = Value
+    val alpha = Value
+    val white = Value
+    val black = Value
+  }
+
+  class BlendControl extends Bundle {
+    val bottomBackdrop = Bool()
+    val bottomObj = Bool()
+    val bottomBg = UInt(4.W)
+    val effect = BlendEffect()
+    val topBackdrop = Bool()
+    val topObj = Bool()
+    val topBg = UInt(4.W)
+  }
 }
