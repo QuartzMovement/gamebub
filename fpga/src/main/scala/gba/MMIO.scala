@@ -86,7 +86,9 @@ object MMIO {
 }
 
 object MmioMap {
-  def apply (entries: (Int, Entry)*): MmioTarget = {
+  def apply (entries: (Int, Entry)*): MmioTarget = fromSeq(entries)
+
+  def fromSeq(entries: Seq[(Int, Entry)]): MmioTarget = {
     // Ensure addresses are word-aligned and in bounds.
     for ((addr, i) <- entries.map(_._1).zipWithIndex) {
       if (addr % 4 != 0) {

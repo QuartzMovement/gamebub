@@ -50,7 +50,7 @@ class GBA extends Module {
   }
 
   // MMIO Bus
-  val mmio = Module(new MMIO(numTargets = 3))
+  val mmio = Module(new MMIO(numTargets = 4))
   mmio.io.enable := io.enable
   bus.io.targetPort(3) <> mmio.io.mem
 
@@ -100,4 +100,9 @@ class GBA extends Module {
   keypad.io.enable := io.enable
   keypad.io.state := io.keypad
   mmio.targets(2) <> keypad.io.mmio
+
+  // DMA
+  val dma = Module(new Dma)
+  dma.io.enable := io.enable
+  mmio.targets(3) <> dma.io.mmio
 }
