@@ -38,6 +38,11 @@ class Ppu extends Module {
     val irqVblank = Output(Bool())
     val irqHblank = Output(Bool())
     val irqVcount = Output(Bool())
+
+    /// DMA triggers
+    val dmaTriggerVblank = Output(Bool())
+    val dmaTriggerHblank = Output(Bool())
+    val dmaTriggerVideo = Output(Bool())
   })
 
   val regDisplayControl = RegInit(0.U.asTypeOf(new PpuRegisters.DisplayControl))
@@ -214,7 +219,7 @@ class Ppu extends Module {
   io.output.valid := compositor.io.valid
   io.output.pixel := compositor.io.pixel
 
-  // IRQs
+  // IRQs and DMA trigger
   {
     val lastVblank = RegInit(false.B)
     val lastHblank = RegInit(false.B)
@@ -227,5 +232,8 @@ class Ppu extends Module {
     io.irqHblank := regIrqEnableHblank && io.output.hblank && !lastHblank
     io.irqVblank := regIrqEnableVblank && io.output.vblank && !lastVblank
     io.irqVcount := regIrqEnableVcount && vcountHit && !lastVcountHit
+    io.dmaTriggerHblank := io.output.hblank && !lastHblank
+    io.dmaTriggerVblank := io.output.vblank && !lastVblank
+    io.dmaTriggerVideo := false.B  // TODO DMA video trigger
   }
 }

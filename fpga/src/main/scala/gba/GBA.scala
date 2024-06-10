@@ -104,5 +104,15 @@ class GBA extends Module {
   // DMA
   val dma = Module(new Dma)
   dma.io.enable := io.enable
+  dma.io.triggerHblank := ppu.io.dmaTriggerHblank
+  dma.io.triggerVblank := ppu.io.dmaTriggerVblank
+  dma.io.triggerVideo := ppu.io.dmaTriggerVideo
   mmio.targets(3) <> dma.io.mmio
+  interrupt.io.peripheralIrq.dma := dma.io.irq.asUInt
+  for (i <- 0 until 4) {
+    // TODO implement
+    dma.io.busInitiator(i).CLKEN := true.B
+    dma.io.busInitiator(i).ABORT := false.B
+    dma.io.busInitiator(i).RDATA := 0.U
+  }
 }
