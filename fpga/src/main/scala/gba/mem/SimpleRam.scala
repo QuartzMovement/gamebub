@@ -2,7 +2,6 @@ package gba.mem
 
 import chisel3._
 import chisel3.util._
-import gba.cpu.BusAccessWidth
 
 /// Simple ram that only supports single-cycle accesses of words (and smaller).
 class SimpleRam(size: Int, width: Width) extends Module {

@@ -1,5 +1,6 @@
 package gba.cpu
 
+import gba.mem.{BusAccessWidth, BusTransactionType}
 import lib.util.EphemeralSimulator._
 import org.scalatest.funsuite.AnyFunSuite
 

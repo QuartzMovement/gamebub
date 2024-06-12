@@ -1,7 +1,7 @@
 package gba.mem
 
 import chisel3._
-import gba.cpu.{BusAccessWidth, BusTransactionType}
+import gba.mem.{BusAccessWidth, BusTransactionType}
 import lib.util.EphemeralSimulator._
 import org.scalatest.funsuite.AnyFunSuite
 

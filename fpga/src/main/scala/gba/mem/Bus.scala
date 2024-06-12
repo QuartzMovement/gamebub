@@ -2,7 +2,6 @@ package gba.mem
 
 import chisel3._
 import chisel3.util._
-import gba.cpu.{BusAccessWidth, BusInterface, BusTransactionType}
 
 class TargetInterface(maxWidth: Width) extends Bundle {
   /// Byte-wise access address

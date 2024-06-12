@@ -3,8 +3,8 @@ package gba
 import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
-import gba.cpu.{ARM7TDMI, BusAccessWidth}
-import gba.mem.{BusTarget, SimpleRam, TargetInterface}
+import gba.cpu.ARM7TDMI
+import gba.mem.{BusTarget, BusAccessWidth, SimpleRam, TargetInterface}
 import gba.ppu.{Ppu, PpuOutput}
 
 object GBA extends App {

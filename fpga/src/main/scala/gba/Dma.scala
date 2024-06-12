@@ -2,7 +2,7 @@ package gba
 
 import chisel3._
 import chisel3.util._
-import gba.cpu.{BusAccessWidth, BusInterface, BusTransactionType}
+import gba.mem.{BusAccessWidth, BusInterface, BusTransactionType}
 
 object DmaAddressControl extends ChiselEnum {
   val increment = Value

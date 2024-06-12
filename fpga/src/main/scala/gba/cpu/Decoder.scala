@@ -2,6 +2,7 @@ package gba.cpu
 
 import chisel3._
 import chisel3.util._
+import gba.mem.BusAccessWidth
 
 object Condition extends ChiselEnum {
   /// Equal, Z = 1

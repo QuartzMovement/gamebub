@@ -3,6 +3,7 @@ package gba.cpu
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
+import gba.mem.{BusAccessWidth, BusProtectionType, BusTransactionType}
 
 object PcNext extends ChiselEnum {
   val Same = Value

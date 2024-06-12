@@ -1,4 +1,4 @@
-package gba.cpu
+package gba.mem
 
 import chisel3._
 
