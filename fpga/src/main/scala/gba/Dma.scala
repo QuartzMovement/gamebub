@@ -2,7 +2,7 @@ package gba
 
 import chisel3._
 import chisel3.util._
-import gba.mem.{BusAccessWidth, BusInterface, BusTransactionType}
+import gba.mem.{BusAccessWidth, BusInterface}
 
 object DmaAddressControl extends ChiselEnum {
   val increment = Value
@@ -83,10 +83,8 @@ class Dma extends Module {
     bus.PROT.privileged := false.B
     bus.LOCK := false.B
     bus.ADDR := DontCare
-    bus.TRANS := BusTransactionType.Internal
-    when (busActive) {
-      bus.TRANS := Mux(regInitial, BusTransactionType.NonSequential, BusTransactionType.Sequential)
-    }
+    bus.MREQ := false.B
+    bus.SEQ := !regInitial
     bus.WDATA := DontCare
 
     // Latching config

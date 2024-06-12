@@ -3,7 +3,7 @@ package gba.cpu
 import chisel3._
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
-import gba.mem.{BusAccessWidth, BusProtectionType, BusTransactionType}
+import gba.mem.{BusAccessWidth, BusProtectionType}
 
 object PcNext extends ChiselEnum {
   val Same = Value
@@ -81,7 +81,8 @@ class ControlSignals extends Bundle {
   val multiplyAccumulate = Bool()
   val multiplyLong = Bool()
 
-  val memTransaction = BusTransactionType()
+  val memRequest = Bool()
+  val memSequential = Bool()
   val memWrite = Bool()
   val memWidth = BusAccessWidth()
   val memProt = new BusProtectionType
@@ -194,7 +195,8 @@ class Control extends Module {
   control.multiplyLong := DontCare
   control.memWrite := false.B
   control.memWidth := DontCare
-  control.memTransaction := BusTransactionType.Internal
+  control.memRequest := false.B
+  control.memSequential := false.B
   control.memProt.privileged := false.B // TODO
   control.memProt.data := false.B
   control.memLock := false.B
@@ -355,7 +357,8 @@ class Control extends Module {
             }
             control.addressSource := AddressSource.Alu
 
-            control.memTransaction := BusTransactionType.NonSequential
+            control.memRequest := true.B
+            control.memSequential := false.B
             control.memWrite := false.B
             control.memWidth := width
             control.memProt.data := true.B
@@ -415,7 +418,8 @@ class Control extends Module {
             control.addressSource := AddressSource.Alu
             control.latchMemWriteData := true.B
 
-            control.memTransaction := BusTransactionType.NonSequential
+            control.memRequest := true.B
+            control.memSequential := false.B
             control.memWrite := true.B
             control.memWidth := width
             control.memProt.data := true.B
@@ -434,7 +438,8 @@ class Control extends Module {
             control.regReadC := instruction.regD
 
             nextInstruction()
-            control.memTransaction := BusTransactionType.NonSequential
+            control.memRequest := true.B
+            control.memSequential := false.B
             control.pcNext := PcNext.Same
             control.addressSource := AddressSource.Pc
           }
@@ -450,7 +455,8 @@ class Control extends Module {
             control.busB := BusBValue.RegisterB
             control.aluOpcode := AluOpcode.mov
             control.addressSource := AddressSource.Alu
-            control.memTransaction := BusTransactionType.NonSequential
+            control.memRequest := true.B
+            control.memSequential := false.B
             control.memWrite := false.B
             control.memWidth := width
             control.memProt.data := true.B
@@ -465,7 +471,8 @@ class Control extends Module {
             control.latchMemWriteData := true.B
 
             control.addressSource := AddressSource.Same
-            control.memTransaction := BusTransactionType.NonSequential
+            control.memRequest := true.B
+            control.memSequential := false.B
             control.memWrite := true.B
             control.memWidth := width
             control.memProt.data := true.B
@@ -636,7 +643,8 @@ class Control extends Module {
           control.shiftKind := ShiftKind.LogicalShiftLeft
           control.shiftImmediate := 2.U
           control.addressSource := AddressSource.Alu
-          control.memTransaction := BusTransactionType.NonSequential
+          control.memRequest := true.B
+          control.memSequential := false.B
           control.memWrite := false.B
           control.memWidth := BusAccessWidth.Word
           control.memProt.data := true.B
@@ -664,7 +672,8 @@ class Control extends Module {
           // Sequential memory accesses after the first
           control.addressSource := AddressSource.Incrementer
           control.incrementerForceWord := true.B
-          control.memTransaction := BusTransactionType.Sequential
+          control.memRequest := true.B
+          control.memSequential := true.B
           control.memWrite := false.B
           control.memWidth := BusAccessWidth.Word
           control.memProt.data := true.B
@@ -729,7 +738,8 @@ class Control extends Module {
           control.shiftKind := ShiftKind.LogicalShiftLeft
           control.shiftImmediate := 2.U
           control.addressSource := AddressSource.Alu
-          control.memTransaction := BusTransactionType.NonSequential
+          control.memRequest := true.B
+          control.memSequential := false.B
           control.memWrite := true.B
           control.memWidth := BusAccessWidth.Word
           control.memProt.data := true.B
@@ -755,7 +765,8 @@ class Control extends Module {
           // Store registers
           control.addressSource := AddressSource.Incrementer
           control.incrementerForceWord := true.B
-          control.memTransaction := BusTransactionType.Sequential
+          control.memRequest := true.B
+          control.memSequential := true.B
           control.memWrite := true.B
           control.memWidth := BusAccessWidth.Word
           control.memProt.data := true.B
@@ -766,7 +777,7 @@ class Control extends Module {
           when (counter === 0.U) {
             // Begin next instruction fetch
             nextInstruction()
-            control.memTransaction := BusTransactionType.NonSequential
+            control.memSequential := false.B
             control.pcNext := PcNext.Same
             control.addressSource := AddressSource.Pc
           } .elsewhen (io.enable) {
@@ -914,14 +925,16 @@ class Control extends Module {
     control.addressSource := AddressSource.Incrementer
     control.memWrite := false.B
     control.memWidth := Mux(nextThumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
-    control.memTransaction := BusTransactionType.Internal
+    control.memRequest := false.B
+    control.memSequential := false.B
   }
 
   /// Complete the prefetch of a merged I-S cycle, and go to the next instruction
   private def completePrefetch(): Unit = {
     control.memWrite := false.B
     control.memWidth := Mux(nextThumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
-    control.memTransaction := BusTransactionType.Sequential
+    control.memRequest := true.B
+    control.memSequential := true.B
     control.advancePipeline := true.B
     dispatch := true.B
   }
@@ -931,7 +944,8 @@ class Control extends Module {
     control.addressSource := AddressSource.Incrementer
     control.memWrite := false.B
     control.memWidth := Mux(nextThumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
-    control.memTransaction := BusTransactionType.Sequential
+    control.memRequest := true.B
+    control.memSequential := true.B
     control.advancePipeline := true.B
     dispatch := true.B
   }
@@ -944,7 +958,8 @@ class Control extends Module {
     control.advancePipeline := true.B
     control.memWrite := false.B
     control.memWidth := Mux(nextThumb, BusAccessWidth.Halfword, BusAccessWidth.Word)
-    control.memTransaction := BusTransactionType.NonSequential
+    control.memRequest := true.B
+    control.memSequential := false.B
     dispatch := true.B
   }
 

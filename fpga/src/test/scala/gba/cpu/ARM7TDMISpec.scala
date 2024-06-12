@@ -1,6 +1,6 @@
 package gba.cpu
 
-import gba.mem.{BusAccessWidth, BusTransactionType}
+import gba.mem.BusAccessWidth
 import lib.util.EphemeralSimulator._
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -35,7 +35,8 @@ class ARM7TDMISpec extends AnyFunSuite {
       val memAddress = dut.io.mem.ADDR.peek().litValue
       val memWrite = dut.io.mem.WRITE.peek().litToBoolean
       val memSize = 1 << dut.io.mem.SIZE.peekValue().asBigInt.toInt
-      val memTrans = dut.io.mem.TRANS.peekValue().asBigInt
+      val memRequest = dut.io.mem.MREQ.peek().litToBoolean
+      val memSequential = dut.io.mem.SEQ.peek().litToBoolean
 
       // Test that 'enable' works
 //      dut.io.enable.poke(false)
@@ -47,8 +48,8 @@ class ARM7TDMISpec extends AnyFunSuite {
       // TODO support stores (8, 16, or 32 bit)
       // Note: addresses are not necessarily aligned, they are aligned by memory controller.
 
-      if (memTrans == BusTransactionType.Sequential.litValue || memTrans == BusTransactionType.NonSequential.litValue) {
-        val seq = if (memTrans == BusTransactionType.Sequential.litValue) "   Seq" else "NonSeq"
+      if (memRequest) {
+        val seq = if (memSequential) "   Seq" else "NonSeq"
         if (memWrite) {
           val memDataWrite = dut.io.mem.WDATA.peek().litValue
           System.err.println(f"Mem Write $seq: [0x$memAddress%X] <- 0x$memDataWrite%X | size=$memSize\n")
@@ -58,8 +59,7 @@ class ARM7TDMISpec extends AnyFunSuite {
           dut.io.mem.RDATA.poke(readData)
           System.err.println(f"Mem  Read $seq: [0x$memAddress%X] -> 0x$readData%X | size=$memSize\n")
         }
-      }
-      if (memTrans == BusTransactionType.Internal.litValue) {
+      } else {
         System.err.println(f"Mem          Int: [0x$memAddress%X]\n")
         dut.io.mem.RDATA.poke(0xffffffff)
       }
@@ -71,17 +71,19 @@ class ARM7TDMISpec extends AnyFunSuite {
       }
     }
 
-    def assertMemRead(address: Int, trans: BusTransactionType.Type, size: BusAccessWidth.Type = BusAccessWidth.Word): Unit = {
+    def assertMemRead(address: Int, sequential: Boolean, size: BusAccessWidth.Type = BusAccessWidth.Word, internal: Boolean = false): Unit = {
+      assert(dut.io.mem.MREQ.peek().litToBoolean == !internal, "wrong mreq")
       assert(dut.io.mem.ADDR.peek().litValue == address, "read address")
       assert(!dut.io.mem.WRITE.peek().litToBoolean, "not read")
-      assert(dut.io.mem.TRANS.peekValue().asBigInt == trans.litValue, "wrong trans")
+      assert(dut.io.mem.SEQ.peek().litToBoolean == sequential, "wrong sequential")
       assert(dut.io.mem.SIZE.peekValue().asBigInt == size.litValue, "wrong size")
     }
 
-    def assertMemWrite(address: Int, trans: BusTransactionType.Type, size: BusAccessWidth.Type = BusAccessWidth.Word): Unit = {
+    def assertMemWrite(address: Int, sequential: Boolean, size: BusAccessWidth.Type = BusAccessWidth.Word, internal: Boolean = false): Unit = {
+      assert(dut.io.mem.MREQ.peek().litToBoolean == !internal, "wrong mreq")
       assert(dut.io.mem.ADDR.peek().litValue == address, "write address")
       assert(dut.io.mem.WRITE.peek().litToBoolean, "not write")
-      assert(dut.io.mem.TRANS.peekValue().asBigInt == trans.litValue, "wrong trans")
+      assert(dut.io.mem.SEQ.peek().litToBoolean == sequential, "wrong sequential")
       assert(dut.io.mem.SIZE.peekValue().asBigInt == size.litValue, "wrong size")
     }
 
@@ -117,18 +119,18 @@ class ARM7TDMISpec extends AnyFunSuite {
       cpu.reset(reloadPipeline = false)
       cpu.step()
 
-      cpu.assertMemRead(0x00, BusTransactionType.NonSequential)
+      cpu.assertMemRead(0x00, sequential = false)
       cpu.step()
 
-      cpu.assertMemRead(0x04, BusTransactionType.Sequential)
+      cpu.assertMemRead(0x04, sequential = true)
       cpu.step()
 
-      cpu.assertMemRead(0x08, BusTransactionType.Sequential)
+      cpu.assertMemRead(0x08, sequential = true)
       cpu.step()
       assert(cpu.reg(15) == 0x8)
       assert(cpu.reg(0) == 0x0)
 
-      cpu.assertMemRead(0x0C, BusTransactionType.Sequential)
+      cpu.assertMemRead(0x0C, sequential = true)
       cpu.step()
       assert(cpu.reg(15) == 0xC)
       assert(cpu.reg(0) == 0x1)
@@ -177,25 +179,25 @@ class ARM7TDMISpec extends AnyFunSuite {
       ))
       cpu.reset()
 
-      cpu.assertMemRead(20, BusTransactionType.NonSequential)
+      cpu.assertMemRead(20, sequential = false)
       cpu.step()
       assert(cpu.reg(15) == 20)
 
-      cpu.assertMemRead(24, BusTransactionType.Sequential)
+      cpu.assertMemRead(24, sequential = true)
       cpu.step()
       assert(cpu.reg(15) == 24)
 
-      cpu.assertMemRead(28, BusTransactionType.Sequential)
+      cpu.assertMemRead(28, sequential = true)
       cpu.step()
       assert(cpu.reg(15) == 28)
       assert(cpu.reg(2) == 0)
 
-      cpu.assertMemRead(32, BusTransactionType.Sequential)
+      cpu.assertMemRead(32, sequential = true)
       cpu.step()
       assert(cpu.reg(1) == 0)
       assert(cpu.reg(2) == 5)
 
-      cpu.assertMemRead(36, BusTransactionType.Sequential)
+      cpu.assertMemRead(36, sequential = true)
       cpu.step()
       assert(cpu.reg(2) == 6)
 
@@ -221,14 +223,14 @@ class ARM7TDMISpec extends AnyFunSuite {
       cpu.step()
 
       // add ...
-      cpu.assertMemRead(20, BusTransactionType.Internal)
+      cpu.assertMemRead(20, internal = true, sequential = false)
       cpu.step()
-      cpu.assertMemRead(20, BusTransactionType.Sequential)
+      cpu.assertMemRead(20, sequential = true)
       cpu.step()
       assert(cpu.reg(2) == 0xFF0FF00)
 
       // next
-      cpu.assertMemRead(24, BusTransactionType.Sequential)
+      cpu.assertMemRead(24, sequential = true)
     }
   }
 
@@ -256,19 +258,19 @@ class ARM7TDMISpec extends AnyFunSuite {
     cpu.step()
 
     // Load: compute address
-    cpu.assertMemRead(address.getOrElse(cpu.memAddress()), BusTransactionType.NonSequential, size)
+    cpu.assertMemRead(address.getOrElse(cpu.memAddress()), sequential = false, size)
     // TODO: assert prot0 is 1(?) for data
     cpu.step()
 
     // Load: register writeback
-    cpu.assertMemRead(20, BusTransactionType.Internal)
+    cpu.assertMemRead(20, internal = true, sequential = false)
     cpu.step()
     if (base.isDefined) {
       assert(cpu.reg(0) == base.get)
     }
 
     // Load: save the memory
-    cpu.assertMemRead(20, BusTransactionType.Sequential)
+    cpu.assertMemRead(20, sequential = true)
     cpu.step()
     assert(cpu.reg(1) == data)
 
@@ -456,13 +458,13 @@ class ARM7TDMISpec extends AnyFunSuite {
     cpu.step()
 
     // Store: compute address
-    cpu.assertMemWrite(address.getOrElse(cpu.memAddress()), BusTransactionType.NonSequential, size)
+    cpu.assertMemWrite(address.getOrElse(cpu.memAddress()), sequential = false, size)
     // TODO: assert prot0 is 1(?) for data
     cpu.step()
     assert(cpu.memWriteData() == data)
 
     // Store: base modification
-    cpu.assertMemRead(36, BusTransactionType.NonSequential)
+    cpu.assertMemRead(36, sequential = false)
     cpu.step()
     if (base.isDefined) {
       assert(cpu.reg(0) == base.get)
@@ -529,21 +531,21 @@ class ARM7TDMISpec extends AnyFunSuite {
 
         // Swap: load
         // TODO assert "LOCK" is set (and PROT is data)
-        cpu.assertMemRead(1000, BusTransactionType.NonSequential, size)
+        cpu.assertMemRead(1000, sequential = false, size)
         cpu.step()
 
         // Swap: store
         // TODO assert "LOCK" is set (and PROT is data)
-        cpu.assertMemWrite(1000, BusTransactionType.NonSequential, size)
+        cpu.assertMemWrite(1000, sequential = false, size)
         cpu.step()
         assert(cpu.memWriteData() == storeData)
 
         // Swap: write-back to register
-        cpu.assertMemRead(0x20 /* pc + 12 */ , BusTransactionType.Internal)
+        cpu.assertMemRead(0x20 /* pc + 12 */ , internal = true, sequential = false)
         cpu.step()
 
         // Swap: prefetch?
-        cpu.assertMemRead(0x20 /* pc + 12 */ , BusTransactionType.Sequential)
+        cpu.assertMemRead(0x20 /* pc + 12 */ , sequential = true)
         cpu.step()
         assert(cpu.reg(rd) == loadData)
 
@@ -596,15 +598,15 @@ class ARM7TDMISpec extends AnyFunSuite {
       cpu.reset()
 
       // Branch 1: load from branch target
-      cpu.assertMemRead(0x1000, BusTransactionType.NonSequential)
+      cpu.assertMemRead(0x1000, sequential = false)
       cpu.step()
 
       // Branch 2: refill pipeline
-      cpu.assertMemRead(0x1004, BusTransactionType.Sequential)
+      cpu.assertMemRead(0x1004, sequential = true)
       cpu.step()
 
       // Branch 3: refill pipeline
-      cpu.assertMemRead(0x1008, BusTransactionType.Sequential)
+      cpu.assertMemRead(0x1008, sequential = true)
       cpu.step()
 
       // Check that link flag and PC were set correctly.
@@ -641,7 +643,7 @@ class ARM7TDMISpec extends AnyFunSuite {
       cpu.step()
 
       // Branch 1
-      cpu.assertMemRead(0xC, BusTransactionType.NonSequential)
+      cpu.assertMemRead(0xC, sequential = false)
       cpu.step(3)
       assert((cpu.cpsr() & 0x20) == 0)
 
@@ -649,28 +651,28 @@ class ARM7TDMISpec extends AnyFunSuite {
       assert(cpu.reg(1) == 0)
 
       // Branch 2
-      cpu.assertMemRead(0x18, BusTransactionType.NonSequential, size = BusAccessWidth.Halfword)
+      cpu.assertMemRead(0x18, sequential = false, size = BusAccessWidth.Halfword)
       cpu.step()
-      cpu.assertMemRead(0x1A, BusTransactionType.Sequential, size = BusAccessWidth.Halfword)
+      cpu.assertMemRead(0x1A, sequential = true, size = BusAccessWidth.Halfword)
       cpu.step()
-      cpu.assertMemRead(0x1C, BusTransactionType.Sequential, size = BusAccessWidth.Halfword)
+      cpu.assertMemRead(0x1C, sequential = true, size = BusAccessWidth.Halfword)
       cpu.step()
       assert((cpu.cpsr() & 0x20) != 0)
 
       // Execute thumb instructions
-      cpu.assertMemRead(0x1E, BusTransactionType.Sequential, size = BusAccessWidth.Halfword)
+      cpu.assertMemRead(0x1E, sequential = true, size = BusAccessWidth.Halfword)
       cpu.step()
       assert(cpu.reg(2) == 1)
 
-      cpu.assertMemRead(0x20, BusTransactionType.Sequential, size = BusAccessWidth.Halfword)
+      cpu.assertMemRead(0x20, sequential = true, size = BusAccessWidth.Halfword)
       cpu.step()
       assert(cpu.reg(2) == 2)
 
-      cpu.assertMemRead(0x22, BusTransactionType.Sequential, size = BusAccessWidth.Halfword)
+      cpu.assertMemRead(0x22, sequential = true, size = BusAccessWidth.Halfword)
       cpu.step()
       assert(cpu.reg(2) == 3)
 
-      cpu.assertMemRead(0x24, BusTransactionType.Sequential, size = BusAccessWidth.Halfword)
+      cpu.assertMemRead(0x24, sequential = true, size = BusAccessWidth.Halfword)
       cpu.step()
       assert(cpu.reg(2) == 4)
     }
@@ -750,12 +752,12 @@ class ARM7TDMISpec extends AnyFunSuite {
         }
 
         // LDM #1: Calculate start address
-        cpu.assertMemRead(start, BusTransactionType.NonSequential)
+        cpu.assertMemRead(start, sequential = false)
         cpu.step()
 
         // LDM #2: Writeback base, start fetch
         for (i <- 1 until numRegisters) {
-          cpu.assertMemRead(start + (i * 4), BusTransactionType.Sequential)
+          cpu.assertMemRead(start + (i * 4), sequential = true)
           cpu.step()
 
           if (i == 0) {
@@ -765,7 +767,7 @@ class ARM7TDMISpec extends AnyFunSuite {
         }
 
         // Second-to-last: start I-S prefetch
-        cpu.assertMemRead(0x10, BusTransactionType.Internal)
+        cpu.assertMemRead(0x10, internal = true, sequential = false)
         cpu.step()
 
         if (numRegisters == 1) {
@@ -775,15 +777,15 @@ class ARM7TDMISpec extends AnyFunSuite {
 
         if (!isBranch) {
           // Last: finish prefetch, moving to next instruction
-          cpu.assertMemRead(0x10, BusTransactionType.Sequential)
+          cpu.assertMemRead(0x10, sequential = true)
           cpu.step()
         } else {
           // Flushing the pipeline -- new branch target
-          cpu.assertMemRead(branchTarget, BusTransactionType.NonSequential)
+          cpu.assertMemRead(branchTarget, sequential = false)
           cpu.step()
-          cpu.assertMemRead(branchTarget + 4, BusTransactionType.Sequential)
+          cpu.assertMemRead(branchTarget + 4, sequential = true)
           cpu.step()
-          cpu.assertMemRead(branchTarget + 8, BusTransactionType.Sequential)
+          cpu.assertMemRead(branchTarget + 8, sequential = true)
           cpu.step()
         }
 
@@ -884,7 +886,7 @@ class ARM7TDMISpec extends AnyFunSuite {
         }
 
         // STM #1: Calculate start address
-        cpu.assertMemWrite(start, BusTransactionType.NonSequential)
+        cpu.assertMemWrite(start, sequential = false)
         cpu.step()
 
         var address = start + 4
@@ -900,9 +902,9 @@ class ARM7TDMISpec extends AnyFunSuite {
             assert(cpu.memWriteData() == expected)
             if (registerField >> (i + 1) == 0) {
               // There are no more registers to write, last cycle.
-              cpu.assertMemRead(0x48 /* PC + 12 */, BusTransactionType.NonSequential)
+              cpu.assertMemRead(0x48 /* PC + 12 */, sequential = false)
             } else {
-              cpu.assertMemWrite(address, BusTransactionType.Sequential)
+              cpu.assertMemWrite(address, sequential = true)
               address += 4
             }
             cpu.step()
@@ -986,11 +988,11 @@ class ARM7TDMISpec extends AnyFunSuite {
 
       // First cycle: make sure PC is updated.
       assert(cpu.reg(15) == 1000 + 0x14)
-      cpu.assertMemRead(0x8, BusTransactionType.NonSequential)
+      cpu.assertMemRead(0x8, sequential = false)
       cpu.step()
-      cpu.assertMemRead(0xC, BusTransactionType.Sequential)
+      cpu.assertMemRead(0xC, sequential = true)
       cpu.step()
-      cpu.assertMemRead(0x10, BusTransactionType.Sequential)
+      cpu.assertMemRead(0x10, sequential = true)
       cpu.step()
 
       // Do the branch
@@ -1052,11 +1054,11 @@ class ARM7TDMISpec extends AnyFunSuite {
         val accumulate = (instruction & (1 << 21)) != 0;
         for (i <- 0 until cycles) {
           if (i == 0 && accumulate) {
-            cpu.assertMemRead(0x18 + (2 * 4), BusTransactionType.Internal)
+            cpu.assertMemRead(0x18 + (2 * 4), internal = true, sequential = false)
           } else if (i == cycles - 1) {
-            cpu.assertMemRead(0x18 + (3 * 4), BusTransactionType.Sequential)
+            cpu.assertMemRead(0x18 + (3 * 4), sequential = true)
           } else {
-            cpu.assertMemRead(0x18 + (3 * 4), BusTransactionType.Internal)
+            cpu.assertMemRead(0x18 + (3 * 4), internal = true, sequential = false)
           }
           cpu.step()
         }

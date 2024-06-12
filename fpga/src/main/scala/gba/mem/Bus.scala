@@ -111,14 +111,12 @@ class Bus(
   }
 
   /// Whether there is an incoming request.
-  val initiatorRequested =
-    (io.initiatorPort.TRANS === BusTransactionType.Sequential ||
-      io.initiatorPort.TRANS === BusTransactionType.NonSequential)
+  val initiatorRequested = io.initiatorPort.MREQ
   /// Whether we can accept a new request.
   val isAvailable = (!regAccessBusy || accessDone) && (!regAccessSplit || regAccessSplitPhase === 1.U)
 
   requestAddress := io.initiatorPort.ADDR
-  requestSequential := io.initiatorPort.TRANS === BusTransactionType.Sequential // TODO multi-initiator
+  requestSequential := io.initiatorPort.SEQ // TODO multi-initiator
   requestWrite := io.initiatorPort.WRITE
   requestSize := io.initiatorPort.SIZE
   requestDataWrite := io.initiatorPort.WDATA

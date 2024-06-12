@@ -302,7 +302,8 @@ class ARM7TDMI extends Module {
   io.mem.WDATA := memWriteData
   io.mem.WRITE := control.memWrite
   io.mem.SIZE := control.memWidth
-  io.mem.TRANS := control.memTransaction
+  io.mem.MREQ := control.memRequest
+  io.mem.SEQ := control.memSequential
   io.mem.LOCK := control.memLock
   io.mem.PROT := control.memProt
 

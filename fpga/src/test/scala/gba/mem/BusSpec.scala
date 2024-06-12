@@ -1,7 +1,7 @@
 package gba.mem
 
 import chisel3._
-import gba.mem.{BusAccessWidth, BusTransactionType}
+import gba.mem.BusAccessWidth
 import lib.util.EphemeralSimulator._
 import org.scalatest.funsuite.AnyFunSuite
 
@@ -25,7 +25,8 @@ class BusSpec extends AnyFunSuite {
     val targets = 3
 
     dut.io.enable.poke(true)
-    dut.io.initiatorPort.TRANS.poke(BusTransactionType.Internal)
+    dut.io.initiatorPort.MREQ.poke(false)
+    dut.io.initiatorPort.SEQ.poke(false)
     for (i <- 0 until targets) {
       dut.io.targetPort(i).done.poke(false)
     }
@@ -38,10 +39,8 @@ class BusSpec extends AnyFunSuite {
       dut.io.initiatorPort.ADDR.poke(address)
       dut.io.initiatorPort.WRITE.poke(write)
       dut.io.initiatorPort.SIZE.poke(size)
-      dut.io.initiatorPort.TRANS.poke(
-        if (sequential) { BusTransactionType.Sequential }
-        else { BusTransactionType.NonSequential }
-      )
+      dut.io.initiatorPort.MREQ.poke(true)
+      dut.io.initiatorPort.SEQ.poke(sequential)
     }
 
     def getReadData(): BigInt = {
@@ -87,7 +86,8 @@ class BusSpec extends AnyFunSuite {
 
       if (resetAccess) {
         // Reset some state so accesses don't continue by default
-        dut.io.initiatorPort.TRANS.poke(BusTransactionType.Internal)
+        dut.io.initiatorPort.MREQ.poke(false)
+        dut.io.initiatorPort.SEQ.poke(false)
         for (i <- 0 until targets) {
           dut.io.targetPort(i).done.poke(false)
         }

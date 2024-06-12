@@ -19,17 +19,6 @@ object BusAccessWidth extends ChiselEnum {
     }
 }
 
-object BusTransactionType extends ChiselEnum {
-    /// Internal (address-only)
-    val Internal = Value
-    /// Coprocessor
-    val Coprocessor = Value
-    /// Memory access at non-sequential address
-    val NonSequential = Value
-    /// Memory access at sequential burst address.
-    val Sequential = Value
-}
-
 class BusProtectionType extends Bundle {
     /// True for a privileged access
     val privileged = Bool()
@@ -53,8 +42,10 @@ class BusInterface extends Bundle {
 
     /// Output address bus
     val ADDR = Output(UInt(32.W))
-    /// Next transaction type
-    val TRANS = Output(BusTransactionType())
+    /// Whether a memory access is being requested
+    val MREQ = Output(Bool())
+    /// Whether the memory access is sequential
+    val SEQ = Output(Bool())
 
     /// Memory abort or bus error
     val ABORT = Input(Bool())
