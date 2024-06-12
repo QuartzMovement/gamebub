@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 import gba.cpu.ARM7TDMI
-import gba.mem.{BusTarget, BusAccessWidth, SimpleRam, TargetInterface}
+import gba.mem.{BusAccessWidth, BusArbiter, BusTarget, SimpleRam, TargetInterface}
 import gba.ppu.{Ppu, PpuOutput}
 
 object GBA extends App {
@@ -48,6 +48,9 @@ class GBA extends Module {
     bus.io.targetPort(i).dataRead := 0.U
     bus.io.targetPort(i).done := true.B
   }
+  val busArbiter = Module(new BusArbiter(5))
+  busArbiter.io.enable := io.enable
+  bus.io.initiatorPort <> busArbiter.io.outputPort
 
   // MMIO Bus
   val mmio = Module(new MMIO(numTargets = 4))
@@ -74,7 +77,7 @@ class GBA extends Module {
   val cpu = Module(new ARM7TDMI)
   cpu.io.enable := io.enable
   cpu.io.FIQ := false.B
-  bus.io.initiatorPort <> cpu.io.mem
+  busArbiter.io.inputPorts(4) <> cpu.io.mem
 
   // Interrupt manager
   val interrupt = Module(new Interrupt)
@@ -110,9 +113,11 @@ class GBA extends Module {
   mmio.targets(3) <> dma.io.mmio
   interrupt.io.peripheralIrq.dma := dma.io.irq.asUInt
   for (i <- 0 until 4) {
-    // TODO implement
-    dma.io.busInitiator(i).CLKEN := true.B
-    dma.io.busInitiator(i).ABORT := false.B
-    dma.io.busInitiator(i).RDATA := 0.U
+    busArbiter.io.inputPorts(i) <> dma.io.busInitiator(i)
+
+    // TODO remove
+//    dma.io.busInitiator(i).CLKEN := true.B
+//    dma.io.busInitiator(i).ABORT := false.B
+//    dma.io.busInitiator(i).RDATA := 0.U
   }
 }
