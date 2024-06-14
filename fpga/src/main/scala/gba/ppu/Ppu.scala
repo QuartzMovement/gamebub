@@ -232,8 +232,8 @@ class Ppu extends Module {
     io.irqHblank := regIrqEnableHblank && io.output.hblank && !lastHblank
     io.irqVblank := regIrqEnableVblank && io.output.vblank && !lastVblank
     io.irqVcount := regIrqEnableVcount && vcountHit && !lastVcountHit
-    io.dmaTriggerHblank := io.output.hblank && !lastHblank
-    io.dmaTriggerVblank := io.output.vblank && !lastVblank
-    io.dmaTriggerVideo := false.B  // TODO DMA video trigger
+    io.dmaTriggerHblank := (tick === 1006.U) && (scanline < 160.U)
+    io.dmaTriggerVblank := (tick === 0.U) && (scanline === 160.U)
+    io.dmaTriggerVideo := (tick === 1006.U) && (scanline >= 2.U && scanline < 162.U)
   }
 }

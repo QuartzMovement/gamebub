@@ -83,7 +83,7 @@ class Dma extends Module {
     bus.PROT.privileged := false.B
     bus.LOCK := false.B
     bus.ADDR := DontCare
-    bus.MREQ := false.B
+    bus.MREQ := busActive
     bus.SEQ := !regInitial
     bus.WDATA := DontCare
 
@@ -92,7 +92,7 @@ class Dma extends Module {
     val addressMask = Mux(control.sizeWord, "b00".U(2.W), "b10".U(2.W))
     when (io.enable && justEnabled) {
       // TODO Handle special audio fifo config
-      printf(cf"DMA ${i} enable\n")
+//      printf(cf"DMA ${i} enable\n")
       // Mask off lower bits of address depending on size
       regSource := Cat(configSource(configSource.getWidth - 1, 2), configSource(1, 0) & addressMask)
       regDest := Cat(configDest(configDest.getWidth - 1, 2), configDest(1, 0) & addressMask)
@@ -106,7 +106,7 @@ class Dma extends Module {
     when (io.enable) {
       // TODO handle "special" activation modes / audio FIFO
       when (!active && (activateImm || activateHblank || activateVblank)) {
-        printf(cf"DMA ${i} activate\n")
+//        printf(cf"DMA ${i} activate\n")
         active := true.B
         regInitial := true.B
         regStage := 0.U
@@ -126,9 +126,8 @@ class Dma extends Module {
 
         // Check if the DMA is complete.
         when (bus.CLKEN) {
-          printf(cf"DMA ${i} - load  @ 0x${regSource}%x\n")
           when (complete) {
-            printf(cf"DMA ${i} complete\n")
+//            printf(cf"DMA ${i} complete\n")
             io.irq(i) := control.irq
             active := false.B
             // TODO handle different behavior for audio FIFO
@@ -141,6 +140,7 @@ class Dma extends Module {
               control.enable := false.B
             }
           } .otherwise {
+//            printf(cf"DMA ${i} - load  @ 0x${regSource}%x\n")
             regStage := 1.U
             regCount := regCount - 1.U
 
@@ -166,7 +166,7 @@ class Dma extends Module {
         bus.WRITE := true.B
 
         when (bus.CLKEN) {
-          printf(cf"DMA ${i} - store @ 0x${regDest}%x\n")
+//          printf(cf"DMA ${i} - store @ 0x${regDest}%x  (data = 0x${bus.RDATA}%x)\n")
           regStage := 0.U
           regInitial := false.B
 

@@ -99,7 +99,7 @@ class BusArbiter(numInputs: Int) extends Module {
       }
     }
 
-    when (!port.MREQ && !(regRequested && regRequestSource(i))) {
+    when (!port.MREQ && !(regRequested && regRequestSource(i)) && !regRequestQueued) {
       // When the initiator *isn't* requesting, allow it to proceed.
       // (e.g. internal cycles in CPU)
       port.CLKEN := true.B
