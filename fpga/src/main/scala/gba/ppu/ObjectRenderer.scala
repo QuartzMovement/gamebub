@@ -426,9 +426,9 @@ class ObjectRenderer extends Module {
       }
       bufferPage := !bufferPage
       when (bufferPage === 0.U) {
-        buffer1 := VecInit(Seq.fill(240)(0.U))
+        buffer1 := VecInit.fill(240)(0.U)
       } .otherwise {
-        buffer0 := VecInit(Seq.fill(240)(0.U))
+        buffer0 := VecInit.fill(240)(0.U)
       }
       oamIndex := 0.U
       oamStage := 0.U

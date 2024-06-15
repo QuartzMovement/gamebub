@@ -66,7 +66,7 @@ class ARM7TDMI extends Module {
   // 20: 13_und, 21: 14_und,
   // 22: 13_irq, 23: 14_irq
   // 24-30: 8-14 _fiq
-  val registers = RegInit(VecInit(Seq.fill(31)(0.U(32.W))))
+  val registers = RegInit(VecInit.fill(31)(0.U(32.W)))
   private def bankRegIndex(index: UInt, mode: CpuMode.Type = control.regBankMode): UInt = {
     val offset = WireDefault(0.U(5.W))
     when (mode === CpuMode.Fiq && index >= 8.U && index <= 14.U) {

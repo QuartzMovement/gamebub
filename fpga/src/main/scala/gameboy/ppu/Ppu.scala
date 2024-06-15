@@ -48,7 +48,7 @@ class PixelFifo[T <: Data](gen: T, mustBeEmpty: Boolean) extends Module {
     val register = Output(Vec(8, gen))
   })
 
-  val register = RegInit(VecInit(Seq.fill(8)(0.U.asTypeOf(gen))))
+  val register = RegInit(VecInit.fill(8)(0.U.asTypeOf(gen)))
   val length = RegInit(0.U(4.W))
   io.register := register
 
@@ -194,8 +194,8 @@ class Ppu(config: Gameboy.Configuration) extends Module {
   val regBcps = RegInit(0.U.asTypeOf(new RegisterCgbPaletteIndex))
   /** $FF6A -- OCPS (CGB only): Obj palette index */
   val regOcps = RegInit(0.U.asTypeOf(new RegisterCgbPaletteIndex))
-  val cgbPaletteBg = RegInit(VecInit(Seq.fill(64)(0.U(8.W))))
-  val cgbPaletteObj = RegInit(VecInit(Seq.fill(64)(0.U(8.W))))
+  val cgbPaletteBg = RegInit(VecInit.fill(64)(0.U(8.W)))
+  val cgbPaletteObj = RegInit(VecInit.fill(64)(0.U(8.W)))
 
   // Tick and scanline adjustment
   when (io.clocker.pulse4Mhz) {

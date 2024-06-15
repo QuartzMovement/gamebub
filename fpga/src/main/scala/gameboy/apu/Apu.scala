@@ -35,12 +35,12 @@ class Apu(config: Gameboy.Configuration) extends Module {
   val regApuEnable = RegInit(config.skipBootrom.B)
   val regPanning = RegInit(0.U.asTypeOf(new RegisterSoundPanning))
   val regVolume = RegInit(0.U.asTypeOf(new RegisterMasterVolume))
-  val regLengthEnable = RegInit(VecInit(Seq.fill(4)(false.B)))
-  val channelTrigger = VecInit(Seq.fill(4)(false.B))
-  val channelEnabled = RegInit(VecInit(Seq.fill(4)(false.B)))
+  val regLengthEnable = RegInit(VecInit.fill(4)(false.B))
+  val channelTrigger = VecInit.fill(4)(false.B)
+  val channelEnabled = RegInit(VecInit.fill(4)(false.B))
 
   // Wave ram
-  val waveRam = RegInit(VecInit(Seq.fill(16)(0.U(8.W))))
+  val waveRam = RegInit(VecInit.fill(16)(0.U(8.W)))
 
   // Frame sequencer
   val frameSequencer = Module(new FrameSequencer)

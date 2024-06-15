@@ -20,7 +20,7 @@ class AxiLiteInitiatorDemo extends Module {
   // Reg 2: write -> set bit 0 to 1 to start
   // Reg 3: write -> strobe (in the lowest bits)
   // Reg 4: read -> cycles elapsed
-  val registers = RegInit(VecInit(Seq.fill(64)(0.U(32.W))))
+  val registers = RegInit(VecInit.fill(64)(0.U(32.W)))
   val axiTarget = Module(new AxiLiteTarget(64))
   axiTarget.io.signals <> io.axiTarget
   axiTarget.io.readData := registers

@@ -43,9 +43,9 @@ class SimpleCache(addrWidth: Int, dataWidth: Int, indexWidth: Int) extends Modul
   // to make it a sync read. This is to coax Vivado into synthesizing this as BRAM -- for whatever reason,
   // it otherwise turns the `data` part of the cache into distributed RAM.
   val cache = Mem(entries, new CacheEntry(tagWidth, dataWidth))
-  val cacheValid = RegInit(VecInit(Seq.fill(entries)(false.B)))
+  val cacheValid = RegInit(VecInit.fill(entries)(false.B))
   when (io.cacheInvalidate) {
-    cacheValid := VecInit(Seq.fill(entries)(false.B))
+    cacheValid := VecInit.fill(entries)(false.B)
     statHits := 0.U
     statMisses := 0.U
   }
