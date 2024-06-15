@@ -74,6 +74,7 @@ class Dma extends Module {
     val regInitial = Reg(Bool())  // Whether this is the initial load-store cycle.
     val regStage = Reg(UInt(1.W))
     val dataLatch = Reg(UInt(32.W))
+    val regSourceAddressHalfword = Reg(UInt(1.W))
 
     val busActive = WireDefault(false.B)
     io.irq(i) := false.B
@@ -122,7 +123,8 @@ class Dma extends Module {
         bus.ADDR := regSource
         bus.WRITE := false.B
         // Complete Store (if not initial)
-        bus.WDATA := dataLatch  // TODO check if 16-bit works
+        bus.WDATA := dataLatch
+        regSourceAddressHalfword := regSource(1)
 
         // Check if the DMA is complete.
         when (bus.CLKEN) {
@@ -157,7 +159,11 @@ class Dma extends Module {
       } .otherwise {
         // Complete Load
         when (bus.CLKEN) {
-          dataLatch := bus.RDATA  // TODO check if 16-bit works
+          when (control.sizeWord) {
+            dataLatch := bus.RDATA
+          } .otherwise {
+            dataLatch := Fill(2, Mux(regSourceAddressHalfword.asBool, bus.RDATA(31, 16), bus.RDATA(15, 0)))
+          }
         }
 
         // Begin Store

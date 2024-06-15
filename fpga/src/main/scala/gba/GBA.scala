@@ -114,10 +114,5 @@ class GBA extends Module {
   interrupt.io.peripheralIrq.dma := dma.io.irq.asUInt
   for (i <- 0 until 4) {
     busArbiter.io.inputPorts(i) <> dma.io.busInitiator(i)
-
-    // TODO remove
-//    dma.io.busInitiator(i).CLKEN := true.B
-//    dma.io.busInitiator(i).ABORT := false.B
-//    dma.io.busInitiator(i).RDATA := 0.U
   }
 }
