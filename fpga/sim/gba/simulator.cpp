@@ -26,9 +26,9 @@ Simulator::Simulator(std::filesystem::path rom_path, std::filesystem::path bios_
     }
     // Note: assumes little-endian
     memcpy(
-        reinterpret_cast<uint32_t*>(&this->top->rootp->SimGba__DOT__biosRom_ext__DOT__Memory),
-        reinterpret_cast<uint32_t*>(bios.data()),
-        16 * 1024 / 4
+        &this->top->rootp->SimGba__DOT__biosRom_ext__DOT__Memory,
+        bios.data(),
+        16 * 1024
     );
 }
 
