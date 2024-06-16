@@ -116,7 +116,6 @@ class BusArbiter(numInputs: Int) extends Module {
 
   // Set the output bus parameters for the current request.
   when (isRequesting) {
-    // TODO force non-sequential when changing initiators
     io.outputPort.MREQ := true.B
     io.outputPort.WRITE := requestChosenParams.WRITE
     io.outputPort.SIZE := requestChosenParams.SIZE
@@ -124,6 +123,12 @@ class BusArbiter(numInputs: Int) extends Module {
     io.outputPort.LOCK := requestChosenParams.LOCK
     io.outputPort.ADDR := requestChosenParams.ADDR
     io.outputPort.SEQ := requestChosenParams.SEQ
+
+    when ((regRequestSource.asUInt & requestChosen.asUInt) === 0.U) {
+      // Switching initiators, force a non-sequential access.
+      io.outputPort.SEQ := false.B
+//      printf(cf"DMA: forcing !SEQ: ${regRequestSource.asUInt}%b -> ${requestChosen.asUInt}%b\n")
+    }
   }
   // Set WDATA based on the request from last bus cycle.
   io.outputPort.WDATA := Mux1H(regRequestSource, io.inputPorts.map(_.WDATA))
