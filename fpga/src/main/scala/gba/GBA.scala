@@ -27,6 +27,11 @@ class GBA extends Module {
 
     /// BIOS ROM access
     val biosRom = new BiosRomAccess
+
+    /// EWRAM access. Outside of the module to allow the use of
+    /// device-specific storage (e.g. an external SRAM chip).
+    /// Must have 2 wait states.
+    val ewram = Flipped(new TargetInterface(16.W))
   })
 
   val bus = Module(new mem.Bus(Seq(
@@ -64,9 +69,7 @@ class GBA extends Module {
   bus.io.targetPort(0) <> bios.io.target
 
   // Work RAMs
-  val ewram = Module(new SimpleRam("EWRAM", 256 * 1024, 16.W, waitStates = 2))
-  ewram.io.enable := io.enable
-  bus.io.targetPort(1) <> ewram.io.target
+  bus.io.targetPort(1) <> io.ewram
   val iwram = Module(new SimpleRam("IWRAM", 32 * 1024, 32.W))
   iwram.io.enable := io.enable
   bus.io.targetPort(2) <> iwram.io.target

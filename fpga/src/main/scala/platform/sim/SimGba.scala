@@ -3,7 +3,7 @@ package platform.sim
 import chisel3._
 import _root_.circt.stage.ChiselStage
 import gba._
-import gba.mem.TargetInterface
+import gba.mem.{SimpleRam, TargetInterface}
 import gba.ppu.PpuOutput
 
 object SimGba extends App {
@@ -35,4 +35,9 @@ class SimGba extends Module {
     rom
   }
   gba.io.biosRom.data := biosRom.read(gba.io.biosRom.address, gba.io.biosRom.read)
+
+  // EWRAM
+  val ewram = Module(new SimpleRam("EWRAM", 256 * 1024, 16.W, waitStates = 2))
+  ewram.io.enable := io.enable
+  gba.io.ewram <> ewram.io.target
 }
