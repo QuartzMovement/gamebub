@@ -24,7 +24,7 @@ class Vram extends Module {
   val isTileMode = io.displayMode < 3.U
   val currBgAddr = io.portBG.address(15, 14)
   val currObjAddr = io.portOBJ.address(13)
-  val currCpuAddr = io.memTarget.address(16, 15)
+  val currCpuAddr = io.memTarget.address(16, 14)
   val lastBgAddr = RegEnable(currBgAddr, io.enable && io.portBG.read)
   val lastObjAddr = RegEnable(currObjAddr, io.enable && io.portOBJ.read)
   val lastCpuAddr = RegEnable(currCpuAddr, io.enable && io.memTarget.request)
@@ -35,9 +35,9 @@ class Vram extends Module {
    * Lower 64KiB is exclusively BG. The next 16KiB is BG in bitmap modes, OBJ otherwise,
    * and the top 16KiB is exclusively OBJ.
    */
-  val memBg = Module(new PpuMem(64 * 1024 / 2, 16.W)) //  address width = 15
-  val memObjLo = Module(new PpuMem(16 * 1024 / 2, 16.W)) //  address width = 13
-  val memObjHi = Module(new PpuMem(16 * 1024 / 2, 16.W)) //  address width = 13
+  val memBg = Module(new PpuMem("vramBG", 64 * 1024 / 2, 16.W)) //  address width = 15
+  val memObjLo = Module(new PpuMem("vramObjLo", 16 * 1024 / 2, 16.W)) //  address width = 13
+  val memObjHi = Module(new PpuMem("vramObjHi", 16 * 1024 / 2, 16.W)) //  address width = 13
   memBg.io.enable := io.enable
   memObjLo.io.enable := io.enable
   memObjHi.io.enable := io.enable
@@ -116,7 +116,7 @@ class Vram extends Module {
   memObjLo.io.memTarget.request := false.B
   memObjHi.io.memTarget.request := false.B
 
-  when (!currCpuAddr(1)) {
+  when (!currCpuAddr(2)) {
     memBg.io.memTarget.request := io.memTarget.request
   } .otherwise {
     when (!currCpuAddr(0)) {
@@ -125,7 +125,7 @@ class Vram extends Module {
       memObjHi.io.memTarget.request := io.memTarget.request
     }
   }
-  when (!lastCpuAddr(1)) {
+  when (!lastCpuAddr(2)) {
     io.memTarget.dataRead := memBg.io.memTarget.dataRead
     io.memTarget.done := memBg.io.memTarget.done
   } .otherwise {

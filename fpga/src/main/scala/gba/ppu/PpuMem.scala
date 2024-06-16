@@ -16,7 +16,7 @@ class PpuMemoryInterface(size: Int, width: Width) extends Bundle {
 ///
 /// PPU port is always read-only and takes priority over CPU.
 /// Byte strobe is not supported, but halfword writes are
-class PpuMem(size: Int, width: Width) extends Module {
+class PpuMem(name: String, size: Int, width: Width) extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
 
@@ -32,6 +32,7 @@ class PpuMem(size: Int, width: Width) extends Module {
 
   // CPU access
   {
+    val addressShift = log2Ceil(width.get / 8)
     io.memTarget.done := false.B
 
     // Write
@@ -46,12 +47,11 @@ class PpuMem(size: Int, width: Width) extends Module {
         Seq(true.B)
       }
 
-      val shift = log2Ceil(width.get / 8)
-      mem.write(queuedWriteAddress >> shift, io.memTarget.dataWrite.asTypeOf(Vec(widthHalfwords, UInt(16.W))), mask)
+      mem.write(queuedWriteAddress >> addressShift, io.memTarget.dataWrite.asTypeOf(Vec(widthHalfwords, UInt(16.W))), mask)
       queuedWrite := false.B
       io.memTarget.done := true.B
 
-//      printf(cf" [vram] bg write: ${queuedWriteAddress >> 1}%x --- data ${io.memTarget.dataWrite}%x\n")
+//      printf(cf" [vram] [$name] write: ${queuedWriteAddress}%x --- data ${io.memTarget.dataWrite}%x\n")
     }
     when (io.enable && io.memTarget.request && io.memTarget.write) {
       queuedWrite := true.B
@@ -62,7 +62,7 @@ class PpuMem(size: Int, width: Width) extends Module {
     // Read
     val readEnable = io.enable && io.memTarget.request && !io.memTarget.write && !io.ppuTarget.read
     val readBusy = RegInit(false.B)
-    io.memTarget.dataRead := mem.read(io.memTarget.address >> 1, readEnable).asUInt
+    io.memTarget.dataRead := mem.read(io.memTarget.address >> addressShift, readEnable).asUInt
     when (io.enable && readBusy) {
       io.memTarget.done := true.B
       readBusy := false.B

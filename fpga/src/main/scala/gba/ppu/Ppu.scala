@@ -73,11 +73,11 @@ class Ppu extends Module {
   vram.io.displayMode := regDisplayControl.mode
   vram.io.memTarget <> io.vramTarget
 
-  val paletteRam = Module(new PpuMem(1024 / 2, 16.W))
+  val paletteRam = Module(new PpuMem("pal", 1024 / 2, 16.W))
   paletteRam.io.enable := io.enable
   paletteRam.io.memTarget <> io.paletteRamTarget
 
-  val oam = Module(new PpuMem(1024 / 4, 32.W))
+  val oam = Module(new PpuMem("oam", 1024 / 4, 32.W))
   oam.io.enable := io.enable
   oam.io.memTarget <> io.oamTarget
 
