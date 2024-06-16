@@ -63,11 +63,11 @@ class GBA extends Module {
   bios.io.access <> io.biosRom
   bus.io.targetPort(0) <> bios.io.target
 
-  // Temporary RAMs
-  val ewram = Module(new SimpleRam(256 * 1024, 16.W))
+  // Work RAMs
+  val ewram = Module(new SimpleRam("EWRAM", 256 * 1024, 16.W, waitStates = 2))
   ewram.io.enable := io.enable
   bus.io.targetPort(1) <> ewram.io.target
-  val iwram = Module(new SimpleRam(32 * 1024, 32.W))
+  val iwram = Module(new SimpleRam("IWRAM", 32 * 1024, 32.W))
   iwram.io.enable := io.enable
   bus.io.targetPort(2) <> iwram.io.target
 

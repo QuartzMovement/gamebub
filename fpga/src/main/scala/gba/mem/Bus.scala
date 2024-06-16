@@ -116,7 +116,7 @@ class Bus(
   val isAvailable = (!regAccessBusy || accessDone) && (!regAccessSplit || regAccessSplitPhase === 1.U)
 
   requestAddress := io.initiatorPort.ADDR
-  requestSequential := io.initiatorPort.SEQ // TODO multi-initiator
+  requestSequential := io.initiatorPort.SEQ
   requestWrite := io.initiatorPort.WRITE
   requestSize := io.initiatorPort.SIZE
   requestDataWrite := io.initiatorPort.WDATA
