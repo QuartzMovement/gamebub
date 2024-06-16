@@ -13,7 +13,8 @@ class SimpleRam(name: String, size: Int, width: Width, waitStates: Int = 0) exte
   val numWords = size / widthBytes
   val addrShift = log2Ceil(widthBytes)
 
-  val readBusy = RegInit(false.B)
+  val busy = RegInit(false.B)
+  val busyCounter = Reg(UInt(log2Ceil(waitStates + 1).W))
   val queuedWrite = RegInit(false.B)
   val queuedWriteAddress = Reg(UInt(log2Ceil(numWords).W))
   val queuedWriteMask = Reg(UInt(widthBytes.W))
@@ -35,28 +36,33 @@ class SimpleRam(name: String, size: Int, width: Width, waitStates: Int = 0) exte
   io.target.dataRead := DontCare
 
   when (io.enable) {
-    when (readBusy) {
-      io.target.done := true.B
-      readBusy := false.B
+    when (busy) {
+      busyCounter := busyCounter - 1.U
+
+      when (busyCounter === 0.U) {
+        busy := false.B
+        io.target.done := true.B
+
+        when (queuedWrite) {
+          memWritePort.enable := true.B
+          memWritePort.address := queuedWriteAddress
+          memWritePort.mask.get := queuedWriteMask.asBools
+          memWritePort.data := io.target.dataWrite.asTypeOf(Vec(widthBytes, UInt(8.W)))
+        } .otherwise {
+          io.target.dataRead := memReadPort.data.asUInt
+        }
+      }
     }
-    when (queuedWrite) {
-      io.target.done := true.B
-      memWritePort.enable := true.B
-      memWritePort.address := queuedWriteAddress
-      memWritePort.mask.get := queuedWriteMask.asBools
-      memWritePort.data := io.target.dataWrite.asTypeOf(Vec(widthBytes, UInt(8.W)))
-      queuedWrite := false.B
-    }
-    when (io.target.request) {
+    when (io.target.request && !(busy && busyCounter > 0.U)) {
+      busy := true.B
+      busyCounter := waitStates.U
+      queuedWrite := io.target.write
       when (io.target.write) {
-        queuedWrite := true.B
         queuedWriteAddress := io.target.address >> addrShift
         queuedWriteMask := io.target.mask
       } .otherwise {
-        readBusy := true.B
         memReadPort.enable := true.B
         memReadPort.address := io.target.address >> addrShift
-        io.target.dataRead := memReadPort.data.asUInt
       }
     }
   }
