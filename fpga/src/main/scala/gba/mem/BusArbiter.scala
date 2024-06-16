@@ -107,9 +107,25 @@ class BusArbiter(numInputs: Int) extends Module {
   }
 
   // Choose the next request.
-  // TODO handle 'LOCK'
-  val isRequesting = requestsVec.asUInt.orR
-  requestChosen := PriorityEncoderOH(requestsVec)
+  val regLocked = RegInit(false.B)
+  val isRequesting = WireDefault(requestsVec.asUInt.orR)
+  when (regLocked) {
+//    printf(cf"BusArbiter:  --> locked: ${requestChosen.asUInt}%b | req=${requestsVec.asUInt}%b\n")
+    requestChosen := regRequestSource
+    when ((regRequestSource.asUInt & requestsVec.asUInt) === 0.U) {
+      // The current locker is not requesting, so do no request.
+      isRequesting := false.B
+    }
+    val lockerParams = suppressEnumCastWarning {
+      Mux1H(regRequestSource, requestParamsVec)
+    }
+    when (io.enable && !lockerParams.LOCK) {
+//      printf(cf"BusArbiter: unlocked\n")
+      regLocked := false.B
+    }
+  } .otherwise {
+    requestChosen := PriorityEncoderOH(requestsVec)
+  }
   val requestChosenParams = suppressEnumCastWarning {
     Mux1H(requestChosen, requestParamsVec)
   }
@@ -127,7 +143,7 @@ class BusArbiter(numInputs: Int) extends Module {
     when ((regRequestSource.asUInt & requestChosen.asUInt) === 0.U) {
       // Switching initiators, force a non-sequential access.
       io.outputPort.SEQ := false.B
-//      printf(cf"DMA: forcing !SEQ: ${regRequestSource.asUInt}%b -> ${requestChosen.asUInt}%b\n")
+//      printf(cf"BusArbiter: forcing !SEQ: ${regRequestSource.asUInt}%b -> ${requestChosen.asUInt}%b\n")
     }
   }
   // Set WDATA based on the request from last bus cycle.
@@ -137,6 +153,10 @@ class BusArbiter(numInputs: Int) extends Module {
     when (isRequesting) {
       regRequested := true.B
       regRequestSource := requestChosen
+      when (requestChosenParams.LOCK) {
+        regLocked := true.B
+//        printf(cf"BusArbiter: locked by ${requestChosen.asUInt}%b\n")
+      }
     } .otherwise {
       regRequested := false.B
     }
