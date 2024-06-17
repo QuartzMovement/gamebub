@@ -24,7 +24,7 @@ class Timer extends Module {
 
   val regControl = Seq.fill(4)(RegInit(0.U.asTypeOf(new TimerControl)))
   val regCounterReload = Seq.fill(4)(RegInit(0.U(16.W)))
-  val regCounter = Seq.fill(4)(RegInit(0.U(16.W)))
+  val regCounter = Seq.fill(4)(Reg(UInt(16.W)))
 
   io.mmio <> MmioMap.fromSeq(
     (0 until 4).map(i => 0x100 + (4 * i) -> MmioMap.Entry(
@@ -33,14 +33,51 @@ class Timer extends Module {
     ))
   )
 
+  // Prescaler / clock divider
+  val prescalerTick = Wire(Vec(4, Bool()))
+  val prescalerCounter = RegInit(0.U(11.W))
+  val nextPrescalerCounter = prescalerCounter + 1.U
+  when (io.enable) {
+    prescalerCounter := nextPrescalerCounter
+  }
+  prescalerTick(0) := nextPrescalerCounter(0) ^ prescalerCounter(0) // by 1
+  prescalerTick(1) := nextPrescalerCounter(6) ^ prescalerCounter(6) // by 64
+  prescalerTick(2) := nextPrescalerCounter(8) ^ prescalerCounter(8) // by 256
+  prescalerTick(3) := nextPrescalerCounter(10) ^ prescalerCounter(10) // by 1024
+
+  val overflow = WireDefault(VecInit.fill(4)(false.B))
   for (i <- 0 until 4) {
     val control = regControl(i)
     val counter = regCounter(i)
     val counterReload = regCounterReload(i)
 
     val justEnabled = control.enable && !RegEnable(control.enable, io.enable)
-    when (justEnabled) {
-      printf(cf"Timer ${i} enable: ${control}\n")
+    val tick = Wire(Bool())
+    if (i == 0) {
+      tick := prescalerTick(control.freq)
+    } else {
+      tick := Mux(control.cascade, overflow(i - 1), prescalerTick(control.freq))
+    }
+
+    when (io.enable) {
+      when (justEnabled) {
+//        printf(cf"Timer ${i} enable: ${control}\n")
+        counter := counterReload
+      }
+
+      when (control.enable && tick) {
+        val next = counter + 1.U
+        when (next === 0.U) {
+//          printf(cf"Timer ${i} overflow\n")
+          overflow(i) := true.B
+          when (control.irq) {
+            io.irq(i) := true.B
+          }
+          counter := counterReload
+        } .otherwise {
+          counter := next
+        }
+      }
     }
   }
 }
