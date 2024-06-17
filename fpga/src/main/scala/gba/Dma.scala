@@ -89,7 +89,7 @@ class Dma extends Module {
     bus.WDATA := DontCare
 
     // Latching config
-    val justEnabled = regConfigControl(i).enable && !RegNext(regConfigControl(i).enable)
+    val justEnabled = control.enable && !RegEnable(control.enable, io.enable)
     val addressMask = Mux(control.sizeWord, "b00".U(2.W), "b10".U(2.W))
     when (io.enable && justEnabled) {
       // TODO Handle special audio fifo config

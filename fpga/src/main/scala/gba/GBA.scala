@@ -58,7 +58,7 @@ class GBA extends Module {
   bus.io.initiatorPort <> busArbiter.io.outputPort
 
   // MMIO Bus
-  val mmio = Module(new MMIO(numTargets = 4))
+  val mmio = Module(new MMIO(numTargets = 5))
   mmio.io.enable := io.enable
   bus.io.targetPort(3) <> mmio.io.mem
 
@@ -118,4 +118,10 @@ class GBA extends Module {
   for (i <- 0 until 4) {
     busArbiter.io.inputPorts(i) <> dma.io.busInitiator(i)
   }
+
+  // Timer
+  val timer = Module(new Timer)
+  timer.io.enable := io.enable
+  mmio.targets(4) <> timer.io.mmio
+  interrupt.io.peripheralIrq.timer := timer.io.irq.asUInt
 }
