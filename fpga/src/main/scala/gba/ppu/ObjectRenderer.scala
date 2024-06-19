@@ -126,12 +126,12 @@ class ObjectRenderer extends Module {
     bufferWriteIndex := drawX
     bufferWriteData := bufferWriteReadback
 
-    when (!bufferWriteReadback.opaque || pixel.priority < bufferWriteReadback.priority) {
-      when (pixel.window) {
-        when (pixel.opaque) {
-          bufferWriteData.window := true.B
-        }
-      } .elsewhen (pixel.opaque) {
+    when (pixel.window) {
+      when (pixel.opaque) {
+        bufferWriteData.window := true.B
+      }
+    } .elsewhen (!bufferWriteReadback.opaque || pixel.priority < bufferWriteReadback.priority) {
+      when (pixel.opaque) {
         bufferWriteData := pixel
       } .otherwise {
         // GBA compositing bug: a *transparent* pixel drawn over an opaque pixel of lower priority
