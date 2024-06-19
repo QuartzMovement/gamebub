@@ -181,7 +181,7 @@ class ObjectRenderer extends Module {
     when (evenTick) {
       // Fetch from VRAM
       // objMapping 1 is 1D, otherwise 2D
-      val tileStride = Mux(io.displayControl.objMapping === 1.U, OHToUInt(fetchObj.texW), 5.U)
+      val tileStride = Mux(io.displayControl.objMapping === 1.U, OHToUInt(fetchObj.texW), Mux(fetchObj.bpp8, 4.U, 5.U))
       val tileOffset = tileX + (tileY << tileStride)
       io.vram.read := true.B
       when (fetchObj.bpp8) {
