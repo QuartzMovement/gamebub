@@ -46,7 +46,9 @@ class GBA extends Module {
     BusTarget("Cart ROM 0", (0x8 >> 1).U(3.W), BusAccessWidth.Halfword),
     BusTarget("Cart ROM 1", (0xA >> 1).U(3.W), BusAccessWidth.Halfword),
     BusTarget("Cart ROM 2", (0xC >> 1).U(3.W), BusAccessWidth.Halfword),
-    BusTarget("Cart RAM", 0xE.U(4.W), BusAccessWidth.Byte),
+    // N.B. SRAM is only 8-bit, but 32/16 bit accesses are never split
+    // (and all just become a single physical cartridge access), thus, to the bus, it is 32-bit.
+    BusTarget("Cart RAM", 0xE.U(4.W), BusAccessWidth.Word),
     BusTarget("Unmapped", 0xF.U(4.W), BusAccessWidth.Word),
   )))
   bus.io.enable := io.enable
