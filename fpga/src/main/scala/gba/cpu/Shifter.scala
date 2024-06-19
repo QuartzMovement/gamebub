@@ -29,8 +29,6 @@ class Shifter extends Module {
     val useLatchedShift = Input(Bool())
   })
 
-//  printf(cf"*** shift: ${io.in}, ${io.shiftKind}  ${io.shiftAmount} -> ${io.out}\n")
-
   // Shift latching for shift-by-register
   val latchedShift = Reg(UInt(8.W))
   when (io.latchShift) {

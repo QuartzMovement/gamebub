@@ -138,7 +138,6 @@ class Decoder extends Module {
     decodeAddrReg := fetchAddress
   }
   val in = decodeReg
-//  printf(cf"decoding ${in}%x, fetching ${fetchResult}%x\n")
 
   when (io.enable && io.flushPipeline) {
     fetchRegValid := false.B

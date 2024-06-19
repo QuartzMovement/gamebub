@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
 import gba.mem.{BusAccessWidth, BusInterface}
+import lib.log.Logger
 
 /// ARM7TDMI-S compatible processor as found in the GBA
 class ARM7TDMI extends Module {
@@ -20,6 +21,7 @@ class ARM7TDMI extends Module {
     /// **Active-High** interrupt request
     val IRQ = Input(Bool())
   })
+  val logger = Logger("cpu")
 
   val enable = io.enable && io.mem.CLKEN
 
@@ -36,7 +38,6 @@ class ARM7TDMI extends Module {
   val incrementerBus = Wire(UInt(32.W))
   val control = Wire(new ControlSignals)
   val cpsrBus = Wire(new ProgramStatusRegister)
-//  printf(cf"CPSR: ${cpsrBus}\n")
   bBus := DontCare
 
   //////////////////////////////// Instruction Fetch & Decode //////////////////////////////
@@ -136,7 +137,7 @@ class ARM7TDMI extends Module {
   )
   when (enable) {
     when (control.regWriteEnable) {
-//      printf(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x\n")
+      logger.debug(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x")
       registers(
         bankRegIndex(
           control.regWriteIndex,
@@ -312,12 +313,11 @@ class ARM7TDMI extends Module {
     (0 until 16).map(i => registers(bankRegIndex(i.U)))
   )
   io.debug.cpsr := cpsr.asUInt
-//  printf(cf" pc is ${pc}%x, addr is ${io.mem.ADDR}%x\n")
-//  printf(cf" r0: ${registers(0)}%x   r1: ${registers(1)}%x   r2: ${registers(2)}%x   r3: ${registers(3)}%x\n")
-//  printf(cf" r4: ${registers(4)}%x   r5: ${registers(5)}%x   r6: ${registers(6)}%x   r7: ${registers(7)}%x\n")
-//  printf(cf" r8: ${registers(8)}%x   r9: ${registers(9)}%x  r10: ${registers(10)}%x  r11: ${registers(11)}%x\n")
-//  printf(cf"r12: ${registers(12)}%x  r13: ${registers(13)}%x  r14: ${registers(14)}%x  r15: ${registers(15)}%x\n")
-//  printf(cf"cpsr: ${cpsr.asUInt}%x\n")
+  logger.debug(cf" r0: ${registers(0)}%x   r1: ${registers(1)}%x   r2: ${registers(2)}%x   r3: ${registers(3)}%x")
+  logger.debug(cf" r4: ${registers(4)}%x   r5: ${registers(5)}%x   r6: ${registers(6)}%x   r7: ${registers(7)}%x")
+  logger.debug(cf" r8: ${registers(8)}%x   r9: ${registers(9)}%x  r10: ${registers(10)}%x  r11: ${registers(11)}%x")
+  logger.debug(cf"r12: ${registers(12)}%x  r13: ${registers(13)}%x  r14: ${registers(14)}%x  r15: ${registers(15)}%x")
+  logger.debug(cf"cpsr: ${cpsr.asUInt}%x")
 }
 
 class ConditionFlags extends Bundle {

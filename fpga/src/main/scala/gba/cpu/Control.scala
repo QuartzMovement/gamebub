@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import chisel3.experimental.BundleLiterals._
 import gba.mem.{BusAccessWidth, BusProtectionType}
+import lib.log.Logger
 
 object PcNext extends ChiselEnum {
   val Same = Value
@@ -115,6 +116,7 @@ class Control extends Module {
     /// Active-high interrupt request
     val irq = Input(Bool())
   })
+  val logger = Logger("cpu")
   val control = io.signals
 
   val doReset = RegInit(true.B)
@@ -148,11 +150,11 @@ class Control extends Module {
         instruction := io.nextInstruction
 
         // Debug output of each instruction executed
-//        when (io.nextInstruction.debugThumb) {
-//          printf(cf"${io.nextInstruction.debugAddress}%x:  ${io.nextInstruction.debugRaw(15, 0)}%x\n")
-//        } .otherwise {
-//          printf(cf"${io.nextInstruction.debugAddress}%x:  ${io.nextInstruction.debugRaw}%x\n")
-//        }
+        when (io.nextInstruction.debugThumb) {
+          logger.info(cf"${io.nextInstruction.debugAddress}%x:  ${io.nextInstruction.debugRaw(15, 0)}%x")
+        } .otherwise {
+          logger.info(cf"${io.nextInstruction.debugAddress}%x:  ${io.nextInstruction.debugRaw}%x")
+        }
       }
     }
   }
@@ -205,7 +207,7 @@ class Control extends Module {
   control.memReadDataSigned := false.B
   control.incrementerForceWord := false.B
 
-//  printf(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}\n")
+  logger.debug(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}")
   when (execute) {
     switch (instruction.kind) {
       is (InstructionKind.Exception) {
@@ -232,7 +234,7 @@ class Control extends Module {
 
         switch (stage) {
           is (0.U) {
-//            printf(cf"Exception! ${kind}\n")
+            logger.info(cf"Exception! ${kind}")
             flushPipeline()
             dispatch := false.B
             entryThumb := io.currentStatus.thumb
