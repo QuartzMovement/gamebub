@@ -16,7 +16,7 @@ class SimpleRam(name: String, size: Int, width: Width, waitStates: Int = 0) exte
   val busy = RegInit(false.B)
   val busyCounter = Reg(UInt(log2Ceil(waitStates + 1).W))
   val queuedWrite = RegInit(false.B)
-  val queuedWriteAddress = Reg(UInt(log2Ceil(numWords).W))
+  val queuedAddress = Reg(UInt(log2Ceil(numWords).W))
   val queuedWriteMask = Reg(UInt(widthBytes.W))
 
   // Note that, even though we ostensibly do *either* only one read *or* one write each cycle,
@@ -37,7 +37,8 @@ class SimpleRam(name: String, size: Int, width: Width, waitStates: Int = 0) exte
 
   when (io.enable) {
     when (busy) {
-      busyCounter := busyCounter - 1.U
+      val nextBusyCounter = busyCounter - 1.U
+      busyCounter := nextBusyCounter
 
       when (busyCounter === 0.U) {
         busy := false.B
@@ -45,11 +46,19 @@ class SimpleRam(name: String, size: Int, width: Width, waitStates: Int = 0) exte
 
         when (queuedWrite) {
           memWritePort.enable := true.B
-          memWritePort.address := queuedWriteAddress
+          memWritePort.address := queuedAddress
           memWritePort.mask.get := queuedWriteMask.asBools
           memWritePort.data := io.target.dataWrite.asTypeOf(Vec(widthBytes, UInt(8.W)))
         } .otherwise {
           io.target.dataRead := memReadPort.data.asUInt
+        }
+      } .elsewhen (nextBusyCounter === 0.U) {
+        when (!queuedWrite) {
+          // Perform the read a cycle before it's done.
+          // memReadPort.data is only guaranteed to be valid on the next clock cycle.
+          // TODO: check in how this would interact with setting enable=false?
+          memReadPort.enable := true.B
+          memReadPort.address := queuedAddress
         }
       }
     }
@@ -57,12 +66,14 @@ class SimpleRam(name: String, size: Int, width: Width, waitStates: Int = 0) exte
       busy := true.B
       busyCounter := waitStates.U
       queuedWrite := io.target.write
+      queuedAddress := io.target.address >> addrShift
       when (io.target.write) {
-        queuedWriteAddress := io.target.address >> addrShift
         queuedWriteMask := io.target.mask
       } .otherwise {
-        memReadPort.enable := true.B
-        memReadPort.address := io.target.address >> addrShift
+        if (waitStates == 0) {
+          memReadPort.enable := true.B
+          memReadPort.address := io.target.address >> addrShift
+        }
       }
     }
   }
