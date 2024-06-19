@@ -5,8 +5,11 @@ import _root_.circt.stage.ChiselStage
 import gba._
 import gba.mem.{SimpleRam, TargetInterface}
 import gba.ppu.PpuOutput
+import lib.log.Log
 
 object SimGba extends App {
+  Log.setDefaultLevel(Log.Level.Error)
+
   ChiselStage.emitSystemVerilogFile(new SimGba, args)
 }
 
