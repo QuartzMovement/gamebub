@@ -3,6 +3,7 @@ package gba
 import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
+import gba.apu.Apu
 import gba.cpu.ARM7TDMI
 import gba.mem.{BusAccessWidth, BusArbiter, BusTarget, SimpleRam, TargetInterface}
 import gba.ppu.{Ppu, PpuOutput}
@@ -58,7 +59,7 @@ class GBA extends Module {
   bus.io.initiatorPort <> busArbiter.io.outputPort
 
   // MMIO Bus
-  val mmio = Module(new MMIO(numTargets = 5))
+  val mmio = Module(new MMIO(numTargets = 6))
   mmio.io.enable := io.enable
   bus.io.targetPort(3) <> mmio.io.mem
 
@@ -124,4 +125,9 @@ class GBA extends Module {
   timer.io.enable := io.enable
   mmio.targets(4) <> timer.io.mmio
   interrupt.io.peripheralIrq.timer := timer.io.irq.asUInt
+
+  // APU
+  val apu = Module(new Apu)
+  apu.io.enable := io.enable
+  mmio.targets(5) <> apu.io.mmio
 }
