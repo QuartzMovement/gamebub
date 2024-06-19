@@ -20,6 +20,9 @@ class PpuMem(name: String, size: Int, width: Width) extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
 
+    /// Whether the PPU is in force blank (in which PPU reads are blocked)
+    val forceBlank = Input(Bool())
+
     /// Target interface for main CPU memory bus
     val memTarget = new TargetInterface(width)
 
@@ -60,7 +63,7 @@ class PpuMem(name: String, size: Int, width: Width) extends Module {
     }
 
     // Read
-    val readEnable = io.enable && io.memTarget.request && !io.memTarget.write && !io.ppuTarget.read
+    val readEnable = io.enable && io.memTarget.request && !io.memTarget.write && !(io.ppuTarget.read && !io.forceBlank)
     val readBusy = RegInit(false.B)
     io.memTarget.dataRead := mem.read(io.memTarget.address >> addressShift, readEnable).asUInt
     when (io.enable && readBusy) {
@@ -74,6 +77,7 @@ class PpuMem(name: String, size: Int, width: Width) extends Module {
 
   // PPU access
   // TODO: make sure there's a single port -- (or maybe one write port and one read port)
-  io.ppuTarget.readData := mem.read(io.ppuTarget.address, io.ppuTarget.read).asUInt
+  // TODO: PPU reads block CPU, unless forceBlank
+  io.ppuTarget.readData := mem.read(io.ppuTarget.address, io.ppuTarget.read && !io.forceBlank).asUInt
 }
 

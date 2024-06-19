@@ -50,6 +50,7 @@ class Compositor extends Module {
   })
 
   val isBitmap16bpp = io.displayControl.mode === 3.U || io.displayControl.mode === 5.U
+  val isForceBlank = io.displayControl.forceBlank
 
   io.paletteRam.read := false.B
   io.paletteRam.address := DontCare
@@ -147,6 +148,10 @@ class Compositor extends Module {
       is (3.U) {
         io.valid := true.B
         io.pixel := regLayerFirst.color
+
+        when (isForceBlank) {
+          io.pixel := 0x7FFF.U(15.W)  // Force blank outputs white
+        }
       }
     }
   }

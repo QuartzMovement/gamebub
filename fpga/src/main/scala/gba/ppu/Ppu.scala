@@ -70,15 +70,18 @@ class Ppu extends Module {
   /// VRAM: 96KiB, 16-bit access without byte strobe. Note: actually split into multiple banks for bg/obj
   val vram = Module(new Vram)
   vram.io.enable := io.enable
+  vram.io.forceBlank := regDisplayControl.forceBlank
   vram.io.displayMode := regDisplayControl.mode
   vram.io.memTarget <> io.vramTarget
 
   val paletteRam = Module(new PpuMem("pal", 1024 / 2, 16.W))
   paletteRam.io.enable := io.enable
+  paletteRam.io.forceBlank := regDisplayControl.forceBlank
   paletteRam.io.memTarget <> io.paletteRamTarget
 
   val oam = Module(new PpuMem("oam", 1024 / 4, 32.W))
   oam.io.enable := io.enable
+  oam.io.forceBlank := regDisplayControl.forceBlank
   oam.io.memTarget <> io.oamTarget
 
   val scanline = RegInit(0.U(8.W))

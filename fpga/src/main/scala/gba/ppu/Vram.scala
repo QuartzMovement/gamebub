@@ -8,6 +8,8 @@ class Vram extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
 
+    val forceBlank = Input(Bool())
+
     /// Display mode
     val displayMode = Input(UInt(3.W))
 
@@ -41,6 +43,9 @@ class Vram extends Module {
   memBg.io.enable := io.enable
   memObjLo.io.enable := io.enable
   memObjHi.io.enable := io.enable
+  memBg.io.forceBlank := io.forceBlank
+  memObjLo.io.forceBlank := io.forceBlank
+  memObjHi.io.forceBlank := io.forceBlank
 
   when (isTileMode) {
     memBg.io.ppuTarget.address := io.portBG.address
