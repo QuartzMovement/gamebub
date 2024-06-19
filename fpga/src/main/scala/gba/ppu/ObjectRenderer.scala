@@ -322,7 +322,7 @@ class ObjectRenderer extends Module {
           fetchObj.paletteBank := attr2.paletteBank
           fetchObj.priority := attr2.priority
 
-          when (fetchObj.affine) {
+          when (oamAttrs.affine) {
             // Fetch matrix coefficients
             oamStage := 2.U
           } .otherwise {
