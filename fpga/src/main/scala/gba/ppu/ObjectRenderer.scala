@@ -40,6 +40,7 @@ class ObjectBufferEntry extends Bundle {
   val color = UInt(8.W)
   val priority = UInt(2.W)
   val window = Bool()
+  val blend = Bool()
 }
 
 /// Combined and calculated object attributes from the OAM fetch stage.
@@ -63,6 +64,7 @@ class ObjectAttributeFull extends Bundle {
   val flipX = Bool()
   val affine = Bool()
   val window = Bool()
+  val blend = Bool()
 }
 
 class ObjectRenderer extends Module {
@@ -207,6 +209,7 @@ class ObjectRenderer extends Module {
             drawData(i).color := color
             drawData(i).priority := fetchObj.priority
             drawData(i).window := fetchObj.window
+            drawData(i).blend := fetchObj.blend
           }
         } .otherwise {
           val tileData = io.vram.readData.asTypeOf(Vec(4, UInt(4.W)))
@@ -217,6 +220,7 @@ class ObjectRenderer extends Module {
             drawData(i).color := Cat(fetchObj.paletteBank, color)
             drawData(i).priority := fetchObj.priority
             drawData(i).window := fetchObj.window
+            drawData(i).blend := fetchObj.blend
           }
         }
       } .otherwise {
@@ -232,6 +236,7 @@ class ObjectRenderer extends Module {
           drawData(0).color := color
           drawData(0).priority := fetchObj.priority
           drawData(0).window := fetchObj.window
+          drawData(0).blend := fetchObj.blend
         } .otherwise {
           val tileData = io.vram.readData.asTypeOf(Vec(4, UInt(4.W)))
           val color = tileData(subtileX(1, 0))
@@ -239,6 +244,7 @@ class ObjectRenderer extends Module {
           drawData(0).color := Cat(fetchObj.paletteBank, color)
           drawData(0).priority := fetchObj.priority
           drawData(0).window := fetchObj.window
+          drawData(0).blend := fetchObj.blend
         }
 
         fetchAffX := (fetchAffX.asUInt.asSInt + fetchAffineParams.pa.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
@@ -295,6 +301,7 @@ class ObjectRenderer extends Module {
           oamAttrs.flipX := attr1.flipX
           oamAttrs.affine := attr0.affine
           oamAttrs.window := attr0.effect === ObjectEffectKind.Window
+          oamAttrs.blend := attr0.effect === ObjectEffectKind.Alpha
           oamAffineIndex := Cat(attr1.flipY, attr1.flipX, attr1.affineIndexLo)
 
           val boundingH = Mux(attr0.double, height << 4, height << 3).asUInt

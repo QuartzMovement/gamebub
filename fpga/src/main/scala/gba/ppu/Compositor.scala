@@ -117,6 +117,7 @@ class Compositor extends Module {
   val regBlendFirst = Reg(new Compositor.Layer)
   val regBlendSecond = Reg(new Compositor.Layer)
   val regBlendWindow = Reg(Bool())
+  val regBlendObj = Reg(Bool())
   io.valid := false.B
   io.pixel := DontCare
   when (io.enable && active && io.tick >= 50.U && subCycle === 0.U) {
@@ -132,6 +133,7 @@ class Compositor extends Module {
   val regLayerFirst = Reg(new Compositor.Layer)
   val regLayerSecond = Reg(new Compositor.Layer)
   val regLayerWindowBlend = Reg(Bool())
+  val regLayerObjBlend = Reg(Bool())
   when (io.enable && active && io.tick >= 46.U) {
     switch (subCycle) {
       // Start top layer palette entry fetch
@@ -183,6 +185,7 @@ class Compositor extends Module {
           regBlendSecond.color := io.paletteRam.readData
         }
         regBlendWindow := regLayerWindowBlend
+        regBlendObj := regLayerObjBlend
       }
     }
   }
@@ -191,6 +194,7 @@ class Compositor extends Module {
   val regSortFirst = Reg(new Compositor.Layer)
   val regSortSecond = Reg(new Compositor.Layer)
   val regSortWindow = Reg(new PpuRegisters.WindowControl)
+  val regSortObjBlend = Reg(Bool())
   when (io.enable && active) {
     val nextFirstLayer = WireDefault(regSortFirst)
     val nextSecondLayer = WireDefault(regSortSecond)
@@ -223,6 +227,7 @@ class Compositor extends Module {
       regLayerFirst := nextFirstLayer
       regLayerSecond := nextSecondLayer
       regLayerWindowBlend := regSortWindow.blend
+      regLayerObjBlend := regSortObjBlend
 
       // Evaluate windows
       val windowsEnabled = io.displayControl.displayWindow.orR || io.displayControl.objWindow
@@ -246,6 +251,7 @@ class Compositor extends Module {
       io.objectRead := true.B
       io.objectIndex := fetchX
       val objOpaque = io.objectData.opaque && windowControl.obj
+      regSortObjBlend := objOpaque && io.objectData.blend
       regSortFirst.isBackdrop := !objOpaque
       regSortFirst.isObj := objOpaque
       regSortFirst.isBg := 0.U
