@@ -2,6 +2,7 @@ package gba.ppu
 
 import chisel3._
 import chisel3.util._
+import gba.ppu.PpuRegisters.BlendEffect
 
 object Compositor {
   class Layer extends Bundle {
@@ -36,6 +37,10 @@ class Compositor extends Module {
     val win1Control = Input(new PpuRegisters.WindowControl)
     val winOutControl = Input(new PpuRegisters.WindowControl)
     val winObjControl = Input(new PpuRegisters.WindowControl)
+    val blendControl = Input(new PpuRegisters.BlendControl)
+    val blendAlphaA = Input(UInt(5.W))
+    val blendAlphaB = Input(UInt(5.W))
+    val blendFade = Input(UInt(5.W))
 
     val tick = Input(UInt(11.W))
     val scanline = Input(UInt(8.W))
@@ -121,12 +126,53 @@ class Compositor extends Module {
   io.valid := false.B
   io.pixel := DontCare
   when (io.enable && active && io.tick >= 50.U && subCycle === 0.U) {
-    // TODO blend
     io.valid := true.B
+
+    // If the top layer is an obj with the blend mode, do special behavior.
+    val isObjBlend = regBlendFirst.isObj && regBlendObj
+
+    val blendFirst = (
+      Cat(regBlendFirst.isBackdrop, regBlendFirst.isObj, regBlendFirst.isBg) &
+        Cat(io.blendControl.topBackdrop, io.blendControl.topObj, io.blendControl.topBg)).orR
+    val blendSecond = (
+      Cat(regBlendSecond.isBackdrop, regBlendSecond.isObj, regBlendSecond.isBg) &
+        Cat(io.blendControl.bottomBackdrop, io.blendControl.bottomObj, io.blendControl.bottomBg)).orR
+    val blendEffect = Mux(isObjBlend && blendSecond, BlendEffect.alpha, io.blendControl.effect)
+
+    val blendEnabled =
+      (regBlendWindow || isObjBlend) &&
+        (blendEffect =/= BlendEffect.none) &&
+        (blendFirst || isObjBlend) &&
+        !(blendEffect === BlendEffect.alpha && !blendSecond)
+
     io.pixel := regBlendFirst.color
 
     when (isForceBlank) {
-      io.pixel := 0x7FFF.U(15.W)  // Force blank outputs white
+      // Force blank outputs white
+      io.pixel := 0x7FFF.U(15.W)
+    } .elsewhen (blendEnabled) {
+      val colorA = regBlendFirst.color
+      val colorB = Wire(UInt(15.W))
+      val weightA = Wire(UInt(5.W))
+      val weightB = Wire(UInt(5.W))
+      // Pick blend colors based on mode.
+      when (blendEffect === BlendEffect.white) {
+        colorB := 0x7FFF.U(15.W)
+      } .elsewhen (blendEffect === BlendEffect.black) {
+        colorB := 0.U(15.W)
+      } .otherwise {
+        colorB := regBlendSecond.color
+      }
+      // Pick blend weights based on mode. Clamp each at 16.
+      when (blendEffect === BlendEffect.alpha) {
+        weightA := Mux(io.blendAlphaA(4), 16.U, io.blendAlphaA)
+        weightB := Mux(io.blendAlphaB(4), 16.U, io.blendAlphaB)
+      } .otherwise {
+        val fade = Mux(io.blendFade(4), 16.U, io.blendFade)
+        weightA := 16.U - fade
+        weightB := fade
+      }
+      io.pixel := DoBlend(colorA, colorB, weightA, weightB)
     }
   }
 
@@ -265,5 +311,21 @@ class Compositor extends Module {
       regSortFirst := nextFirstLayer
       regSortSecond := nextSecondLayer
     }
+  }
+
+  // Blend colorA with colorB. weights must already be capped at 16.
+  private def DoBlend(colorA: UInt, colorB: UInt, weightA: UInt, weightB: UInt): UInt = {
+    assert(colorA.getWidth == 15)
+    assert(colorB.getWidth == 15)
+    assert(weightA.getWidth == 5)
+    assert(weightB.getWidth == 5)
+
+    // Alpha-blend each component separately.
+    Cat((0 until 3).reverse.map(i => {
+      val a = colorA(5 * i + 4, 5 * i)
+      val b = colorB(5 * i + 4, 5 * i)
+      val out = (((a * weightA) +& (b * weightB)) >> 4).asUInt
+      Mux(out > 31.U, 31.U(5.W), out(4, 0))
+    }))
   }
 }

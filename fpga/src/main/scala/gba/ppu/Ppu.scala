@@ -212,6 +212,10 @@ class Ppu extends Module {
   compositor.io.win1Control := regWin1Control
   compositor.io.winOutControl := regWinOutControl
   compositor.io.winObjControl := regWinObjControl
+  compositor.io.blendControl := regBlendControl
+  compositor.io.blendAlphaA := regBlendA
+  compositor.io.blendAlphaB := regBlendB
+  compositor.io.blendFade := regBlendFade
   compositor.io.tick := tick
   compositor.io.scanline := scanline
   compositor.io.paletteRam <> paletteRam.io.ppuTarget
