@@ -5,9 +5,12 @@ import chisel3.util._
 
 object Compositor {
   class Layer extends Bundle {
-    val opaque = Bool()
-    val bgIndex = UInt(2.W)
-    val isBg = Bool()
+    // Whether this layer is the backdrop (transparent)
+    val isBackdrop = Bool()
+    // Whether this layer is an object
+    val isObj = Bool()
+    // Whether this layer is one of the backgrounds (1-hot)
+    val isBg = UInt(4.W)
     val color = UInt(15.W)
     val priority = UInt(2.W)
   }
@@ -113,36 +116,51 @@ class Compositor extends Module {
 
   val regLayerFirst = Reg(new Compositor.Layer)
   val regLayerSecond = Reg(new Compositor.Layer)
+  val regLayerWindowBlend = Reg(Bool())
   io.valid := false.B
   io.pixel := DontCare
   when (io.enable && active && io.tick >= 46.U) {
     switch (subCycle) {
       // Start top layer palette entry fetch
       is (0.U) {
-        when (regLayerFirst.opaque) {
-          when (regLayerFirst.isBg && isBitmap16bpp) {
-            // Special case: 16bpp bitmap, take bits from the BG3 fifo as well.
-            io.bgFifo(3).ready := true.B
-            regLayerFirst.color := Cat(io.bgFifo(3).bits.color, regLayerFirst.color(7, 0))
-          } .otherwise {
-            io.paletteRam.read := true.B
-            io.paletteRam.address := Cat(!regLayerFirst.isBg, regLayerFirst.color(7, 0))
-          }
-        } .otherwise {
+        when (regLayerFirst.isBackdrop) {
           // No valid layer, use the backdrop (palette index 0)
           io.paletteRam.read := true.B
           io.paletteRam.address := 0.U
+        } .elsewhen (regLayerFirst.isBg(2) && isBitmap16bpp) {
+          // Special case: 16bpp bitmap, take bits from the BG3 fifo as well.
+          io.bgFifo(3).ready := true.B
+          regLayerFirst.color := Cat(io.bgFifo(3).bits.color, regLayerFirst.color(7, 0))
+        } .otherwise {
+          io.paletteRam.read := true.B
+          io.paletteRam.address := Cat(regLayerFirst.isObj, regLayerFirst.color(7, 0))
         }
       }
       // Store top layer palette entry
       is (1.U) {
-        when (!(regLayerFirst.isBg && isBitmap16bpp && regLayerFirst.opaque)) {
+        when (regLayerFirst.isBackdrop || !(regLayerFirst.isBg(2) && isBitmap16bpp)) {
           regLayerFirst.color := io.paletteRam.readData
         }
       }
       // Start fetch of bottom layer palette entry
       is (2.U) {
-        // TODO
+        // TODO only fetch if blending is enabled
+        val fetchBottom = true.B
+
+        when (!fetchBottom) {
+          // Nothing to fetch, blending isn't enabled.
+        } .elsewhen (regLayerSecond.isBackdrop) {
+          // No valid layer, use the backdrop (palette index 0)
+          io.paletteRam.read := true.B
+          io.paletteRam.address := 0.U
+        } .elsewhen (regLayerSecond.isBg(2) && isBitmap16bpp) {
+          // Special case: 16bpp bitmap, take bits from the BG3 fifo as well.
+          io.bgFifo(3).ready := true.B
+          regLayerSecond.color := Cat(io.bgFifo(3).bits.color, regLayerSecond.color(7, 0))
+        } .otherwise {
+          io.paletteRam.read := true.B
+          io.paletteRam.address := Cat(regLayerSecond.isObj, regLayerSecond.color(7, 0))
+        }
       }
       // Do final composite.
       is (3.U) {
@@ -170,17 +188,19 @@ class Compositor extends Module {
       bgFifo.ready := true.B
     }
     when (bgFifo.valid && bgFifo.bits.opaque && io.displayControl.enableBg(subCycle) && regSortWindow.bg(subCycle)) {
-      when (!regSortFirst.opaque || bgPriority < regSortFirst.priority) {
-        nextFirstLayer.opaque := true.B
+      when (regSortFirst.isBackdrop || bgPriority < regSortFirst.priority) {
+        nextFirstLayer.isBackdrop := false.B
+        nextFirstLayer.isObj := false.B
+        nextFirstLayer.isBg := UIntToOH(subCycle)
         nextFirstLayer.color := bgFifo.bits.color
         nextFirstLayer.priority := bgPriority
-        nextFirstLayer.isBg := true.B
         nextSecondLayer := regSortFirst
-      } .elsewhen (!regSortSecond.opaque || bgPriority < regSortSecond.priority) {
-        nextSecondLayer.opaque := true.B
+      } .elsewhen (regSortSecond.isBackdrop || bgPriority < regSortSecond.priority) {
+        nextSecondLayer.isBackdrop := false.B
+        nextSecondLayer.isObj := false.B
+        nextSecondLayer.isBg := UIntToOH(subCycle)
         nextSecondLayer.color := bgFifo.bits.color
         nextSecondLayer.priority := bgPriority
-        nextSecondLayer.isBg := true.B
       }
     }
 
@@ -189,6 +209,7 @@ class Compositor extends Module {
       // Palette fetch
       regLayerFirst := nextFirstLayer
       regLayerSecond := nextSecondLayer
+      regLayerWindowBlend := regSortWindow.blend
 
       // Evaluate windows
       val windowsEnabled = io.displayControl.displayWindow.orR || io.displayControl.objWindow
@@ -211,11 +232,15 @@ class Compositor extends Module {
       // Set up the next set by fetching an object.
       io.objectRead := true.B
       io.objectIndex := fetchX
-      regSortFirst.opaque := io.objectData.opaque && windowControl.obj
+      val objOpaque = io.objectData.opaque && windowControl.obj
+      regSortFirst.isBackdrop := !objOpaque
+      regSortFirst.isObj := objOpaque
+      regSortFirst.isBg := 0.U
       regSortFirst.color := io.objectData.color
       regSortFirst.priority := io.objectData.priority
-      regSortFirst.isBg := false.B
-      regSortSecond.opaque := false.B
+      regSortSecond.isBackdrop := true.B
+      regSortSecond.isObj := false.B
+      regSortSecond.isBg := 0.U
       fetchX := fetchX + 1.U
     } .otherwise {
       regSortFirst := nextFirstLayer
