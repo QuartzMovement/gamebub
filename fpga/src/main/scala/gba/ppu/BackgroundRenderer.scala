@@ -277,13 +277,14 @@ class BackgroundRenderer extends Module {
         refX := (refX.asUInt.asSInt + matrix.pa.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
         refY := (refY.asUInt.asSInt + matrix.pc.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
 
-        fifo(index).valid := true.B
-        fifo(index).bits.opaque := true.B
-        fifo(index).bits.color := Mux(
+        val color = Mux(
           subtileX(0),
           io.vram.readData(15, 8),
           io.vram.readData(7, 0),
         )
+        fifo(index).valid := true.B
+        fifo(index).bits.opaque := color =/= 0.U
+        fifo(index).bits.color := color
 
         when (!control.affineWrap) {
           val sizePx = (128.U << control.size).asUInt
@@ -339,10 +340,14 @@ class BackgroundRenderer extends Module {
 
         switch (io.displayControl.mode) {
           is (4.U) {
-            fifo(2).bits.color := Mux(
+            val color = Mux(
               refX.int(0) === 0.U,
               io.vram.readData(7, 0), io.vram.readData(15, 8)
             )
+            fifo(2).bits.color := color
+            when (color === 0.U) {
+              fifo(2).bits.opaque := false.B
+            }
           }
           is (3.U, 5.U) {
             fifo(3).valid := true.B
