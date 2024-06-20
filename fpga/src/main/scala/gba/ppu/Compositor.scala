@@ -22,7 +22,7 @@ object Compositor {
 /// 2) Apply windowing to layers
 /// 3) Sort by priority
 /// 4) Fetch palette entries for top two layers
-/// 5) Apply blend effects (TODO)
+/// 5) Apply blend effects
 /// 6) Output final pixel
 class Compositor extends Module {
   val io = IO(new Bundle {
@@ -114,11 +114,24 @@ class Compositor extends Module {
   }
   val subCycle = (io.tick - 2.U)(1, 0)
 
+  val regBlendFirst = Reg(new Compositor.Layer)
+  val regBlendSecond = Reg(new Compositor.Layer)
+  val regBlendWindow = Reg(Bool())
+  io.valid := false.B
+  io.pixel := DontCare
+  when (io.enable && active && io.tick >= 50.U && subCycle === 0.U) {
+    // TODO blend
+    io.valid := true.B
+    io.pixel := regBlendFirst.color
+
+    when (isForceBlank) {
+      io.pixel := 0x7FFF.U(15.W)  // Force blank outputs white
+    }
+  }
+
   val regLayerFirst = Reg(new Compositor.Layer)
   val regLayerSecond = Reg(new Compositor.Layer)
   val regLayerWindowBlend = Reg(Bool())
-  io.valid := false.B
-  io.pixel := DontCare
   when (io.enable && active && io.tick >= 46.U) {
     switch (subCycle) {
       // Start top layer palette entry fetch
@@ -162,14 +175,14 @@ class Compositor extends Module {
           io.paletteRam.address := Cat(regLayerSecond.isObj, regLayerSecond.color(7, 0))
         }
       }
-      // Do final composite.
+      // Store second layer palette entry, pass to blend stage.
       is (3.U) {
-        io.valid := true.B
-        io.pixel := regLayerFirst.color
-
-        when (isForceBlank) {
-          io.pixel := 0x7FFF.U(15.W)  // Force blank outputs white
+        regBlendFirst := regLayerFirst
+        regBlendSecond := regLayerSecond
+        when (regLayerSecond.isBackdrop || !(regLayerSecond.isBg(2) && isBitmap16bpp)) {
+          regBlendSecond.color := io.paletteRam.readData
         }
+        regBlendWindow := regLayerWindowBlend
       }
     }
   }
