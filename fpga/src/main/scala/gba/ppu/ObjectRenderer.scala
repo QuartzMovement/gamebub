@@ -261,7 +261,7 @@ class ObjectRenderer extends Module {
 
     // Increment draw column or end stage.
     val nextCol = fetchCol + (!fetchObj.affine || !evenTick).asUInt
-    when (fetchCol >> 3 === fetchObj.w) {
+    when (nextCol >> 3 === fetchObj.w) {
       // Done drawing.
       fetchActive := false.B
     } .otherwise {
