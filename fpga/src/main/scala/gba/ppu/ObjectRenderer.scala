@@ -128,18 +128,19 @@ class ObjectRenderer extends Module {
     bufferWriteIndex := drawX
     bufferWriteData := bufferWriteReadback
 
-    when (pixel.window) {
-      when (pixel.opaque) {
-        bufferWriteData.window := true.B
-      }
+    when (pixel.window && pixel.opaque) {
+      bufferWriteData.window := true.B
     } .elsewhen (!bufferWriteReadback.opaque || pixel.priority < bufferWriteReadback.priority) {
       when (pixel.opaque) {
-        bufferWriteData := pixel
-      } .otherwise {
-        // GBA compositing bug: a *transparent* pixel drawn over an opaque pixel of lower priority
-        // overwrites the priority. Not present in DS or later.
-        bufferWriteData.priority := pixel.priority
+        bufferWriteData.opaque := true.B
+        bufferWriteData.color := pixel.color
+        bufferWriteData.blend := pixel.blend
       }
+
+      // GBA compositing bug: a *transparent* pixel drawn over an opaque pixel of lower priority
+      // overwrites the priority. Not present in DS or later.
+      bufferWriteData.priority := pixel.priority
+      // TODO mosaic is also set here
     }
 
     drawData(0) := drawData(1)
