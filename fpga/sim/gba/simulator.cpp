@@ -120,21 +120,21 @@ void Simulator::simulate_frame()
 {
     simulate_cycles(280896);
 
-
-    size_t size = 16 * 1024;
-    std::vector<uint8_t> dump;
-    dump.resize(size * 2);
-    memcpy(
-        dump.data(),
-        reinterpret_cast<uint8_t*>(&this->top->rootp->SimGba__DOT__gba__DOT__ppu__DOT__vram__DOT__memObjLo__DOT__mem_0_ext__DOT__Memory),
-        size
-    );
-    memcpy(
-            dump.data() + size,
-            reinterpret_cast<uint8_t*>(&this->top->rootp->SimGba__DOT__gba__DOT__ppu__DOT__vram__DOT__memObjHi__DOT__mem_0_ext__DOT__Memory),
-            size
-        );
-    write_file("/tmp/dump_obj.bin", dump);
+// Testing: save OBJ vram
+//    size_t size = 16 * 1024;
+//    std::vector<uint8_t> dump;
+//    dump.resize(size * 2);
+//    memcpy(
+//        dump.data(),
+//        reinterpret_cast<uint8_t*>(&this->top->rootp->SimGba__DOT__gba__DOT__ppu__DOT__vram__DOT__memObjLo__DOT__mem_mem_0_ext__DOT__Memory),
+//        size
+//    );
+//    memcpy(
+//            dump.data() + size,
+//            reinterpret_cast<uint8_t*>(&this->top->rootp->SimGba__DOT__gba__DOT__ppu__DOT__vram__DOT__memObjHi__DOT__mem_mem_0_ext__DOT__Memory),
+//            size
+//        );
+//    write_file("/tmp/dump_obj.bin", dump);
 }
 
 void Simulator::stepAudio()

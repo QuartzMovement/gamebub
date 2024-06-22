@@ -18,6 +18,7 @@ class PpuMemoryInterface(size: Int, width: Width) extends Bundle {
 /// PPU port is always read-only and takes priority over CPU.
 /// Byte strobe is not supported, but halfword writes are
 class PpuMem(name: String, size: Int, width: Width) extends Module {
+  override val desiredName = s"PpuMem_$name"
   val io = IO(new Bundle {
     val enable = Input(Bool())
 
@@ -25,61 +26,91 @@ class PpuMem(name: String, size: Int, width: Width) extends Module {
     val forceBlank = Input(Bool())
 
     /// Target interface for main CPU memory bus
-    val memTarget = new TargetInterface(width)
+    val cpuTarget = new TargetInterface(width)
 
     /// Target interface for the PPU
-    val ppuTarget = new PpuMemoryInterface(size, width)
+    val ppuTarget = new PpuMemoryInterface(size / (width.get / 8), width)
   })
+
   val logger = Logger(s"ppu.mem.${name}")
+  val widthBytes = width.get / 8
   val widthHalfwords = width.get / 16
+  val numWords = size / widthBytes
+  val addrShift = log2Ceil(widthBytes)
 
-  val mem = SyncReadMem(size, Vec(widthHalfwords, UInt(16.W)))
+  val cpuBusy = RegInit(false.B)
+  val cpuBlocked = RegInit(false.B)
+  val queuedWrite = RegInit(false.B)
+  val queuedAddress = Reg(UInt(log2Ceil(numWords).W))
+  val queuedWriteMask = Reg(UInt(widthBytes.W))
 
-  // CPU access
-  {
-    val addressShift = log2Ceil(width.get / 8)
-    io.memTarget.done := false.B
+  // Note that, even though we ostensibly do *either* only one read *or* one write each cycle,
+  // due to the pipelined bus, a read access must be able to start when we're *finishing* (i.e.
+  // actually performing) the previous write access. Thus, we need two separate read and
+  // write ports.
+  val mem = SRAM.masked(numWords, Vec(widthHalfwords, UInt(16.W)), numReadPorts = 1, numWritePorts = 1, numReadwritePorts = 0)
+  val memReadPort = mem.readPorts(0)
+  val memWritePort = mem.writePorts(0)
+  memReadPort.enable := false.B
+  memReadPort.address := DontCare
+  memWritePort.enable := false.B
+  memWritePort.address := DontCare
+  memWritePort.mask.get := DontCare
+  memWritePort.data := DontCare
+  io.cpuTarget.done := false.B
+  io.cpuTarget.dataRead := DontCare
+  io.ppuTarget.readData := memReadPort.data.asUInt
 
-    // Write
-    val queuedWrite = RegInit(false.B)
-    val queuedWriteAddress = Reg(UInt((log2Ceil(size) + 2).W))
-    val queuedWriteMask = Reg(UInt((width.get / 8).W))
-    when (io.enable && queuedWrite) {
-      val mask = if (width == 32.W) {
-        // TODO verify this is the correct 8-bit write behavior for OAM. It might just ignore 8-bit writes?
-        Seq(queuedWriteMask(0) || queuedWriteMask(1), queuedWriteMask(2) || queuedWriteMask(3))
-      } else {
-        Seq(true.B)
+  when (io.enable) {
+    when (cpuBusy) {
+      cpuBusy := false.B
+      io.cpuTarget.done := true.B
+
+      when (queuedWrite) {
+        val mask = if (width == 32.W) {
+          // TODO verify this is the correct 8-bit write behavior for OAM. It might just ignore 8-bit writes?
+          Seq(queuedWriteMask(0) || queuedWriteMask(1), queuedWriteMask(2) || queuedWriteMask(3))
+        } else {
+          Seq(true.B)
+        }
+
+        memWritePort.enable := true.B
+        memWritePort.address := queuedAddress
+        memWritePort.mask.get := mask
+        memWritePort.data := io.cpuTarget.dataWrite.asTypeOf(Vec(widthHalfwords, UInt(16.W)))
+      } .otherwise {
+        io.cpuTarget.dataRead := memReadPort.data.asUInt
+      }
+    }
+
+    val ppuAccess = io.ppuTarget.read && !io.forceBlank
+    when (ppuAccess) {
+      memReadPort.enable := true.B
+      memReadPort.address := io.ppuTarget.address
+    }
+    when (io.cpuTarget.request || cpuBlocked) {
+      // If the PPU is currently accessing the memory, the CPU is blocked.
+      when (ppuAccess) {
+        cpuBlocked := true.B
+      } .otherwise {
+        cpuBusy := true.B
+        cpuBlocked := false.B
       }
 
-      mem.write(queuedWriteAddress >> addressShift, io.memTarget.dataWrite.asTypeOf(Vec(widthHalfwords, UInt(16.W))), mask)
-      queuedWrite := false.B
-      io.memTarget.done := true.B
+      // It's possible that we just "done'd" a previous request, so the CPU thinks that we accepted it.
+      // Thus, when the CPU is getting blocked, we need to store the access information (just like BusArbiter).
+      when (!cpuBlocked) {
+        queuedAddress := io.cpuTarget.address >> addrShift
+        queuedWrite := io.cpuTarget.write
+        queuedWriteMask := io.cpuTarget.mask
+      }
 
-      logger.debug(cf"write addr=${queuedWriteAddress}%x data=${io.memTarget.dataWrite}%x")
-    }
-    when (io.enable && io.memTarget.request && io.memTarget.write) {
-      queuedWrite := true.B
-      queuedWriteAddress := io.memTarget.address
-      queuedWriteMask := io.memTarget.mask
-    }
-
-    // Read
-    val readEnable = io.enable && io.memTarget.request && !io.memTarget.write && !(io.ppuTarget.read && !io.forceBlank)
-    val readBusy = RegInit(false.B)
-    io.memTarget.dataRead := mem.read(io.memTarget.address >> addressShift, readEnable).asUInt
-    when (io.enable && readBusy) {
-      io.memTarget.done := true.B
-      readBusy := false.B
-    }
-    when (readEnable) {
-      readBusy := true.B
+      // The request has actually gone through -- start the read (if applicable).
+      when (!ppuAccess && !io.cpuTarget.write) {
+        memReadPort.enable := true.B
+        memReadPort.address := Mux(cpuBlocked, queuedAddress, io.cpuTarget.address >> addrShift)
+      }
     }
   }
-
-  // PPU access
-  // TODO: make sure there's a single port -- (or maybe one write port and one read port)
-  // TODO: PPU reads block CPU, unless forceBlank
-  io.ppuTarget.readData := mem.read(io.ppuTarget.address, io.ppuTarget.read && !io.forceBlank).asUInt
 }
 

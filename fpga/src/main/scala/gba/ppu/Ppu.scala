@@ -69,22 +69,22 @@ class Ppu extends Module {
   val regBlendB = RegInit(0.U(5.W))
   val regBlendFade = RegInit(0.U(5.W))
 
-  /// VRAM: 96KiB, 16-bit access without byte strobe. Note: actually split into multiple banks for bg/obj
+  /// VRAM: 96KiB, 16-bit access without byte strobe (internally split into multiple banks for bg/obj)
   val vram = Module(new Vram)
   vram.io.enable := io.enable
   vram.io.forceBlank := regDisplayControl.forceBlank
   vram.io.displayMode := regDisplayControl.mode
-  vram.io.memTarget <> io.vramTarget
+  vram.io.cpuTarget <> io.vramTarget
 
-  val paletteRam = Module(new PpuMem("pal", 1024 / 2, 16.W))
+  val paletteRam = Module(new PpuMem("pal", 1024, 16.W))
   paletteRam.io.enable := io.enable
   paletteRam.io.forceBlank := regDisplayControl.forceBlank
-  paletteRam.io.memTarget <> io.paletteRamTarget
+  paletteRam.io.cpuTarget <> io.paletteRamTarget
 
-  val oam = Module(new PpuMem("oam", 1024 / 4, 32.W))
+  val oam = Module(new PpuMem("oam", 1024, 32.W))
   oam.io.enable := io.enable
   oam.io.forceBlank := regDisplayControl.forceBlank
-  oam.io.memTarget <> io.oamTarget
+  oam.io.cpuTarget <> io.oamTarget
 
   val scanline = RegInit(0.U(8.W))
   val tick = RegInit(0.U(11.W))

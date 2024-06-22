@@ -14,7 +14,7 @@ class Vram extends Module {
     val displayMode = Input(UInt(3.W))
 
     /// Target interface for main CPU memory bus
-    val memTarget = new TargetInterface(16.W)
+    val cpuTarget = new TargetInterface(16.W)
 
     /// PPU read interface for Backgrounds (address width = 16)
     val portBG = new PpuMemoryInterface(80 * 1024 / 2, 16.W)
@@ -26,10 +26,10 @@ class Vram extends Module {
   val isTileMode = io.displayMode < 3.U
   val currBgAddr = io.portBG.address(15, 14)
   val currObjAddr = io.portOBJ.address(13)
-  val currCpuAddr = io.memTarget.address(16, 14)
+  val currCpuAddr = io.cpuTarget.address(16, 14)
   val lastBgAddr = RegEnable(currBgAddr, io.enable && io.portBG.read)
   val lastObjAddr = RegEnable(currObjAddr, io.enable && io.portOBJ.read)
-  val lastCpuAddr = RegEnable(currCpuAddr, io.enable && io.memTarget.request)
+  val lastCpuAddr = RegEnable(currCpuAddr, io.enable && io.cpuTarget.request)
 
   /*
    * VRAM is a total of 96 KiB: 16-bit words, without byte strobe.
@@ -37,9 +37,9 @@ class Vram extends Module {
    * Lower 64KiB is exclusively BG. The next 16KiB is BG in bitmap modes, OBJ otherwise,
    * and the top 16KiB is exclusively OBJ.
    */
-  val memBg = Module(new PpuMem("vramBG", 64 * 1024 / 2, 16.W)) //  address width = 15
-  val memObjLo = Module(new PpuMem("vramObjLo", 16 * 1024 / 2, 16.W)) //  address width = 13
-  val memObjHi = Module(new PpuMem("vramObjHi", 16 * 1024 / 2, 16.W)) //  address width = 13
+  val memBg = Module(new PpuMem("vramBG", 64 * 1024, 16.W)) //  address width = 15
+  val memObjLo = Module(new PpuMem("vramObjLo", 16 * 1024, 16.W)) //  address width = 13
+  val memObjHi = Module(new PpuMem("vramObjHi", 16 * 1024, 16.W)) //  address width = 13
   memBg.io.enable := io.enable
   memObjLo.io.enable := io.enable
   memObjHi.io.enable := io.enable
@@ -114,32 +114,32 @@ class Vram extends Module {
   }
 
   // CPU access
-  memBg.io.memTarget <> io.memTarget
-  memObjLo.io.memTarget <> io.memTarget
-  memObjHi.io.memTarget <> io.memTarget
-  memBg.io.memTarget.request := false.B
-  memObjLo.io.memTarget.request := false.B
-  memObjHi.io.memTarget.request := false.B
+  memBg.io.cpuTarget <> io.cpuTarget
+  memObjLo.io.cpuTarget <> io.cpuTarget
+  memObjHi.io.cpuTarget <> io.cpuTarget
+  memBg.io.cpuTarget.request := false.B
+  memObjLo.io.cpuTarget.request := false.B
+  memObjHi.io.cpuTarget.request := false.B
 
   when (!currCpuAddr(2)) {
-    memBg.io.memTarget.request := io.memTarget.request
+    memBg.io.cpuTarget.request := io.cpuTarget.request
   } .otherwise {
     when (!currCpuAddr(0)) {
-      memObjLo.io.memTarget.request := io.memTarget.request
+      memObjLo.io.cpuTarget.request := io.cpuTarget.request
     } .otherwise {
-      memObjHi.io.memTarget.request := io.memTarget.request
+      memObjHi.io.cpuTarget.request := io.cpuTarget.request
     }
   }
   when (!lastCpuAddr(2)) {
-    io.memTarget.dataRead := memBg.io.memTarget.dataRead
-    io.memTarget.done := memBg.io.memTarget.done
+    io.cpuTarget.dataRead := memBg.io.cpuTarget.dataRead
+    io.cpuTarget.done := memBg.io.cpuTarget.done
   } .otherwise {
     when (!lastCpuAddr(0)) {
-      io.memTarget.dataRead := memObjLo.io.memTarget.dataRead
-      io.memTarget.done := memObjLo.io.memTarget.done
+      io.cpuTarget.dataRead := memObjLo.io.cpuTarget.dataRead
+      io.cpuTarget.done := memObjLo.io.cpuTarget.done
     } .otherwise {
-      io.memTarget.dataRead := memObjHi.io.memTarget.dataRead
-      io.memTarget.done := memObjHi.io.memTarget.done
+      io.cpuTarget.dataRead := memObjHi.io.cpuTarget.dataRead
+      io.cpuTarget.done := memObjHi.io.cpuTarget.done
     }
   }
 }
