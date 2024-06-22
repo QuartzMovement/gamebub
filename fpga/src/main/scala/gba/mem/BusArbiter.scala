@@ -2,6 +2,7 @@ package gba.mem
 
 import chisel3._
 import chisel3.util._
+import lib.log.Logger
 
 object BusArbiter {
   class RequestParams extends Bundle {
@@ -32,6 +33,7 @@ class BusArbiter(numInputs: Int) extends Module {
     /// Whether each initiator should be blocked from making accesses (e.g. to halt the CPU)
     val blockInitiators = Input(UInt(numInputs.W))
   })
+  private val logger = Logger("bus.arbiter")
 
   // Bus is pipelined. In one bus cycle, we send addressing signals, and in the next, we send wdata / read rdata.
   // When a request comes in, choose highest priority request.
@@ -113,7 +115,7 @@ class BusArbiter(numInputs: Int) extends Module {
   val regLocked = RegInit(false.B)
   val isRequesting = WireDefault(requestsVec.asUInt.orR)
   when (regLocked) {
-//    printf(cf"BusArbiter:  --> locked: ${requestChosen.asUInt}%b | req=${requestsVec.asUInt}%b\n")
+    logger.debug(cf"still locked by=${requestChosen.asUInt}%b requests=${requestsVec.asUInt}%b")
     requestChosen := regRequestSource
     when ((regRequestSource.asUInt & requestsVec.asUInt) === 0.U) {
       // The current locker is not requesting, so do no request.
@@ -123,7 +125,7 @@ class BusArbiter(numInputs: Int) extends Module {
       Mux1H(regRequestSource, requestParamsVec)
     }
     when (io.enable && !lockerParams.LOCK) {
-//      printf(cf"BusArbiter: unlocked\n")
+      logger.info(cf"unlocked")
       regLocked := false.B
     }
   } .otherwise {
@@ -146,7 +148,7 @@ class BusArbiter(numInputs: Int) extends Module {
     when ((regRequestSource.asUInt & requestChosen.asUInt) === 0.U) {
       // Switching initiators, force a non-sequential access.
       io.outputPort.SEQ := false.B
-//      printf(cf"BusArbiter: forcing !SEQ: ${regRequestSource.asUInt}%b -> ${requestChosen.asUInt}%b\n")
+      logger.debug(cf"forcing non-seq: ${regRequestSource.asUInt}%b -> ${requestChosen.asUInt}%b")
     }
   }
   // Set WDATA based on the request from last bus cycle.
@@ -158,7 +160,7 @@ class BusArbiter(numInputs: Int) extends Module {
       regRequestSource := requestChosen
       when (requestChosenParams.LOCK) {
         regLocked := true.B
-//        printf(cf"BusArbiter: locked by ${requestChosen.asUInt}%b\n")
+        logger.info(cf"locked by=${requestChosen.asUInt}%b")
       }
     } .otherwise {
       regRequested := false.B

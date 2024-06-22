@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import gba.{MMIO, MmioMap, MmioTarget}
 import gba.mem.TargetInterface
+import lib.log.Logger
 
 class PpuOutput extends Bundle {
   /** Output pixel value (B G R) */
@@ -44,6 +45,7 @@ class Ppu extends Module {
     val dmaTriggerHblank = Output(Bool())
     val dmaTriggerVideo = Output(Bool())
   })
+  val logger = Logger("ppu")
 
   val regDisplayControl = RegInit(0.U.asTypeOf(new PpuRegisters.DisplayControl))
   val regIrqEnableVblank = RegInit(false.B)

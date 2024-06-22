@@ -3,6 +3,7 @@ package gba.ppu
 import chisel3._
 import chisel3.util._
 import gba.ppu.PpuRegisters.BlendEffect
+import lib.log.Logger
 
 object Compositor {
   class Layer extends Bundle {
@@ -56,6 +57,7 @@ class Compositor extends Module {
     val objectRead = Output(Bool())
     val objectData = Input(new ObjectBufferEntry)
   })
+  val logger = Logger("ppu.comp")
 
   val isBitmap16bpp = io.displayControl.mode === 3.U || io.displayControl.mode === 5.U
   val isForceBlank = io.displayControl.forceBlank

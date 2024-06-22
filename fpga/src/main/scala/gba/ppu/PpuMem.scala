@@ -3,6 +3,7 @@ package gba.ppu
 import chisel3._
 import chisel3.util._
 import gba.mem.TargetInterface
+import lib.log.Logger
 
 class PpuMemoryInterface(size: Int, width: Width) extends Bundle {
   /// Word address
@@ -29,6 +30,7 @@ class PpuMem(name: String, size: Int, width: Width) extends Module {
     /// Target interface for the PPU
     val ppuTarget = new PpuMemoryInterface(size, width)
   })
+  val logger = Logger(s"ppu.mem.${name}")
   val widthHalfwords = width.get / 16
 
   val mem = SyncReadMem(size, Vec(widthHalfwords, UInt(16.W)))
@@ -54,7 +56,7 @@ class PpuMem(name: String, size: Int, width: Width) extends Module {
       queuedWrite := false.B
       io.memTarget.done := true.B
 
-//      printf(cf" [vram] [$name] write: ${queuedWriteAddress}%x --- data ${io.memTarget.dataWrite}%x\n")
+      logger.debug(cf"write addr=${queuedWriteAddress}%x data=${io.memTarget.dataWrite}%x")
     }
     when (io.enable && io.memTarget.request && io.memTarget.write) {
       queuedWrite := true.B

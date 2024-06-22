@@ -3,6 +3,7 @@ package gba.ppu
 import chisel3._
 import chisel3.util._
 import gba.ppu.PpuRegisters.AffineReferencePoint
+import lib.log.Logger
 
 class BackgroundPixel extends Bundle {
   // Whether the pixel is valid and opaque.
@@ -53,6 +54,7 @@ class BackgroundRenderer extends Module {
     /// Pixel fifo dequeue interface
     val pixels = Vec(4, DecoupledIO(new BackgroundPixel))
   })
+  val logger = Logger("ppu.bg")
 
   // Output pixel FIFOs
   val fifo = (0 until 4).map(_ => Wire(EnqIO(new BackgroundPixel)))
@@ -104,7 +106,6 @@ class BackgroundRenderer extends Module {
     }
     when (io.tick === 1005.U) {
       // Begin HBlank
-//      printf(cf"[BG] hblank for ${io.scanline}\n")
       for (i <- 0 until 4) {
         layer(i).active := false.B
         layer(i).pos := 0.U

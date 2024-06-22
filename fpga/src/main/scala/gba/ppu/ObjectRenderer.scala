@@ -3,6 +3,7 @@ package gba.ppu
 import chisel3._
 import chisel3.util._
 import gba.ppu.PpuRegisters.AffineReferencePoint
+import lib.log.Logger
 
 object ObjectEffectKind extends ChiselEnum {
   val Normal = Value
@@ -88,6 +89,7 @@ class ObjectRenderer extends Module {
     val bufferRead = Input(Bool())
     val bufferData = Output(new ObjectBufferEntry)
   })
+  val logger = Logger("ppu.obj")
 
   val active = RegInit(false.B)
   val renderY = Reg(UInt(8.W))
@@ -422,11 +424,9 @@ class ObjectRenderer extends Module {
   // Object render activation
   when (io.enable) {
     when (active && io.tick === Mux(io.displayControl.hblankFree, 1005.U, 39.U)) {
-//      printf(cf"[${io.scanline} | ${io.tick}] obj done (for ${renderY})\n")
       active := false.B
     }
     when (io.displayControl.enableObj && (io.scanline < 160.U || io.scanline === 227.U) && io.tick === 39.U) {
-//      printf(cf"[${io.scanline} | ${io.tick}] obj activate\n")
       active := true.B
       renderY := io.scanline + 1.U
       when (io.scanline === 227.U) {

@@ -3,6 +3,7 @@ package gba
 import chisel3._
 import chisel3.util._
 import gba.mem.{BusAccessWidth, BusInterface}
+import lib.log.Logger
 
 object DmaAddressControl extends ChiselEnum {
   val increment = Value
@@ -43,6 +44,7 @@ class Dma extends Module {
 
     val busInitiator = Vec(4, new BusInterface)
   })
+  private val logger = Logger("dma")
 
   val regConfigSource = Seq(RegInit(0.U(27.W)), RegInit(0.U(28.W)), RegInit(0.U(28.W)), RegInit(0.U(28.W)))
   val regConfigDest = Seq(RegInit(0.U(27.W)), RegInit(0.U(27.W)), RegInit(0.U(27.W)), RegInit(0.U(28.W)))
@@ -92,8 +94,8 @@ class Dma extends Module {
     val justEnabled = control.enable && !RegEnable(control.enable, io.enable)
     val addressMask = Mux(control.sizeWord, "b00".U(2.W), "b10".U(2.W))
     when (io.enable && justEnabled) {
+      logger.info(cf"${i}: enabled")
       // TODO Handle special audio fifo config
-//      printf(cf"DMA ${i} enable\n")
       // Mask off lower bits of address depending on size
       regSource := Cat(configSource(configSource.getWidth - 1, 2), configSource(1, 0) & addressMask)
       regDest := Cat(configDest(configDest.getWidth - 1, 2), configDest(1, 0) & addressMask)
@@ -107,7 +109,7 @@ class Dma extends Module {
     when (io.enable) {
       // TODO handle "special" activation modes / audio FIFO
       when (!active && (activateImm || activateHblank || activateVblank)) {
-//        printf(cf"DMA ${i} activate\n")
+        logger.info(cf"${i}: activate")
         active := true.B
         regInitial := true.B
         regStage := 0.U
@@ -129,7 +131,7 @@ class Dma extends Module {
         // Check if the DMA is complete.
         when (bus.CLKEN) {
           when (complete) {
-//            printf(cf"DMA ${i} complete\n")
+            logger.info(cf"${i}: complete")
             io.irq(i) := control.irq
             active := false.B
             // TODO handle different behavior for audio FIFO
@@ -142,7 +144,7 @@ class Dma extends Module {
               control.enable := false.B
             }
           } .otherwise {
-//            printf(cf"DMA ${i} - load  @ 0x${regSource}%x\n")
+            logger.debug(cf"${i}: load @ 0x${regSource}%x")
             regStage := 1.U
             regCount := regCount - 1.U
 
@@ -172,7 +174,7 @@ class Dma extends Module {
         bus.WRITE := true.B
 
         when (bus.CLKEN) {
-//          printf(cf"DMA ${i} - store @ 0x${regDest}%x  (data = 0x${bus.RDATA}%x)\n")
+          logger.debug(cf"${i}: store @ 0x${regDest}%x  (data = 0x${bus.RDATA}%x)")
           regStage := 0.U
           regInitial := false.B
 

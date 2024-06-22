@@ -2,6 +2,7 @@ package gba
 
 import chisel3._
 import chisel3.util._
+import lib.log.Logger
 
 class TimerControl extends Bundle {
   val enable = Bool()
@@ -19,6 +20,7 @@ class Timer extends Module {
 
     val irq = Output(Vec(4, Bool()))
   })
+  private val logger = Logger("timer")
 
   io.irq := VecInit.fill(4)(false.B)
 
@@ -61,14 +63,14 @@ class Timer extends Module {
 
     when (io.enable) {
       when (justEnabled) {
-//        printf(cf"Timer ${i} enable: ${control}\n")
+        logger.info("$i: enable $control")
         counter := counterReload
       }
 
       when (control.enable && tick) {
         val next = counter + 1.U
         when (next === 0.U) {
-//          printf(cf"Timer ${i} overflow\n")
+          logger.info("$i: overflow")
           overflow(i) := true.B
           when (control.irq) {
             io.irq(i) := true.B

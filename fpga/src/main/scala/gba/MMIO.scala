@@ -3,6 +3,7 @@ package gba
 import chisel3._
 import chisel3.util._
 import gba.mem.TargetInterface
+import lib.log.Logger
 
 class MmioTarget extends Bundle {
   /// *Word* address
@@ -25,6 +26,7 @@ class MMIO(numTargets: Int) extends Module {
     val enable = Input(Bool())
     val mem = new TargetInterface(32.W)
   })
+  private val logger = Logger("mmio")
   val targets: Seq[MmioTarget] = Seq.fill(numTargets)(IO(Flipped(new MmioTarget)))
 
   val queuedRequest = RegInit(false.B)
@@ -52,9 +54,9 @@ class MMIO(numTargets: Int) extends Module {
   when (io.enable) {
     when (queuedRequest) {
       when (queuedWrite) {
-//        printf(cf"[I/O] write addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataWrite}%x mask=${queuedMask}%b\n")
+        logger.debug("write addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataWrite}%x mask=${queuedMask}%b")
       } .otherwise {
-//        printf(cf"[I/O] read  addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataRead}%x\n")
+        logger.debug("read  addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataRead}%x")
       }
 
       queuedRequest := false.B
