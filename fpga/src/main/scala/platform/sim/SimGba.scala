@@ -8,7 +8,7 @@ import gba.ppu.PpuOutput
 import lib.log.Log
 
 object SimGba extends App {
-  Log.setDefaultLevel(Log.Level.Error)
+  Log.setDefaultLevel(Log.Level.Warning)
 
   ChiselStage.emitSystemVerilogFile(new SimGba, args)
 }

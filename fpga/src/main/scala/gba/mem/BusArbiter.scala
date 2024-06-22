@@ -28,6 +28,9 @@ class BusArbiter(numInputs: Int) extends Module {
 
     /// Output port
     val outputPort = new BusInterface
+
+    /// Whether each initiator should be blocked from making accesses (e.g. to halt the CPU)
+    val blockInitiators = Input(UInt(numInputs.W))
   })
 
   // Bus is pipelined. In one bus cycle, we send addressing signals, and in the next, we send wdata / read rdata.
@@ -73,7 +76,7 @@ class BusArbiter(numInputs: Int) extends Module {
     val regRequestQueued = RegInit(false.B)
     val regQueuedParams = Reg(new BusArbiter.RequestParams)
 
-    requestsVec(i) := port.MREQ || regRequestQueued
+    requestsVec(i) := (port.MREQ || regRequestQueued) && !io.blockInitiators(i)
     requestParamsVec(i) := Mux(regRequestQueued, regQueuedParams, requestParams)
 
     when (busCycle) {

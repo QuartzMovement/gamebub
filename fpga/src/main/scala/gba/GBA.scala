@@ -56,9 +56,10 @@ class GBA extends Module {
     bus.io.targetPort(i).dataRead := 0.U
     bus.io.targetPort(i).done := true.B
   }
-  val busArbiter = Module(new BusArbiter(5))
+  val busArbiter = Module(new BusArbiter(numInputs = 5))
   busArbiter.io.enable := io.enable
   bus.io.initiatorPort <> busArbiter.io.outputPort
+  val busPortCpu = busArbiter.io.inputPorts(4)
 
   // MMIO Bus
   val mmio = Module(new MMIO(numTargets = 6))
@@ -83,7 +84,7 @@ class GBA extends Module {
   val cpu = Module(new ARM7TDMI)
   cpu.io.enable := io.enable
   cpu.io.FIQ := false.B
-  busArbiter.io.inputPorts(4) <> cpu.io.mem
+  busPortCpu <> cpu.io.mem
 
   // Interrupt manager
   val interrupt = Module(new Interrupt)
@@ -91,6 +92,8 @@ class GBA extends Module {
   mmio.targets(0) <> interrupt.io.mmio
   cpu.io.IRQ := interrupt.io.irq
   interrupt.io.peripheralIrq := 0.U.asTypeOf(new Interrupt.Flags)
+  // Implement halting by blocking CPU transactions on the bus.
+  busArbiter.io.blockInitiators := Cat(interrupt.io.cpuHalt, 0.U(4.W))
 
   // PPU
   val ppu = Module(new Ppu)

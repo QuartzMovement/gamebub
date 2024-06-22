@@ -2,6 +2,7 @@ package gba
 
 import chisel3._
 import chisel3.util._
+import lib.log.Logger
 
 class Interrupt extends Module {
   val io = IO(new Bundle {
@@ -13,16 +14,29 @@ class Interrupt extends Module {
 
     /// IRQ signals from peripherals
     val peripheralIrq = Input(new Interrupt.Flags)
+
+    /// Whether the CPU is halted
+    val cpuHalt = Output(Bool())
   })
+  val logger = Logger("interrupt")
 
   val ime = RegInit(0.U(1.W))
   val regEnabled = RegInit(0.U.asTypeOf(new Interrupt.Flags))
   val regRequested = RegInit(0.U.asTypeOf(new Interrupt.Flags))
+  val regCpuHalt = RegInit(false.B)
 
+  val irqActive = (regRequested.asUInt & regEnabled.asUInt) =/= 0.U
   when (io.enable) {
     regRequested := (regRequested.asUInt | io.peripheralIrq.asUInt).asTypeOf(new Interrupt.Flags)
+
+    when (irqActive && regCpuHalt) {
+      // Exiting HALT happens when IE & IF, regardless of IME (or CPU irq)
+      regCpuHalt := false.B
+      logger.info(cf"CPU resumed")
+    }
   }
-  io.irq := ime(0) && ((regRequested.asUInt & regEnabled.asUInt) =/= 0.U)
+  io.irq := ime(0) && irqActive
+  io.cpuHalt := regCpuHalt
 
   io.mmio <> MmioMap(
     // 0x200: IE, 0x202: IF
@@ -46,6 +60,22 @@ class Interrupt extends Module {
     ),
     // 0x208: IME
     0x208 -> MmioMap.Entry.rw(ime),
+    // 0x300: POSTFLG and HALTCNT
+    0x300 -> MmioMap.Entry(
+      MmioMap.ReadFn(_ => (0.U, true.B)),
+      MmioMap.WriteFn((enable, data, mask) => {
+        // TODO: this should only be settable when executed from BIOS
+        when (enable && mask(1)) {
+          val haltmode = data(15)
+          when (haltmode === 0.U) {
+            logger.info(cf"CPU halted")
+            regCpuHalt := true.B
+          } .otherwise {
+            logger.warn(cf"HALTCNT = 1 (STOP) not implemented")
+          }
+        }
+      })
+    ),
   )
 }
 
