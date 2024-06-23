@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 import gba.apu.Apu
+import gba.cart.{CartridgeController, CartridgeInterface}
 import gba.cpu.ARM7TDMI
 import gba.mem.{BusAccessWidth, BusArbiter, BusTarget, SimpleRam, TargetInterface}
 import gba.ppu.{Ppu, PpuOutput}
@@ -17,8 +18,8 @@ class GBA extends Module {
     /// Global enable signal
     val enable = Input(Bool())
 
-    /// Cartridge access
-    val cartRom = Flipped(new TargetInterface(16.W))
+    /// Cartridge interface
+    val cartridge = new CartridgeInterface
 
     /// PPU video output
     val ppu = Output(new PpuOutput)
@@ -46,9 +47,7 @@ class GBA extends Module {
     BusTarget("Cart ROM 0", (0x8 >> 1).U(3.W), BusAccessWidth.Halfword),
     BusTarget("Cart ROM 1", (0xA >> 1).U(3.W), BusAccessWidth.Halfword),
     BusTarget("Cart ROM 2", (0xC >> 1).U(3.W), BusAccessWidth.Halfword),
-    // N.B. SRAM is only 8-bit, but 32/16 bit accesses are never split
-    // (and all just become a single physical cartridge access), thus, to the bus, it is 32-bit.
-    BusTarget("Cart RAM", 0xE.U(4.W), BusAccessWidth.Word),
+    BusTarget("Cart RAM", 0xE.U(4.W), BusAccessWidth.Byte),
     BusTarget("Unmapped", 0xF.U(4.W), BusAccessWidth.Word),
   )))
   bus.io.enable := io.enable
@@ -62,7 +61,7 @@ class GBA extends Module {
   val busPortCpu = busArbiter.io.inputPorts(4)
 
   // MMIO Bus
-  val mmio = Module(new MMIO(numTargets = 6))
+  val mmio = Module(new MMIO(numTargets = 7))
   mmio.io.enable := io.enable
   bus.io.targetPort(3) <> mmio.io.mem
 
@@ -78,8 +77,6 @@ class GBA extends Module {
   iwram.io.enable := io.enable
   bus.io.targetPort(2) <> iwram.io.target
 
-  bus.io.targetPort(7) <> io.cartRom
-
   // CPU
   val cpu = Module(new ARM7TDMI)
   cpu.io.enable := io.enable
@@ -94,6 +91,7 @@ class GBA extends Module {
   interrupt.io.peripheralIrq := 0.U.asTypeOf(new Interrupt.Flags)
   // Implement halting by blocking CPU transactions on the bus.
   busArbiter.io.blockInitiators := Cat(interrupt.io.cpuHalt, 0.U(4.W))
+  // TODO implement cartridge interrupt / DMA request
 
   // PPU
   val ppu = Module(new Ppu)
@@ -135,4 +133,14 @@ class GBA extends Module {
   val apu = Module(new Apu)
   apu.io.enable := io.enable
   mmio.targets(5) <> apu.io.mmio
+
+  // Cartridge controller
+  val cart = Module(new CartridgeController)
+  cart.io.enable := io.enable
+  cart.io.cartridge <> io.cartridge
+  mmio.targets(6) <> cart.io.mmio
+  bus.io.targetPort(7) <> cart.io.busTargetRom0
+  bus.io.targetPort(8) <> cart.io.busTargetRom1
+  bus.io.targetPort(9) <> cart.io.busTargetRom2
+  bus.io.targetPort(10) <> cart.io.busTargetRam
 }

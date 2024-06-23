@@ -3,6 +3,7 @@ package platform.sim
 import chisel3._
 import _root_.circt.stage.ChiselStage
 import gba._
+import gba.cart.EmulatedCartridge
 import gba.mem.{SimpleRam, TargetInterface}
 import gba.ppu.PpuOutput
 import lib.log.Log
@@ -23,7 +24,6 @@ class SimGba extends Module {
 
   val gba = Module(new GBA())
   gba.io.enable <> io.enable
-  gba.io.cartRom <> io.cartRom
   gba.io.ppu <> io.ppu
   gba.io.keypad <> io.keypad
 
@@ -43,4 +43,8 @@ class SimGba extends Module {
   val ewram = Module(new SimpleRam("EWRAM", 256 * 1024, 16.W, waitStates = 2))
   ewram.io.enable := io.enable
   gba.io.ewram <> ewram.io.target
+
+  // Emulated cartridge
+  val emuCart = Module(new EmulatedCartridge)
+  gba.io.cartridge <> emuCart.io.interface
 }

@@ -24,6 +24,7 @@ class Interrupt extends Module {
   val regEnabled = RegInit(0.U.asTypeOf(new Interrupt.Flags))
   val regRequested = RegInit(0.U.asTypeOf(new Interrupt.Flags))
   val regCpuHalt = RegInit(false.B)
+  val reg410 = RegInit(0.U(32.W))
 
   val irqActive = (regRequested.asUInt & regEnabled.asUInt) =/= 0.U
   when (io.enable) {
@@ -76,6 +77,11 @@ class Interrupt extends Module {
         }
       })
     ),
+    // 0x410: Undocumented BIOS
+    0x410 -> MmioMap.Entry(
+      MmioMap.ReadFn(_ => ((~reg410).asUInt ^ "h0A0B8FEE".U(32.W), true.B)),
+      MmioMap.WriteFn(reg410),
+    )
   )
 }
 
