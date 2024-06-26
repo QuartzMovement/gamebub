@@ -3,8 +3,8 @@ package gba
 import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
-import gba.apu.Apu
 import gba.cart.{CartridgeController, CartridgeInterface}
+import gba.apu.{Apu, ApuOutput}
 import gba.cpu.ARM7TDMI
 import gba.mem.{BusAccessWidth, BusArbiter, BusTarget, EwramController, SimpleRam}
 import gba.ppu.{Ppu, PpuOutput}
@@ -24,6 +24,9 @@ class GBA extends Module {
 
     /// PPU video output
     val ppu = Output(new PpuOutput)
+
+    /// APU audio output
+    val apu = Output(new ApuOutput)
 
     /// Keypad state
     val keypad = Input(new Keypad.State)
@@ -140,6 +143,7 @@ class GBA extends Module {
   // APU
   val apu = Module(new Apu)
   apu.io.enable := io.enable
+  io.apu := apu.io.output
   mmio.targets(5) <> apu.io.mmio
 
   // Cartridge controller
