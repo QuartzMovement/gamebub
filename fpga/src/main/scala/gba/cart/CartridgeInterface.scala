@@ -31,8 +31,12 @@ class CartridgeInterface extends Bundle {
   /// This is redundant information: a cycle later, nCS or nCS2 will drop low. However, this
   /// allows the emulated cartridge to start handling an access earlier.
   val reqStart = Output(Bool())
+  /// Whether this request is for ROM.
+  val reqRom = Output(Bool())
   /// Whether this request will be a read (0) or write (1)
-  val reqRead = Output(Bool())
+  val reqWrite = Output(Bool())
+  /// The address of the request
+  val reqAddress = Output(UInt(24.W))
   /// Whether the current read request will be sampled at the next clock cycle.
   /// If this is high, and the read data is not yet valid, the whole system should be disabled until it is ready.
   val reqEnd = Output(Bool())
