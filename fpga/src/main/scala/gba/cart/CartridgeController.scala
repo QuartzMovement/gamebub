@@ -81,11 +81,16 @@ class CartridgeController extends Module {
     0x204 -> MmioMap.Entry.rw(regWaitControl),
   )
 
-  // Stubs
-  for (x <- Seq(io.busTargetRom0, io.busTargetRom1, io.busTargetRom2, io.busTargetRam)) {
+  // Default target bus state
+  for (x <- Seq(io.busTargetRom0, io.busTargetRom1, io.busTargetRom2)) {
     x.done := isRequestDone
     x.dataRead := regReadData
   }
+  // TODO implement RAM
+  io.busTargetRam.done := true.B
+  io.busTargetRam.dataRead := "hFFFF".U(16.W)
+
+  // Cartridge port
   io.cartridge.phi := 0.U  // TODO
   io.cartridge.nWR := 1.U
   io.cartridge.nRD := 1.U

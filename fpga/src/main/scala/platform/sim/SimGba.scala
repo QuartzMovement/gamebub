@@ -3,8 +3,8 @@ package platform.sim
 import chisel3._
 import _root_.circt.stage.ChiselStage
 import gba._
-import gba.cart.EmulatedCartridge
-import gba.mem.{SimpleRam, TargetInterface}
+import gba.cart.{EmulatedCartridge, EmulatedCartridgeDataAccess}
+import gba.mem.SimpleRam
 import gba.ppu.PpuOutput
 import lib.log.Log
 
@@ -17,7 +17,7 @@ object SimGba extends App {
 class SimGba extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
-    val cartRom = Flipped(new TargetInterface(16.W))
+    val emuCart = new EmulatedCartridgeDataAccess
     val ppu = Output(new PpuOutput)
     val keypad = Input(new Keypad.State)
   })
@@ -47,4 +47,5 @@ class SimGba extends Module {
   // Emulated cartridge
   val emuCart = Module(new EmulatedCartridge)
   gba.io.cartridge <> emuCart.io.interface
+  io.emuCart <> emuCart.io.data
 }
