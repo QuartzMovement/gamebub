@@ -2,9 +2,9 @@ package platform.sim
 
 import chisel3._
 import _root_.circt.stage.ChiselStage
+import chisel3.util.SRAM
 import gba._
 import gba.cart.{EmulatedCartridge, EmulatedCartridgeDataAccess}
-import gba.mem.SimpleRam
 import gba.ppu.PpuOutput
 import lib.log.Log
 
@@ -40,9 +40,15 @@ class SimGba extends Module {
   gba.io.biosRom.data := biosRom.read(gba.io.biosRom.address, gba.io.biosRom.read)
 
   // EWRAM
-  val ewram = Module(new SimpleRam("EWRAM", 256 * 1024, 16.W, waitStates = 2))
-  ewram.io.enable := io.enable
-  gba.io.ewram <> ewram.io.target
+  val ewram = SRAM.masked(128 * 1024, Vec(2, UInt(8.W)), numReadPorts = 0, numWritePorts = 0, numReadwritePorts = 1)
+  val ewramPort = ewram.readwritePorts(0)
+  ewramPort.address := gba.io.ewram.address
+  ewramPort.enable := gba.io.ewram.enable
+  ewramPort.isWrite := gba.io.ewram.write
+  ewramPort.mask.get := gba.io.ewram.writeStrobe.asBools
+  ewramPort.writeData := gba.io.ewram.dataWrite.asTypeOf(ewramPort.writeData)
+  gba.io.ewram.dataRead := ewramPort.readData.asUInt
+  gba.io.ewram.done := true.B
 
   // Emulated cartridge
   val emuCart = Module(new EmulatedCartridge)

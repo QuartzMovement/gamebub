@@ -6,8 +6,9 @@ import _root_.circt.stage.ChiselStage
 import gba.apu.Apu
 import gba.cart.{CartridgeController, CartridgeInterface}
 import gba.cpu.ARM7TDMI
-import gba.mem.{BusAccessWidth, BusArbiter, BusTarget, SimpleRam, TargetInterface}
+import gba.mem.{BusAccessWidth, BusArbiter, BusTarget, EwramController, SimpleRam}
 import gba.ppu.{Ppu, PpuOutput}
+import lib.mem.MemoryInterface
 
 object GBA extends App {
   ChiselStage.emitSystemVerilogFile(new GBA, args)
@@ -32,8 +33,8 @@ class GBA extends Module {
 
     /// EWRAM access. Outside of the module to allow the use of
     /// device-specific storage (e.g. an external SRAM chip).
-    /// Must have 2 wait states.
-    val ewram = Flipped(new TargetInterface(16.W))
+    val ewram = Flipped(new MemoryInterface(addressWidth = 17, dataWidth = 16))
+    val ewramStall = Output(Bool())
   })
 
   val bus = Module(new mem.Bus(Seq(
@@ -71,11 +72,18 @@ class GBA extends Module {
   bios.io.access <> io.biosRom
   bus.io.targetPort(0) <> bios.io.target
 
-  // Work RAMs
-  bus.io.targetPort(1) <> io.ewram
+  // IWRAM
   val iwram = Module(new SimpleRam("IWRAM", 32 * 1024, 32.W))
   iwram.io.enable := io.enable
   bus.io.targetPort(2) <> iwram.io.target
+
+  // EWRAM (proxy)
+  val ewram = Module(new EwramController)
+  ewram.io.enable := io.enable
+  ewram.io.numWaits := 2.U
+  ewram.io.mem <> io.ewram
+  io.ewramStall := ewram.io.stall
+  bus.io.targetPort(1) <> ewram.io.target
 
   // CPU
   val cpu = Module(new ARM7TDMI)
