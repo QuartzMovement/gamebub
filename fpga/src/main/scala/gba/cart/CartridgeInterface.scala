@@ -22,8 +22,8 @@ class CartridgeInterface extends Bundle {
   val AHiDir = Output(Bool())  // 1 for output, 0 for input
   /// SRAM chip select
   val nCS2 = Output(Bool())
-  /// Interrupt request or DMA request
-  val nIRQ = Input(Bool())
+  /// Interrupt request or DMA request (active-high)
+  val IRQ = Input(Bool())
 
   /// Non-physical signals to improve timing of emulated cartridge.
 

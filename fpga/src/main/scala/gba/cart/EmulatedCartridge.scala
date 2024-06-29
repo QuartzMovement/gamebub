@@ -24,7 +24,7 @@ class EmulatedCartridge extends Module {
 
   io.data.romAccess := false.B
   io.data.romAddress := DontCare
-  io.interface.nIRQ := true.B
+  io.interface.IRQ := false.B
   io.interface.ADLoIn := io.data.romDataRead
   io.interface.AHiIn := DontCare
   io.shouldStall := false.B
