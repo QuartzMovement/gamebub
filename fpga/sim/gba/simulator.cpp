@@ -71,16 +71,16 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
         top->clock = 1;
         top->eval();
 
-        if (top->io_emuCart_romAccess) {
-            int cart_address = top->io_emuCart_romAddress;
+        if (top->io_emuCartRom_enable) {
+            int cart_address = top->io_emuCartRom_address;
             // Only works on little endian system
             if (cart_address < (this->rom.size() >> 1)) {
                 auto rom_words = reinterpret_cast<uint16_t*>(this->rom.data());
-                top->io_emuCart_romDataRead = rom_words[cart_address];
+                top->io_emuCartRom_dataRead = rom_words[cart_address];
             }
+            top->io_emuCartRom_done = 1;
 //            fprintf(stderr, "[%llu] rom read addr=0x%x\n", this->cycles, cart_address);
         }
-        top->io_emuCart_romDone = 1;
 
         this->cycles++;
 
