@@ -10,7 +10,8 @@ import xilinx.XpmCdcHandshake
 object HandheldTop extends App {
   ChiselStage.emitSystemVerilogFile(
     new HandheldTop(
-      new HandheldGameboy
+      new HandheldGba
+//      new HandheldGameboy
       //    new HandheldTester
     ),
     args,
@@ -310,8 +311,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   }
 
 
-  io.pmod.dir := "b1111".U
-  io.pmod.out := Cat(clock.asBool, spi.io.mem.enable, spi.io.mem.done, spiStatusRegister.requestFifoOverflow || spiStatusRegister.responseFifoUnderflow)
+//  io.pmod.out := Cat(clock.asBool, spi.io.mem.enable, spi.io.mem.done, spiStatusRegister.requestFifoOverflow || spiStatusRegister.responseFifoUnderflow)
 
   //////////////////////////////////
   // Memory
@@ -445,6 +445,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       Cat(videoOutput.b, 0.U(1.W)),
     )
   }
+
+  io.pmod.dir := "b1111".U
+  io.pmod.out := io.lcd.asUInt
 
   // Overlay access.
   // TODO: consider switching to (or adding) a method of writing where

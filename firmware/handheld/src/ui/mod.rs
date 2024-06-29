@@ -99,7 +99,7 @@ impl UI {
                     device::Event::FpgaIrq(irq_mask) => {
                         if irq_mask & 0b1 != 0 {
                             // Module vblank
-                            self.state.borrow_mut().gameboy.handle_vblank_irq();
+                            // self.state.borrow_mut().gameboy.handle_vblank_irq();
                         }
                     }
                     device::Event::FuelGaugeAlert(fuel_gauge::Alert::ChargeChange) => {

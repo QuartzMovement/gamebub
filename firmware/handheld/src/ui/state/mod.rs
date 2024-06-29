@@ -5,7 +5,7 @@ use slint::{ComponentHandle, Global, Model, ModelRc, Timer, TimerMode, VecModel,
 
 use crate::{
     device::{kvs, Device},
-    gameboy::Gameboy,
+    gba::Gba,
 };
 
 use super::slint::{
@@ -18,7 +18,7 @@ pub struct UiState {
     root: Weak<MainWindow>,
     focus_stack: Vec<slint_re_exports::ItemWeak>,
 
-    pub gameboy: Gameboy,
+    pub gba: Gba,
     settings_model: Rc<settings::SettingsModel>,
 }
 
@@ -27,7 +27,7 @@ impl UiState {
         let state = UiState {
             root: root.as_weak(),
             focus_stack: Vec::new(),
-            gameboy: Gameboy::new(),
+            gba: Gba::new(),
             settings_model: Rc::new(settings::SettingsModel::new(device)),
         };
         let state = Rc::new(RefCell::new(state));
@@ -72,11 +72,7 @@ impl UiState {
 
         let state_ = state.clone();
         backend.on_main_menu_run_cartridge(move || {
-            state_
-                .borrow_mut()
-                .gameboy
-                .set_physical_cartridge()
-                .unwrap();
+            state_.borrow_mut().gba.set_physical_cartridge().unwrap();
         });
 
         let rom_select_path: &Path = "/sdcard/roms".as_ref();
@@ -109,15 +105,7 @@ impl UiState {
                 let path = rom_select_path.join(data.as_str());
                 log::info!("Selected ROM {}", path.display());
                 kvs::keys::LAST_ROM_PATH.set(&path);
-
-                match state.gameboy.set_emulated_cartridge(path.as_path()) {
-                    Ok(_) => true,
-                    Err(e) => {
-                        // TODO show an error message
-                        log::error!("Error loading ROM: {:?}", e);
-                        false
-                    }
-                }
+                false
             } else {
                 false
             }
@@ -126,16 +114,16 @@ impl UiState {
         let state_ = state.clone();
         backend.on_game_set_paused(move |paused| {
             let mut state = state_.borrow_mut();
-            state.gameboy.set_paused(paused).unwrap();
+            state.gba.set_paused(paused).unwrap();
             if paused {
                 // TODO handle error more gracefully
-                state.gameboy.persist_ram().unwrap();
+                // state.gba.persist_ram().unwrap();
             }
         });
 
         let state_ = state.clone();
         backend.on_game_reset(move || {
-            state_.borrow_mut().gameboy.reset().unwrap();
+            state_.borrow_mut().gba.reset().unwrap();
         });
 
         let state_ = state.clone();
