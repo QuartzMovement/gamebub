@@ -63,14 +63,14 @@ class Timer extends Module {
 
     when (io.enable) {
       when (justEnabled) {
-        logger.info("$i: enable $control")
+        logger.info(cf"$i: enable $control")
         counter := counterReload
       }
 
       when (control.enable && tick) {
         val next = counter + 1.U
         when (next === 0.U) {
-          logger.info("$i: overflow")
+          logger.info(cf"$i: overflow")
           overflow(i) := true.B
           when (control.irq) {
             io.irq(i) := true.B

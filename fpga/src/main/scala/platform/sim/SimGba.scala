@@ -11,6 +11,10 @@ import lib.mem.MemoryInterface
 
 object SimGba extends App {
   Log.setDefaultLevel(Log.Level.Warning)
+  sys.env.get("LOG_LEVELS") match {
+    case Some(value) => Log.setLevelsFromString(value)
+    case None =>
+  }
 
   ChiselStage.emitSystemVerilogFile(new SimGba, args)
 }
