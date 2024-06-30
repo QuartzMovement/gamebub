@@ -32,6 +32,19 @@ object Log {
   private val levels = collection.mutable.Map[String, Level]()
 
   protected[log] def getLevel(module: String): Level = {
+    var key = module
+    while (key.nonEmpty) {
+      levels.get(key) match {
+        case Some(level) => return level
+        case None =>
+      }
+      val dot = key.lastIndexOf(".")
+      if (dot < 0) {
+        key = ""
+      } else {
+        key = key.substring(0, dot)
+      }
+    }
     levels.getOrElse(module, defaultLevel)
   }
 
