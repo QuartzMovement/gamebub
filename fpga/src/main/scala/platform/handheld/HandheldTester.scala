@@ -9,7 +9,6 @@ class HandheldTester extends Module with HandheldModule {
     def framebufferW = 240
     def framebufferH = 160
 
-    reset := io.reset
     val (_, frame) = Counter(true.B, 8 * 1024 * 1024 / 60)
 
     val offX = RegInit(0.U(5.W))
@@ -49,16 +48,40 @@ class HandheldTester extends Module with HandheldModule {
     io.framebufferData.b := 0.U
 
     // Generate test video pattern
-    // XOR test pattern -- moves to left
-    // X and Y are flipped: columns are R, G, B
-    val color = (offX + x)(4, 0) ^ (offY + y)(4, 0)
-    when (x < 80.U) {
-        io.framebufferData.r := color
-    }.elsewhen(x < 160.U) {
-        io.framebufferData.g := color
-    }.otherwise {
-        io.framebufferData.b := color
+    when (io.buttons.start) {
+        // Border test pattern
+        when (x === 0.U && y === 0.U) {
+            // Top-left corner: red
+            io.framebufferData.r := 0x1F.U
+        } .elsewhen ((x === 0.U && y === 159.U) || (x === 239.U && y === 0.U) || (x === 239.U && y === 159.U)) {
+            // Other corners: yellow
+            io.framebufferData.r := 0x1F.U
+            io.framebufferData.g := 0x1F.U
+        } .elsewhen (x === 0.U || x === 239.U || y === 0.U || y === 159.U) {
+            // Outer border: green
+            io.framebufferData.g := 0x1F.U
+        } .elsewhen (x === 1.U || x === 238.U || y === 1.U || y === 158.U) {
+            // Next border: blue
+            io.framebufferData.b := 0x1F.U
+        } .otherwise {
+            // Middle: gray
+            io.framebufferData.r := 0xF.U
+            io.framebufferData.g := 0xF.U
+            io.framebufferData.b := 0xF.U
+        }
+    } .otherwise {
+        // XOR test pattern -- moves to left
+        // X and Y are flipped: columns are R, G, B
+        val color = (offX + x)(4, 0) ^ (offY + y)(4, 0)
+        when (x < 80.U) {
+            io.framebufferData.r := color
+        } .elsewhen(x < 160.U) {
+            io.framebufferData.g := color
+        } .otherwise {
+            io.framebufferData.b := color
+        }
     }
+
 
     // Movement
     when (io.enable && frame) {

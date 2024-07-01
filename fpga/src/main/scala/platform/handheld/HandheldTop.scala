@@ -310,9 +310,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     interruptFlags.moduleVblank := true.B
   }
 
-
-//  io.pmod.out := Cat(clock.asBool, spi.io.mem.enable, spi.io.mem.done, spiStatusRegister.requestFifoOverflow || spiStatusRegister.responseFifoUnderflow)
-
   //////////////////////////////////
   // Memory
   //////////////////////////////////
@@ -406,8 +403,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val videoOffsetY = (screenHeight - (videoHeight * videoScale)) / 2
     val framebufferReadDelay = 3 // 3 cycles to read from the framebuffer
     val framebufferReadAddress =
-      (((dpiY - videoOffsetY.U(16.W) + framebufferReadDelay.U(16.W)) / videoScale.U(16.W)) * videoWidth.U(16.W)) +
-        ((dpiX - videoOffsetX.U(16.W)) / videoScale.U)
+      (((dpiY - videoOffsetY.U + framebufferReadDelay.U) / videoScale.U) * videoWidth.U) +
+        ((dpiX - videoOffsetX.U) / videoScale.U)
     // Buffering the read allows this to be a block ram instead of distributed ram
     // and an additional output buffer allows Vivado to improve timing.
     val framebufferRead = RegNext(RegNext(framebuffer.read(framebufferReadAddress, io.clock_av))).asTypeOf(ColorARGB.rgb555())
