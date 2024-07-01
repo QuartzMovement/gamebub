@@ -10,9 +10,13 @@ Framebuffer::Framebuffer(int width, int height) {
 
 void Framebuffer::update(bool hblank, bool vblank) {
     if (vblank && !prev_vblank) {
-        index = 0;
         activePage = !activePage;
+        y = 0;
+    } else if (!vblank && hblank && !prev_hblank) {
+        y += 1;
+        x = 0;
     }
+
     prev_hblank = hblank;
     prev_vblank = vblank;
 }
@@ -20,23 +24,24 @@ void Framebuffer::update(bool hblank, bool vblank) {
 void Framebuffer::clear() {
     std::fill(page0.begin(), page0.end(), 0xFF);
     std::fill(page1.begin(), page1.end(), 0xFF);
-    index = 0;
+    x = 0;
+    y = 0;
 }
 
 void Framebuffer::pushBGR(uint16_t pixel) {
     std::vector<uint8_t>& buffer = writeBuffer();
-    if (index >= buffer.size() - 4) {
-        // TODO: make this a fatal error (framebuffer overrun).
-        return;
-    }
+
+    int index = ((y * 240) + x) * 4;
 
     uint8_t r = (pixel >> 0) & 0x1F;
     uint8_t g = (pixel >> 5) & 0x1F;
     uint8_t b = (pixel >> 10) & 0x1F;
-    buffer[index++] = (b << 3) | (b >> 2);
-    buffer[index++] = (g << 3) | (g >> 2);
-    buffer[index++] = (r << 3) | (r >> 2);
-    buffer[index++] = 0xFF;
+    buffer[index + 0] = (b << 3) | (b >> 2);
+    buffer[index + 1] = (g << 3) | (g >> 2);
+    buffer[index + 2] = (r << 3) | (r >> 2);
+    buffer[index + 3] = 0xFF;
+
+    x += 1;
 }
 
 std::vector<uint8_t>& Framebuffer::writeBuffer() {

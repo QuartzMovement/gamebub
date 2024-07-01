@@ -104,7 +104,7 @@ void Simulator::stepFramebuffer()
 {
     framebuffer.update(top->io_ppu_hblank, top->io_ppu_vblank);
 
-    if (top->io_ppu_valid) {
+    if (top->io_ppu_valid && !top->io_ppu_hblank && !top->io_ppu_vblank) {
       framebuffer.pushBGR(top->io_ppu_pixel);
     }
 }

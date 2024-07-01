@@ -22,7 +22,9 @@ class Framebuffer {
     std::vector<uint8_t> page1;
     int activePage = 0;
 
-    int index = 0;
     bool prev_vblank = false;
     bool prev_hblank = false;
+
+    int x = 0;
+    int y = 0;
 };
