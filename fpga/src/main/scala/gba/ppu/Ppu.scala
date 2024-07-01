@@ -89,6 +89,8 @@ class Ppu extends Module {
   val scanline = RegInit(0.U(8.W))
   val tick = RegInit(0.U(11.W))
   val vcountHit = scanline === regVcount
+  val isHblank = tick >= 1006.U
+  val isVblank = scanline >= 160.U
 
   when (io.enable) {
     when (tick < (1232 - 1).U) {
@@ -103,9 +105,6 @@ class Ppu extends Module {
     }
   }
 
-  io.output.hblank := tick >= 1006.U
-  io.output.vblank := scanline >= 160.U
-
   // I/O registers
   io.mmio <> MmioMap(
     0x0 -> MmioMap.Entry.rw(regDisplayControl),
@@ -113,8 +112,8 @@ class Ppu extends Module {
       // DISPSTAT and VCOUNT
       MmioMap.ReadFn(_ => {
         val status = Wire(new PpuRegisters.DisplayStatus)
-        status.vblank := io.output.vblank
-        status.hblank := io.output.hblank
+        status.vblank := isVblank
+        status.hblank := isHblank
         status.vcountHit := vcountHit
         status.irqVblank := regIrqEnableVblank
         status.irqHblank := regIrqEnableHblank
@@ -227,6 +226,8 @@ class Ppu extends Module {
   compositor.io.objectData := objRender.io.bufferData
   io.output.valid := compositor.io.valid
   io.output.pixel := compositor.io.pixel
+  io.output.hblank := tick > 1006.U // Output video signal actually happens a cycle later, after last pixel output
+  io.output.vblank := isVblank
 
   // IRQs and DMA trigger
   {
@@ -234,12 +235,12 @@ class Ppu extends Module {
     val lastHblank = RegInit(false.B)
     val lastVcountHit = RegInit(false.B)
     when (io.enable) {
-      lastHblank := io.output.hblank
-      lastVblank := io.output.vblank
+      lastHblank := isHblank
+      lastVblank := isVblank
       lastVcountHit := vcountHit
     }
-    io.irqHblank := regIrqEnableHblank && io.output.hblank && !lastHblank
-    io.irqVblank := regIrqEnableVblank && io.output.vblank && !lastVblank
+    io.irqHblank := regIrqEnableHblank && isHblank && !lastHblank
+    io.irqVblank := regIrqEnableVblank && isVblank && !lastVblank
     io.irqVcount := regIrqEnableVcount && vcountHit && !lastVcountHit
     io.dmaTriggerHblank := (tick === 1006.U) && (scanline < 160.U)
     io.dmaTriggerVblank := (tick === 0.U) && (scanline === 160.U)
