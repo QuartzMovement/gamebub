@@ -23,6 +23,7 @@ ldr		r1, =0x03007f00
 mov		sp, r1
 
 @ Call BIOS 'RegisterRamReset'
+mov     r0, #0xFF
 swi		1
 @ Call BIOS 'SoftReset'
 swi		0
