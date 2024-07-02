@@ -37,10 +37,12 @@ void print_help() {
 int main(int argc, char** argv) {
     std::filesystem::path bios_path;
     std::filesystem::path rom_path;
+    std::filesystem::path audio_save_path;
 
     const char* const short_opts = "b:";
     const option long_opts[] = {
         {"bios-path", required_argument, nullptr, 'b'},
+        {"save-audio", required_argument, nullptr, 'a'},
         {"help", no_argument, nullptr, 'h'},
         {nullptr, no_argument, nullptr, 0}
     };
@@ -54,6 +56,9 @@ int main(int argc, char** argv) {
         switch (opt) {
             case 'b':
                 bios_path = optarg;
+                break;
+            case 'a':
+                audio_save_path = optarg;
                 break;
             case 'h':
             case '?':
@@ -72,7 +77,7 @@ int main(int argc, char** argv) {
     // Initialize SDL.
     SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_AUDIO);
     Window window(Simulator::width(), Simulator::height());
-    Audio audio;
+    Audio audio(audio_save_path);
 
     Simulator simulator(rom_path, bios_path);
     simulator.reset();

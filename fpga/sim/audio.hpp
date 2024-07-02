@@ -1,12 +1,15 @@
 #pragma once
 
+#include <filesystem>
+#include <fstream>
+
 #include <SDL2/SDL.h>
 
 const int AUDIO_CHANNELS = 2;
 
 class Audio {
 public:
-    Audio();
+    Audio(std::filesystem::path save_path);
     ~Audio();
 
     // Push samples (up to the maximum limit).
@@ -15,4 +18,5 @@ public:
 
 private:
 	SDL_AudioDeviceID device;
+	std::ofstream output;
 };
