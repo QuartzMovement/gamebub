@@ -31,7 +31,7 @@ void Framebuffer::clear() {
 void Framebuffer::pushBGR(uint16_t pixel) {
     std::vector<uint8_t>& buffer = writeBuffer();
 
-    int index = ((y * 240) + x) * 4;
+    int index = ((y * width) + x) * 4;
 
     uint8_t r = (pixel >> 0) & 0x1F;
     uint8_t g = (pixel >> 5) & 0x1F;
