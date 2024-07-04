@@ -136,7 +136,11 @@ class Bus(
 
   when (io.enable) {
     when (accessDone) {
-      logger.debug(cf"Done. split=${regAccessSplit} wdata=0x${io.initiatorPort.WDATA}%x rdata=0x${io.initiatorPort.RDATA}%x")
+      when (regAccessWrite) {
+        logger.debug(cf"Done. split=${regAccessSplit} wdata=0x${io.initiatorPort.WDATA}%x")
+      } .otherwise {
+        logger.debug(cf"Done. split=${regAccessSplit} rdata=0x${io.initiatorPort.RDATA}%x")
+      }
       regAccessBusy := false.B
 
       when (regAccessSplit) {

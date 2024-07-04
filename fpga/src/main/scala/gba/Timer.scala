@@ -29,7 +29,7 @@ class Timer extends Module {
 
   val regControl = Seq.fill(4)(RegInit(0.U.asTypeOf(new TimerControl)))
   val regCounterReload = Seq.fill(4)(RegInit(0.U(16.W)))
-  val regCounter = Seq.fill(4)(Reg(UInt(16.W)))
+  val regCounter = Seq.fill(4)(RegInit(0.U(16.W)))
 
   io.mmio <> MmioMap.fromSeq(
     (0 until 4).map(i => 0x100 + (4 * i) -> MmioMap.Entry(
