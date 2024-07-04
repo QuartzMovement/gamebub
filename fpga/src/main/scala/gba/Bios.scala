@@ -16,7 +16,6 @@ class Bios extends Module {
     val access = new BiosRomAccess
   })
 
-
   val readEnable = io.enable && io.target.request
   val readBusy = RegInit(false.B)
   io.target.done := false.B
@@ -30,6 +29,15 @@ class Bios extends Module {
   io.access.read := readEnable
   io.access.address := io.target.address >> 2
   io.target.dataRead := io.access.data
+
+  // Latch the read data, in case enable goes to false.
+  val readLatch = Reg(UInt(32.W))
+  val lastRead = RegNext(readEnable)
+  when (lastRead) {
+    readLatch := io.access.data
+  } .otherwise {
+    io.target.dataRead := readLatch
+  }
 
   // TODO handle lock/unlock
   // TODO handle open bus when not in range
