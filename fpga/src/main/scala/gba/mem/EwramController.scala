@@ -74,6 +74,6 @@ class EwramController extends Module {
     waitCounter := io.numWaits
     queuedAddress := io.target.address >> addrShift
     queuedIsWrite := io.target.write
-    queuedWriteMask := io.target.dataWrite
+    queuedWriteMask := io.target.mask
   }
 }
