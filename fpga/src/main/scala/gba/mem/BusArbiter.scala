@@ -148,7 +148,9 @@ class BusArbiter(numInputs: Int) extends Module {
     when ((regRequestSource.asUInt & requestChosen.asUInt) === 0.U) {
       // Switching initiators, force a non-sequential access.
       io.outputPort.SEQ := false.B
-      logger.debug(cf"forcing non-seq: ${regRequestSource.asUInt}%b -> ${requestChosen.asUInt}%b")
+      when (io.enable) {
+        logger.debug(cf"forcing non-seq: ${regRequestSource.asUInt}%b -> ${requestChosen.asUInt}%b")
+      }
     }
   }
   // Set WDATA based on the request from last bus cycle.

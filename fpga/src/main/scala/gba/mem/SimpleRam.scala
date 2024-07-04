@@ -63,7 +63,6 @@ class SimpleRam(name: String, size: Int, width: Width, waitStates: Int = 0) exte
         when (!queuedWrite) {
           // Perform the read a cycle before it's done.
           // memReadPort.data is only guaranteed to be valid on the next clock cycle.
-          // TODO: check in how this would interact with setting enable=false?
           memReadPort.enable := true.B
           memReadPort.address := queuedAddress
         }

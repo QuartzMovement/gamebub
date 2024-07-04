@@ -58,8 +58,16 @@ class PpuMem(name: String, size: Int, width: Width) extends Module {
   memWritePort.mask.get := DontCare
   memWritePort.data := DontCare
   io.cpuTarget.done := false.B
-  io.cpuTarget.dataRead := DontCare
-  io.ppuTarget.readData := memReadPort.data.asUInt
+
+  // Latch read data, in case io.enable goes to false.
+  val lastRead = RegNext(memReadPort.enable)
+  val readDataLatch = Reg(UInt(32.W))
+  when (lastRead) {
+    readDataLatch := memReadPort.data.asUInt
+  }
+  val readData = Mux(lastRead, memReadPort.data.asUInt, readDataLatch)
+  io.cpuTarget.dataRead := readData
+  io.ppuTarget.readData := readData
 
   when (io.enable) {
     when (cpuBusy) {
@@ -78,8 +86,6 @@ class PpuMem(name: String, size: Int, width: Width) extends Module {
         memWritePort.address := queuedAddress
         memWritePort.mask.get := mask
         memWritePort.data := io.cpuTarget.dataWrite.asTypeOf(Vec(widthHalfwords, UInt(16.W)))
-      } .otherwise {
-        io.cpuTarget.dataRead := memReadPort.data.asUInt
       }
     }
 
