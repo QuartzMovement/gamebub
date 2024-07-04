@@ -132,7 +132,16 @@ void Simulator::simulate_frame()
 
 void Simulator::stepAudio()
 {
-    // TODO
+    audioTimer++;
+    if (audioTimer == (clockHz() / audioSampleHz())) {
+        int16_t mask = 1U << (10 - 1);
+        int16_t left = (top->io_apu_left ^ mask) - mask;
+        int16_t right = (top->io_apu_right ^ mask) - mask;
+
+        audioTimer = 0;
+        audioSampleBuffer.push_back(left * 8);
+        audioSampleBuffer.push_back(right * 8);
+    }
 }
 
 std::vector<int16_t>& Simulator::getAudioSampleBuffer()

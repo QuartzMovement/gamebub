@@ -4,6 +4,7 @@ import chisel3._
 import _root_.circt.stage.ChiselStage
 import chisel3.util.SRAM
 import gba._
+import gba.apu.ApuOutput
 import gba.cart.EmulatedCartridge
 import gba.ppu.PpuOutput
 import lib.log.Log
@@ -25,12 +26,14 @@ class SimGba extends Module {
     val emuCartRom = Flipped(new MemoryInterface(addressWidth = 24, dataWidth = 16))
     val ppu = Output(new PpuOutput)
     val keypad = Input(new Keypad.State)
+    val apu = Output(new ApuOutput)
   })
 
   val gba = Module(new GBA())
   gba.io.enable <> io.enable
   gba.io.ppu <> io.ppu
   gba.io.keypad <> io.keypad
+  gba.io.apu <> io.apu
 
   // BIOS, to be filled in by verilator simulator
   val biosRom = {

@@ -70,7 +70,7 @@ class Dma extends Module {
     val control = regConfigControl(i)
     val bus = io.busInitiator(i)
 
-    val isAudioFifo = (i == 0 || i == 1).B && control.startControl === DmaStartControl.special
+    val isAudioFifo = (i == 1 || i == 2).B && control.startControl === DmaStartControl.special
     val isSizeWord = control.sizeWord || isAudioFifo
 
     val active = RegInit(false.B)
@@ -118,8 +118,8 @@ class Dma extends Module {
     val activateHblank = (control.startControl === DmaStartControl.hblank) && io.triggerHblank
     val activateVblank = (control.startControl === DmaStartControl.vblank) && io.triggerVblank
     val activateSpecial = WireDefault(false.B)
-    if (i == 0 || i == 1) {
-      activateSpecial := control.startControl === DmaStartControl.special && io.triggerFifo(i)
+    if (i == 1 || i == 2) {
+      activateSpecial := control.startControl === DmaStartControl.special && io.triggerFifo(i - 1)
     }
     when (io.enable) {
       // TODO implement channel 3 special ("video capture" mode)

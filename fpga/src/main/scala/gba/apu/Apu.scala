@@ -3,6 +3,7 @@ package gba.apu
 import chisel3._
 import chisel3.util._
 import gba.{MmioMap, MmioTarget}
+import lib.log.Logger
 
 class ApuOutput extends Bundle {
   /** Left sample value */
@@ -28,11 +29,7 @@ class Apu extends Module {
     /// DMA request trigger for FIFOs A and B
     val dmaTrigger = Output(Vec(2, Bool()))
   })
-
-  io.output.left := 0.S
-  io.output.right := 0.S
-
-  io.dmaTrigger := VecInit.fill(2)(false.B)
+  val logger = Logger("apu")
 
   // TODO: SOUNDBIAS is stubbed to allow BIOS to boot
   val regSoundbias = RegInit(0.U.asTypeOf(new ApuRegisters.SoundBias))
@@ -41,6 +38,22 @@ class Apu extends Module {
   val regMixControl = RegInit(0.U.asTypeOf(new ApuRegisters.MixControl))
   val regDirectControl = RegInit(0.U.asTypeOf(new ApuRegisters.DirectControl))
   val regMasterEnable = RegInit(false.B)
+
+  // Direct channels
+  val channelDirectA = Module(new DirectChannel("a"))
+  val channelDirectB = Module(new DirectChannel("b"))
+  channelDirectA.io.writeEnable := false.B
+  channelDirectA.io.writeData := DontCare
+  channelDirectA.io.writeMask := DontCare
+  channelDirectA.io.timerTrigger := io.enable &&
+    (io.timerOverflow(0) && regDirectControl.timerA === 0.U) || (io.timerOverflow(1) && regDirectControl.timerA === 1.U)
+  io.dmaTrigger(0) := channelDirectA.io.dmaTrigger
+  channelDirectB.io.writeEnable := false.B
+  channelDirectB.io.writeData := DontCare
+  channelDirectB.io.writeMask := DontCare
+  channelDirectB.io.timerTrigger := io.enable &&
+    (io.timerOverflow(0) && regDirectControl.timerB === 0.U) || (io.timerOverflow(1) && regDirectControl.timerB === 1.U)
+  io.dmaTrigger(1) := channelDirectB.io.dmaTrigger
 
   io.mmio <> MmioMap(
     0x80 -> MmioMap.Entry(
@@ -51,7 +64,12 @@ class Apu extends Module {
         val resetDirectA = mask(3) && newDirectControl.resetA
         val resetDirectB = mask(3) && newDirectControl.resetB
         when (enable) {
-          // TODO reset FIFOs
+          when (resetDirectA) {
+            channelDirectA.reset := true.B
+          }
+          when (resetDirectB) {
+            channelDirectB.reset := true.B
+          }
         }
       })
     ),
@@ -70,5 +88,24 @@ class Apu extends Module {
       })
     ),
     0x88 -> MmioMap.Entry.rw(regSoundbias),
+    0xA0 -> MmioMap.Entry(MmioMap.ReadFn(), MmioMap.WriteFn((enable, data, mask) => {
+      when (enable) {
+        channelDirectA.io.writeEnable := true.B
+        channelDirectA.io.writeData := data
+        channelDirectA.io.writeMask := mask
+      }
+    })),
+    0xA4 -> MmioMap.Entry(MmioMap.ReadFn(), MmioMap.WriteFn((enable, data, mask) => {
+      when (enable) {
+        channelDirectB.io.writeEnable := true.B
+        channelDirectB.io.writeData := data
+        channelDirectB.io.writeMask := mask
+      }
+    })),
   )
+
+  // Final mixing
+  // TODO do real mixing
+  io.output.left := channelDirectA.io.sample
+  io.output.right := channelDirectB.io.sample
 }
