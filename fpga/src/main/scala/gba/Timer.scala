@@ -19,6 +19,9 @@ class Timer extends Module {
     val mmio = new MmioTarget()
 
     val irq = Output(Vec(4, Bool()))
+
+    /// Overflow signal for timers 0 and 1 (for audio)
+    val timerOverflow = Output(Vec(2, Bool()))
   })
   private val logger = Logger("timer")
 
@@ -48,6 +51,8 @@ class Timer extends Module {
   prescalerTick(3) := nextPrescalerCounter(10) ^ prescalerCounter(10) // by 1024
 
   val overflow = WireDefault(VecInit.fill(4)(false.B))
+  io.timerOverflow(0) := overflow(0)
+  io.timerOverflow(1) := overflow(1)
   for (i <- 0 until 4) {
     val control = regControl(i)
     val counter = regCounter(i)

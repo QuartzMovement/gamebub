@@ -145,6 +145,8 @@ class GBA extends Module {
   apu.io.enable := io.enable
   io.apu := apu.io.output
   mmio.targets(5) <> apu.io.mmio
+  dma.io.triggerFifo := apu.io.dmaTrigger
+  apu.io.timerOverflow := timer.io.timerOverflow
 
   // Cartridge controller
   val cart = Module(new CartridgeController)

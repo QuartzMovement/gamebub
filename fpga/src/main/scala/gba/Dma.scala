@@ -41,6 +41,7 @@ class Dma extends Module {
     val triggerVblank = Input(Bool())
     val triggerHblank = Input(Bool())
     val triggerVideo = Input(Bool())
+    val triggerFifo = Input(Vec(2, Bool()))
 
     val busInitiator = Vec(4, new BusInterface)
   })
@@ -69,6 +70,9 @@ class Dma extends Module {
     val control = regConfigControl(i)
     val bus = io.busInitiator(i)
 
+    val isAudioFifo = (i == 0 || i == 1).B && control.startControl === DmaStartControl.special
+    val isSizeWord = control.sizeWord || isAudioFifo
+
     val active = RegInit(false.B)
     val regSource = Reg(configSource.cloneType)
     val regDest = Reg(configDest.cloneType)
@@ -81,7 +85,7 @@ class Dma extends Module {
     val busActive = WireDefault(false.B)
     io.irq(i) := false.B
     bus.WRITE := DontCare
-    bus.SIZE := Mux(control.sizeWord, BusAccessWidth.Word, BusAccessWidth.Halfword)
+    bus.SIZE := Mux(isSizeWord, BusAccessWidth.Word, BusAccessWidth.Halfword)
     bus.PROT.data := true.B
     bus.PROT.privileged := false.B
     bus.LOCK := false.B
@@ -91,24 +95,35 @@ class Dma extends Module {
     bus.WDATA := DontCare
 
     // Latching config
-    val justEnabled = control.enable && !RegEnable(control.enable, io.enable)
-    val addressMask = Mux(control.sizeWord, "b00".U(2.W), "b10".U(2.W))
+    val prevEnabled = RegEnable(control.enable, io.enable)
+    val justEnabled = control.enable && !prevEnabled
+    val addressMask = Mux(isSizeWord, "b00".U(2.W), "b10".U(2.W))
     when (io.enable && justEnabled) {
       logger.info(cf"${i}: enabled")
-      // TODO Handle special audio fifo config
       // Mask off lower bits of address depending on size
       regSource := Cat(configSource(configSource.getWidth - 1, 2), configSource(1, 0) & addressMask)
       regDest := Cat(configDest(configDest.getWidth - 1, 2), configDest(1, 0) & addressMask)
-      regCount := configCount
+
+      when (isAudioFifo) {
+        // Special audio FIFO handling
+        // Forces count=4, size=word, destControl=fixed
+        regCount := 4.U
+      } .otherwise {
+        regCount := configCount
+      }
     }
 
     // Channel activation
     val activateImm = (control.startControl === DmaStartControl.immediate) && justEnabled
     val activateHblank = (control.startControl === DmaStartControl.hblank) && io.triggerHblank
     val activateVblank = (control.startControl === DmaStartControl.vblank) && io.triggerVblank
+    val activateSpecial = WireDefault(false.B)
+    if (i == 0 || i == 1) {
+      activateSpecial := control.startControl === DmaStartControl.special && io.triggerFifo(i)
+    }
     when (io.enable) {
-      // TODO handle "special" activation modes / audio FIFO
-      when (!active && (activateImm || activateHblank || activateVblank)) {
+      // TODO implement channel 3 special ("video capture" mode)
+      when (!active && (activateImm || activateHblank || activateVblank || activateSpecial)) {
         logger.info(cf"${i}: activate")
         active := true.B
         regInitial := true.B
@@ -134,8 +149,10 @@ class Dma extends Module {
             logger.info(cf"${i}: complete")
             io.irq(i) := control.irq
             active := false.B
-            // TODO handle different behavior for audio FIFO
-            when (control.repeat && control.startControl =/= DmaStartControl.immediate) {
+            when (control.repeat && isAudioFifo) {
+              // Audio fifo is forced at 4 words and fixed destination
+              regCount := 4.U
+            } .elsewhen (control.repeat && control.startControl =/= DmaStartControl.immediate) {
               regCount := configCount
               when (control.destControl === DmaAddressControl.reload) {
                 regDest := Cat(configDest(configDest.getWidth - 1, 2), configDest(1, 0) & addressMask)
@@ -150,10 +167,10 @@ class Dma extends Module {
 
             switch (control.sourceControl) {
               is (DmaAddressControl.increment) {
-                regSource := regSource + Mux(control.sizeWord, 4.U, 2.U)
+                regSource := regSource + Mux(isSizeWord, 4.U, 2.U)
               }
               is (DmaAddressControl.decrement) {
-                regSource := regSource - Mux(control.sizeWord, 4.U, 2.U)
+                regSource := regSource - Mux(isSizeWord, 4.U, 2.U)
               }
             }
           }
@@ -161,7 +178,7 @@ class Dma extends Module {
       } .otherwise {
         // Complete Load
         when (bus.CLKEN) {
-          when (control.sizeWord) {
+          when (isSizeWord) {
             dataLatch := bus.RDATA
           } .otherwise {
             dataLatch := Fill(2, Mux(regSourceAddressHalfword.asBool, bus.RDATA(31, 16), bus.RDATA(15, 0)))
@@ -178,12 +195,14 @@ class Dma extends Module {
           regStage := 0.U
           regInitial := false.B
 
-          switch (control.destControl) {
-            is (DmaAddressControl.increment, DmaAddressControl.reload) {
-              regDest := regDest + Mux(control.sizeWord, 4.U, 2.U)
-            }
-            is (DmaAddressControl.decrement) {
-              regDest := regDest - Mux(control.sizeWord, 4.U, 2.U)
+          when (!isAudioFifo) {
+            switch(control.destControl) {
+              is(DmaAddressControl.increment, DmaAddressControl.reload) {
+                regDest := regDest + Mux(isSizeWord, 4.U, 2.U)
+              }
+              is(DmaAddressControl.decrement) {
+                regDest := regDest - Mux(isSizeWord, 4.U, 2.U)
+              }
             }
           }
         }

@@ -21,10 +21,18 @@ class Apu extends Module {
 
     /// Audio output
     val output = Output(new ApuOutput)
+
+    /// Timer 0 and 1 overflow signal
+    val timerOverflow = Input(Vec(2, Bool()))
+
+    /// DMA request trigger for FIFOs A and B
+    val dmaTrigger = Output(Vec(2, Bool()))
   })
 
   io.output.left := 0.S
   io.output.right := 0.S
+
+  io.dmaTrigger := VecInit.fill(2)(false.B)
 
   // TODO: SOUNDBIAS is stubbed to allow BIOS to boot
   val regSoundbias = RegInit(0.U.asTypeOf(new ApuRegisters.SoundBias))
