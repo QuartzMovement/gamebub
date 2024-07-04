@@ -119,9 +119,10 @@ class Control extends Module {
   val logger = Logger("cpu")
   val control = io.signals
 
-  val doReset = RegInit(true.B)
   val instruction = RegInit((new DecodedInstruction).Lit(
-    _.condition -> Condition.Nv
+    _.condition -> Condition.Al,
+    _.kind -> InstructionKind.Exception,
+    _.opcode -> ExceptionKind.Reset.litValue.U,
   ))
   val stage = RegInit(0.U(3.W))
   val nextStage = WireDefault(stage)
@@ -133,12 +134,7 @@ class Control extends Module {
     counter := nextCounter
     when (dispatch) {
       stage := 0.U
-      when (doReset) {
-        doReset := false.B
-        instruction.kind := InstructionKind.Exception
-        instruction.opcode := ExceptionKind.Reset.asUInt
-        instruction.condition := Condition.Al
-      } .elsewhen (io.fiq && !io.currentStatus.fiqDisable) {
+      when (io.fiq && !io.currentStatus.fiqDisable) {
         instruction.kind := InstructionKind.Exception
         instruction.opcode := ExceptionKind.Fiq.asUInt
         instruction.condition := Condition.Al
