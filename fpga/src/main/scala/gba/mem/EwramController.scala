@@ -46,7 +46,7 @@ class EwramController extends Module {
   io.stall := busy && waitCounter === 0.U && !externalComplete
 
   // Latch data upon external memory completion
-  when (busy && io.mem.done) {
+  when (busy && io.mem.done && !externalComplete) {
     externalComplete := true.B
     readDataLatch := io.mem.dataRead
   }

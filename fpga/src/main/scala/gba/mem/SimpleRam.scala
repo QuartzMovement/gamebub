@@ -35,6 +35,13 @@ class SimpleRam(name: String, size: Int, width: Width, waitStates: Int = 0) exte
   io.target.done := false.B
   io.target.dataRead := DontCare
 
+  // Latch read data, in case io.enable goes to false.
+  val lastRead = RegNext(memReadPort.enable)
+  val readDataLatch = Reg(UInt(32.W))
+  when (lastRead) {
+    readDataLatch := memReadPort.data.asUInt
+  }
+
   when (io.enable) {
     when (busy) {
       val nextBusyCounter = busyCounter - 1.U
@@ -50,7 +57,7 @@ class SimpleRam(name: String, size: Int, width: Width, waitStates: Int = 0) exte
           memWritePort.mask.get := queuedWriteMask.asBools
           memWritePort.data := io.target.dataWrite.asTypeOf(Vec(widthBytes, UInt(8.W)))
         } .otherwise {
-          io.target.dataRead := memReadPort.data.asUInt
+          io.target.dataRead := Mux(lastRead, memReadPort.data.asUInt, readDataLatch)
         }
       } .elsewhen (nextBusyCounter === 0.U) {
         when (!queuedWrite) {
