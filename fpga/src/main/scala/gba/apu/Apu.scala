@@ -105,7 +105,33 @@ class Apu extends Module {
   )
 
   // Final mixing
-  // TODO do real mixing
-  io.output.left := channelDirectA.io.sample
-  io.output.right := channelDirectB.io.sample
+  when (regMasterEnable) {
+    val directA = Mux(regMixControl.directAVolume.asBool, channelDirectA.io.sample << 2, channelDirectA.io.sample << 1).asSInt
+    val directB = Mux(regMixControl.directAVolume.asBool, channelDirectB.io.sample << 2, channelDirectB.io.sample << 1).asSInt
+
+    val left = ((regSoundbias.bias << 1).asUInt.zext.pad(12) - 0x200.S(12.W)) +
+      Mux(regDirectControl.enableLeftA, directA, 0.S(12.W)) +
+      Mux(regDirectControl.enableLeftB, directB, 0.S(12.W))
+    val right = ((regSoundbias.bias << 1).asUInt.zext.pad(12) - 0x200.S(12.W)) +
+      Mux(regDirectControl.enableRightA, directA, 0.S(12.W)) +
+      Mux(regDirectControl.enableRightB, directB, 0.S(12.W))
+
+    when (left < (-0x200).S) {
+      io.output.left := (-0x200).S(10.W)
+    } .elsewhen (left >= (0x200).S) {
+      io.output.left := 0x1FF.S(10.W)
+    } .otherwise {
+      io.output.left := left
+    }
+    when (right < (-0x200).S) {
+      io.output.right := (-0x200).S(10.W)
+    } .elsewhen (right >= (0x200).S) {
+      io.output.right := 0x1FF.S(10.W)
+    } .otherwise {
+      io.output.right := right
+    }
+  } .otherwise {
+    io.output.left := 0.S
+    io.output.right := 0.S
+  }
 }
