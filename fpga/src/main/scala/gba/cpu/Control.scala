@@ -203,7 +203,9 @@ class Control extends Module {
   control.memReadDataSigned := false.B
   control.incrementerForceWord := false.B
 
-  logger.debug(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}")
+  when (io.enable) {
+    logger.debug(cf"Execute [${instruction.condition} -> ${execute}] ${instruction.kind} ${stage}")
+  }
   when (execute) {
     switch (instruction.kind) {
       is (InstructionKind.Exception) {
@@ -230,10 +232,12 @@ class Control extends Module {
 
         switch (stage) {
           is (0.U) {
-            logger.info(cf"Exception! ${kind}")
+            when (io.enable) {
+              logger.info(cf"Exception! ${kind}")
+              entryThumb := io.currentStatus.thumb
+            }
             flushPipeline()
             dispatch := false.B
-            entryThumb := io.currentStatus.thumb
 
             // Construct forced address
             control.immediate := newAddress

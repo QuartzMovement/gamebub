@@ -37,7 +37,7 @@ class MMIO(numTargets: Int) extends Module {
   val isValid = VecInit(targets.map(_.valid)).asUInt.orR
   for (target <- targets) {
     target.address := queuedAddress
-    target.request := queuedRequest
+    target.request := queuedRequest && io.enable
     target.write := queuedWrite
     target.mask := queuedMask
     target.dataWrite := io.mem.dataWrite
