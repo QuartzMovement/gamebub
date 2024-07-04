@@ -109,6 +109,10 @@ class HandheldGba extends Module with HandheldModule {
     }
   }
 
+  // Audio output
+  io.audioLeft := gba.io.apu.left << 6
+  io.audioRight := gba.io.apu.right << 6
+
   // Keypad
   gba.io.keypad.a := io.buttons.a
   gba.io.keypad.b := io.buttons.b
@@ -143,9 +147,6 @@ class HandheldGba extends Module with HandheldModule {
 
   io.pmod.out := DontCare
   io.pmod.dir := 0.U(4.W)
-
-  io.audioLeft := 0.S
-  io.audioRight := 0.S
 
   io.link.soOut := DontCare
   io.link.soDir := false.B
