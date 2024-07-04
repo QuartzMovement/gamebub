@@ -2,6 +2,7 @@ package gba.mem
 
 import chisel3._
 import chisel3.util._
+import lib.log.Logger
 
 class TargetInterface(maxWidth: Width) extends Bundle {
   /// Byte-wise access address
@@ -43,6 +44,7 @@ class Bus(
     /// Target ports
     val targetPort = MixedVec(targets.map(t => Flipped(new TargetInterface(BusAccessWidth.toWidth(t.dataWidth)))))
   })
+  val logger = Logger("bus")
 
   val requestEnable = WireDefault(false.B)
   val requestAddress = Wire(UInt(28.W))
@@ -134,6 +136,7 @@ class Bus(
 
   when (io.enable) {
     when (accessDone) {
+      logger.debug(cf"Done. split=${regAccessSplit} wdata=0x${io.initiatorPort.WDATA}%x rdata=0x${io.initiatorPort.RDATA}%x")
       regAccessBusy := false.B
 
       when (regAccessSplit) {
@@ -179,6 +182,7 @@ class Bus(
       }
     }
     when (initiatorRequested && isAvailable) {
+      logger.debug(cf"Request addr=0x${requestAddressAligned}%x wr=${requestWrite} seq=${requestSequential} size=${io.initiatorPort.SIZE}")
       requestEnable := true.B
       regAccessBusy := true.B
       regAccessAddress := requestAddressAligned
