@@ -18,12 +18,12 @@ ldr		r3, =0x04000208
 mov		r2, #0
 strb	r2, [r3, #0]
 
-@ Setup stack pointer
-ldr		r1, =0x03007f00
-mov		sp, r1
+@ Setup stack pointers, by calling 'InitSystemStack', at 0xE0
+@ This instruction will be at 0x74, so `bl #0x6C`
+.word   0xeb000019
 
-@ Call BIOS 'RegisterRamReset'
+@ Call BIOS SWI 1: 'RegisterRamReset'
 mov     r0, #0xFF
-swi		1
-@ Call BIOS 'SoftReset'
-swi		0
+swi		#0x10000
+@ Call BIOS SWI 0: 'SoftReset'
+swi		#0x00000
