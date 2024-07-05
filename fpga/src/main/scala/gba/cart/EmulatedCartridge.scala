@@ -34,8 +34,12 @@ class EmulatedCartridge extends Module {
     val config = Input(new EmulatedCartridge.Config)
     val interface = Flipped(new CartridgeInterface)
 
-    /// External ROM memory interface, assumed synchronous
+    /// External ROM memory interface, assumed synchronous.
+    /// Must keep read data on the bus until the next request.
     val rom = Flipped(new MemoryInterface(addressWidth = 24, dataWidth = 16))
+    /// External backup (RAM) memory interface, assumed synchronous.
+    /// Must keep read data on the bus until the next request.
+    val backup = Flipped(new MemoryInterface(addressWidth = 17, dataWidth = 8))
     /// Whether the previous memory request has not yet completed by the time the GBA needs it to.
     val stall = Output(Bool())
   })
@@ -46,13 +50,19 @@ class EmulatedCartridge extends Module {
   io.rom.write := false.B
   io.rom.dataWrite := DontCare
   io.rom.writeStrobe := DontCare
+  io.backup.address := DontCare
+  io.backup.enable := false.B
+  io.backup.write := DontCare
+  io.backup.dataWrite := DontCare
+  io.backup.writeStrobe := 1.U
   io.interface.IRQ := false.B
   io.interface.ADLoIn := io.rom.dataRead
-  io.interface.AHiIn := 0xFF.U(8.W)
+  io.interface.AHiIn := DontCare
   io.stall := false.B
 
   val romBusy = RegInit(false.B)
   val romAddress = Reg(UInt(24.W))
+  val ramStart = WireDefault(false.B)
 
   when (io.interface.reqStart) {
     when (io.interface.reqRom) {
@@ -64,7 +74,7 @@ class EmulatedCartridge extends Module {
       romAddress := io.interface.reqAddress
     } .otherwise {
       logger.debug(cf"RAM request start: addr=0x${io.interface.reqAddress(15, 0)}%x")
-      // TODO: implement SRAM/Flash/EEPROM
+      ramStart := true.B
     }
   }
   when (romBusy) {
@@ -77,5 +87,48 @@ class EmulatedCartridge extends Module {
       logger.warn("Request stall")
       io.stall := true.B
     }
+  }
+
+  switch (io.config.backupType) {
+    is (EmulatedCartridge.BackupType.None) {
+      io.interface.AHiIn := 0xFF.U(8.W)
+    }
+    is (EmulatedCartridge.BackupType.Sram) {
+      val ramAddress = Reg(UInt(16.W))
+      val ramBusy = Reg(Bool())
+      val ramWrite = Reg(Bool())
+
+      io.interface.AHiIn := io.backup.dataRead
+      io.backup.dataWrite := io.interface.AHiOut
+
+      when (ramStart) {
+        ramAddress := io.interface.reqAddress
+        ramBusy := true.B
+        ramWrite := io.interface.reqWrite
+
+        io.backup.enable := true.B
+        io.backup.address := io.interface.reqAddress
+        io.backup.write := io.interface.reqWrite
+      }
+      when (ramBusy) {
+        io.backup.enable := true.B
+        io.backup.address := ramAddress
+        io.backup.write := ramWrite
+
+        when (io.backup.done) {
+          ramBusy := false.B
+          when (ramWrite) {
+            logger.debug(cf"SRAM write done: data=0x${io.backup.dataWrite}%x")
+          } .otherwise {
+            logger.debug(cf"SRAM read done: data=0x${io.backup.dataRead}%x")
+          }
+        } .elsewhen (io.interface.reqEnd) {
+          logger.warn("RAM request stall")
+          io.stall := true.B
+        }
+      }
+    }
+    // TODO: implement Flash
+    // TODO: implement EEPROM
   }
 }

@@ -92,6 +92,10 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
 //            fprintf(stderr, "[%llu] rom read addr=0x%x\n", this->cycles, cart_address);
         }
 
+        if (top->io_emuCartBackup_enable) {
+            top->io_emuCartBackup_done = 1;
+        }
+
         this->cycles++;
 
 //        fprintf(stderr, "cycle=%llu", this->cycles);

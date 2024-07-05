@@ -168,12 +168,7 @@ class CartridgeController extends Module {
       logger.debug(cf"Start Ram request addr=${ramTarget.address(15, 0)}%x wr=${ramTarget.write}")
 
       // TODO: should we put ADDR on the bus early?
-
-      // TODO: Note that reqStart will be asserted for multiple cycles if io.enable is false
-      io.cartridge.reqStart := true.B
-      io.cartridge.reqRom := false.B
-      io.cartridge.reqAddress := ramTarget.address(15, 0)
-      io.cartridge.reqWrite := ramTarget.write
+      // Note: we don't signal emuCart write until we have the write data, in RamStage0
 
       when (io.enable) {
         state := State.RamStage0
@@ -274,6 +269,13 @@ class CartridgeController extends Module {
       }
     }
     is (State.RamStage0) {
+      // Now that we have write data, signal the access.
+      // TODO: Note that reqStart will be asserted for multiple cycles if io.enable is false
+      io.cartridge.reqStart := true.B
+      io.cartridge.reqRom := false.B
+      io.cartridge.reqAddress := currentAddress(15, 0)
+      io.cartridge.reqWrite := currentIsWrite
+
       io.cartridge.nCS2 := 0.U
       io.cartridge.ADLoOut := currentAddress(15, 0)
       io.cartridge.ADLoDir := true.B
@@ -328,11 +330,6 @@ class CartridgeController extends Module {
         // XXX: in a burst, the next ADDR is put on the bus in the *falling* edge of this cycle
         // ... but we don't do that here. It's probably fine to just put it on the next rising
         // edge, because that's the timing of the first request in a burst anyway.
-
-        io.cartridge.reqStart := true.B
-        io.cartridge.reqRom := false.B
-        io.cartridge.reqAddress := ramTarget.address(15, 0)
-        io.cartridge.reqWrite := ramTarget.write
 
         when (io.enable) {
           state := State.RamStage0
