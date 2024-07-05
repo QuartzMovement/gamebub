@@ -275,8 +275,8 @@ class CartridgeController extends Module {
       // XXX: nRD/nWR are supposed to go low on the *falling* edge of this cycle
       when (currentIsWrite) {
         io.cartridge.nWR := 0.U
-        io.cartridge.ADLoDir := true.B
-        io.cartridge.ADLoOut := ramTarget.dataWrite
+        io.cartridge.AHiDir := true.B
+        io.cartridge.AHiOut := ramTarget.dataWrite
       } .otherwise {
         io.cartridge.nRD := 0.U
       }
@@ -292,8 +292,8 @@ class CartridgeController extends Module {
       io.cartridge.ADLoDir := true.B
       when (currentIsWrite) {
         io.cartridge.nWR := 0.U
-        io.cartridge.ADLoDir := true.B
-        io.cartridge.ADLoOut := ramTarget.dataWrite
+        io.cartridge.AHiDir := true.B
+        io.cartridge.AHiOut := ramTarget.dataWrite
       } .otherwise {
         io.cartridge.nRD := 0.U
       }
@@ -313,8 +313,8 @@ class CartridgeController extends Module {
       io.cartridge.ADLoOut := currentAddress(15, 0)
       io.cartridge.ADLoDir := true.B
       when (currentIsWrite) {
-        io.cartridge.ADLoDir := true.B
-        io.cartridge.ADLoOut := ramTarget.dataWrite
+        io.cartridge.AHiDir := true.B
+        io.cartridge.AHiOut := ramTarget.dataWrite
       }
       when (ramTarget.request && ramTarget.sequential) {
         logger.debug(cf"Continue ram request")
