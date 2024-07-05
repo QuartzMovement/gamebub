@@ -17,6 +17,12 @@ Cartridge::Cartridge(std::filesystem::path rom_path) : rom_path(rom_path) {
 }
 
 Cartridge::~Cartridge() {
+    if (config_backup_type != 0) {
+        std::filesystem::path backup_path = rom_path;
+        backup_path.replace_extension(".sav");
+        write_file(backup_path, this->backup);
+        printf("Wrote backup to %s\n", backup_path.c_str());
+    }
 }
 
 bool find_string(std::vector<uint8_t>& rom, const char* string) {
@@ -38,17 +44,21 @@ void Cartridge::detect_backup_type() {
         printf("Detected EEPROM (auto)\n");
         config_backup_type = 3;
         config_backup_autodetect = true;
+        backup.resize(8 * 1024, 0xFF);
     } else if (find_string(rom, "SRAM_V") || find_string(rom, "SRAM_F_V")) {
         printf("Detected SRAM\n");
         config_backup_type = 1;
+        backup.resize(32 * 1024, 0xFF);
     } else if (find_string(rom, "FLASH_V") || find_string(rom, "FLASH512_V")) {
         printf("Detected Flash 64kB\n");
         config_backup_type = 2;
         config_backup_size = 0;
+        backup.resize(64 * 1024, 0xFF);
     } else if (find_string(rom, "FLASH1M_V")) {
         printf("Detected Flash 128kB\n");
         config_backup_type = 2;
         config_backup_size = 1;
+        backup.resize(128 * 1024, 0xFF);
     } else {
         printf("Detected no backup\n");
     }

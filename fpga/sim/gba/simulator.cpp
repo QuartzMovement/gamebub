@@ -93,6 +93,16 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
         }
 
         if (top->io_emuCartBackup_enable) {
+            int backup_address = top->io_emuCartBackup_address;
+            if (backup_address < cartridge.backup.size()) {
+                if (top->io_emuCartBackup_write) {
+                    cartridge.backup[backup_address] = top->io_emuCartBackup_dataWrite;
+//                    fprintf(stderr, "[%llu] ram write addr=0x%x data=0x%x\n", this->cycles, backup_address, top->io_emuCartBackup_dataWrite);
+                } else {
+                    top->io_emuCartBackup_dataRead = cartridge.backup[backup_address];
+//                    fprintf(stderr, "[%llu] ram read addr=0x%x data=0x%x\n", this->cycles, backup_address, top->io_emuCartBackup_dataRead);
+                }
+            }
             top->io_emuCartBackup_done = 1;
         }
 
