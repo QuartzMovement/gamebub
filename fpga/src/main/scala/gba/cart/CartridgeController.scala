@@ -133,53 +133,61 @@ class CartridgeController extends Module {
   val currentIsWrite = Reg(Bool())
   val waitCounter = Reg(UInt(3.W))
 
-  switch (state) {
-    is (State.Idle) {
-      when (hasRomRequest) {
-        logger.debug(cf"Start Rom(${VecInit(romRequests).asUInt}%b request addr=${romRequestAddress << 1}%x wr=$romRequestWrite")
-        io.cartridge.ADLoOut := romRequestAddress(15, 0)
-        io.cartridge.ADLoDir := true.B
-        io.cartridge.AHiOut := romRequestAddress(23, 16)
-        io.cartridge.AHiDir := true.B
+  // New requests (not burst continuations) can be accepted when idle or at the end of a burst.
+  val endRomBurst = WireDefault(false.B)
+  val endRamBurst = WireDefault(false.B)
+  when (state === State.Idle || endRomBurst || endRamBurst) {
+    when (hasRomRequest && !endRomBurst) {
+      logger.debug(cf"Start Rom(${VecInit(romRequests).asUInt}%b request addr=${romRequestAddress << 1}%x wr=$romRequestWrite")
+      io.cartridge.ADLoOut := romRequestAddress(15, 0)
+      io.cartridge.ADLoDir := true.B
+      io.cartridge.AHiOut := romRequestAddress(23, 16)
+      io.cartridge.AHiDir := true.B
 
-        io.cartridge.reqStart := true.B
-        io.cartridge.reqRom := true.B
-        io.cartridge.reqAddress := romRequestAddress
-        io.cartridge.reqWrite := romRequestWrite
+      io.cartridge.reqStart := true.B
+      io.cartridge.reqRom := true.B
+      io.cartridge.reqAddress := romRequestAddress
+      io.cartridge.reqWrite := romRequestWrite
 
-        when (io.enable) {
-          state := State.RomStage0
-          currentAddress := romRequestAddress
-          currentIsWrite := romRequestWrite
-          currentRequestPort := VecInit(romRequests).asUInt
+      when (io.enable) {
+        state := State.RomStage0
+        currentAddress := romRequestAddress
+        currentIsWrite := romRequestWrite
+        currentRequestPort := VecInit(romRequests).asUInt
 
-          // Initial burst wait: 0 [extra] cycles if total waits is 2,
-          // otherwise 1.
-          val wait = Mux1H(romRequests, waitRomFirst)
-          when (wait === 2.U) {
-            waitCounter := 0.U
-          } .otherwise {
-            waitCounter := 1.U
-          }
-        }
-      } .elsewhen (ramTarget.request) {
-        logger.debug(cf"Start Ram request addr=${ramTarget.address(15, 0)}%x wr=${ramTarget.write}")
-
-        // TODO: should we put ADDR on the bus early?
-
-        // TODO: Note that reqStart will be asserted for multiple cycles if io.enable is false
-        io.cartridge.reqStart := true.B
-        io.cartridge.reqRom := false.B
-        io.cartridge.reqAddress := ramTarget.address(15, 0)
-        io.cartridge.reqWrite := ramTarget.write
-
-        when (io.enable) {
-          state := State.RamStage0
-          currentAddress := ramTarget.address
-          currentIsWrite := ramTarget.write
+        // Initial burst wait: 0 [extra] cycles if total waits is 2,
+        // otherwise 1.
+        val wait = Mux1H(romRequests, waitRomFirst)
+        when (wait === 2.U) {
+          waitCounter := 0.U
+        } .otherwise {
+          waitCounter := 1.U
         }
       }
+    } .elsewhen (ramTarget.request && !endRamBurst) {
+      logger.debug(cf"Start Ram request addr=${ramTarget.address(15, 0)}%x wr=${ramTarget.write}")
+
+      // TODO: should we put ADDR on the bus early?
+
+      // TODO: Note that reqStart will be asserted for multiple cycles if io.enable is false
+      io.cartridge.reqStart := true.B
+      io.cartridge.reqRom := false.B
+      io.cartridge.reqAddress := ramTarget.address(15, 0)
+      io.cartridge.reqWrite := ramTarget.write
+
+      when (io.enable) {
+        state := State.RamStage0
+        currentAddress := ramTarget.address
+        currentIsWrite := ramTarget.write
+      }
+    } .otherwise {
+      when (io.enable) {
+        state := State.Idle
+      }
     }
+  }
+
+  switch (state) {
     is (State.RomStage0) {
       io.cartridge.nCS := 0.U
       io.cartridge.ADLoOut := currentAddress(15, 0)
@@ -262,10 +270,7 @@ class CartridgeController extends Module {
         // Not getting a sequential request this cycle. End burst.
         // nCS goes back high
         logger.debug(cf"End rom request")
-
-        when (io.enable) {
-          state := State.Idle
-        }
+        endRomBurst := true.B
       }
     }
     is (State.RamStage0) {
@@ -345,10 +350,7 @@ class CartridgeController extends Module {
         // so this is probably fine.
         io.cartridge.nCS2 := 0.U
         logger.debug(cf"End ram request")
-
-        when (io.enable) {
-          state := State.Idle
-        }
+        endRamBurst := true.B
       }
     }
   }
