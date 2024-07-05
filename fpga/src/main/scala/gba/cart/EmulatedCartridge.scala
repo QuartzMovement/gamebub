@@ -56,6 +56,7 @@ class EmulatedCartridge extends Module {
 
   when (io.interface.reqStart) {
     when (io.interface.reqRom) {
+      // TODO handle out-of-bounds ROM request
       logger.debug(cf"ROM request start: addr=0x${io.rom.address << 1}%x | busy=${romBusy}")
       io.rom.enable := true.B
       io.rom.address := io.interface.reqAddress

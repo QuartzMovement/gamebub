@@ -5,6 +5,7 @@
 #include "framebuffer.hpp"
 #include "input.hpp"
 #include "VSimGba.h"
+#include "cartridge.hpp"
 
 class Simulator {
 public:
@@ -34,5 +35,5 @@ private:
     std::vector<int16_t> audioSampleBuffer;
     int audioTimer = 0;
 
-    std::vector<uint8_t> rom;
+    Cartridge cartridge;
 };

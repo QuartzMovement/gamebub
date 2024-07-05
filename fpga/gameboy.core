@@ -61,7 +61,9 @@ filesets:
 
   sim_gba:
     files:
+      - sim/gba/cartridge.hpp : {is_include_file: true}
       - sim/gba/simulator.hpp : {is_include_file: true}
+      - sim/gba/cartridge.cpp
       - sim/gba/simulator.cpp
     file_type: cppSource
 

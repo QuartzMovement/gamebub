@@ -10,10 +10,9 @@
 #include "VSimGba___024root.h"
 
 Simulator::Simulator(std::filesystem::path rom_path, std::filesystem::path bios_path)
-    : framebuffer(width(), height())
+    : framebuffer(width(), height()), cartridge(rom_path)
 {
     this->top = new VSimGba;
-    this->rom = read_file(rom_path);
 
     if (bios_path.empty()) {
         std::cerr << "ERROR: must specify bios path\n";
@@ -42,9 +41,9 @@ void Simulator::reset()
 {
     top->io_enable = true;
     top->io_emuCartConfig_enabled = true;
-    top->io_emuCartConfig_backupType = 0;
-    top->io_emuCartConfig_backupSize = 0;
-    top->io_emuCartConfig_backupAutodetect = false;
+    top->io_emuCartConfig_backupType = cartridge.config_backup_type;
+    top->io_emuCartConfig_backupSize = cartridge.config_backup_size;
+    top->io_emuCartConfig_backupAutodetect = cartridge.config_backup_autodetect;
 
     top->reset = 1;
     simulate_cycles(1);
@@ -87,10 +86,8 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
         if (top->io_emuCartRom_enable) {
             int cart_address = top->io_emuCartRom_address;
             // Only works on little endian system
-            if (cart_address < (this->rom.size() >> 1)) {
-                auto rom_words = reinterpret_cast<uint16_t*>(this->rom.data());
-                top->io_emuCartRom_dataRead = rom_words[cart_address];
-            }
+            auto rom_words = reinterpret_cast<uint16_t*>(cartridge.rom.data());
+            top->io_emuCartRom_dataRead = rom_words[cart_address & 0xFFFFFF];
             top->io_emuCartRom_done = 1;
 //            fprintf(stderr, "[%llu] rom read addr=0x%x\n", this->cycles, cart_address);
         }
