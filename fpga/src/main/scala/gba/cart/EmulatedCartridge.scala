@@ -5,8 +5,33 @@ import chisel3.util._
 import lib.log.Logger
 import lib.mem.MemoryInterface
 
+object EmulatedCartridge {
+  object BackupType extends ChiselEnum {
+    /// No backup
+    val None = Value
+    /// SRAM or FRAM, 32 KiB
+    val Sram = Value
+    /// Flash, 64KiB or 128KiB
+    val Flash = Value
+    /// Eeprom, 512B or 8KiB
+    val Eeprom = Value
+  }
+
+  class Config extends Bundle {
+    /// Auto-detect backup size (EEPROM only)
+    val backupAutodetect = Bool()
+    /// Per-type backup size
+    val backupSize = UInt(1.W)
+    /// Backup type
+    val backupType = BackupType()
+    /// Whether we're using an emulated cartridge.
+    val enabled = Bool()
+  }
+}
+
 class EmulatedCartridge extends Module {
   val io = IO(new Bundle {
+    val config = Input(new EmulatedCartridge.Config)
     val interface = Flipped(new CartridgeInterface)
 
     /// External ROM memory interface, assumed synchronous

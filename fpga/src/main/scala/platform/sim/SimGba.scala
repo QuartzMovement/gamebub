@@ -23,10 +23,12 @@ object SimGba extends App {
 class SimGba extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
-    val emuCartRom = Flipped(new MemoryInterface(addressWidth = 24, dataWidth = 16))
     val ppu = Output(new PpuOutput)
     val keypad = Input(new Keypad.State)
     val apu = Output(new ApuOutput)
+
+    val emuCartConfig = Input(new EmulatedCartridge.Config)
+    val emuCartRom = Flipped(new MemoryInterface(addressWidth = 24, dataWidth = 16))
   })
 
   val gba = Module(new GBA())
@@ -60,6 +62,7 @@ class SimGba extends Module {
 
   // Emulated cartridge
   val emuCart = Module(new EmulatedCartridge)
+  emuCart.io.config := io.emuCartConfig
   gba.io.cartridge <> emuCart.io.interface
   io.emuCartRom <> emuCart.io.rom
 }

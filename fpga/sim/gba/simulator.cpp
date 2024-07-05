@@ -41,6 +41,11 @@ Simulator::~Simulator()
 void Simulator::reset()
 {
     top->io_enable = true;
+    top->io_emuCartConfig_enabled = true;
+    top->io_emuCartConfig_backupType = 0;
+    top->io_emuCartConfig_backupSize = 0;
+    top->io_emuCartConfig_backupAutodetect = false;
+
     top->reset = 1;
     simulate_cycles(1);
     top->reset = 0;
