@@ -23,18 +23,23 @@ class EmulatedCartridge extends Module {
   io.rom.writeStrobe := DontCare
   io.interface.IRQ := false.B
   io.interface.ADLoIn := io.rom.dataRead
-  io.interface.AHiIn := DontCare
+  io.interface.AHiIn := 0xFF.U(8.W)
   io.stall := false.B
 
   val romBusy = RegInit(false.B)
   val romAddress = Reg(UInt(24.W))
 
-  when (io.interface.reqStart && io.interface.reqRom) {
-    logger.debug(cf"ROM request start: addr=0x${io.rom.address << 1}%x | busy=${romBusy}")
-    io.rom.enable := true.B
-    io.rom.address := io.interface.reqAddress
-    romBusy := true.B
-    romAddress := io.interface.reqAddress
+  when (io.interface.reqStart) {
+    when (io.interface.reqRom) {
+      logger.debug(cf"ROM request start: addr=0x${io.rom.address << 1}%x | busy=${romBusy}")
+      io.rom.enable := true.B
+      io.rom.address := io.interface.reqAddress
+      romBusy := true.B
+      romAddress := io.interface.reqAddress
+    } .otherwise {
+      logger.debug(cf"RAM request start: addr=0x${io.interface.reqAddress(15, 0)}%x")
+      // TODO: implement SRAM/Flash/EEPROM
+    }
   }
   when (romBusy) {
     io.rom.enable := true.B
