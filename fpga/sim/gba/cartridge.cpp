@@ -14,6 +14,16 @@ Cartridge::Cartridge(std::filesystem::path rom_path) : rom_path(rom_path) {
 
     // Pad to 32 MiB (for now)
     this->rom.resize(32 * 1024 * 1024, 0xFF);
+
+    // Load save file.
+    std::filesystem::path backup_path = rom_path;
+    backup_path.replace_extension(".sav");
+    if (std::filesystem::exists(backup_path)) {
+        printf("Loading backup from %s\n", backup_path.c_str());
+        size_t backup_size = backup.size();
+        backup = read_file(backup_path);
+        backup.resize(backup_size, 0xFF);
+    }
 }
 
 Cartridge::~Cartridge() {
