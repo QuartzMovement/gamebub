@@ -39,14 +39,14 @@ class EwramController extends Module {
   io.target.done := false.B
   io.target.dataRead := readDataLatch
   io.mem.address := queuedAddress
-  io.mem.enable := busy && !externalComplete
+  io.mem.enable := busy && !externalComplete && (io.enable || externalRequested)
   io.mem.write := queuedIsWrite
   io.mem.dataWrite := io.target.dataWrite
   io.mem.writeStrobe := queuedWriteMask
   io.stall := busy && waitCounter === 0.U && !externalComplete
 
   // Latch data upon external memory completion
-  when (busy && io.mem.done && !externalComplete) {
+  when (busy && io.mem.done && externalRequested && !externalComplete) {
     externalComplete := true.B
     readDataLatch := io.mem.dataRead
   }
@@ -55,6 +55,7 @@ class EwramController extends Module {
   // Complete access
   when (io.enable && busy) {
     waitCounter := waitCounter - 1.U
+    externalRequested := true.B
 
     when (waitCounter === 0.U) {
       when (!externalComplete) {
