@@ -51,14 +51,9 @@ class GBA extends Module {
     BusTarget("Cart ROM 0", (0x8 >> 1).U(3.W), BusAccessWidth.Halfword),
     BusTarget("Cart ROM 1", (0xA >> 1).U(3.W), BusAccessWidth.Halfword),
     BusTarget("Cart ROM 2", (0xC >> 1).U(3.W), BusAccessWidth.Halfword),
-    BusTarget("Cart RAM", 0xE.U(4.W), BusAccessWidth.Byte),
-    BusTarget("Unmapped", 0xF.U(4.W), BusAccessWidth.Word),
+    BusTarget("Cart RAM", (0xE >> 1).U(3.W), BusAccessWidth.Byte),
   )))
   bus.io.enable := io.enable
-  for (i <- 0 until 12) {
-    bus.io.targetPort(i).dataRead := 0.U
-    bus.io.targetPort(i).done := true.B
-  }
   val busArbiter = Module(new BusArbiter(numInputs = 5))
   busArbiter.io.enable := io.enable
   bus.io.initiatorPort <> busArbiter.io.outputPort

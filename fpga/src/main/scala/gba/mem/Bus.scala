@@ -69,6 +69,7 @@ class Bus(
 
   requestDataRead := 0.U // TODO open-bus?
 
+  // TODO when the upper 4-bits of the address aren't 0, it does open bus behavior
   for ((target, i) <- io.targetPort.zipWithIndex) {
     val metadata = targets(i)
     val selectedNext = requestAddress(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix
