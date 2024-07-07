@@ -47,7 +47,7 @@ class Bus(
   val logger = Logger("bus")
 
   val requestEnable = WireDefault(false.B)
-  val requestAddress = Wire(UInt(28.W))
+  val requestAddress = Wire(UInt(32.W))
   val requestSequential = Wire(Bool())
   val requestWrite = Wire(Bool())
   val requestSize = Wire(BusAccessWidth())
@@ -55,9 +55,10 @@ class Bus(
   val requestDataRead = Wire(UInt(32.W))
   val (requestAddressAligned, requestMask) = alignAddress(requestAddress, requestSize)
   val selectedTargetHalfword = WireDefault(false.B)
+  val anySelectedNow = WireDefault(false.B)
 
   val regAccessBusy = RegInit(false.B)
-  val regAccessAddress = Reg(UInt(28.W))
+  val regAccessAddress = Reg(UInt(32.W))
   val regAccessWrite = Reg(Bool())
   val regAccessSplit = Reg(Bool())
   val regAccessSplitPhase = Reg(UInt())
@@ -66,14 +67,17 @@ class Bus(
   /// Whether the active request is completing.
   val accessDone = WireDefault(false.B)
   val regSplitBuffer = Reg(UInt(16.W))
+  val regLastDataRead = Reg(UInt(32.W))
 
-  requestDataRead := 0.U // TODO open-bus?
+  requestDataRead := regLastDataRead
 
-  // TODO when the upper 4-bits of the address aren't 0, it does open bus behavior
   for ((target, i) <- io.targetPort.zipWithIndex) {
     val metadata = targets(i)
-    val selectedNext = requestAddress(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix
-    val selectedNow = regAccessAddress(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix
+    val selectedNext = requestAddress(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix && requestAddress(31, 28) === 0.U
+    val selectedNow = regAccessAddress(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix && regAccessAddress(31, 28) === 0.U
+    when (selectedNow) {
+      anySelectedNow := true.B
+    }
 
     target.address := requestAddressAligned
     target.request := requestEnable && selectedNext
@@ -111,6 +115,16 @@ class Bus(
     when (selectedNow && regAccessBusy) {
       accessDone := target.done
     }
+  }
+
+  // Open bus implementation.
+  // TODO: improve with proper halfword/byte read handling.
+  when (!anySelectedNow) {
+    accessDone := true.B
+    logger.info(cf"Open bus access: addr=0x${regAccessAddress}%x wr=${regAccessWrite} rdata=0x${requestDataRead}%x")
+  }
+  when (accessDone && !regAccessWrite) {
+    regLastDataRead := requestDataRead
   }
 
   /// Whether there is an incoming request.
