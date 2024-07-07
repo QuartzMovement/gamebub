@@ -128,7 +128,26 @@ class EmulatedCartridge extends Module {
         }
       }
     }
-    // TODO: implement Flash
+    is (EmulatedCartridge.BackupType.Flash) {
+      // Stub out flash ID
+      // TODO: actually implement Flash
+      val regData = Reg(UInt(8.W))
+      io.interface.AHiIn := regData
+      when (ramStart) {
+        val stub = WireDefault(0xFF.U(8.W))
+        when (io.interface.reqAddress < 2.U) {
+          when (io.config.backupSize === 0.U) {
+            // 64 KiB (Panasonic)
+            stub := Mux(io.interface.reqAddress(0) === 0.U, 0x32.U, 0x1B.U)
+          } .otherwise {
+            // 128 KiB (Sanyo)
+            stub := Mux(io.interface.reqAddress(0) === 0.U, 0x62.U, 0x13.U)
+          }
+        }
+        regData := stub
+        logger.debug(cf"Flash stub: ${io.interface.reqAddress}%x -> ${stub}%x")
+      }
+    }
     // TODO: implement EEPROM
   }
 }
