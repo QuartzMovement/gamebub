@@ -25,5 +25,8 @@ strb	r2, [r3, #0]
 @ Call BIOS SWI 1: 'RegisterRamReset'
 mov     r0, #0xFF
 swi		#0x10000
+@ Call BIOS SWI 19: 'SoundBias' - set SOUNDBIAS to 0x200
+mov     r0, #1
+swi		#0x190000
 @ Call BIOS SWI 0: 'SoftReset'
 swi		#0x00000
