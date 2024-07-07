@@ -17,6 +17,8 @@ class Interrupt extends Module {
 
     /// Whether the CPU is halted
     val cpuHalt = Output(Bool())
+    /// Whether the BIOS is unlocked
+    val biosUnlocked = Input(Bool())
   })
   val logger = Logger("interrupt")
 
@@ -65,8 +67,7 @@ class Interrupt extends Module {
     0x300 -> MmioMap.Entry(
       MmioMap.ReadFn(_ => (0.U, true.B)),
       MmioMap.WriteFn((enable, data, mask) => {
-        // TODO: this should only be settable when executed from BIOS
-        when (enable && mask(1)) {
+        when (enable && io.biosUnlocked && mask(1)) {
           val haltmode = data(15)
           when (haltmode === 0.U) {
             logger.info(cf"CPU halted")

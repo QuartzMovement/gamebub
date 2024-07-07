@@ -100,6 +100,7 @@ class GBA extends Module {
   interrupt.io.peripheralIrq := 0.U.asTypeOf(new Interrupt.Flags)
   // Implement halting by blocking CPU transactions on the bus.
   busArbiter.io.blockInitiators := Cat(interrupt.io.cpuHalt, 0.U(4.W))
+  interrupt.io.biosUnlocked := bios.io.unlocked
   // TODO implement cartridge interrupt / DMA request
 
   // PPU
