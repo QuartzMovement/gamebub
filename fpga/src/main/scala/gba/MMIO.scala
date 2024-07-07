@@ -54,9 +54,9 @@ class MMIO(numTargets: Int) extends Module {
   when (io.enable) {
     when (queuedRequest) {
       when (queuedWrite) {
-        logger.debug("write addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataWrite}%x mask=${queuedMask}%b")
+        logger.debug(cf"write addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataWrite}%x mask=${queuedMask}%b")
       } .otherwise {
-        logger.debug("read  addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataRead}%x")
+        logger.debug(cf"read  addr=0x${queuedAddress * 4.U}%x data=${io.mem.dataRead}%x")
       }
 
       queuedRequest := false.B
