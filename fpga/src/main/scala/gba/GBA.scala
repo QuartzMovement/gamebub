@@ -69,6 +69,9 @@ class GBA extends Module {
   bios.io.enable := io.enable
   bios.io.access <> io.biosRom
   bus.io.targetPort(0) <> bios.io.target
+  bios.io.busRequest := bus.io.initiatorPort.MREQ
+  bios.io.busAddress := bus.io.initiatorPort.ADDR
+  bios.io.busIsData := bus.io.initiatorPort.PROT.data
 
   // IWRAM
   val iwram = Module(new SimpleRam("IWRAM", 32 * 1024, 32.W))
