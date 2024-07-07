@@ -41,7 +41,7 @@ class GBA extends Module {
   })
 
   val bus = Module(new mem.Bus(Seq(
-    BusTarget("BIOS", 0x0.U(4.W), BusAccessWidth.Word),
+    BusTarget("BIOS", 0x0.U(14.W), BusAccessWidth.Word),
     BusTarget("EWRAM", 0x2.U(4.W), BusAccessWidth.Halfword),
     BusTarget("IWRAM", 0x3.U(4.W), BusAccessWidth.Word),
     BusTarget("I/O", 0x4.U(4.W), BusAccessWidth.Word),
