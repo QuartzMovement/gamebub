@@ -87,6 +87,7 @@ class Bus(
 
     metadata.dataWidth match {
       case BusAccessWidth.Byte => {
+        target.address := requestAddress
         target.dataWrite := VecInit((0 until 4).map(i => requestDataWrite(i * 8 + 7, i * 8)))(requestAddress(1, 0))
         target.mask := 1.U
         when (selectedNow) {
@@ -204,7 +205,7 @@ class Bus(
       logger.debug(cf"Request addr=0x${requestAddressAligned}%x wr=${requestWrite} seq=${requestSequential} size=${io.initiatorPort.SIZE}")
       requestEnable := true.B
       regAccessBusy := true.B
-      regAccessAddress := requestAddressAligned
+      regAccessAddress := requestAddress
       regAccessSplit := false.B
       regAccessWrite := requestWrite
       regAccessSequential := requestSequential
