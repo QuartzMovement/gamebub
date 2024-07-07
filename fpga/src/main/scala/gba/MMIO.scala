@@ -31,7 +31,7 @@ class MMIO(numTargets: Int) extends Module {
 
   val queuedRequest = RegInit(false.B)
   val queuedWrite = RegInit(false.B)
-  val queuedAddress = Reg(UInt(8.W))
+  val queuedAddress = Reg(UInt(9.W))
   val queuedMask = Reg(UInt(4.W))
 
   val isValid = VecInit(targets.map(_.valid)).asUInt.orR
