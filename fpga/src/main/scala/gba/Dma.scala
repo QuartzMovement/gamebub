@@ -123,7 +123,7 @@ class Dma extends Module {
     }
     when (io.enable) {
       // TODO implement channel 3 special ("video capture" mode)
-      when (!active && (activateImm || activateHblank || activateVblank || activateSpecial)) {
+      when (!active && control.enable && (activateImm || activateHblank || activateVblank || activateSpecial)) {
         logger.info(cf"${i}: activate")
         active := true.B
         regInitial := true.B
