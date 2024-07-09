@@ -146,7 +146,9 @@ class Control extends Module {
         instruction := io.nextInstruction
 
         // Debug output of each instruction executed
-        when (io.nextInstruction.debugThumb) {
+        when (io.nextInstruction.condition === Condition.Nv) {
+          logger.debug("dispatch Nv")
+        } .elsewhen (io.nextInstruction.debugThumb) {
           logger.info(cf"${io.nextInstruction.debugAddress}%x:  ${io.nextInstruction.debugRaw(15, 0)}%x")
         } .otherwise {
           logger.info(cf"${io.nextInstruction.debugAddress}%x:  ${io.nextInstruction.debugRaw}%x")

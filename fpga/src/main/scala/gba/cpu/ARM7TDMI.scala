@@ -312,11 +312,11 @@ class ARM7TDMI extends Module {
     (0 until 16).map(i => registers(bankRegIndex(i.U)))
   )
   io.debug.cpsr := cpsr.asUInt
-  when (io.enable) {
+  when (enable) {
     logger.debug(cf" r0: ${registers(0)}%x   r1: ${registers(1)}%x   r2: ${registers(2)}%x   r3: ${registers(3)}%x")
     logger.debug(cf" r4: ${registers(4)}%x   r5: ${registers(5)}%x   r6: ${registers(6)}%x   r7: ${registers(7)}%x")
-    logger.debug(cf" r8: ${registers(8)}%x   r9: ${registers(9)}%x  r10: ${registers(10)}%x  r11: ${registers(11)}%x")
-    logger.debug(cf"r12: ${registers(12)}%x  r13: ${registers(13)}%x  r14: ${registers(14)}%x  r15: ${registers(15)}%x")
+    logger.debug(cf" r8: ${registers(bankRegIndex(8.U))}%x   r9: ${registers(bankRegIndex(9.U))}%x  r10: ${registers(bankRegIndex(10.U))}%x  r11: ${registers(bankRegIndex(11.U))}%x")
+    logger.debug(cf"r12: ${registers(bankRegIndex(12.U))}%x  r13: ${registers(bankRegIndex(13.U))}%x  r14: ${registers(bankRegIndex(14.U))}%x  r15: ${registers(15)}%x")
     logger.debug(cf"cpsr: ${cpsr.asUInt}%x")
   }
 }
