@@ -134,7 +134,14 @@ class Control extends Module {
     counter := nextCounter
     when (dispatch) {
       stage := 0.U
-      when (io.fiq && !io.currentStatus.fiqDisable) {
+      when (io.nextInstruction.condition === Condition.Nv) {
+        // The intention is to allow the pipeline refill to complete before allowing
+        // a FIQ or IRQ to occur. However, an instruction could also (illegally)
+        // have a "Nv" condition code, which would delay IRQ.
+        // TODO: should this use a separate signal to determine whether to handle IRQ?
+        logger.debug("dispatch Nv")
+        instruction := io.nextInstruction
+      } .elsewhen (io.fiq && !io.currentStatus.fiqDisable) {
         instruction.kind := InstructionKind.Exception
         instruction.opcode := ExceptionKind.Fiq.asUInt
         instruction.condition := Condition.Al
@@ -146,9 +153,7 @@ class Control extends Module {
         instruction := io.nextInstruction
 
         // Debug output of each instruction executed
-        when (io.nextInstruction.condition === Condition.Nv) {
-          logger.debug("dispatch Nv")
-        } .elsewhen (io.nextInstruction.debugThumb) {
+        when (io.nextInstruction.debugThumb) {
           logger.info(cf"${io.nextInstruction.debugAddress}%x:  ${io.nextInstruction.debugRaw(15, 0)}%x")
         } .otherwise {
           logger.info(cf"${io.nextInstruction.debugAddress}%x:  ${io.nextInstruction.debugRaw}%x")
