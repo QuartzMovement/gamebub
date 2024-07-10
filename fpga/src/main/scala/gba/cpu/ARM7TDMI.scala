@@ -182,7 +182,14 @@ class ARM7TDMI extends Module {
       spsr := cpsrBus
     }
     switch (control.pcNext) {
-      is (PcNext.Incrementer) { pc := incrementerBus }
+      is (PcNext.Incrementer) {
+        when (cpsrBus.thumb) {
+          // PC is always aligned in thumb mode
+          pc := incrementerBus & "hFFFFFFFE".U(32.W)
+        } .otherwise {
+          pc := incrementerBus
+        }
+      }
     }
     cpsr := nextCpsr
   }
