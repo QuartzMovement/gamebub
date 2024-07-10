@@ -4,12 +4,14 @@
 #include <cstdio>
 #include <cmath>
 #include <getopt.h>
+#include <optional>
 
 #include <SDL2/SDL.h>
 
 #include "audio.hpp"
 #include "simulator.hpp"
 #include "window.hpp"
+#include "recording_writer.hpp"
 
 JoypadState read_joypad_state() {
     const uint8_t* keyboard = SDL_GetKeyboardState(nullptr);
@@ -38,11 +40,13 @@ int main(int argc, char** argv) {
     std::filesystem::path bios_path;
     std::filesystem::path rom_path;
     std::filesystem::path audio_save_path;
+    std::filesystem::path record_path;
 
     const char* const short_opts = "b:";
     const option long_opts[] = {
         {"bios-path", required_argument, nullptr, 'b'},
         {"save-audio", required_argument, nullptr, 'a'},
+        {"record", required_argument, nullptr, 'r'},
         {"help", no_argument, nullptr, 'h'},
         {nullptr, no_argument, nullptr, 0}
     };
@@ -59,6 +63,9 @@ int main(int argc, char** argv) {
                 break;
             case 'a':
                 audio_save_path = optarg;
+                break;
+            case 'r':
+                record_path = optarg;
                 break;
             case 'h':
             case '?':
@@ -81,6 +88,17 @@ int main(int argc, char** argv) {
 
     Simulator simulator(rom_path, bios_path);
     simulator.reset();
+
+    std::optional<RecordingWriter> recording;
+    if (!record_path.empty()) {
+        recording.emplace(
+            record_path,
+            Simulator::width(),
+            Simulator::height(),
+            Simulator::videoFramerate(),
+            Simulator::audioSampleHz()
+        );
+    }
 
     bool single_step = false;
     bool paused = false;
@@ -109,9 +127,16 @@ int main(int argc, char** argv) {
 
         // Simulate for a frame.
         if (!paused || single_step) {
+            // Simulate
             simulator.set_joypad_state(read_joypad_state());
             simulator.simulate_frame();
             frame_counter++;
+
+            if (recording.has_value()) {
+                recording->write_video(simulator.getFramebuffer());
+                recording->write_audio(simulator.getAudioSampleBuffer());
+            }
+
             // Audio
             std::vector<int16_t>& samples = simulator.getAudioSampleBuffer();
             audio.push(samples.data(), samples.size());

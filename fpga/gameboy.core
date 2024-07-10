@@ -45,10 +45,12 @@ filesets:
       - sim/framebuffer.hpp : {is_include_file: true}
       - sim/input.hpp : {is_include_file: true}
       - sim/window.hpp : {is_include_file: true}
+      - sim/recording_writer.hpp : {is_include_file: true}
       - sim/audio.cpp
       - sim/framebuffer.cpp
       - sim/main.cpp
       - sim/window.cpp
+      - sim/recording_writer.cpp
     file_type: cppSource
 
   sim_gameboy:

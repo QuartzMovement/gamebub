@@ -23,6 +23,7 @@ public:
     static int height() { return 144; }
     static int clockHz() { return 4 * 1024 * 1024; }
     static int audioSampleHz() { return 256 * 1024; }
+    static float videoFramerate() { return 59.7275f; }
 
 private:
     void stepFramebuffer();
