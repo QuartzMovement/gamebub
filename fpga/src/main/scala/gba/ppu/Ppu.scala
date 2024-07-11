@@ -44,6 +44,7 @@ class Ppu extends Module {
     val dmaTriggerVblank = Output(Bool())
     val dmaTriggerHblank = Output(Bool())
     val dmaTriggerVideo = Output(Bool())
+    val dmaStopVideo = Output(Bool())
   })
   val logger = Logger("ppu")
 
@@ -245,5 +246,6 @@ class Ppu extends Module {
     io.dmaTriggerHblank := (tick === 1006.U) && (scanline < 160.U)
     io.dmaTriggerVblank := (tick === 0.U) && (scanline === 160.U)
     io.dmaTriggerVideo := (tick === 1006.U) && (scanline >= 2.U && scanline < 162.U)
+    io.dmaStopVideo := (tick === 1006.U) && (scanline === 162.U)
   }
 }

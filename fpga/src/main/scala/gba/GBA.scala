@@ -127,6 +127,7 @@ class GBA extends Module {
   dma.io.triggerHblank := ppu.io.dmaTriggerHblank
   dma.io.triggerVblank := ppu.io.dmaTriggerVblank
   dma.io.triggerVideo := ppu.io.dmaTriggerVideo
+  dma.io.stopVideo := ppu.io.dmaStopVideo
   mmio.targets(3) <> dma.io.mmio
   interrupt.io.peripheralIrq.dma := dma.io.irq.asUInt
   for (i <- 0 until 4) {

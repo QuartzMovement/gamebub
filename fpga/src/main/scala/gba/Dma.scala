@@ -42,6 +42,7 @@ class Dma extends Module {
     val triggerHblank = Input(Bool())
     val triggerVideo = Input(Bool())
     val triggerFifo = Input(Vec(2, Bool()))
+    val stopVideo = Input(Bool())
 
     val busInitiator = Vec(4, new BusInterface)
   })
@@ -99,7 +100,7 @@ class Dma extends Module {
     val justEnabled = control.enable && !prevEnabled
     val addressMask = Mux(isSizeWord, "b00".U(2.W), "b10".U(2.W))
     when (io.enable && justEnabled) {
-      logger.info(cf"${i}: enabled")
+      logger.info(cf"${i}: enabled: ${control}")
       // Mask off lower bits of address depending on size
       regSource := Cat(configSource(configSource.getWidth - 1, 2), configSource(1, 0) & addressMask)
       regDest := Cat(configDest(configDest.getWidth - 1, 2), configDest(1, 0) & addressMask)
@@ -120,9 +121,13 @@ class Dma extends Module {
     val activateSpecial = WireDefault(false.B)
     if (i == 1 || i == 2) {
       activateSpecial := control.startControl === DmaStartControl.special && io.triggerFifo(i - 1)
+    } else if (i == 3) {
+      activateSpecial := control.startControl === DmaStartControl.special && io.triggerVideo
+      when (io.stopVideo) {
+        control.enable := false.B
+      }
     }
     when (io.enable) {
-      // TODO implement channel 3 special ("video capture" mode)
       when (!active && control.enable && (activateImm || activateHblank || activateVblank || activateSpecial)) {
         logger.info(cf"${i}: activate")
         active := true.B
