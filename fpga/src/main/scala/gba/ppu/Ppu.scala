@@ -90,7 +90,7 @@ class Ppu extends Module {
   val tick = RegInit(0.U(11.W))
   val vcountHit = scanline === regVcount
   val isHblank = tick >= 1006.U
-  val isVblank = scanline >= 160.U
+  val isVblank = scanline >= 160.U && scanline < 227.U
 
   when (io.enable) {
     when (tick < (1232 - 1).U) {
@@ -227,7 +227,7 @@ class Ppu extends Module {
   io.output.valid := compositor.io.valid
   io.output.pixel := compositor.io.pixel
   io.output.hblank := tick > 1006.U // Output video signal actually happens a cycle later, after last pixel output
-  io.output.vblank := isVblank
+  io.output.vblank := scanline >= 160.U
 
   // IRQs and DMA trigger
   {
