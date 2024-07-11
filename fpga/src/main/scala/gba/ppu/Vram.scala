@@ -48,6 +48,10 @@ class Vram extends Module {
   memObjHi.io.forceBlank := io.forceBlank
 
   when (isTileMode) {
+    memBg.io.ignoreByteWrites := false.B
+    memObjLo.io.ignoreByteWrites := true.B
+    memObjHi.io.ignoreByteWrites := true.B
+
     memBg.io.ppuTarget.address := io.portBG.address
     memObjLo.io.ppuTarget.address := io.portOBJ.address
     memObjHi.io.ppuTarget.address := io.portOBJ.address
@@ -77,6 +81,10 @@ class Vram extends Module {
       io.portOBJ.readData := memObjHi.io.ppuTarget.readData
     }
   } .otherwise {
+    memBg.io.ignoreByteWrites := false.B
+    memObjLo.io.ignoreByteWrites := false.B
+    memObjHi.io.ignoreByteWrites := true.B
+
     memBg.io.ppuTarget.address := io.portBG.address
     memObjLo.io.ppuTarget.address := io.portBG.address
     memObjHi.io.ppuTarget.address := io.portOBJ.address

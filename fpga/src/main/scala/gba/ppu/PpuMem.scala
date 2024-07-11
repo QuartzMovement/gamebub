@@ -25,6 +25,9 @@ class PpuMem(name: String, size: Int, width: Width) extends Module {
     /// Whether the PPU is in force blank (in which PPU reads are blocked)
     val forceBlank = Input(Bool())
 
+    /// Whether to ignore 8-bit writes
+    val ignoreByteWrites = Input(Bool())
+
     /// Target interface for main CPU memory bus
     val cpuTarget = new TargetInterface(width)
 
@@ -76,10 +79,12 @@ class PpuMem(name: String, size: Int, width: Width) extends Module {
 
       when (queuedWrite) {
         val mask = if (width == 32.W) {
-          // TODO verify this is the correct 8-bit write behavior for OAM. It might just ignore 8-bit writes?
-          Seq(queuedWriteMask(0) || queuedWriteMask(1), queuedWriteMask(2) || queuedWriteMask(3))
+          // OAM ignore 8 bit writes
+          val isNonByteWrite = (queuedWriteMask(0) && queuedWriteMask(1)) || (queuedWriteMask(2) && queuedWriteMask(3))
+          Seq(queuedWriteMask(0) && isNonByteWrite, queuedWriteMask(2) && isNonByteWrite)
         } else {
-          Seq(true.B)
+          val isHalfwordWrite = queuedWriteMask(0) && queuedWriteMask(1)
+          Seq(isHalfwordWrite || !io.ignoreByteWrites)
         }
 
         memWritePort.enable := true.B

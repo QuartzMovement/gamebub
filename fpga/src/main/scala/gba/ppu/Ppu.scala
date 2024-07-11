@@ -80,11 +80,13 @@ class Ppu extends Module {
   val paletteRam = Module(new PpuMem("pal", 1024, 16.W))
   paletteRam.io.enable := io.enable
   paletteRam.io.forceBlank := regDisplayControl.forceBlank
+  paletteRam.io.ignoreByteWrites := false.B
   paletteRam.io.cpuTarget <> io.paletteRamTarget
 
   val oam = Module(new PpuMem("oam", 1024, 32.W))
   oam.io.enable := io.enable
   oam.io.forceBlank := regDisplayControl.forceBlank
+  oam.io.ignoreByteWrites := true.B
   oam.io.cpuTarget <> io.oamTarget
 
   val scanline = RegInit(0.U(8.W))
