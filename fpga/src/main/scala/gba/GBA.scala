@@ -120,6 +120,7 @@ class GBA extends Module {
   keypad.io.enable := io.enable
   keypad.io.state := io.keypad
   mmio.targets(2) <> keypad.io.mmio
+  interrupt.io.peripheralIrq.keypad := keypad.io.irq
 
   // DMA
   val dma = Module(new Dma)
