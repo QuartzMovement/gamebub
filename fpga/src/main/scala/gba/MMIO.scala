@@ -124,14 +124,28 @@ object MmioMap {
   case class ReadFn(fn: Bool => (UInt, Bool))
   object ReadFn {
     // Simple read from a register or wire.
-    def apply(reg: Data): ReadFn = ReadFn(_ => (reg.asUInt, true.B))
+    def apply(reg: Data): ReadFn = {
+      assert(reg.getWidth <= 32)
+      ReadFn(_ => (reg.asUInt, true.B))
+    }
 
     // Read from two 16-bit registers.
-    def apply(reg0: Data, reg1: Data): ReadFn = ReadFn(_ => (Cat(reg1.asUInt, reg0.asUInt), true.B))
+    def apply(reg0: Data, reg1: Data): ReadFn = {
+      assert(reg0.getWidth <= 16)
+      assert(reg1.getWidth <= 16)
+      val data = Cat(reg1.asUInt.pad(16), reg0.asUInt.pad(16))
+      ReadFn(_ => (data, true.B))
+    }
 
     // Read from four 8-bit registers.
-    def apply(reg0: Data, reg1: Data, reg2: Data, reg3: Data): ReadFn =
-      ReadFn(_ => (Cat(reg3.asUInt, reg2.asUInt, reg1.asUInt, reg0.asUInt), true.B))
+    def apply(reg0: Data, reg1: Data, reg2: Data, reg3: Data): ReadFn = {
+      assert(reg0.getWidth <= 8)
+      assert(reg1.getWidth <= 8)
+      assert(reg2.getWidth <= 8)
+      assert(reg3.getWidth <= 8)
+      val data = Cat(reg3.asUInt.pad(8), reg2.asUInt.pad(8), reg1.asUInt.pad(8), reg0.asUInt.pad(8))
+      ReadFn(_ => (data, true.B))
+    }
 
     // No-op read.
     def apply(): ReadFn = ReadFn(_ => (0.U, false.B))
