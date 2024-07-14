@@ -268,7 +268,7 @@ class BackgroundRenderer extends Module {
           io.vram.readData(15, 8),
           io.vram.readData(7, 0),
         )
-        val tile = Cat(control.charBase, 0.U(9.W)) +& tileIndex
+        val tile = Cat(control.charBase, 0.U(8.W)) +& tileIndex
         val address = Cat(tile, subtileY, subtileX)
         io.vram.read := true.B
         io.vram.address := address >> 1
