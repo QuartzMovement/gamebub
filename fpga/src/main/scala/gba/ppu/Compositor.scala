@@ -191,9 +191,7 @@ class Compositor extends Module {
           io.paletteRam.read := true.B
           io.paletteRam.address := 0.U
         } .elsewhen (regLayerFirst.isBg(2) && isBitmap16bpp) {
-          // Special case: 16bpp bitmap, take bits from the BG3 fifo as well.
-          io.bgFifo(3).ready := true.B
-          regLayerFirst.color := Cat(io.bgFifo(3).bits.color, regLayerFirst.color(7, 0))
+          // Special case: 16bpp bitmap, don't query palette ram.
         } .otherwise {
           io.paletteRam.read := true.B
           io.paletteRam.address := Cat(regLayerFirst.isObj, regLayerFirst.color(7, 0))
@@ -217,9 +215,7 @@ class Compositor extends Module {
           io.paletteRam.read := true.B
           io.paletteRam.address := 0.U
         } .elsewhen (regLayerSecond.isBg(2) && isBitmap16bpp) {
-          // Special case: 16bpp bitmap, take bits from the BG3 fifo as well.
-          io.bgFifo(3).ready := true.B
-          regLayerSecond.color := Cat(io.bgFifo(3).bits.color, regLayerSecond.color(7, 0))
+          // Special case: 16bpp bitmap, don't query palette ram.
         } .otherwise {
           io.paletteRam.read := true.B
           io.paletteRam.address := Cat(regLayerSecond.isObj, regLayerSecond.color(7, 0))
@@ -249,22 +245,34 @@ class Compositor extends Module {
 
     val bgFifo = io.bgFifo(subCycle)
     val bgPriority = io.bgControl(subCycle).priority
-    when (io.displayControl.enableBg(subCycle)) {
+    when (io.displayControl.enableBg(subCycle) && !(isBitmap16bpp && subCycle === 3.U)) {
+      // Pull from BG fifo if background is enabled.
+      // *Don't* pull from BG3 fifo if we're in a 16bpp bitmap mode: BG3 is never enabled,
+      // and we re-use the FIFO for the upper bits of the color.
       bgFifo.ready := true.B
     }
+
+    val color = Wire(UInt(15.W))
+    color := bgFifo.bits.color
+    when (isBitmap16bpp && subCycle === 2.U) {
+      // Special case: 16-bit bitmap, pull from bg fifo 2 and 3
+      io.bgFifo(3).ready := true.B
+      color := Cat(io.bgFifo(3).bits.color, bgFifo.bits.color)
+    }
+
     when (bgFifo.valid && bgFifo.bits.opaque && io.displayControl.enableBg(subCycle) && regSortWindow.bg(subCycle)) {
       when (regSortFirst.isBackdrop || bgPriority < regSortFirst.priority) {
         nextFirstLayer.isBackdrop := false.B
         nextFirstLayer.isObj := false.B
         nextFirstLayer.isBg := UIntToOH(subCycle)
-        nextFirstLayer.color := bgFifo.bits.color
+        nextFirstLayer.color := color
         nextFirstLayer.priority := bgPriority
         nextSecondLayer := regSortFirst
       } .elsewhen (regSortSecond.isBackdrop || bgPriority < regSortSecond.priority) {
         nextSecondLayer.isBackdrop := false.B
         nextSecondLayer.isObj := false.B
         nextSecondLayer.isBg := UIntToOH(subCycle)
-        nextSecondLayer.color := bgFifo.bits.color
+        nextSecondLayer.color := color
         nextSecondLayer.priority := bgPriority
       }
     }
