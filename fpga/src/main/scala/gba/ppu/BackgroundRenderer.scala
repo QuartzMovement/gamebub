@@ -43,6 +43,8 @@ class BackgroundRenderer extends Module {
     val bgAff = Input(Vec(2, new PpuRegisters.AffineParams))
     val bgAffX = Input(Vec(2, new PpuRegisters.AffineReferencePoint))
     val bgAffY = Input(Vec(2, new PpuRegisters.AffineReferencePoint))
+    val writeAffX = Input(Vec(2, Bool()))
+    val writeAffY = Input(Vec(2, Bool()))
 
     /// BG VRAM access
     val vram = Flipped(new PpuMemoryInterface(96 * 1024 / 2, 16.W))
@@ -125,7 +127,16 @@ class BackgroundRenderer extends Module {
 
   // Update affine background params.
   when (io.enable) {
-    when (!isVdraw) {
+    when (isVdraw) {
+      for (i <- 0 until 2) {
+        when (io.writeAffX(0)) {
+          affX(i) := io.bgAffX(i)
+        }
+        when (io.writeAffY(0)) {
+          affY(i) := io.bgAffY(i)
+        }
+      }
+    } .otherwise {
       affX := io.bgAffX
       affY := io.bgAffY
       affXLine := io.bgAffX

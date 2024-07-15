@@ -108,6 +108,22 @@ class Ppu extends Module {
     }
   }
 
+  // Background renderer
+  val bgRender = Module(new BackgroundRenderer)
+  bgRender.io.enable := io.enable
+  bgRender.io.displayControl := regDisplayControl
+  bgRender.io.bgControl := regBgControl
+  bgRender.io.bgOffX := regBgOffX
+  bgRender.io.bgOffY := regBgOffY
+  bgRender.io.bgAff := regBgAff
+  bgRender.io.bgAffX := regBgAffX
+  bgRender.io.bgAffY := regBgAffY
+  bgRender.io.writeAffX := VecInit.fill(2)(false.B)
+  bgRender.io.writeAffY := VecInit.fill(2)(false.B)
+  bgRender.io.tick := tick
+  bgRender.io.scanline := scanline
+  bgRender.io.vram <> vram.io.portBG
+
   // I/O registers
   io.mmio <> MmioMap(
     0x0 -> MmioMap.Entry.rw(regDisplayControl),
@@ -151,14 +167,12 @@ class Ppu extends Module {
     0x1C -> MmioMap.Entry.w16(regBgOffX(3), regBgOffY(3)),
     0x20 -> MmioMap.Entry.w16(regBgAff(0).pa, regBgAff(0).pb),
     0x24 -> MmioMap.Entry.w16(regBgAff(0).pc, regBgAff(0).pd),
-    // TODO: writing these is supposed to update the latched value immediately?
-    0x28 -> MmioMap.Entry.w(regBgAffX(0)),
-    0x2C -> MmioMap.Entry.w(regBgAffY(0)),
+    0x28 -> makeAffBgReferencePointMmio(regBgAffX(0), bgRender.io.bgAffX(0), bgRender.io.writeAffX(0)),
+    0x2C -> makeAffBgReferencePointMmio(regBgAffY(0), bgRender.io.bgAffY(0), bgRender.io.writeAffY(0)),
     0x30 -> MmioMap.Entry.w16(regBgAff(1).pa, regBgAff(1).pb),
     0x34 -> MmioMap.Entry.w16(regBgAff(1).pc, regBgAff(1).pd),
-    // TODO: writing these is supposed to update the latched value immediately?
-    0x38 -> MmioMap.Entry.w(regBgAffX(1)),
-    0x3C -> MmioMap.Entry.w(regBgAffY(1)),
+    0x38 -> makeAffBgReferencePointMmio(regBgAffX(1), bgRender.io.bgAffX(1), bgRender.io.writeAffX(1)),
+    0x3C -> makeAffBgReferencePointMmio(regBgAffY(1), bgRender.io.bgAffY(1), bgRender.io.writeAffY(1)),
     0x40 -> MmioMap.Entry.w8(regWin0Bounds.xEnd, regWin0Bounds.xStart, regWin1Bounds.xEnd, regWin1Bounds.xStart),
     0x44 -> MmioMap.Entry.w8(regWin0Bounds.yEnd, regWin0Bounds.yStart, regWin1Bounds.yEnd, regWin1Bounds.yStart),
     0x48 -> MmioMap.Entry.rw8(regWin0Control, regWin1Control, regWinOutControl, regWinObjControl),
@@ -181,20 +195,6 @@ class Ppu extends Module {
     ),
     0x54 -> MmioMap.Entry.w(regBlendFade),
   )
-
-  // Background renderer
-  val bgRender = Module(new BackgroundRenderer)
-  bgRender.io.enable := io.enable
-  bgRender.io.displayControl := regDisplayControl
-  bgRender.io.bgControl := regBgControl
-  bgRender.io.bgOffX := regBgOffX
-  bgRender.io.bgOffY := regBgOffY
-  bgRender.io.bgAff := regBgAff
-  bgRender.io.bgAffX := regBgAffX
-  bgRender.io.bgAffY := regBgAffY
-  bgRender.io.tick := tick
-  bgRender.io.scanline := scanline
-  bgRender.io.vram <> vram.io.portBG
 
   // Object renderer
   val objRender = Module(new ObjectRenderer)
@@ -249,5 +249,20 @@ class Ppu extends Module {
     io.dmaTriggerVblank := (tick === 0.U) && (scanline === 160.U)
     io.dmaTriggerVideo := (tick === 1006.U) && (scanline >= 2.U && scanline < 162.U)
     io.dmaStopVideo := (tick === 1006.U) && (scanline === 162.U)
+  }
+
+  private def makeAffBgReferencePointMmio(
+    reg: PpuRegisters.AffineReferencePoint,
+    input: PpuRegisters.AffineReferencePoint,
+    flag: Bool
+  ): MmioMap.Entry = {
+    MmioMap.Entry(MmioMap.ReadFn(), MmioMap.WriteFn((enable, data, mask) => {
+      val value = MMIO.mask(reg, data, mask)
+      when(enable) {
+        reg := value
+        input := value
+        flag := true.B
+      }
+    }))
   }
 }
