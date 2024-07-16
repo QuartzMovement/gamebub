@@ -67,8 +67,14 @@ RecordingWriter::RecordingWriter(
     const char* args1[] = {
         "ffmpeg",
         "-hide_banner", "-loglevel", "error",
-        "-f", "rawvideo", "-pix_fmt", "bgra", "-s:v", arg_resolution.c_str(), "-r", arg_framerate.c_str(), "-i", "-",
-        "-f", "mp4", "-pix_fmt", "yuv420p", "-crf", "17", video_path_.c_str(),
+        // Input
+        "-f", "rawvideo", "-pix_fmt", "bgra", "-s:v", arg_resolution.c_str(), "-r", arg_framerate.c_str(),
+        "-color_range", "full",
+        "-i", "-",
+        // Output
+        "-c:v", "libx264rgb", "-pix_fmt", "rgb24", "-color_range", "full", "-x264opts", "crf=0",
+        "-f", "h264", video_path_.c_str(),
+        //
         nullptr
     };
     run_subprocess(args1, &video_pid_, &video_pipe_);
@@ -79,7 +85,7 @@ RecordingWriter::RecordingWriter(
         "ffmpeg",
         "-hide_banner", "-loglevel", "error",
         "-f", "s16le", "-ar", arg_audio_freq.c_str(), "-ac", "2", "-i", "-",
-        "-f", "adts", "-b:a", "128k", audio_path_.c_str(),
+        "-c:a", "flac", "-f", "flac", audio_path_.c_str(),
         nullptr
     };
     run_subprocess(args2, &audio_pid_, &audio_pipe_);
@@ -104,6 +110,7 @@ RecordingWriter::~RecordingWriter() {
         "-i", video_path_.c_str(),
         "-i", audio_path_.c_str(),
         "-c", "copy",
+        "-f", "matroska",
         "-y", output_path_.c_str(),
         nullptr
     };
