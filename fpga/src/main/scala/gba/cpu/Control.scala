@@ -583,7 +583,7 @@ class Control extends Module {
             control.regReadA := 15.U // PC
             control.busB := BusBValue.Immediate
             // Actually subtract 1 -- previous instruction, with bit 0 set to 1 to allow for BX to return here.
-            // TODO: check that this definitely works -- make sure PC is aligned?
+            // This works because PC is always aligned to 2.
             control.immediate := 1.U
             control.aluOpcode := AluOpcode.sub
 

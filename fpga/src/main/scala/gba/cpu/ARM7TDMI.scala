@@ -138,6 +138,8 @@ class ARM7TDMI extends Module {
   when (enable) {
     when (control.regWriteEnable) {
       logger.debug(cf"  reg write [${control.regWriteIndex}] <- ${aluBus}%x")
+      // Writes to PC are always aligned by 2, but there's no need to do that here,
+      // because r15 writes via regWriteEnable are always followed by an incrementer write.
       registers(
         bankRegIndex(
           control.regWriteIndex,
@@ -183,12 +185,10 @@ class ARM7TDMI extends Module {
     }
     switch (control.pcNext) {
       is (PcNext.Incrementer) {
-        when (cpsrBus.thumb) {
-          // PC is always aligned in thumb mode
-          pc := incrementerBus & "hFFFFFFFE".U(32.W)
-        } .otherwise {
-          pc := incrementerBus
-        }
+        // PC is always aligned to 2
+        //  THUMB: part of the ARM ARM
+        //    ARM: "unpredictable", but seems to be the same behavior
+        pc := incrementerBus & "hFFFFFFFE".U(32.W)
       }
     }
     cpsr := nextCpsr
@@ -216,9 +216,6 @@ class ARM7TDMI extends Module {
   aluBus := alu.io.out
   when (control.aluOutAlign4) {
     aluBus := alu.io.out & "hFFFFFFFC".U(32.W)
-  } .elsewhen (cpsr.thumb && control.regWriteIndex === 15.U) {
-    // Special behavior in THUMB: writes to r15 (branches) are force-aligned.
-    aluBus := alu.io.out & "hFFFFFFFE".U(32.W)
   }
   aluConditionOut := alu.io.flagOut
 
