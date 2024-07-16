@@ -238,6 +238,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   }))
   val interruptEnable = RegInit(0.U.asTypeOf(new HandheldInterrupts))
   val interruptFlags = RegInit(0.U.asTypeOf(new HandheldInterrupts))
+  val statusRegister = Cat(
+    // 0: cartridge switch state
+    RegNext(RegNext(io.cartridgeSwitch)),
+  )
 
   val overlayXControlRegister = RegInit(0.U.asTypeOf(new Bundle() {
     val start = UInt(8.W)
@@ -268,6 +272,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
           }
         ),
       ),
+      0x14 -> RegisterMap.Entry.r(statusRegister),
       // Overlay control
       0x100 -> RegisterMap.Entry.rw(overlayXControlRegister),
       0x104 -> RegisterMap.Entry.rw(overlayYControlRegister),
