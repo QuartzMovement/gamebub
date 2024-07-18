@@ -13,6 +13,7 @@ pub const REG_BUTTON: u32 = 0x0000_0004;
 pub const REG_SPI_STATUS: u32 = 0x0000_0008;
 pub const REG_IRQ_ENABLE: u32 = 0x0000_000C;
 pub const REG_IRQ_STATUS: u32 = 0x0000_0010;
+pub const REG_STATUS: u32 = 0x0000_0014;
 pub const REG_OVERLAY_XCTRL: u32 = 0x0000_0100;
 pub const REG_OVERLAY_YCTRL: u32 = 0x0000_0104;
 /// Framebuffer dimensions (read only)
@@ -258,6 +259,11 @@ where
             increment_address: true,
         };
         self.spi_write(command, 0x38000000 | offset, data)
+    }
+
+    /// Get the state of the cartridge slot button.
+    pub fn get_cartridge_slot_button(&mut self) -> Result<bool, Error> {
+        Ok((self.read_u32(REG_STATUS)? & 1) != 0)
     }
 }
 

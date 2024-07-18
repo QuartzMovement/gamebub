@@ -6,9 +6,8 @@ use device::Device;
 
 use crate::ui::UI;
 
+mod bitstream;
 mod device;
-mod gameboy;
-mod gba;
 pub mod ui;
 
 fn main() -> anyhow::Result<()> {
@@ -31,7 +30,7 @@ fn main() -> anyhow::Result<()> {
 
     // Program FPGA
     {
-        let mut bitstream = GzDecoder::new(File::open("/sdcard/top_handheld_gba.bit.gz")?);
+        let mut bitstream = GzDecoder::new(File::open("/sdcard/system/base.bit.gz")?);
         device.fpga.program(&mut bitstream)?;
         device.lcd.enable_fpga_control()?;
     }

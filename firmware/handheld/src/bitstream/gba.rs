@@ -4,6 +4,8 @@ use thiserror::Error;
 
 use crate::device::{drivers::fpga, Device};
 
+use super::Bitstream;
+
 #[derive(Debug, Error)]
 pub enum GbaError {
     #[error("I/O error")]
@@ -20,25 +22,8 @@ impl Gba {
         Gba {}
     }
 
-    pub fn set_paused(&mut self, paused: bool) -> Result<(), GbaError> {
-        let mut device = Device::lock();
-
-        device
-            .fpga
-            .write_u32(fpga::REG_CONTROL, 0b1010u32 | ((!paused) as u32))?;
-        Ok(())
-    }
-
-    /// Resets, leaving in a paused state.
-    pub fn reset(&mut self) -> Result<(), GbaError> {
-        let mut device = Device::lock();
-        device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
-        device.fpga.write_u32(fpga::REG_CONTROL, 0b1010)?;
-        Ok(())
-    }
-
     fn load_bios(&mut self, device: &mut Device) -> Result<(), GbaError> {
-        let mut bios_file = File::open("/sdcard/gba-bios.bin")?;
+        let mut bios_file = File::open("/sdcard/system/gba.bios.bin")?;
         let mut buf = vec![0u8; 16 * 1024].into_boxed_slice();
         bios_file.read(&mut buf)?;
 
@@ -72,6 +57,32 @@ impl Gba {
         device.fpga.write_u32(fpga::REG_CONTROL, 0b1011)?;
         device.imu.disable_accel().unwrap();
 
+        Ok(())
+    }
+}
+
+impl Bitstream for Gba {
+    fn get_bitstream_path(&self) -> &'static str {
+        return "/sdcard/system/gba.bit.gz";
+    }
+
+    fn on_after_program(&mut self) -> Result<(), String> {
+        let mut device = Device::lock();
+        self.load_bios(&mut device).map_err(|e| e.to_string())
+    }
+
+    fn set_paused(&mut self, paused: bool) -> Result<(), fpga::Error> {
+        let mut device = Device::lock();
+
+        device
+            .fpga
+            .write_u32(fpga::REG_CONTROL, 0b1010u32 | ((!paused) as u32))
+    }
+
+    fn reset(&mut self) -> Result<(), fpga::Error> {
+        let mut device = Device::lock();
+        device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
+        device.fpga.write_u32(fpga::REG_CONTROL, 0b1010)?;
         Ok(())
     }
 }

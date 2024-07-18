@@ -7,6 +7,8 @@ use thiserror::Error;
 
 use crate::device::{drivers::fpga, Device};
 
+use super::Bitstream;
+
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
 const REG_EMU_CART_ROM_ADDR: u32 = 0xC000_0004;
 const REG_EMU_CART_ROM_MASK: u32 = 0xC000_0008;
@@ -139,30 +141,6 @@ impl Gameboy {
             rom_header: None,
             ram_path: None,
         }
-    }
-
-    pub fn set_paused(&mut self, paused: bool) -> Result<(), GameboyError> {
-        let mut device = Device::lock();
-
-        // Enable/disable IMU as needed
-        if !paused && self.rom_header.as_ref().map_or(false, |h| h.has_sensor) {
-            device.imu.enable_accel().unwrap();
-        } else {
-            device.imu.disable_accel().unwrap();
-        }
-
-        device
-            .fpga
-            .write_u32(fpga::REG_CONTROL, 0b1010u32 | ((!paused) as u32))?;
-        Ok(())
-    }
-
-    /// Resets, leaving in a paused state.
-    pub fn reset(&mut self) -> Result<(), GameboyError> {
-        let mut device = Device::lock();
-        device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
-        device.fpga.write_u32(fpga::REG_CONTROL, 0b1010)?;
-        Ok(())
     }
 
     pub fn set_physical_cartridge(&mut self) -> Result<(), GameboyError> {
@@ -342,6 +320,39 @@ impl Gameboy {
             .fpga
             .write_u32(REG_IMU_ACCEL_Y, accel_y as u32)
             .unwrap();
+    }
+}
+
+impl Bitstream for Gameboy {
+    fn get_bitstream_path(&self) -> &'static str {
+        return "/sdcard/system/gameboy.bit.gz";
+    }
+
+    fn on_after_program(&mut self) -> Result<(), String> {
+        // TODO: load BIOS when it's separate
+        Ok(())
+    }
+
+    fn set_paused(&mut self, paused: bool) -> Result<(), fpga::Error> {
+        let mut device = Device::lock();
+
+        // Enable/disable IMU as needed
+        if !paused && self.rom_header.as_ref().map_or(false, |h| h.has_sensor) {
+            device.imu.enable_accel().unwrap();
+        } else {
+            device.imu.disable_accel().unwrap();
+        }
+
+        device
+            .fpga
+            .write_u32(fpga::REG_CONTROL, 0b1010u32 | ((!paused) as u32))
+    }
+
+    fn reset(&mut self) -> Result<(), fpga::Error> {
+        let mut device = Device::lock();
+        device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
+        device.fpga.write_u32(fpga::REG_CONTROL, 0b1010)?;
+        Ok(())
     }
 }
 

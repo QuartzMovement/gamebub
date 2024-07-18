@@ -134,13 +134,14 @@ impl UI {
 
                 log::info!("Render + display {}ms", render_duration.as_millis() as u32);
 
+                // TODO: only need to do this when switching overlays
+                let _ = line_buffer
+                    .device
+                    .fpga
+                    .set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
+
                 if first_render {
                     first_render = false;
-                    let _ = line_buffer
-                        .device
-                        .fpga
-                        .set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
-
                     line_buffer
                         .device
                         .set_brightness(kvs::keys::BRIGHTNESS.get().unwrap());
