@@ -41,7 +41,7 @@ embedded-hal-bus = "0.1.0"
 flate2 = "1.0.28"
 thiserror = "1.0.57"
 enum-map = "2.7.3"
-slint = { version = "1.5.1", default-features = false, features = [
+slint = { version = "~1.5.1", default-features = false, features = [
     "compat-1-2",
     "unsafe-single-threaded",
     "libm",
