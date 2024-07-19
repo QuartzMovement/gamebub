@@ -8,13 +8,24 @@ import lib.video.ColorARGB
 import xilinx.XpmCdcHandshake
 
 object HandheldTop extends App {
+  // Parse arguments.
+  if (args.length < 1) {
+    throw new IllegalArgumentException("missing arg 0: inner class")
+  }
+  val argInnerClassName = args.head
+  val argRest = args.tail
+
+  // Generate verilog.
+  val moduleFactory = () =>
+    Class
+      .forName(argInnerClassName)
+      .getDeclaredConstructor()
+      .newInstance()
+      .asInstanceOf[Module with HandheldModule]
+
   ChiselStage.emitSystemVerilogFile(
-    new HandheldTop(
-      new HandheldGba
-//      new HandheldGameboy
-      //    new HandheldTester
-    ),
-    args,
+    new HandheldTop(moduleFactory()),
+    argRest,
   )
 }
 

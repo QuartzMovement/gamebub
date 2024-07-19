@@ -35,8 +35,15 @@ filesets:
     files:
       - verilog/handheld/rev_a.xdc : {file_type : xdc}
       - verilog/handheld/top.sv : {file_type : systemVerilogSource}
-      - verilog/handheld/clk_wiz_system_clk_wiz.v : {file_type : verilogSource}
       - verilog/handheld/clk_wiz_spi_clk_wiz.v : {file_type : verilogSource}
+
+  handheld_8mhz:
+    files:
+      - verilog/handheld/clk_wiz_system_8mhz.v : {file_type : verilogSource}
+
+  handheld_16mhz:
+    files:
+      - verilog/handheld/clk_wiz_system_16mhz.v : {file_type : verilogSource}
 
   sim_base:
     files:
@@ -92,6 +99,28 @@ generate:
         files:
           - build/generated/ZynqGameboy.sv: { file_type: systemVerilogSource }
 
+  handheld_gameboy:
+    generator: chisel
+    parameters:
+      buildtool: sbt
+      outputdir: build/generated
+      main_class: "platform.handheld.HandheldTop"
+      extraargs: "platform.handheld.HandheldGameboy"
+      output:
+        files:
+          - build/generated/HandheldTop.sv: { file_type: systemVerilogSource }
+
+  handheld_gba:
+    generator: chisel
+    parameters:
+      buildtool: sbt
+      outputdir: build/generated
+      main_class: "platform.handheld.HandheldTop"
+      extraargs: "platform.handheld.HandheldGba"
+      output:
+        files:
+          - build/generated/HandheldTop.sv: { file_type: systemVerilogSource }
+
   sim_gameboy:
     generator: chisel
     parameters:
@@ -102,17 +131,6 @@ generate:
       output:
         files:
           - build/generated/SimGameboy.sv: { file_type: systemVerilogSource }
-
-  handheld:
-    generator: chisel
-    parameters:
-      buildtool: sbt
-      outputdir: build/generated
-      main_class: "platform.handheld.HandheldTop"
-      extraargs: ""
-      output:
-        files:
-          - build/generated/HandheldTop.sv: { file_type: systemVerilogSource }
 
   sim_gba:
     generator: chisel
@@ -144,10 +162,19 @@ targets:
         part: xc7z020clg400-1
     toplevel: top_pynq_cartridge_access
 
-  handheld:
+  handheld_gameboy:
     default_tool: vivado
-    filesets: [base, handheld]
-    generate: [handheld]
+    filesets: [base, handheld, handheld_8mhz]
+    generate: [handheld_gameboy]
+    tools:
+      vivado:
+        part: xc7a100tcsg324-2
+    toplevel: top_handheld
+
+  handheld_gba:
+    default_tool: vivado
+    filesets: [base, handheld, handheld_16mhz]
+    generate: [handheld_gba]
     tools:
       vivado:
         part: xc7a100tcsg324-2
