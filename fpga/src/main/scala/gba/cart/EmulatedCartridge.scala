@@ -83,6 +83,7 @@ class EmulatedCartridge extends Module {
     when (io.rom.done) {
       logger.debug(cf"ROM request done: data=0x${io.rom.dataRead}%x")
       romBusy := false.B
+      // TODO: io.rom.enable := false.B ?
     } .elsewhen (io.interface.reqEnd) {
       logger.warn("Request stall")
       io.stall := true.B

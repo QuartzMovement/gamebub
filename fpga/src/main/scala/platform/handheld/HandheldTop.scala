@@ -459,8 +459,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     )
   }
 
-  io.pmod.dir := "b1111".U
-  io.pmod.out := io.lcd.asUInt
+//  io.pmod.dir := "b1111".U
+//  io.pmod.out := io.lcd.asUInt
+//  module.io.pmod.in := 0.U
 
   // Overlay access.
   // TODO: consider switching to (or adding) a method of writing where
@@ -520,8 +521,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   module.io.reset := !controlRegister.moduleReset
   io.vibrate := (module.io.enable && module.io.vibrate) && controlRegister.vibrate
   io.link <> module.io.link
-//  io.pmod <> module.io.pmod
-  module.io.pmod.in := 0.U
+  io.pmod <> module.io.pmod
   module.io.mcuInterface <> moduleMcuInterface
 
   // Buttons must be synchronized and inverted.

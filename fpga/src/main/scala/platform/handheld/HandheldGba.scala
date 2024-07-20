@@ -2,9 +2,8 @@ package platform.handheld
 
 import chisel3._
 import chisel3.util._
-import gameboy.Gameboy
-import gameboy.cart.{EmuCartConfig, EmuCartridge, Mbc3RtcAccess, RtcState}
 import gba.GBA
+import gba.cart.EmulatedCartridge
 import lib.mem.{MemoryInterface, MemoryMap, RegisterMap}
 
 /**
@@ -15,7 +14,10 @@ class HandheldGba extends Module with HandheldModule {
   def framebufferW = 240
   def framebufferH = 160
 
-  // TODO support emu cartridge
+  val configRegEmuCart = RegInit(0.U.asTypeOf(new EmulatedCartridge.Config))
+  // TODO support emu cart mask
+  val statRegStalls = RegInit(0.U(32.W))
+  val statRegCycles = RegInit(0.U(32.W))
 
   val registerInterface = Wire(new MemoryInterface(addressWidth = 16, dataWidth = 32))
   val biosInterface = Wire(new MemoryInterface(addressWidth = 14, dataWidth = 32)) // 16 KiB
@@ -32,6 +34,10 @@ class HandheldGba extends Module with HandheldModule {
       addressWidth = 16,
       dataWidth = 32,
       entries = Seq(
+        0x0000 -> RegisterMap.Entry.rw(configRegEmuCart),
+
+        0x1000 -> RegisterMap.Entry.rw(statRegStalls),
+        0x1004 -> RegisterMap.Entry.rw(statRegCycles),
       )
     )
   }
@@ -50,34 +56,117 @@ class HandheldGba extends Module with HandheldModule {
 
   // Gameboy
   val gba = Module(new GBA)
-  gba.io.enable := io.enable
   when (io.reset) {
     gba.reset := true.B
   }
+  val cartStall = WireDefault(false.B)
+  gba.io.enable := false.B
+  when (io.enable) {
+    when (cartStall) {
+      statRegStalls := statRegStalls + 1.U
+    }.otherwise {
+      gba.io.enable := true.B
+      statRegCycles := statRegCycles + 1.U
+    }
+  }
+
+  // Emulated cartridge
+  val emuCart = Module(new EmulatedCartridge)
+  when (io.reset) {
+    emuCart.reset := true.B
+  }
+  emuCart.io.config := configRegEmuCart
+
+  // Convert 16-bit addresses to 32-bit byte addresses
+  // Also dealing with enable = true when done = true
+  // Note however that EmulatedCartridge will never do that, because
+  // reqEnd goes high, then the next cycle reqStart can go high again
+  val emuCartBusy = RegInit(false.B)
+  val emuCartAddr = Reg(UInt(24.W))
+  val emuCartData = Reg(UInt(16.W))
+  emuCart.io.rom.done := io.sdram.done
+  emuCart.io.rom.dataRead := emuCartData
+  when (emuCartBusy) {
+    io.sdram.enable := true.B
+    io.sdram.address := Cat(emuCartAddr(23, 1), 0.U(2.W))
+    when (io.sdram.done) {
+      emuCartBusy := false.B
+      val data = io.sdram.dataRead.asTypeOf(Vec(2, UInt(16.W)))(emuCartAddr(0))
+      emuCartData := data
+      emuCart.io.rom.dataRead := data
+    }
+  } .elsewhen (emuCart.io.rom.enable) {
+    // TODO: fix combinational loop here when this is uncommented
+//    io.sdram.enable := true.B
+    io.sdram.address := Cat(emuCart.io.rom.address(23, 1), 0.U(2.W))
+    emuCartAddr := emuCart.io.rom.address
+    emuCartBusy := true.B
+  }
+
+  // TODO: actually connect to SRAM
+  emuCart.io.backup.dataRead := 0xFF.U(8.W)
+  emuCart.io.backup.done := true.B
 
   // Cartridge
-  io.cartridgeEnabled := true.B
-  io.cartridge.bank0Dir := gba.io.cartridge.AHiDir
-  io.cartridge.bank0Out := gba.io.cartridge.AHiOut
-  gba.io.cartridge.AHiIn := io.cartridge.bank0In
-  io.cartridge.bank1Dir := gba.io.cartridge.ADLoDir
-  io.cartridge.bank1Out := gba.io.cartridge.ADLoOut(15, 8)
-  io.cartridge.bank2Dir := gba.io.cartridge.ADLoDir
-  io.cartridge.bank2Out := gba.io.cartridge.ADLoOut(7, 0)
-  gba.io.cartridge.ADLoIn := Cat(io.cartridge.bank1In, io.cartridge.bank2In)
+  when (configRegEmuCart.enabled) {
+    // Connect emulated cartridge
+    gba.io.cartridge <> emuCart.io.interface
+    cartStall := emuCart.io.stall
 
-  io.cartridge.bank3Dir := true.B
-  io.cartridge.bank3Out := Cat(
-    gba.io.cartridge.phi,
-    gba.io.cartridge.nWR,
-    gba.io.cartridge.nRD,
-    gba.io.cartridge.nCS,
-  )
-  io.cartridge.pin30Dir := true.B
-  io.cartridge.pin30Out := gba.io.cartridge.nCS2
-  io.cartridge.pin31Dir := false.B
-  io.cartridge.pin31Out := DontCare
-  gba.io.cartridge.IRQ := io.cartridge.pin31In
+    // Disconnect physical cartridge
+    io.cartridgeEnabled := false.B
+    io.cartridge.bank0Out := DontCare
+    io.cartridge.bank1Out := DontCare
+    io.cartridge.bank2Out := DontCare
+    io.cartridge.bank3Out := DontCare
+    io.cartridge.pin30Out := DontCare
+    io.cartridge.pin31Out := DontCare
+    io.cartridge.bank0Dir := false.B
+    io.cartridge.bank1Dir := false.B
+    io.cartridge.bank2Dir := false.B
+    io.cartridge.bank3Dir := false.B
+    io.cartridge.pin30Dir := false.B
+    io.cartridge.pin31Dir := false.B
+  } .otherwise {
+    io.cartridgeEnabled := true.B
+    io.cartridge.bank0Dir := gba.io.cartridge.AHiDir
+    io.cartridge.bank0Out := gba.io.cartridge.AHiOut
+    gba.io.cartridge.AHiIn := io.cartridge.bank0In
+    io.cartridge.bank1Dir := gba.io.cartridge.ADLoDir
+    io.cartridge.bank1Out := gba.io.cartridge.ADLoOut(15, 8)
+    io.cartridge.bank2Dir := gba.io.cartridge.ADLoDir
+    io.cartridge.bank2Out := gba.io.cartridge.ADLoOut(7, 0)
+    gba.io.cartridge.ADLoIn := Cat(io.cartridge.bank1In, io.cartridge.bank2In)
+
+    io.cartridge.bank3Dir := true.B
+    io.cartridge.bank3Out := Cat(
+      gba.io.cartridge.phi,
+      gba.io.cartridge.nWR,
+      gba.io.cartridge.nRD,
+      gba.io.cartridge.nCS,
+    )
+    io.cartridge.pin30Dir := true.B
+    io.cartridge.pin30Out := gba.io.cartridge.nCS2
+    io.cartridge.pin31Dir := false.B
+    io.cartridge.pin31Out := DontCare
+    gba.io.cartridge.IRQ := io.cartridge.pin31In
+
+    // Disconnected emulated cartridge
+    emuCart.io.interface.phi := false.B
+    emuCart.io.interface.nWR := true.B
+    emuCart.io.interface.nRD := true.B
+    emuCart.io.interface.nCS := true.B
+    emuCart.io.interface.ADLoOut := DontCare
+    emuCart.io.interface.ADLoDir := DontCare
+    emuCart.io.interface.AHiOut := DontCare
+    emuCart.io.interface.AHiDir := DontCare
+    emuCart.io.interface.nCS2 := true.B
+    emuCart.io.interface.reqStart := false.B
+    emuCart.io.interface.reqRom := DontCare
+    emuCart.io.interface.reqWrite := DontCare
+    emuCart.io.interface.reqAddress := DontCare
+    emuCart.io.interface.reqEnd := false.B
+  }
 
   // Video output
   val framebufferX = RegInit(0.U(8.W))
@@ -145,8 +234,8 @@ class HandheldGba extends Module with HandheldModule {
   // Unused
   io.vibrate := false.B
 
-  io.pmod.out := DontCare
-  io.pmod.dir := 0.U(4.W)
+  io.pmod.out := Cat(clock.asBool, gba.io.cartridge.nWR, gba.io.cartridge.nRD, gba.io.cartridge.nCS)
+  io.pmod.dir := "b1111".U(4.W)
 
   io.link.soOut := DontCare
   io.link.soDir := false.B
