@@ -108,7 +108,8 @@ impl UiState {
             .filter(|f| f.metadata().is_ok_and(|m| m.is_file()))
             .filter(|f| {
                 f.file_name().to_str().is_some_and(|n| {
-                    !n.starts_with(".") && (n.ends_with(".gbc") || n.ends_with(".gb"))
+                    !n.starts_with(".")
+                        && (n.ends_with(".gbc") || n.ends_with(".gb") || n.ends_with(".gba"))
                 })
             })
             .filter_map(|f| f.file_name().into_string().ok())
@@ -177,6 +178,15 @@ impl UiState {
                 log::info!("Selected ROM {}", path.display());
                 kvs::keys::LAST_ROM_PATH.set(&path);
 
+                if data.ends_with(".gbc") || data.ends_with(".gb") {
+                    state.ensure_bitstream_gameboy().unwrap();
+                } else if data.ends_with(".gba") {
+                    state.ensure_bitstream_gba().unwrap();
+                } else {
+                    log::error!("Unsupported ROM file type");
+                    return false;
+                }
+
                 match &mut state.bitstream {
                     CurrentBitstream::None => false,
                     CurrentBitstream::Gameboy(x) => {
@@ -189,7 +199,16 @@ impl UiState {
                             }
                         }
                     }
-                    CurrentBitstream::Gba(_) => false,
+                    CurrentBitstream::Gba(x) => {
+                        match x.set_emulated_cartridge(path.as_path()) {
+                            Ok(_) => true,
+                            Err(e) => {
+                                // TODO show an error message
+                                log::error!("Error loading ROM: {:?}", e);
+                                false
+                            }
+                        }
+                    }
                 }
             } else {
                 false
