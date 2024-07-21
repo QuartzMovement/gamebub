@@ -69,6 +69,8 @@ trait HandheldModule {
 
   def framebufferW: Int
   def framebufferH: Int
+  def clockSystemHz: Int
+  def clockSdramHz: Int
 }
 
 /** Buttons on the handheld. All are active-high. */
@@ -158,11 +160,12 @@ class HandheldInterrupts extends Bundle {
  * e.g. 8.3886 MHz for Gameboy.
  */
 class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
+  val module = Module(genT)
   val sdramConfig = SdramController.Config(
-    clockFrequency = 32 * 1024 * 1024,
+    clockFrequency = module.clockSdramHz,
     burstLength = 2,
-    timeRsc = 60, /* 2 clocks */
-    timeWr = 60, /* 2 clocks */
+    timeRsc = (2 * 1_000_000_000) / module.clockSdramHz, /* 2 clocks */
+    timeWr = (2 * 1_000_000_000) / module.clockSdramHz, /* 2 clocks */
   )
   val io = IO(new Bundle {
     /** Audio/video clock: 12.288 MHz */
@@ -216,7 +219,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val sdramClock = Input(Clock())
     val sdram = new SdramController.Signals(sdramConfig)
   })
-  val module = Module(genT)
 
   //////////////////////////////////
   // MCU Communication

@@ -37,13 +37,13 @@ filesets:
       - verilog/handheld/top.sv : {file_type : systemVerilogSource}
       - verilog/handheld/clk_wiz_spi_clk_wiz.v : {file_type : verilogSource}
 
-  handheld_8mhz:
+  handheld_clk_gameboy:
     files:
-      - verilog/handheld/clk_wiz_system_8mhz.v : {file_type : verilogSource}
+      - verilog/handheld/clk_wiz_system_gameboy.v : {file_type : verilogSource}
 
-  handheld_16mhz:
+  handheld_clk_gba:
     files:
-      - verilog/handheld/clk_wiz_system_16mhz.v : {file_type : verilogSource}
+      - verilog/handheld/clk_wiz_system_gba.v : {file_type : verilogSource}
 
   sim_base:
     files:
@@ -164,7 +164,7 @@ targets:
 
   handheld_gameboy:
     default_tool: vivado
-    filesets: [base, handheld, handheld_8mhz]
+    filesets: [base, handheld, handheld_clk_gameboy]
     generate: [handheld_gameboy]
     tools:
       vivado:
@@ -173,7 +173,7 @@ targets:
 
   handheld_gba:
     default_tool: vivado
-    filesets: [base, handheld, handheld_16mhz]
+    filesets: [base, handheld, handheld_clk_gba]
     generate: [handheld_gba]
     tools:
       vivado:

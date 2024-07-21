@@ -13,6 +13,8 @@ class HandheldGba extends Module with HandheldModule {
   val io = IO(new HandheldIo)
   def framebufferW = 240
   def framebufferH = 160
+  def clockSystemHz = 16 * 1024 * 1024
+  def clockSdramHz = clockSystemHz * 4
 
   val configRegEmuCart = RegInit(0.U.asTypeOf(new EmulatedCartridge.Config))
   // TODO support emu cart mask

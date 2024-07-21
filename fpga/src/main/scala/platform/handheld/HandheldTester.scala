@@ -8,8 +8,10 @@ class HandheldTester extends Module with HandheldModule {
     val io = IO(new HandheldIo)
     def framebufferW = 240
     def framebufferH = 160
+    def clockSystemHz = 8 * 1024 * 1024
+    def clockSdramHz = clockSystemHz * 4
 
-    val (_, frame) = Counter(true.B, 8 * 1024 * 1024 / 60)
+    val (_, frame) = Counter(true.B, clockSystemHz / 60)
 
     val offX = RegInit(0.U(5.W))
     val offY = RegInit(0.U(5.W))
@@ -102,7 +104,7 @@ class HandheldTester extends Module with HandheldModule {
 
     // Audio
     val audioData = RegInit(10_000.S(16.W))
-    val sampleCounter = Counter(8 * 1024 * 1024 / 440 / 2)
+    val sampleCounter = Counter(clockSystemHz / 440 / 2)
     when (sampleCounter.inc()) {
         audioData := -audioData
     }

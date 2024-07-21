@@ -13,6 +13,8 @@ class HandheldGameboy extends Module with HandheldModule {
   val io = IO(new HandheldIo)
   def framebufferW = 160
   def framebufferH = 144
+  def clockSystemHz = 8 * 1024 * 1024
+  def clockSdramHz = clockSystemHz * 4
 
   // Config
   val configRegEmuCart = RegInit(0.U.asTypeOf(new EmuCartConfig))
