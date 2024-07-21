@@ -1,4 +1,9 @@
-use std::{fs::File, io::Read, path::Path};
+use std::{
+    fmt::{Debug, Display},
+    fs::File,
+    io::{Read, Seek},
+    path::Path,
+};
 
 use thiserror::Error;
 
@@ -6,6 +11,7 @@ use crate::device::{drivers::fpga, Device};
 
 use super::Bitstream;
 
+const ROM_HEADER_LENGTH: usize = 192;
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
 
 #[derive(Debug, Error)]
@@ -14,6 +20,111 @@ pub enum GbaError {
     IoError(#[from] std::io::Error),
     #[error("FPGA error")]
     FpgaError(#[from] crate::device::drivers::fpga::Error),
+}
+
+#[allow(unused)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Default)]
+enum SaveType {
+    /// No backup
+    #[default]
+    None,
+    /// EEPROM - Autodetect Size
+    EepromAuto,
+    /// EEPROM, 512B
+    Eeprom512,
+    /// EEPROM, 8KiB
+    Eeprom8K,
+    /// SRAM or FRAM, 32 KiB
+    Sram,
+    /// Flash 64KiB
+    Flash64K,
+    /// Flash 128KiB
+    Flash128K,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RomHeader {
+    game_title: [u8; 12],
+    game_code: [u8; 4],
+}
+
+impl RomHeader {
+    fn parse(header: [u8; ROM_HEADER_LENGTH]) -> RomHeader {
+        RomHeader {
+            game_title: header[0xA0..0xAC].try_into().unwrap(),
+            game_code: header[0xAC..0xB0].try_into().unwrap(),
+        }
+    }
+}
+
+impl Display for RomHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let title = String::from_utf8_lossy(&self.game_title);
+        let code = String::from_utf8_lossy(&self.game_code);
+        write!(f, "\'{}\' ({})", title, code)
+    }
+}
+
+/// Helper struct to auto-detect save file types from a ROM file (streaming)
+struct SaveTypeDetector {
+    detected: Option<SaveType>,
+    buffer: Vec<u8>,
+}
+
+impl SaveTypeDetector {
+    const OVERLAP: usize = 16;
+    const STEP: usize = 4;
+
+    pub fn new() -> Self {
+        SaveTypeDetector {
+            detected: None,
+            buffer: vec![],
+        }
+    }
+
+    fn get(&self) -> SaveType {
+        self.detected.unwrap_or_default()
+    }
+
+    fn search(data: &[u8]) -> Option<SaveType> {
+        static PATTERNS: &[(&[u8], SaveType)] = &[
+            (b"EEPROM_V", SaveType::EepromAuto),
+            (b"SRAM_V", SaveType::Sram),
+            (b"SRAM_F_V", SaveType::Sram),
+            (b"FLASH_V", SaveType::Flash64K),
+            (b"FLASH512_V", SaveType::Flash64K),
+            (b"FLASH1M_V", SaveType::Flash128K),
+        ];
+        for start in (0..data.len()).step_by(Self::STEP) {
+            let region = &data[start..];
+            for &(pattern, type_) in PATTERNS {
+                if region.starts_with(pattern) {
+                    return Some(type_);
+                }
+            }
+        }
+        None
+    }
+
+    /// Process the next chunk of data.
+    pub fn process(&mut self, data: &[u8]) {
+        if self.detected.is_some() {
+            return;
+        }
+
+        // Check the overlap of the last buffer to this buffer.
+        let prefix = &data[..(data.len().min(Self::OVERLAP))];
+        self.buffer.extend_from_slice(prefix);
+        self.detected = Self::search(prefix);
+        if self.detected.is_some() {
+            return;
+        }
+
+        self.detected = Self::search(data);
+        let suffix = &data[(data.len().saturating_sub(Self::OVERLAP) & !(Self::STEP - 1))..];
+        self.buffer.clear();
+        self.buffer.extend_from_slice(suffix);
+    }
 }
 
 /// Driver for GBA FPGA module
@@ -74,8 +185,12 @@ impl Gba {
 
         // Load ROM
         let mut rom_file = File::open(rom_path)?;
-        log::info!("Loading rom");
-        // TODO do auto-detection of backup format
+        let mut rom_header = [0u8; ROM_HEADER_LENGTH];
+        rom_file.read(&mut rom_header)?;
+        rom_file.seek(std::io::SeekFrom::Start(0))?;
+        let rom_header = RomHeader::parse(rom_header);
+        log::info!("Loading rom: {}", rom_header);
+        let mut save_type_detector = SaveTypeDetector::new();
 
         const CHUNK_SIZE: usize = 16 * 1024;
         let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
@@ -86,14 +201,26 @@ impl Gba {
                 break;
             }
             device.fpga.sdram_write(total, &buf[..n])?;
+            save_type_detector.process(&buf[..n]);
             total += n as u32;
         }
         // TODO clear up to the next power of two
 
+        let save_type = save_type_detector.get();
+        log::info!("Detected save type: {:?}", save_type);
+
         // TODO load backup (save) file
 
         // Configure emulated cartridge control registers
-        let emu_cart_config = 1u32; // enabled, no backup
+        let emu_cart_config = match save_type {
+            SaveType::None => 0b00001,
+            SaveType::Sram => 0b00011,
+            SaveType::Flash64K => 0b00101,
+            SaveType::Flash128K => 0b01101,
+            SaveType::EepromAuto => 0b10111,
+            SaveType::Eeprom512 => 0b00111,
+            SaveType::Eeprom8K => 0b01111,
+        };
         device
             .fpga
             .write_u32(REG_EMU_CART_CONFIG, emu_cart_config)?;
