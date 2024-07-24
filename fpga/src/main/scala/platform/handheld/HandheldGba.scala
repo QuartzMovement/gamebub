@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import gba.GBA
 import gba.cart.EmulatedCartridge
+import lib.mem.cache.DirectReadCache
 import lib.mem.{MemoryInterface, MemoryMap, RegisterMap}
 
 /**
@@ -45,16 +46,21 @@ class HandheldGba extends Module with HandheldModule {
   }
 
   // Memory interfaces
-  io.sdram.enable := false.B
-  io.sdram.write := false.B
-  io.sdram.address := DontCare
-  io.sdram.dataWrite := DontCare
-  io.sdram.writeStrobe := DontCare
   io.sram.enable := false.B
   io.sram.write := false.B
   io.sram.address := DontCare
   io.sram.dataWrite := DontCare
   io.sram.writeStrobe := DontCare
+
+  val sdramCache = Module(new DirectReadCache(addressWidth = 23, dataWidth = 32, numEntries = 1024))
+  io.sdram <> sdramCache.io.out
+  io.sdram.address := sdramCache.io.out.address << 2
+  val sdramPort = sdramCache.io.in
+  sdramPort.enable := false.B
+  sdramPort.address := DontCare
+  sdramPort.write := false.B
+  sdramPort.writeStrobe := DontCare
+  sdramPort.dataWrite := DontCare
 
   // Gameboy
   val gba = Module(new GBA)
@@ -76,6 +82,7 @@ class HandheldGba extends Module with HandheldModule {
   val emuCart = Module(new EmulatedCartridge)
   when (io.reset) {
     emuCart.reset := true.B
+    sdramCache.reset := true.B
   }
   emuCart.io.config := configRegEmuCart
 
@@ -86,21 +93,20 @@ class HandheldGba extends Module with HandheldModule {
   val emuCartBusy = RegInit(false.B)
   val emuCartAddr = Reg(UInt(24.W))
   val emuCartData = Reg(UInt(16.W))
-  emuCart.io.rom.done := io.sdram.done
+  emuCart.io.rom.done := sdramPort.done
   emuCart.io.rom.dataRead := emuCartData
   when (emuCartBusy) {
-    io.sdram.enable := true.B
-    io.sdram.address := Cat(emuCartAddr(23, 1), 0.U(2.W))
-    when (io.sdram.done) {
+    sdramPort.enable := true.B
+    sdramPort.address := emuCartAddr >> 1
+    when (sdramPort.done) {
       emuCartBusy := false.B
-      val data = io.sdram.dataRead.asTypeOf(Vec(2, UInt(16.W)))(emuCartAddr(0))
+      val data = sdramPort.dataRead.asTypeOf(Vec(2, UInt(16.W)))(emuCartAddr(0))
       emuCartData := data
       emuCart.io.rom.dataRead := data
     }
   } .elsewhen (emuCart.io.rom.enable) {
-    // TODO: fix combinational loop here when this is uncommented
-//    io.sdram.enable := true.B
-    io.sdram.address := Cat(emuCart.io.rom.address(23, 1), 0.U(2.W))
+    sdramPort.enable := true.B
+    sdramPort.address := emuCart.io.rom.address >> 1
     emuCartAddr := emuCart.io.rom.address
     emuCartBusy := true.B
   }

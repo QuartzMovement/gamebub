@@ -119,6 +119,8 @@ class CartridgeController extends Module {
   io.cartridge.reqWrite := DontCare
   io.cartridge.reqEnd := false.B
 
+  // TODO: romRequestAddress shouldn't combinatorially depend on `io.enable`, makes it hard to avoid cycles with stall
+
   // ROM targets
   val romTargets = Seq(io.busTargetRom0, io.busTargetRom1, io.busTargetRom2)
   val romRequests = romTargets.map(_.request)
