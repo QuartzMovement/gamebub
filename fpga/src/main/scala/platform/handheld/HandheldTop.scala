@@ -60,7 +60,7 @@ class HandheldIo extends Bundle {
   val mcuInterface = new MemoryInterface(addressWidth = 30, dataWidth = 32)
 
   // Memory interfaces
-  val sram = Flipped(new MemoryInterface(addressWidth = 19, dataWidth = 16))
+  val sram = Flipped(new MemoryInterface(addressWidth = 18, dataWidth = 16))
   val sdram = Flipped(new MemoryInterface(addressWidth = 25, dataWidth = 32))
 }
 
@@ -205,15 +205,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val link = new HandheldLink
 
     // SRAM
-    val sramA = Output(UInt(18.W))
-    val sramIoIn = Input(UInt(16.W))
-    val sramIoOut = Output(UInt(16.W))
-    val sramIoDir = Output(Bool())
-    val sramCeN = Output(Bool())
-    val sramWeN = Output(Bool())
-    val sramOeN = Output(Bool())
-    val sramUbN = Output(Bool())
-    val sramLbN = Output(Bool())
+    val sram = new AsyncSramController.Signals(addressWidth = 18, dataWidth = 16)
 
     // SDRAM
     val sdramClock = Input(Clock())
@@ -331,39 +323,12 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   //////////////////////////////////
   // Memory
   //////////////////////////////////
-  io.sramOeN := 1.U
-  io.sramLbN := 0.U
-  io.sramUbN := 0.U
-  io.sramIoDir := !io.sramWeN
-
-  io.sramCeN := 1.U
-  io.sramA := DontCare
-  io.sramIoOut := DontCare
-  io.sramWeN := 1.U
-
-  val sramArbiter = Module(new MemoryArbiter(addressWidth = 19, dataWidth = 16, n = 2))
-  val sramInterface = sramArbiter.io.target
+  val sram = Module(new AsyncSramController(addressWidth = 18, dataWidth = 16))
+  val sramArbiter = Module(new MemoryArbiter(addressWidth = 18, dataWidth = 16, n = 2))
+  io.sram <> sram.io.signals
+  sram.io.mem <> sramArbiter.io.target
   sramArbiter.io.initiator(0) <> sramSpiInterface
-
-  io.sramA := sramInterface.address(18, 1)
-  sramInterface.done := false.B
-  sramInterface.dataRead := DontCare
-  when (sramInterface.enable) {
-    when (sramInterface.write) {
-      io.sramCeN := 0.U
-      io.sramWeN := 0.U
-      io.sramLbN := !sramInterface.writeStrobe(0)
-      io.sramUbN := !sramInterface.writeStrobe(1)
-      io.sramIoOut := sramInterface.dataWrite
-      sramInterface.done := true.B
-    } .otherwise {
-      io.sramCeN := 0.U
-      io.sramWeN := 1.U
-      io.sramOeN := 0.U
-      sramInterface.dataRead := io.sramIoIn
-      sramInterface.done := true.B
-    }
-  }
+  sramArbiter.io.initiator(0).address := sramSpiInterface.address >> 1  // SPI is byte addressed
 
   // SDRAM
   val sdramArbiter = Module(new MemoryArbiter(addressWidth = 25, dataWidth = 32, n = 2))

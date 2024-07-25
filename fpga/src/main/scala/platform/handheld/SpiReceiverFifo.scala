@@ -259,6 +259,7 @@ class SpiReceiverFifo(
   val regSysWrite = Reg(Bool())
   /** Chip select synchronized into system clock domain. */
   val sysChipSelect = RegNext(RegNext(io.signals.chipSelect))
+  val regSysMemBusy = RegInit(false.B)
 
   io.mem.address := regSysAddress
   io.mem.enable := false.B
@@ -275,29 +276,30 @@ class SpiReceiverFifo(
       fifoRequest.io.readEnable := true.B
     } .otherwise {
       val request = fifoRequest.io.dataOut.inner.asTypeOf(new FifoRequestContinue)
-      when (regSysWrite) {
-        io.mem.enable := true.B
-        io.mem.write := true.B
-        io.mem.dataWrite := request.data
-        // TODO: determine based on addresses
-        io.mem.writeStrobe := "b1111".U
+      io.mem.enable := true.B
+      io.mem.write := regSysWrite
+      io.mem.dataWrite := request.data
+      // TODO: determine based on addresses
+      io.mem.writeStrobe := "b1111".U
 
-      } .otherwise {
-        io.mem.enable := true.B
-        io.mem.write := false.B
-
+      when (regSysMemBusy) {
         when (io.mem.done) {
-          fifoResponse.io.writeEnable := true.B
-          fifoResponse.io.dataIn := io.mem.dataRead
-        }
-      }
+          regSysMemBusy := false.B
 
-      when (io.mem.done) {
-        // A write or read operation completed, so confirm and increment.
-        fifoRequest.io.readEnable := true.B
-        when (request.autoincrement) {
-          regSysAddress := regSysAddress + (1.U << regSysWordSize).asUInt
+          // A write or read operation completed, so confirm and increment.
+          fifoRequest.io.readEnable := true.B
+          when (request.autoincrement) {
+            regSysAddress := regSysAddress + (1.U << regSysWordSize).asUInt
+          }
+
+          // Pass read data through the FIFO.
+          when (!regSysWrite) {
+            fifoResponse.io.writeEnable := true.B
+            fifoResponse.io.dataIn := io.mem.dataRead
+          }
         }
+      } .otherwise {
+        regSysMemBusy := true.B
       }
     }
   }

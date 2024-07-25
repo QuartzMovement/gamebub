@@ -150,6 +150,7 @@ module top_handheld (
     logic [15:0] inner_sram_io_in;
     logic [15:0] inner_sram_io_out;
     logic inner_sram_io_dir;
+    logic [1:0] inner_sram_write_mask;
 
     logic [1:0] inner_sdram_dqm;
     logic [15:0] inner_sdram_dq_in;
@@ -246,15 +247,13 @@ module top_handheld (
         .io_link_sdDir(link_sd_dir),
         .io_link_scDir(link_sc_dir),
 
-        .io_sramA(sram_a),
-        .io_sramIoIn(inner_sram_io_in),
-        .io_sramIoOut(inner_sram_io_out),
-        .io_sramIoDir(inner_sram_io_dir),
-        .io_sramCeN(sram_ce_n),
-        .io_sramWeN(sram_we_n),
-        .io_sramOeN(sram_oe_n),
-        .io_sramUbN(sram_ub_n),
-        .io_sramLbN(sram_lb_n),
+        .io_sram_address(sram_a),
+        .io_sram_dataIn(inner_sram_io_in),
+        .io_sram_dataOut(inner_sram_io_out),
+        .io_sram_dataDir(inner_sram_io_dir),
+        .io_sram_weN(sram_we_n),
+        .io_sram_oeN(sram_oe_n),
+        .io_sram_writeMaskN(inner_sram_write_mask),
 
         .io_sdramClock(clk_sdram),
         .io_sdram_cke(sdram_cke),
@@ -313,6 +312,9 @@ module top_handheld (
 
     assign inner_sram_io_in = sram_io;
     assign sram_io = inner_sram_io_dir ? inner_sram_io_out : 16'hzzzz;
+    assign sram_ce_n = 1'b0;
+    assign sram_ub_n = inner_sram_write_mask[1];
+    assign sram_lb_n = inner_sram_write_mask[0];
 
     assign {sdram_udqm, sdram_ldqm} = inner_sdram_dqm;
     assign inner_sdram_dq_in = sdram_dq;

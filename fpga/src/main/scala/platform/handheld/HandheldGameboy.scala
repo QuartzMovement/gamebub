@@ -223,7 +223,7 @@ class HandheldGameboy extends Module with HandheldModule {
     } .otherwise {
       io.sram.enable := true.B
       io.sram.write := emuCart.io.dataAccess.write
-      io.sram.address := configRegRamAddress + (Cat(emuCart.io.dataAccess.address(16, 1), "b0".U(1.W)) & configRegRamMask)
+      io.sram.address := (configRegRamAddress + (Cat(emuCart.io.dataAccess.address(16, 1), "b0".U(1.W)) & configRegRamMask)) >> 1
       io.sram.dataWrite := Fill(2, emuCart.io.dataAccess.dataWrite)
       io.sram.writeStrobe := Mux(emuCart.io.dataAccess.address(0), "b10".U(2.W), "b01".U(2.W))
       emuCart.io.dataAccess.valid := io.sram.done
@@ -233,10 +233,10 @@ class HandheldGameboy extends Module with HandheldModule {
         io.sram.dataRead(7, 0)
       )
     }
-    when (emuCart.io.dataAccess.valid) {
-      emuCartBusy := false.B
-      emuCartDataRead := emuCart.io.dataAccess.dataRead
-    }
+  }
+  when (emuCartBusy && emuCart.io.dataAccess.valid) {
+    emuCartBusy := false.B
+    emuCartDataRead := emuCart.io.dataAccess.dataRead
   }
 
   when (emuCart.io.config.enabled) {

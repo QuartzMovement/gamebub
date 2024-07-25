@@ -230,7 +230,7 @@ class HandheldGba extends Module with HandheldModule {
   // EWRAM
   // TODO support part of this going to EmuCartridge
   io.sram <> gba.io.ewram
-  io.sram.address := gba.io.ewram.address << 1 // io.sram is byte-based, gba.io.ewram is word based
+  io.sram.address := gba.io.ewram.address
 
 
   // Unused
