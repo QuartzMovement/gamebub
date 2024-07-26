@@ -6,6 +6,8 @@ import lib.log.Logger
 import lib.mem.MemoryInterface
 
 /// Bridge between EWRAM interface and an external (to GBA) memory with MemoryInterface
+///
+/// TODO: rework to improve speed! takes too many cycles, too many things are registered
 class EwramController extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
@@ -49,8 +51,9 @@ class EwramController extends Module {
   when (busy && io.mem.done && externalRequested && !externalComplete) {
     externalComplete := true.B
     readDataLatch := io.mem.dataRead
+    io.target.dataRead := io.mem.dataRead
   }
-  io.stall := busy && (waitCounter === 0.U) && !externalComplete
+  io.stall := busy && (waitCounter === 0.U) && !(externalComplete || io.mem.done)
 
   // Complete access
   when (io.enable && busy) {
@@ -58,7 +61,7 @@ class EwramController extends Module {
     externalRequested := true.B
 
     when (waitCounter === 0.U) {
-      when (!externalComplete) {
+      when (!(externalComplete || io.mem.done)) {
         logger.error("Memory wait expired without access being complete!")
       }
 

@@ -61,10 +61,10 @@ class HandheldGba extends Module with HandheldModule {
   when (io.reset) {
     gba.reset := true.B
   }
-  val cartStall = WireDefault(false.B)
+  val doStall = WireDefault(false.B)
   gba.io.enable := false.B
   when (io.enable) {
-    when (cartStall) {
+    when (doStall) {
       statRegStalls := statRegStalls + 1.U
     }.otherwise {
       gba.io.enable := true.B
@@ -113,7 +113,7 @@ class HandheldGba extends Module with HandheldModule {
   when (configRegEmuCart.enabled) {
     // Connect emulated cartridge
     gba.io.cartridge <> emuCart.io.interface
-    cartStall := emuCart.io.stall
+    doStall := emuCart.io.stall || gba.io.ewramStall
 
     // Disconnect physical cartridge
     io.cartridgeEnabled := false.B
@@ -130,6 +130,8 @@ class HandheldGba extends Module with HandheldModule {
     io.cartridge.pin30Dir := false.B
     io.cartridge.pin31Dir := false.B
   } .otherwise {
+    doStall := gba.io.ewramStall
+
     io.cartridgeEnabled := true.B
     io.cartridge.bank0Dir := gba.io.cartridge.AHiDir
     io.cartridge.bank0Out := gba.io.cartridge.AHiOut
