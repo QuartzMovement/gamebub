@@ -23,6 +23,9 @@ class TargetInterface(maxWidth: Width) extends Bundle {
   val dataRead = Output(UInt(maxWidth))
   /// True when the access started in the previous cycle has completed
   val done = Output(Bool())
+
+  /// Whether the next bus cycle will be a sequential request to this target.
+  val nextSeq = Input(Bool())
 }
 
 case class BusTarget(
@@ -56,6 +59,7 @@ class Bus(
   val (requestAddressAligned, requestMask) = alignAddress(requestAddress, requestSize)
   val selectedTargetHalfword = WireDefault(false.B)
   val anySelectedNow = WireDefault(false.B)
+  val requestSplitForceNextSequential = WireDefault(false.B)
 
   val regAccessBusy = RegInit(false.B)
   val regAccessAddress = Reg(UInt(32.W))
@@ -84,6 +88,13 @@ class Bus(
     target.sequential := requestSequential
     target.write := requestWrite
     target.size := requestSize
+
+    // "nextSeq" signal: whether the next bus cycle will be a sequential access on the same target
+    val selectedInitiator = io.initiatorPort.ADDR(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix && io.initiatorPort.ADDR(31, 28) === 0.U
+    target.nextSeq := selectedInitiator && io.initiatorPort.SEQ
+    when (selectedNow && requestSplitForceNextSequential) {
+      target.nextSeq := true.B
+    }
 
     metadata.dataWidth match {
       case BusAccessWidth.Byte => {
@@ -148,6 +159,7 @@ class Bus(
     requestAddress := regAccessAddress
     requestSequential := regAccessSequential
     requestSize := regAccessSize
+    requestWrite := regAccessWrite
   }
 
   when (io.enable) {
@@ -165,6 +177,7 @@ class Bus(
           requestEnable := true.B
           requestAddress := regAccessAddress | 2.U
           requestSequential := true.B
+          requestSplitForceNextSequential := true.B
           requestWrite := regAccessWrite
           requestSize := BusAccessWidth.Halfword
           requestMask := "b1111".U(4.W)
@@ -191,6 +204,8 @@ class Bus(
           requestMask := "b1111".U(4.W)
           requestAddress := regAccessAddress
           requestAddressAligned := requestAddress & "hFFFFFFFC".U(32.W)
+          requestSplitForceNextSequential := true.B
+          requestWrite := regAccessWrite
         } .otherwise {
           requestEnable := true.B
           requestAddress := regAccessAddress | 2.U

@@ -103,16 +103,23 @@ class CartridgeController extends Module {
   io.busTargetRam.done := false.B
   io.busTargetRam.dataRead := regReadData
 
+  // Control signals come directly from registers to avoid glitches.
+  // TODO: see if ADLoOut / AHiOut can also come from registers
+  val reg_nCS = RegInit(1.U(1.W))
+  val reg_nRD = RegInit(1.U(1.W))
+  val reg_nWR = RegInit(1.U(1.W))
+  val reg_nCS2 = RegInit(1.U(1.W))
+
   // Cartridge port
   io.cartridge.phi := 0.U  // TODO
-  io.cartridge.nWR := 1.U
-  io.cartridge.nRD := 1.U
-  io.cartridge.nCS := 1.U
+  io.cartridge.nWR := reg_nWR
+  io.cartridge.nRD := reg_nRD
+  io.cartridge.nCS := reg_nCS
   io.cartridge.ADLoOut := DontCare
   io.cartridge.ADLoDir := 0.U
   io.cartridge.AHiOut := DontCare
   io.cartridge.AHiDir := 0.U
-  io.cartridge.nCS2 := 1.U
+  io.cartridge.nCS2 := reg_nCS2
   io.cartridge.reqStart := false.B
   io.cartridge.reqRom := DontCare
   io.cartridge.reqAddress := DontCare
@@ -129,18 +136,20 @@ class CartridgeController extends Module {
   val romRequestWrite = Mux1H(romRequests, romTargets.map(_.write))
   val romRequestSequential = Mux1H(romRequests, romTargets.map(_.sequential))
   val romRequestDataWrite = Mux1H(romRequests, romTargets.map(_.dataWrite))
+  val romRequestNextSequential = Mux1H(romRequests, romTargets.map(_.nextSeq))
   val ramTarget = io.busTargetRam
   val currentRequestPort = Reg(UInt(3.W))
   val currentAddress = Reg(UInt(24.W))
   val currentIsWrite = Reg(Bool())
   val waitCounter = Reg(UInt(3.W))
+  val romAddressAtPageEnd = currentAddress(15, 0).andR  // All 1s, highest address at page end
 
   // New requests (not burst continuations) can be accepted when idle or at the end of a burst.
   val endRomBurst = WireDefault(false.B)
   val endRamBurst = WireDefault(false.B)
   when (state === State.Idle || endRomBurst || endRamBurst) {
     when (hasRomRequest && !endRomBurst) {
-      logger.debug(cf"Start Rom(${VecInit(romRequests).asUInt}%b request addr=${romRequestAddress << 1}%x wr=$romRequestWrite")
+      logger.debug(cf"Start Rom(${VecInit(romRequests).asUInt}%b) request addr=${romRequestAddress << 1}%x wr=$romRequestWrite")
       io.cartridge.ADLoOut := romRequestAddress(15, 0)
       io.cartridge.ADLoDir := true.B
       io.cartridge.AHiOut := romRequestAddress(23, 16)
@@ -153,6 +162,7 @@ class CartridgeController extends Module {
 
       when (io.enable) {
         state := State.RomStage0
+        reg_nCS := 0.U
         currentAddress := romRequestAddress
         currentIsWrite := romRequestWrite
         currentRequestPort := VecInit(romRequests).asUInt
@@ -174,6 +184,13 @@ class CartridgeController extends Module {
 
       when (io.enable) {
         state := State.RamStage0
+        reg_nCS2 := 0.U
+        // XXX: nRD/nWR are supposed to go low on the *falling* edge of the next cycle
+        when (ramTarget.write) {
+          reg_nWR := 0.U
+        } .otherwise {
+          reg_nRD := 0.U
+        }
         currentAddress := ramTarget.address
         currentIsWrite := ramTarget.write
       }
@@ -186,7 +203,6 @@ class CartridgeController extends Module {
 
   switch (state) {
     is (State.RomStage0) {
-      io.cartridge.nCS := 0.U
       io.cartridge.ADLoOut := currentAddress(15, 0)
       io.cartridge.ADLoDir := true.B
       io.cartridge.AHiOut := currentAddress(23, 16)
@@ -204,17 +220,19 @@ class CartridgeController extends Module {
         when (waitCounter === 0.U) {
           state := State.RomStage1
           waitCounter := VecInit(1.U, 0.U, 0.U, 5.U)(wait)
+          when (currentIsWrite) {
+            reg_nWR := 0.U
+          } .otherwise {
+            reg_nRD := 0.U
+          }
         }
       }
     }
     is (State.RomStage1) {
-      io.cartridge.nCS := 0.U
       when (currentIsWrite) {
-        io.cartridge.nWR := 0.U
         io.cartridge.ADLoDir := true.B
         io.cartridge.ADLoOut := romRequestDataWrite
       } .otherwise {
-        io.cartridge.nRD := 0.U
         io.cartridge.ADLoDir := false.B
       }
       io.cartridge.AHiOut := currentAddress(23, 16)
@@ -226,25 +244,21 @@ class CartridgeController extends Module {
         when (waitCounter === 0.U) {
           state := State.RomStage2
           regReadData := io.cartridge.ADLoIn
+          reg_nRD := 1.U
+          reg_nWR := 1.U
+
+          when (!(romRequestNextSequential && !romAddressAtPageEnd)) {
+            // The request is not being continued with a burst, put nCS back high
+            reg_nCS := 1.U
+          }
         }
       }
     }
     is (State.RomStage2) {
-      // nRD/nWR goes back high
       isRequestDone := true.B
-      io.cartridge.AHiOut := currentAddress(23, 16)
-      io.cartridge.AHiDir := true.B
-      when (currentIsWrite) {
-        io.cartridge.ADLoDir := true.B
-        io.cartridge.ADLoOut := romRequestDataWrite
-      }
 
-      val atPageEnd = currentAddress(15, 0).andR  // All 1s, highest address at page end
-      when (hasRomRequest && romRequestSequential && !atPageEnd) {
-        logger.debug(cf"Continue rom request")
-        // Starting a new, sequential request
-        // Keep nCS low
-        io.cartridge.nCS := 0.U
+      when (romRequestNextSequential && !romAddressAtPageEnd) {
+        // Starting a new, sequential request, nCS was kept low
 
         io.cartridge.reqStart := true.B
         io.cartridge.reqRom := true.B
@@ -253,6 +267,11 @@ class CartridgeController extends Module {
 
         when (io.enable) {
           state := State.RomStage1
+          when (romRequestWrite) {
+            reg_nWR := 0.U
+          } .otherwise {
+            reg_nRD := 0.U
+          }
           currentAddress := romRequestAddress
           currentIsWrite := romRequestWrite
 
@@ -265,7 +284,7 @@ class CartridgeController extends Module {
         }
       } .otherwise {
         // Not getting a sequential request this cycle. End burst.
-        // nCS goes back high
+        // nCS went back high
         logger.debug(cf"End rom request")
         endRomBurst := true.B
       }
@@ -278,16 +297,11 @@ class CartridgeController extends Module {
       io.cartridge.reqAddress := currentAddress(15, 0)
       io.cartridge.reqWrite := currentIsWrite
 
-      io.cartridge.nCS2 := 0.U
       io.cartridge.ADLoOut := currentAddress(15, 0)
       io.cartridge.ADLoDir := true.B
-      // XXX: nRD/nWR are supposed to go low on the *falling* edge of this cycle
       when (currentIsWrite) {
-        io.cartridge.nWR := 0.U
         io.cartridge.AHiDir := true.B
         io.cartridge.AHiOut := ramTarget.dataWrite
-      } .otherwise {
-        io.cartridge.nRD := 0.U
       }
 
       when (io.enable) {
@@ -296,15 +310,11 @@ class CartridgeController extends Module {
       }
     }
     is (State.RamStage1) {
-      io.cartridge.nCS2 := 0.U
       io.cartridge.ADLoOut := currentAddress(15, 0)
       io.cartridge.ADLoDir := true.B
       when (currentIsWrite) {
-        io.cartridge.nWR := 0.U
         io.cartridge.AHiDir := true.B
         io.cartridge.AHiOut := ramTarget.dataWrite
-      } .otherwise {
-        io.cartridge.nRD := 0.U
       }
 
       io.cartridge.reqEnd := waitCounter === 0.U
@@ -313,41 +323,37 @@ class CartridgeController extends Module {
         when (waitCounter === 0.U) {
           state := State.RamStage2
           regReadData := io.cartridge.AHiIn
+          reg_nWR := 1.U
+          reg_nRD := 1.U
+          // XXX: nCS2 should go back high on the *falling* edge of the next cycle
+          // TODO: use requestSplitForceNextSequential to determine if nCS2 goes back high
+          reg_nCS2 := 1.U
         }
       }
     }
     is (State.RamStage2) {
       ramTarget.done := true.B
-      // nRD/NRW goes back high
-      io.cartridge.ADLoOut := currentAddress(15, 0)
-      io.cartridge.ADLoDir := true.B
-      when (currentIsWrite) {
-        io.cartridge.AHiDir := true.B
-        io.cartridge.AHiOut := ramTarget.dataWrite
-      }
+      // nRD/NRW went back high
       when (ramTarget.request && ramTarget.sequential) {
         logger.debug(cf"Continue ram request")
         // Starting a new "sequential" request -- nCS2 stays low
-        io.cartridge.nCS2 := 0.U
         // XXX: in a burst, the next ADDR is put on the bus in the *falling* edge of this cycle
         // ... but we don't do that here. It's probably fine to just put it on the next rising
         // edge, because that's the timing of the first request in a burst anyway.
 
         when (io.enable) {
           state := State.RamStage0
+          when (ramTarget.write) {
+            reg_nWR := 0.U
+          } .otherwise {
+            reg_nRD := 0.U
+          }
           currentAddress := ramTarget.address
           currentIsWrite := ramTarget.write
         }
       } .otherwise {
         // Not getting another request this cycle, end burst.
-        // nCS2 goes back high on the *falling* edge
-        //
-        // XXX: we actually keep nCS2 low here, to ensure it's low for a bit
-        // of time after nRD/nWR go back high.
-        // Since the next state is idle, we're guaranteed to get at least
-        // one cycle of nCS2 being high (next cycle) before the next request,
-        // so this is probably fine.
-        io.cartridge.nCS2 := 0.U
+
         logger.debug(cf"End ram request")
         endRamBurst := true.B
       }
