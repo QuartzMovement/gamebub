@@ -79,6 +79,7 @@ class Dma extends Module {
     val regDest = Reg(configDest.cloneType)
     val regCount = Reg(configCount.cloneType)
     val regInitial = Reg(Bool())  // Whether this is the initial load-store cycle.
+    val regAccessedCart = Reg(Bool()) // Whether the cartridge has already been accessed this cycle
     val regStage = Reg(UInt(1.W))
     val dataLatch = Reg(UInt(32.W))
     val regSourceAddressHalfword = Reg(UInt(1.W))
@@ -92,7 +93,7 @@ class Dma extends Module {
     bus.LOCK := false.B
     bus.ADDR := DontCare
     bus.MREQ := busActive
-    bus.SEQ := !regInitial
+    bus.SEQ := regAccessedCart
     bus.WDATA := DontCare
 
     // Latching config
@@ -133,6 +134,7 @@ class Dma extends Module {
         active := true.B
         regInitial := true.B
         regStage := 0.U
+        regAccessedCart := false.B
       }
     }
 
@@ -144,6 +146,11 @@ class Dma extends Module {
         busActive := !complete
         bus.ADDR := regSource
         bus.WRITE := false.B
+        if (regSource.getWidth >= 28) {
+          when (regSource(27)) {
+            regAccessedCart := true.B
+          }
+        }
         // Complete Store (if not initial)
         bus.WDATA := dataLatch
         regSourceAddressHalfword := regSource(1)
@@ -194,6 +201,11 @@ class Dma extends Module {
         busActive := true.B
         bus.ADDR := regDest
         bus.WRITE := true.B
+        if (regDest.getWidth >= 28) {
+          when (regDest(27)) {
+            regAccessedCart := true.B
+          }
+        }
 
         when (bus.CLKEN) {
           logger.debug(cf"${i}: store @ 0x${regDest}%x  (data = 0x${bus.RDATA}%x)")

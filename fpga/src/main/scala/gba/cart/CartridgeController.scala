@@ -134,9 +134,9 @@ class CartridgeController extends Module {
   val hasRomRequest = VecInit(romRequests).asUInt.orR
   val romRequestAddress = Mux1H(romRequests, romTargets.map(_.address(24, 1)))
   val romRequestWrite = Mux1H(romRequests, romTargets.map(_.write))
-  val romRequestSequential = Mux1H(romRequests, romTargets.map(_.sequential))
   val romRequestDataWrite = Mux1H(romRequests, romTargets.map(_.dataWrite))
-  val romRequestNextSequential = Mux1H(romRequests, romTargets.map(_.nextSeq))
+  val romRequestSequential = Mux1H(romRequests, romTargets.map(_.sequential))
+  val romRequestNextSequential = romTargets(0).nextSeq
   val ramTarget = io.busTargetRam
   val currentRequestPort = Reg(UInt(3.W))
   val currentAddress = Reg(UInt(24.W))
@@ -247,8 +247,8 @@ class CartridgeController extends Module {
           reg_nRD := 1.U
           reg_nWR := 1.U
 
-          when (!(romRequestNextSequential && !romAddressAtPageEnd)) {
-            // The request is not being continued with a burst, put nCS back high
+          when (!romRequestNextSequential || romAddressAtPageEnd) {
+            // The request is definitely not being continued with a burst, put nCS back high
             reg_nCS := 1.U
           }
         }
@@ -257,9 +257,11 @@ class CartridgeController extends Module {
     is (State.RomStage2) {
       isRequestDone := true.B
 
-      when (romRequestNextSequential && !romAddressAtPageEnd) {
-        // Starting a new, sequential request, nCS was kept low
-
+      when (reg_nCS === 1.U) {
+        // Bus doesn't have a sequential request (for any target). End burst.
+        endRomBurst := true.B
+      } .elsewhen (hasRomRequest && romRequestSequential) {
+        // Starting a new, sequential request, nCS was kept low.
         io.cartridge.reqStart := true.B
         io.cartridge.reqRom := true.B
         io.cartridge.reqAddress := romRequestAddress
@@ -282,11 +284,12 @@ class CartridgeController extends Module {
             waitCounter := Mux1H(currentRequestPort, Seq(1.U, 3.U, 7.U))
           }
         }
-      } .otherwise {
-        // Not getting a sequential request this cycle. End burst.
-        // nCS went back high
-        logger.debug(cf"End rom request")
+      } .elsewhen (!romRequestNextSequential || (hasRomRequest && !romRequestSequential)) {
+        // Time to end the request
         endRomBurst := true.B
+        reg_nCS := 1.U
+      } .otherwise {
+        // Still in a burst (keep nCS high), but haven't yet received a request.
       }
     }
     is (State.RamStage0) {

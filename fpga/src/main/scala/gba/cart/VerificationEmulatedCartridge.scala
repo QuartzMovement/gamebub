@@ -123,8 +123,27 @@ class VerificationEmulatedCartridge extends Module {
   switch (io.config.backupType) {
     is (EmulatedCartridge.BackupType.None) {
     }
+    is (EmulatedCartridge.BackupType.Eeprom) {
+      // TODO: implement EEPROM
+      val eepromSelected = RegInit(false.B)
+      when (!io.interface.nCS && prev_nCS && regPreviousAddr(23) === 1.U) {
+        logger.crit("Start EEPROM burst")
+        eepromSelected := true.B
+      }
+      when (eepromSelected) {
+        when (io.interface.nCS && !prev_nCS) {
+          logger.crit("End EEPROM burst")
+          eepromSelected := false.B
+        }
+        when (!io.interface.nWR && prev_nWR) {
+          logger.crit("EEPROM write")
+        }
+        when (!io.interface.nRD && prev_nRD) {
+          logger.crit("EEPROM read")
+        }
+      }
+    }
     // TODO: implement SRAM
     // TODO: implement Flash
-    // TODO: implement EEPROM
   }
 }
