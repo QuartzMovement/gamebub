@@ -3,6 +3,7 @@ use std::{
     fs::File,
     io::{Read, Seek},
     path::Path,
+    time::{Duration, Instant},
 };
 
 use thiserror::Error;
@@ -195,15 +196,36 @@ impl Gba {
         const CHUNK_SIZE: usize = 16 * 1024;
         let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
         let mut total = 0u32;
+        let start_time = Instant::now();
+        let mut read_duration = Duration::ZERO;
+        let mut transfer_duration = Duration::ZERO;
+        let mut detect_duration = Duration::ZERO;
         loop {
+            let read_start = Instant::now();
             let n = rom_file.read(&mut buf)?;
+            read_duration += read_start.elapsed();
             if n == 0 {
                 break;
             }
+
+            let transfer_start = Instant::now();
             device.fpga.sdram_write(total, &buf[..n])?;
-            save_type_detector.process(&buf[..n]);
             total += n as u32;
+            transfer_duration += transfer_start.elapsed();
+
+            let detect_start = Instant::now();
+            save_type_detector.process(&buf[..n]);
+            detect_duration += detect_start.elapsed();
         }
+        let duration = start_time.elapsed();
+        log::info!(
+            "Loaded ROM: {} bytes in {} ms ({}/{}/{} ms read/transfer/detect)",
+            total,
+            duration.as_millis(),
+            read_duration.as_millis(),
+            transfer_duration.as_millis(),
+            detect_duration.as_millis(),
+        );
         // TODO clear up to the next power of two
 
         let save_type = save_type_detector.get();
