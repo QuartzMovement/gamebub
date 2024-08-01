@@ -3,7 +3,7 @@ package gba
 import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
-import gba.cart.{CartridgeController, CartridgeInterface}
+import gba.cart.{CartridgeController, CartridgeInterface, CartridgePrefetch}
 import gba.apu.{Apu, ApuOutput}
 import gba.cpu.ARM7TDMI
 import gba.mem.{BusAccessWidth, BusArbiter, BusTarget, EwramController, SimpleRam}
@@ -154,8 +154,15 @@ class GBA extends Module {
   cart.io.enable := io.enable
   cart.io.cartridge <> io.cartridge
   mmio.targets(6) <> cart.io.mmio
-  bus.io.targetPort(7) <> cart.io.busTargetRom0
-  bus.io.targetPort(8) <> cart.io.busTargetRom1
-  bus.io.targetPort(9) <> cart.io.busTargetRom2
   bus.io.targetPort(10) <> cart.io.busTargetRam
+
+  val cartPrefetch = Module(new CartridgePrefetch)
+  cartPrefetch.io.enable := io.enable
+  cartPrefetch.io.prefetchEnabled := cart.io.prefetchEnabled
+  cartPrefetch.io.busTargetRamRequest := cart.io.busTargetRam.request
+  bus.io.targetPort(7) <> cartPrefetch.io.busTargetRom0
+  bus.io.targetPort(8) <> cartPrefetch.io.busTargetRom1
+  bus.io.targetPort(9) <> cartPrefetch.io.busTargetRom2
+  cart.io.busTargetRom <> cartPrefetch.io.cartInitiatorRom
+  cart.io.busTargetRomRegion := cartPrefetch.io.cartInitiatorRomRegion
 }

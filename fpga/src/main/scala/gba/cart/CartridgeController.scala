@@ -64,6 +64,11 @@ class WaitstateControl extends Bundle {
   val sram = UInt(2.W)
 }
 
+/*
+ * Module that interacts with the physical cartridge bus.
+ *
+ * Handles control signals, wait states, bursts, etc.
+ */
 class CartridgeController extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
@@ -73,11 +78,11 @@ class CartridgeController extends Module {
 
     // MMIO interface for WAITCNT (cartridge waitstate control and prefetch buffer)
     val mmio = new MmioTarget()
+    val prefetchEnabled = Output(Bool())
 
     // Memory bus target interfaces
-    val busTargetRom0 = new TargetInterface(16.W)
-    val busTargetRom1 = new TargetInterface(16.W)
-    val busTargetRom2 = new TargetInterface(16.W)
+    val busTargetRom = new TargetInterface(16.W)
+    val busTargetRomRegion = Input(Vec(3, Bool()))
     val busTargetRam = new TargetInterface(8.W)
   })
   val logger = Logger("cart")
@@ -94,12 +99,11 @@ class CartridgeController extends Module {
     // TODO make sure Cartridge type always reads as 0
     0x204 -> MmioMap.Entry.rw(regWaitControl),
   )
+  io.prefetchEnabled := regWaitControl.prefetch
 
   // Default target bus state
-  for (x <- Seq(io.busTargetRom0, io.busTargetRom1, io.busTargetRom2)) {
-    x.done := isRequestDone
-    x.dataRead := regReadData
-  }
+  io.busTargetRom.done := isRequestDone
+  io.busTargetRom.dataRead := regReadData
   io.busTargetRam.done := false.B
   io.busTargetRam.dataRead := regReadData
 
@@ -129,14 +133,13 @@ class CartridgeController extends Module {
   // TODO: romRequestAddress shouldn't combinatorially depend on `io.enable`, makes it hard to avoid cycles with stall
 
   // ROM targets
-  val romTargets = Seq(io.busTargetRom0, io.busTargetRom1, io.busTargetRom2)
-  val romRequests = romTargets.map(_.request)
-  val hasRomRequest = VecInit(romRequests).asUInt.orR
-  val romRequestAddress = Mux1H(romRequests, romTargets.map(_.address(24, 1)))
-  val romRequestWrite = Mux1H(romRequests, romTargets.map(_.write))
-  val romRequestDataWrite = Mux1H(romRequests, romTargets.map(_.dataWrite))
-  val romRequestSequential = Mux1H(romRequests, romTargets.map(_.sequential))
-  val romRequestNextSequential = romTargets(0).nextSeq
+  val romRequests = io.busTargetRomRegion
+  val hasRomRequest = io.busTargetRom.request
+  val romRequestAddress = io.busTargetRom.address(24, 1)
+  val romRequestWrite = io.busTargetRom.write
+  val romRequestDataWrite = io.busTargetRom.dataWrite
+  val romRequestSequential = io.busTargetRom.sequential
+  val romRequestNextSequential = io.busTargetRom.nextSeq
   val ramTarget = io.busTargetRam
   val currentRequestPort = Reg(UInt(3.W))
   val currentAddress = Reg(UInt(24.W))
@@ -149,7 +152,7 @@ class CartridgeController extends Module {
   val endRamBurst = WireDefault(false.B)
   when (state === State.Idle || endRomBurst || endRamBurst) {
     when (hasRomRequest && !endRomBurst) {
-      logger.debug(cf"Start Rom(${VecInit(romRequests).asUInt}%b) request addr=${romRequestAddress << 1}%x wr=$romRequestWrite")
+      logger.debug(cf"Start Rom(${romRequests.asUInt}%b) request addr=${romRequestAddress << 1}%x wr=$romRequestWrite")
       io.cartridge.ADLoOut := romRequestAddress(15, 0)
       io.cartridge.ADLoDir := true.B
       io.cartridge.AHiOut := romRequestAddress(23, 16)
@@ -165,7 +168,7 @@ class CartridgeController extends Module {
         reg_nCS := 0.U
         currentAddress := romRequestAddress
         currentIsWrite := romRequestWrite
-        currentRequestPort := VecInit(romRequests).asUInt
+        currentRequestPort := romRequests.asUInt
 
         // Initial burst wait: 0 [extra] cycles if total waits is 2,
         // otherwise 1.
