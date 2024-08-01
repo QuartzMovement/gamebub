@@ -17,6 +17,8 @@ class TargetInterface(maxWidth: Width) extends Bundle {
   val size = Input(BusAccessWidth())
   /// Byte mask strobe (if the access were aligned to 32-bits)
   val mask = Input(UInt((maxWidth.get / 8).W))
+  /// Whether the access is a data access (as opposed to instruction)
+  val isData = Input(Bool())
   /// Data write
   val dataWrite = Input(UInt(maxWidth))
   /// Data read
@@ -54,6 +56,7 @@ class Bus(
   val requestSequential = Wire(Bool())
   val requestWrite = Wire(Bool())
   val requestSize = Wire(BusAccessWidth())
+  val requestIsData = Wire(Bool())
   val requestDataWrite = Wire(UInt(32.W))
   val requestDataRead = Wire(UInt(32.W))
   val (requestAddressAligned, requestMask) = alignAddress(requestAddress, requestSize)
@@ -68,6 +71,7 @@ class Bus(
   val regAccessSplitPhase = Reg(UInt())
   val regAccessSequential = Reg(Bool())
   val regAccessSize = Reg(BusAccessWidth())
+  val regAccessIsData = Reg(Bool())
   /// Whether the active request is completing.
   val accessDone = WireDefault(false.B)
   val regSplitBuffer = Reg(UInt(16.W))
@@ -89,6 +93,7 @@ class Bus(
     target.write := requestWrite
     target.size := requestSize
     target.nextSeq := requestNextIsSequential
+    target.isData := requestIsData
 
     metadata.dataWidth match {
       case BusAccessWidth.Byte => {
@@ -143,6 +148,7 @@ class Bus(
   requestWrite := io.initiatorPort.WRITE
   requestSize := io.initiatorPort.SIZE
   requestDataWrite := io.initiatorPort.WDATA
+  requestIsData := io.initiatorPort.PROT.data
   io.initiatorPort.RDATA := requestDataRead
   io.initiatorPort.CLKEN := isAvailable
   io.initiatorPort.ABORT := false.B
@@ -154,6 +160,7 @@ class Bus(
     requestSequential := regAccessSequential
     requestSize := regAccessSize
     requestWrite := regAccessWrite
+    requestIsData := regAccessIsData
   }
 
   // Determine whether the next request is sequential.
@@ -175,6 +182,7 @@ class Bus(
           requestAddress := regAccessAddress | 2.U
           requestSequential := true.B
           requestWrite := regAccessWrite
+          requestIsData := regAccessIsData
           requestSize := BusAccessWidth.Halfword
           requestMask := "b1111".U(4.W)
           regAccessBusy := true.B
@@ -202,11 +210,13 @@ class Bus(
           requestAddressAligned := requestAddress & "hFFFFFFFC".U(32.W)
           requestNextIsSequential := true.B
           requestWrite := regAccessWrite
+          requestIsData := regAccessIsData
         } .otherwise {
           requestEnable := true.B
           requestAddress := regAccessAddress | 2.U
           requestSequential := true.B
           requestWrite := regAccessWrite
+          requestIsData := regAccessIsData
           requestSize := BusAccessWidth.Halfword
           requestMask := "b1111".U(4.W)
         }
@@ -221,6 +231,7 @@ class Bus(
       regAccessWrite := requestWrite
       regAccessSequential := requestSequential
       regAccessSize := requestSize
+      regAccessIsData := requestIsData
 
       when (selectedTargetHalfword && io.initiatorPort.SIZE === BusAccessWidth.Word) {
         regAccessSplit := true.B

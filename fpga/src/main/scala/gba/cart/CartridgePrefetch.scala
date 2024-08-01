@@ -32,6 +32,7 @@ class CartridgePrefetch extends Module {
   romInitiator.nextSeq := Mux1H(romRequests, romTargets.map(_.nextSeq))
   romInitiator.size := DontCare
   romInitiator.mask := DontCare
+  romInitiator.isData := DontCare
   for (x <- romTargets) {
     x.done := romInitiator.done
     x.dataRead := romInitiator.dataRead

@@ -5,7 +5,7 @@ import _root_.circt.stage.ChiselStage
 import chisel3.util.SRAM
 import gba._
 import gba.apu.ApuOutput
-import gba.cart.EmulatedCartridge
+import gba.cart.{EmulatedCartridge, VerificationEmulatedCartridge}
 import gba.ppu.PpuOutput
 import lib.log.Log
 import lib.mem.MemoryInterface
@@ -62,7 +62,7 @@ class SimGba extends Module {
   gba.io.ewram.done := true.B
 
   // Emulated cartridge
-  val emuCart = Module(new EmulatedCartridge)
+  val emuCart = Module(new VerificationEmulatedCartridge)
   emuCart.io.config := io.emuCartConfig
   gba.io.cartridge <> emuCart.io.interface
   io.emuCartRom <> emuCart.io.rom
