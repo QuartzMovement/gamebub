@@ -82,6 +82,7 @@ class CartridgeController extends Module {
     val abortRequest = Input(Bool())
 
     // Memory bus target interfaces
+    // The ROM interface is from the prefetch controller, and is halfword addressed.
     val busTargetRom = new TargetInterface(16.W)
     val busTargetRomRegion = Input(Vec(3, Bool()))
     val busTargetRam = new TargetInterface(8.W)
@@ -136,7 +137,7 @@ class CartridgeController extends Module {
   // ROM targets
   val romRequests = io.busTargetRomRegion
   val hasRomRequest = io.busTargetRom.request
-  val romRequestAddress = io.busTargetRom.address(24, 1)
+  val romRequestAddress = io.busTargetRom.address
   val romRequestWrite = io.busTargetRom.write
   val romRequestDataWrite = io.busTargetRom.dataWrite
   val romRequestSequential = io.busTargetRom.sequential

@@ -3,7 +3,19 @@ package gba.cart
 import chisel3._
 import chisel3.util._
 import gba.mem.TargetInterface
+import lib.log.Logger
 
+/**
+ * Cartridge prefetch controller
+ *
+ * The purpose of prefetch is to keep ROM bursts going when non-cartridge
+ * memory requests are occurring. Then, prefetched data is fed back to the bus
+ * with zero wait states.
+ *
+ * Prefetch only activates for code (not data) requests from ROM. Any request
+ * to the cartridge that isn't a code request for the next fetched address
+ * in the buffer aborts prefetch.
+ */
 class CartridgePrefetch extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
@@ -19,6 +31,7 @@ class CartridgePrefetch extends Module {
     /// Whether the cartridge controller should abort the current request
     val cartInitiatorAbortRequest = Output(Bool())
   })
+  val logger = Logger("cart.prefetch")
 
   // Passing through the rom
   val romTargets = Seq(io.busTargetRom0, io.busTargetRom1, io.busTargetRom2)
@@ -27,7 +40,7 @@ class CartridgePrefetch extends Module {
   val hasRomRequest = VecInit(romRequests).asUInt.orR
   val hasRamRequest = io.busTargetRamRequest
   romInitiator.request := hasRomRequest
-  romInitiator.address := Mux1H(romRequests, romTargets.map(_.address))
+  romInitiator.address := Mux1H(romRequests, romTargets.map(_.address(24, 1)))
   romInitiator.write := Mux1H(romRequests, romTargets.map(_.write))
   romInitiator.dataWrite := Mux1H(romRequests, romTargets.map(_.dataWrite))
   romInitiator.sequential := Mux1H(romRequests, romTargets.map(_.sequential))
