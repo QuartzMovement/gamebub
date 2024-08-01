@@ -79,6 +79,7 @@ class CartridgeController extends Module {
     // MMIO interface for WAITCNT (cartridge waitstate control and prefetch buffer)
     val mmio = new MmioTarget()
     val prefetchEnabled = Output(Bool())
+    val abortRequest = Input(Bool())
 
     // Memory bus target interfaces
     val busTargetRom = new TargetInterface(16.W)
@@ -363,6 +364,19 @@ class CartridgeController extends Module {
         logger.debug(cf"End ram request")
         endRamBurst := true.B
       }
+    }
+  }
+
+  // When a request is aborted, immediately move to idle state (and adjust signals).
+  // It is assumed that the requester will ignore any data returned.
+  when (io.abortRequest) {
+    state := State.Idle
+    reg_nCS := 1.U
+    reg_nCS2 := 1.U
+    reg_nRD := 1.U
+    reg_nWR := 1.U
+    when (state =/= State.Idle) {
+      isRequestDone := true.B
     }
   }
 }

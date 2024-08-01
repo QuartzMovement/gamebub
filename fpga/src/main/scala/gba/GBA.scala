@@ -165,4 +165,5 @@ class GBA extends Module {
   bus.io.targetPort(9) <> cartPrefetch.io.busTargetRom2
   cart.io.busTargetRom <> cartPrefetch.io.cartInitiatorRom
   cart.io.busTargetRomRegion := cartPrefetch.io.cartInitiatorRomRegion
+  cart.io.abortRequest := cartPrefetch.io.cartInitiatorAbortRequest
 }

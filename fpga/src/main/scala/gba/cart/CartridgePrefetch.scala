@@ -16,6 +16,8 @@ class CartridgePrefetch extends Module {
 
     val cartInitiatorRom = Flipped(new TargetInterface(16.W))
     val cartInitiatorRomRegion = Output(Vec(3, Bool()))
+    /// Whether the cartridge controller should abort the current request
+    val cartInitiatorAbortRequest = Output(Bool())
   })
 
   // Passing through the rom
@@ -38,4 +40,5 @@ class CartridgePrefetch extends Module {
     x.dataRead := romInitiator.dataRead
   }
   io.cartInitiatorRomRegion := VecInit(romRequests)
+  io.cartInitiatorAbortRequest := false.B
 }
