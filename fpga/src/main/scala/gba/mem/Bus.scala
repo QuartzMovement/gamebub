@@ -26,6 +26,8 @@ class TargetInterface(maxWidth: Width) extends Bundle {
   /// True when the access started in the previous cycle has completed
   val done = Output(Bool())
 
+  /// Whether the next bus cycle will be a request to this target.
+  val nextRequest = Input(Bool())
   /// Whether the next bus cycle will be a sequential request (to any target).
   val nextSeq = Input(Bool())
 }
@@ -63,6 +65,7 @@ class Bus(
   val selectedTargetHalfword = WireDefault(false.B)
   val anySelectedNow = WireDefault(false.B)
   val requestNextIsSequential = Wire(Bool())
+  val splitPhase0Busy = WireDefault(false.B)
 
   val regAccessBusy = RegInit(false.B)
   val regAccessAddress = Reg(UInt(32.W))
@@ -81,8 +84,8 @@ class Bus(
 
   for ((target, i) <- io.targetPort.zipWithIndex) {
     val metadata = targets(i)
-    val selectedNext = requestAddress(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix && requestAddress(31, 28) === 0.U
-    val selectedNow = regAccessAddress(27, 27 - metadata.prefix.getWidth + 1) === metadata.prefix && regAccessAddress(31, 28) === 0.U
+    val selectedNext = prefixMatches(requestAddress, metadata.prefix)
+    val selectedNow = prefixMatches(regAccessAddress, metadata.prefix)
     when (selectedNow) {
       anySelectedNow := true.B
     }
@@ -94,6 +97,9 @@ class Bus(
     target.size := requestSize
     target.nextSeq := requestNextIsSequential
     target.isData := requestIsData
+    target.nextRequest :=
+      (prefixMatches(io.initiatorPort.ADDR, metadata.prefix) && io.initiatorPort.MREQ) ||
+        (splitPhase0Busy && selectedNow)
 
     metadata.dataWidth match {
       case BusAccessWidth.Byte => {
@@ -164,7 +170,7 @@ class Bus(
   }
 
   // Determine whether the next request is sequential.
-  requestNextIsSequential := io.initiatorPort.MREQ && io.initiatorPort.SEQ
+  requestNextIsSequential := (io.initiatorPort.MREQ && io.initiatorPort.SEQ) || splitPhase0Busy
 
   when (io.enable) {
     when (accessDone) {
@@ -208,9 +214,9 @@ class Bus(
           requestMask := "b1111".U(4.W)
           requestAddress := regAccessAddress
           requestAddressAligned := requestAddress & "hFFFFFFFC".U(32.W)
-          requestNextIsSequential := true.B
           requestWrite := regAccessWrite
           requestIsData := regAccessIsData
+          splitPhase0Busy := true.B
         } .otherwise {
           requestEnable := true.B
           requestAddress := regAccessAddress | 2.U
@@ -265,5 +271,9 @@ class Bus(
 
   def getMSB(input: UInt, width: Int): UInt = {
     input(input.getWidth - 1, input.getWidth - width)
+  }
+
+  def prefixMatches(address: UInt, prefix: UInt): Bool = {
+    address(27, 27 - prefix.getWidth + 1) === prefix && address(31, 28) === 0.U
   }
 }

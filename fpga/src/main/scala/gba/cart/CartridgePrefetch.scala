@@ -48,6 +48,7 @@ class CartridgePrefetch extends Module {
   romInitiator.size := DontCare
   romInitiator.mask := DontCare
   romInitiator.isData := DontCare
+  romInitiator.nextRequest := DontCare  // unused
   for (x <- romTargets) {
     x.done := romInitiator.done
     x.dataRead := romInitiator.dataRead
