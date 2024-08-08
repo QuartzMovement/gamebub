@@ -148,6 +148,7 @@ class Dma extends Module {
         bus.WRITE := false.B
         if (regSource.getWidth >= 28) {
           when (regSource(27)) {
+            // TODO: this should probably only be set on bus.CLKEN
             regAccessedCart := true.B
           }
         }
@@ -203,6 +204,7 @@ class Dma extends Module {
         bus.WRITE := true.B
         if (regDest.getWidth >= 28) {
           when (regDest(27)) {
+            // TODO: this should probably only be set on bus.CLKEN
             regAccessedCart := true.B
           }
         }

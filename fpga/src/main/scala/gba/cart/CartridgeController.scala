@@ -292,7 +292,9 @@ class CartridgeController extends Module {
       } .elsewhen (!romRequestNextSequential || (hasRomRequest && !romRequestSequential)) {
         // Time to end the request
         endRomBurst := true.B
-        reg_nCS := 1.U
+        when (io.enable) {
+          reg_nCS := 1.U
+        }
       } .otherwise {
         // Still in a burst (keep nCS high), but haven't yet received a request.
       }
@@ -370,14 +372,11 @@ class CartridgeController extends Module {
 
   // When a request is aborted, immediately move to idle state (and adjust signals).
   // It is assumed that the requester will ignore any data returned.
-  when (io.abortRequest) {
+  when (io.enable && io.abortRequest) {
     state := State.Idle
     reg_nCS := 1.U
     reg_nCS2 := 1.U
     reg_nRD := 1.U
     reg_nWR := 1.U
-    when (state =/= State.Idle) {
-      isRequestDone := true.B
-    }
   }
 }
