@@ -1,6 +1,6 @@
 package lib.log
 
-import chisel3.PrintableHelper
+import chisel3.{PrintableHelper, fromBooleanToLiteral, when}
 import lib.log.Log.Level
 
 /**
@@ -64,7 +64,8 @@ object Log {
 }
 
 object Logger {
-  def apply(module: String): Logger = new Logger(module)
+  def apply(module: String): Logger = new Logger(module, enable = None)
+  def apply(module: String, enable: chisel3.Bool): Logger = new Logger(module, enable = Some(enable))
 
   def log(level: Level, module: String, log: chisel3.Printable): Unit = {
     if (level <= Log.getLevel(module)) {
@@ -73,10 +74,21 @@ object Logger {
   }
 }
 
-class Logger(module: String) {
-  def crit(log: chisel3.Printable): Unit = Logger.log(Log.Level.Critical, module, log)
-  def error(log: chisel3.Printable): Unit = Logger.log(Log.Level.Error, module, log)
-  def warn(log: chisel3.Printable): Unit = Logger.log(Log.Level.Warning, module, log)
-  def info(log: chisel3.Printable): Unit = Logger.log(Log.Level.Info, module, log)
-  def debug(log: chisel3.Printable): Unit = Logger.log(Log.Level.Debug, module, log)
+class Logger(module: String, enable: Option[chisel3.Bool]) {
+  private def maybeLog(level: Level, message: chisel3.Printable): Unit = {
+    enable match {
+      case Some(enable) => {
+        when (enable) {
+          Logger.log(level, module, message)
+        }
+      }
+      case _ => Logger.log(level, module, message)
+    }
+  }
+
+  def crit(log: chisel3.Printable): Unit = maybeLog(Log.Level.Critical, log)
+  def error(log: chisel3.Printable): Unit = maybeLog(Log.Level.Error, log)
+  def warn(log: chisel3.Printable): Unit = maybeLog(Log.Level.Warning, log)
+  def info(log: chisel3.Printable): Unit = maybeLog(Log.Level.Info, log)
+  def debug(log: chisel3.Printable): Unit = maybeLog(Log.Level.Debug, log)
 }
