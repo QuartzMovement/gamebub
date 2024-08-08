@@ -89,7 +89,7 @@ class ObjectRenderer extends Module {
     val bufferRead = Input(Bool())
     val bufferData = Output(new ObjectBufferEntry)
   })
-  val logger = Logger("ppu.obj")
+  val logger = Logger("ppu.obj", enable = io.enable)
 
   val active = RegInit(false.B)
   val renderY = Reg(UInt(8.W))

@@ -51,7 +51,7 @@ class Bus(
     /// Target ports
     val targetPort = MixedVec(targets.map(t => Flipped(new TargetInterface(BusAccessWidth.toWidth(t.dataWidth)))))
   })
-  val logger = Logger("bus")
+  val logger = Logger("bus", enable = io.enable)
 
   val requestEnable = WireDefault(false.B)
   val requestAddress = Wire(UInt(32.W))

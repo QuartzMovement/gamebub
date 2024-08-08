@@ -21,7 +21,7 @@ class ARM7TDMI extends Module {
     /// **Active-High** interrupt request
     val IRQ = Input(Bool())
   })
-  val logger = Logger("cpu")
+  val logger = Logger("cpu", enable = io.enable)
 
   val enable = io.enable && io.mem.CLKEN
 

@@ -22,7 +22,7 @@ class Bios extends Module {
     val busIsData = Input(Bool())
     val busAddress = Input(UInt(32.W))
   })
-  val logger = Logger("bios")
+  val logger = Logger("bios", enable = io.enable)
 
   // Lock/unlock: unlocked when an opcode fetch from the bios region happens.
   val regUnlocked = RegInit(true.B)

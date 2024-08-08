@@ -11,7 +11,7 @@ class Keypad extends Module {
     val mmio = new MmioTarget()
     val irq = Output(Bool())
   })
-  val logger = Logger("keypad")
+  val logger = Logger("keypad", enable = io.enable)
 
   val regKeyControl = RegInit(0.U.asTypeOf(new Keypad.KeyControl))
 

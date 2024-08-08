@@ -116,7 +116,7 @@ class Control extends Module {
     /// Active-high interrupt request
     val irq = Input(Bool())
   })
-  val logger = Logger("cpu")
+  val logger = Logger("cpu", enable = io.enable)
   val control = io.signals
 
   val instruction = RegInit((new DecodedInstruction).Lit(

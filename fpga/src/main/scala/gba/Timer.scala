@@ -23,7 +23,7 @@ class Timer extends Module {
     /// Overflow signal for timers 0 and 1 (for audio)
     val timerOverflow = Output(Vec(2, Bool()))
   })
-  private val logger = Logger("timer")
+  private val logger = Logger("timer", enable = io.enable)
 
   io.irq := VecInit.fill(4)(false.B)
 

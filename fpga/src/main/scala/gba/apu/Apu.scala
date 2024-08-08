@@ -29,7 +29,7 @@ class Apu extends Module {
     /// DMA request trigger for FIFOs A and B
     val dmaTrigger = Output(Vec(2, Bool()))
   })
-  val logger = Logger("apu")
+  val logger = Logger("apu", enable = io.enable)
 
   // TODO: SOUNDBIAS is stubbed to allow BIOS to boot
   val regSoundbias = RegInit(0.U.asTypeOf(new ApuRegisters.SoundBias))

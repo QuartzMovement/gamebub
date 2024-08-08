@@ -46,7 +46,7 @@ class Ppu extends Module {
     val dmaTriggerVideo = Output(Bool())
     val dmaStopVideo = Output(Bool())
   })
-  val logger = Logger("ppu")
+  val logger = Logger("ppu", enable = io.enable)
 
   val regDisplayControl = RegInit(0.U.asTypeOf(new PpuRegisters.DisplayControl))
   val regIrqEnableVblank = RegInit(false.B)

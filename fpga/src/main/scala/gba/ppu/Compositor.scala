@@ -57,7 +57,7 @@ class Compositor extends Module {
     val objectRead = Output(Bool())
     val objectData = Input(new ObjectBufferEntry)
   })
-  val logger = Logger("ppu.comp")
+  val logger = Logger("ppu.comp", enable = io.enable)
 
   val isBitmap16bpp = io.displayControl.mode === 3.U || io.displayControl.mode === 5.U
   val isForceBlank = io.displayControl.forceBlank

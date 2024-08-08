@@ -91,7 +91,7 @@ class CartridgePrefetch extends Module {
     /// Whether the cartridge controller should abort the current request
     val cartInitiatorAbortRequest = Output(Bool())
   })
-  val logger = Logger("cart.prefetch")
+  val logger = Logger("cart.prefetch", enable = io.enable)
 
   // Passing through the rom
   val romTargets = Seq(io.busTargetRom0, io.busTargetRom1, io.busTargetRom2)

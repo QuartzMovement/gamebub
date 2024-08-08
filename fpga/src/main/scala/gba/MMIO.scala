@@ -26,7 +26,7 @@ class MMIO(numTargets: Int) extends Module {
     val enable = Input(Bool())
     val mem = new TargetInterface(32.W)
   })
-  private val logger = Logger("mmio")
+  private val logger = Logger("mmio", enable = io.enable)
   val targets: Seq[MmioTarget] = Seq.fill(numTargets)(IO(Flipped(new MmioTarget)))
 
   val queuedRequest = RegInit(false.B)

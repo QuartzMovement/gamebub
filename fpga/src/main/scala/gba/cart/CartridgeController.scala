@@ -87,7 +87,7 @@ class CartridgeController extends Module {
     val busTargetRomRegion = Input(Vec(3, Bool()))
     val busTargetRam = new TargetInterface(8.W)
   })
-  val logger = Logger("cart")
+  val logger = Logger("cart", enable = io.enable)
 
   val state = RegInit(State.Idle)
   val regReadData = Reg(UInt(16.W))

@@ -56,7 +56,7 @@ class BackgroundRenderer extends Module {
     /// Pixel fifo dequeue interface
     val pixels = Vec(4, DecoupledIO(new BackgroundPixel))
   })
-  val logger = Logger("ppu.bg")
+  val logger = Logger("ppu.bg", enable = io.enable)
 
   // Output pixel FIFOs
   val fifo = (0 until 4).map(_ => Wire(EnqIO(new BackgroundPixel)))

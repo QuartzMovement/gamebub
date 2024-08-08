@@ -35,7 +35,7 @@ class PpuMem(name: String, size: Int, width: Width) extends Module {
     val ppuTarget = new PpuMemoryInterface(size / (width.get / 8), width)
   })
 
-  val logger = Logger(s"ppu.mem.${name}")
+  val logger = Logger(s"ppu.mem.${name}", enable = io.enable)
   val widthBytes = width.get / 8
   val widthHalfwords = width.get / 16
   val numWords = size / widthBytes

@@ -46,7 +46,7 @@ class Dma extends Module {
 
     val busInitiator = Vec(4, new BusInterface)
   })
-  private val logger = Logger("dma")
+  private val logger = Logger("dma", enable = io.enable)
 
   val regConfigSource = Seq(RegInit(0.U(27.W)), RegInit(0.U(28.W)), RegInit(0.U(28.W)), RegInit(0.U(28.W)))
   val regConfigDest = Seq(RegInit(0.U(27.W)), RegInit(0.U(27.W)), RegInit(0.U(27.W)), RegInit(0.U(28.W)))

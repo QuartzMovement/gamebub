@@ -22,7 +22,7 @@ class EwramController extends Module {
     /// Whether the previous memory request has not yet completed by the time the GBA needs it to.
     val stall = Output(Bool())
   })
-  val logger = Logger("ewram")
+  val logger = Logger("ewram", enable = io.enable)
   val widthBytes = 2
   val numWords = 256 * 1024 / widthBytes
   val addrShift = log2Ceil(widthBytes)

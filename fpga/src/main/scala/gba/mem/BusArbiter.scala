@@ -33,7 +33,7 @@ class BusArbiter(numInputs: Int) extends Module {
     /// Whether each initiator should be blocked from making accesses (e.g. to halt the CPU)
     val blockInitiators = Input(UInt(numInputs.W))
   })
-  private val logger = Logger("bus.arbiter")
+  private val logger = Logger("bus.arbiter", enable = io.enable)
 
   // Bus is pipelined. In one bus cycle, we send addressing signals, and in the next, we send wdata / read rdata.
   // When a request comes in, choose highest priority request.

@@ -20,7 +20,7 @@ class Interrupt extends Module {
     /// Whether the BIOS is unlocked
     val biosUnlocked = Input(Bool())
   })
-  val logger = Logger("interrupt")
+  val logger = Logger("interrupt", enable = io.enable)
 
   val ime = RegInit(0.U(1.W))
   val regEnabled = RegInit(0.U.asTypeOf(new Interrupt.Flags))
