@@ -58,7 +58,10 @@ class EmulatedCartridge extends Module {
   io.interface.IRQ := false.B
   io.interface.ADLoIn := io.rom.dataRead
   io.interface.AHiIn := DontCare
-  io.stall := false.B
+
+  // Whether we're waiting on data to come back for the ROM or backup.
+  val memWaiting = WireDefault(false.B)
+  io.stall := memWaiting && io.interface.reqEnd
 
   val romBusy = RegInit(false.B)
   val romAddress = Reg(UInt(24.W))
@@ -90,14 +93,14 @@ class EmulatedCartridge extends Module {
       when (romAbort) {
         // Ignore this and start the new request next cycle.
         logger.debug(cf"ROM request done (ABORTED)")
+        memWaiting := true.B
       } .otherwise {
         logger.debug(cf"ROM request done: data=0x${io.rom.dataRead}%x")
       }
       romBusy := false.B
       // TODO: io.rom.enable := false.B ?
-    } .elsewhen (io.interface.reqEnd) {
-      logger.warn("Request stall")
-      io.stall := true.B
+    } .otherwise {
+      memWaiting := true.B
     }
   }
   when (romAbort && !romBusy) {
@@ -107,6 +110,7 @@ class EmulatedCartridge extends Module {
     romBusy := true.B
     romAddress := io.interface.reqAddress
     romAbort := false.B
+    memWaiting := true.B
   }
 
   switch (io.config.backupType) {
