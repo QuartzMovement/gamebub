@@ -63,9 +63,15 @@ class EmulatedCartridge extends Module {
   val romBusy = RegInit(false.B)
   val romAddress = Reg(UInt(24.W))
   val ramStart = WireDefault(false.B)
+  // Whether the cartridge controller has aborted the current request.
+  // Once the data comes back, ignore it, and start the next request.
+  val romAbort = RegInit(false.B)
 
   when (io.interface.reqStart) {
-    when (io.interface.reqRom) {
+    when (romBusy) {
+      logger.info(cf"Rom request aborted, new addr=0x${io.rom.address << 1}%x")
+      romAbort := true.B
+    } .elsewhen (io.interface.reqRom) {
       // TODO handle out-of-bounds ROM request
       logger.debug(cf"ROM request start: addr=0x${io.rom.address << 1}%x | busy=${romBusy}")
       io.rom.enable := true.B
@@ -81,13 +87,26 @@ class EmulatedCartridge extends Module {
     io.rom.enable := true.B
     io.rom.address := romAddress
     when (io.rom.done) {
-      logger.debug(cf"ROM request done: data=0x${io.rom.dataRead}%x")
+      when (romAbort) {
+        // Ignore this and start the new request next cycle.
+        logger.debug(cf"ROM request done (ABORTED)")
+      } .otherwise {
+        logger.debug(cf"ROM request done: data=0x${io.rom.dataRead}%x")
+      }
       romBusy := false.B
       // TODO: io.rom.enable := false.B ?
     } .elsewhen (io.interface.reqEnd) {
       logger.warn("Request stall")
       io.stall := true.B
     }
+  }
+  when (romAbort && !romBusy) {
+    logger.debug(cf"ROM request start: addr=0x${io.rom.address << 1}%x")
+    io.rom.enable := true.B
+    io.rom.address := io.interface.reqAddress
+    romBusy := true.B
+    romAddress := io.interface.reqAddress
+    romAbort := false.B
   }
 
   switch (io.config.backupType) {
