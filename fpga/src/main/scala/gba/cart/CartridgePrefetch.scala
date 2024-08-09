@@ -278,22 +278,54 @@ class CartridgePrefetch extends Module {
       romInitiator.sequential := true.B
       romInitiator.nextSeq := true.B
       romInitiator.dataWrite := DontCare
-
       val canCompletePrefetch = WireDefault(false.B)
 
       when (regPrefetchRequest) {
+        when ((hasNextRomRequest && !romRequestNextSeq) || io.busTargetRamNextRequest) {
+          // Bus is waiting for the current rom request, and then making a different cartridge request.
+          // Don't continue the prefetch after this.
+          romInitiator.nextSeq := false.B
+        }
+
         // Bus is waiting for the currently fetched halfword.
         when (romInitiator.done) {
           logger.debug(cf"Forwarding prefetched halfword, data=${romInitiator.dataRead}%x")
           // It's done, pass it back to bus.
           romTargetDone := true.B
           romTargetDataRead := romInitiator.dataRead
-          // And continue the prefetch.
-          romInitiator.address := regRequestAddress + 1.U
+
+          when (romInitiator.nextSeq) {
+            // And continue the prefetch.
+            romInitiator.address := regRequestAddress + 1.U
+            when (io.enable) {
+              regRequestAddress := regRequestAddress + 1.U
+            }
+          } .otherwise {
+            // Don't continue the prefetch, there's another request pending.
+            when (io.enable) {
+              when (hasRomRequest) {
+                // Start the request.
+                romInitiator.address := romRequestAddress
+                romInitiator.write := romRequestWrite
+                romInitiator.sequential := romRequestSequential
+                romInitiator.dataWrite := romRequestDataWrite
+                io.cartInitiatorRomRegion := VecInit(romRequests)
+
+                regState := State.Passthrough
+                regRequestAddress := romRequestAddress
+                regRequestRegion := VecInit(romRequests)
+                regRequestEligible := !romRequestIsData && io.prefetchEnabled
+              } .otherwise {
+                // TODO: see about starting the rom request(?) immediately
+                regState := State.Idle
+              }
+            }
+          }
+
           when (io.enable) {
-            regRequestAddress := regRequestAddress + 1.U
             regPrefetchRequest := false.B
-            // But flush the buffer, because this is the word at the *end*.
+
+            // Flush the buffer, because this is the word at the *end*.
             buffer.io.flush := true.B
           }
         }
