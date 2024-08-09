@@ -235,8 +235,10 @@ class CartridgePrefetch extends Module {
         romTargetDone := true.B
         romTargetDataRead := romInitiator.dataRead
         logger.debug(cf"Passthrough done. req=${hasRomRequest} addr=${regRequestAddress << 1}%x data=${romTargetDataRead}%x")
+        romInitiator.request := false.B
 
         when (hasRomRequest) {
+          romInitiator.request := true.B
           // Got another rom request, so pass it through.
           when (io.enable) {
             regRequestAddress := romRequestAddress
@@ -255,7 +257,6 @@ class CartridgePrefetch extends Module {
           // But we also shouldn't start the prefetch (?).
           // Go to Idle?
           logger.debug(cf"Passthrough done, hasRequest=0 but regNextSeq=1")
-          romInitiator.request := false.B
           when (io.enable) {
             regState := State.Idle
           }

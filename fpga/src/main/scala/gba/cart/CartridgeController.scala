@@ -150,10 +150,11 @@ class CartridgeController extends Module {
   val romAddressAtPageEnd = currentAddress(15, 0).andR  // All 1s, highest address at page end
 
   // New requests (not burst continuations) can be accepted when idle or at the end of a burst.
+  // We can do back-to-back ROM requests (and RAM requests), as long as nCS has been raised high.
   val endRomBurst = WireDefault(false.B)
   val endRamBurst = WireDefault(false.B)
   when (state === State.Idle || endRomBurst || endRamBurst) {
-    when (hasRomRequest && !endRomBurst) {
+    when (hasRomRequest && reg_nCS === 1.U) {
       logger.debug(cf"Start Rom(${romRequests.asUInt}%b) request addr=${romRequestAddress << 1}%x wr=$romRequestWrite")
       io.cartridge.ADLoOut := romRequestAddress(15, 0)
       io.cartridge.ADLoDir := true.B
@@ -181,7 +182,7 @@ class CartridgeController extends Module {
           waitCounter := 1.U
         }
       }
-    } .elsewhen (ramTarget.request && !endRamBurst) {
+    } .elsewhen (ramTarget.request && reg_nCS2 === 1.U) {
       logger.debug(cf"Start Ram request addr=${ramTarget.address(15, 0)}%x wr=${ramTarget.write}")
 
       // TODO: should we put ADDR on the bus early?
