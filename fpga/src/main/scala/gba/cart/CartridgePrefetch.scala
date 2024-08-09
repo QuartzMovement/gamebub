@@ -85,6 +85,7 @@ class CartridgePrefetch extends Module {
     val busTargetRom1 = new TargetInterface(16.W)
     val busTargetRom2 = new TargetInterface(16.W)
     val busTargetRamRequest = Input(Bool())
+    val busTargetRamNextRequest = Input(Bool())
 
     val cartInitiatorRom = Flipped(new TargetInterface(16.W))
     val cartInitiatorRomRegion = Output(Vec(3, Bool()))
@@ -133,9 +134,6 @@ class CartridgePrefetch extends Module {
   val regRequestAddress = Reg(UInt(24.W))
   val regRequestRegion = Reg(Vec(3, Bool()))
   val regRequestEligible = Reg(Bool())
-  val regRequestFirstCycle = Reg(Bool())
-  val regRequestNextSeq = Reg(Bool())
-  val regRequestNextEnable = Reg(Bool())
 
   val abortRequest = WireDefault(false.B)
   io.cartInitiatorAbortRequest := abortRequest
@@ -199,7 +197,6 @@ class CartridgePrefetch extends Module {
             regRequestAddress := romRequestAddress
             regRequestRegion := VecInit(romRequests)
             regRequestEligible := !romRequestIsData && io.prefetchEnabled
-            regRequestFirstCycle := true.B
 
             // Anything left in the buffer needs to be discarded.
             buffer.io.flush := true.B
@@ -220,15 +217,7 @@ class CartridgePrefetch extends Module {
       // (which will definitely not be the first cycle after a request, because the minimum number of wait
       // states is 1.
       // This is the case if either 1) nextSeq is set (e.g. by DMA), or if this request is prefetch eligible.
-      romInitiator.nextSeq := Mux(regRequestFirstCycle, romRequestNextSeq, regRequestNextSeq) || regRequestEligible
-
-      // Record information about the next request after this one.
-      when (regRequestFirstCycle && io.enable) {
-        regRequestFirstCycle := false.B
-        regRequestNextSeq := romRequestNextSeq
-        regRequestNextEnable := hasNextRomRequest
-        logger.debug(cf"Passthrough: nextSeq=${romRequestNextSeq} nextReq=${hasNextRomRequest}")
-      }
+      romInitiator.nextSeq := romRequestNextSeq || (!hasNextRomRequest && (!io.busTargetRamNextRequest) && regRequestEligible)
 
       when (romInitiator.done) {
         // Finishing a direct cartridge rom request.
@@ -244,19 +233,18 @@ class CartridgePrefetch extends Module {
             regRequestAddress := romRequestAddress
             regRequestRegion := VecInit(romRequests)
             regRequestEligible := !romRequestIsData && io.prefetchEnabled
-            regRequestFirstCycle := true.B
           }
         } .elsewhen (hasRamRequest) {
           // Another cartridge access that we don't handle.
           when (io.enable) {
             regState := State.Idle
           }
-        } .elsewhen (regRequestNextSeq) {
-          // There's no request coming in, but the previous request said nextSeq.
+        } .elsewhen (romRequestNextSeq) {
+          // There's no request coming in, but there's still a sequential request on the bus.
           // This is probably due to a DMA to/from ROM -- we shouldn't end the current burst.
           // But we also shouldn't start the prefetch (?).
           // Go to Idle?
-          logger.debug(cf"Passthrough done, hasRequest=0 but regNextSeq=1")
+          logger.debug(cf"Passthrough done, hasRequest=0 but nextSeq=1")
           when (io.enable) {
             regState := State.Idle
           }

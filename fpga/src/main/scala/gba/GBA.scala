@@ -160,6 +160,7 @@ class GBA extends Module {
   cartPrefetch.io.enable := io.enable
   cartPrefetch.io.prefetchEnabled := cart.io.prefetchEnabled
   cartPrefetch.io.busTargetRamRequest := cart.io.busTargetRam.request
+  cartPrefetch.io.busTargetRamNextRequest := cart.io.busTargetRam.nextRequest
   bus.io.targetPort(7) <> cartPrefetch.io.busTargetRom0
   bus.io.targetPort(8) <> cartPrefetch.io.busTargetRom1
   bus.io.targetPort(9) <> cartPrefetch.io.busTargetRom2
