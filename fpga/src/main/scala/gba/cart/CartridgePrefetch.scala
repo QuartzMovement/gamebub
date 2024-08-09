@@ -220,7 +220,7 @@ class CartridgePrefetch extends Module {
       // (which will definitely not be the first cycle after a request, because the minimum number of wait
       // states is 1.
       // This is the case if either 1) nextSeq is set (e.g. by DMA), or if this request is prefetch eligible.
-      romInitiator.nextSeq := regRequestNextSeq || regRequestEligible
+      romInitiator.nextSeq := Mux(regRequestFirstCycle, romRequestNextSeq, regRequestNextSeq) || regRequestEligible
 
       // Record information about the next request after this one.
       when (regRequestFirstCycle && io.enable) {
