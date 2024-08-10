@@ -1,8 +1,8 @@
 use std::{
     fmt::{Debug, Display},
     fs::File,
-    io::{Read, Seek},
-    path::Path,
+    io::{Read, Seek, Write},
+    path::{Path, PathBuf},
     time::{Duration, Instant},
 };
 
@@ -41,6 +41,19 @@ enum SaveType {
     Flash64K,
     /// Flash 128KiB
     Flash128K,
+}
+
+impl SaveType {
+    fn get_size(self) -> usize {
+        match self {
+            Self::None => 0,
+            Self::EepromAuto | Self::Eeprom8K => 8 * 1024,
+            Self::Eeprom512 => 512,
+            Self::Sram => 32 * 1024,
+            Self::Flash64K => 64 * 1024,
+            Self::Flash128K => 128 * 1024,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -129,11 +142,19 @@ impl SaveTypeDetector {
 }
 
 /// Driver for GBA FPGA module
-pub struct Gba {}
+pub struct Gba {
+    /// Path to the save file, if this is an emulated cartridge.
+    save_path: Option<PathBuf>,
+    /// Size of the save, if this is an emulated cartridge.
+    save_size: u32,
+}
 
 impl Gba {
     pub fn new() -> Self {
-        Gba {}
+        Gba {
+            save_path: None,
+            save_size: 0,
+        }
     }
 
     fn load_bios(&mut self, device: &mut Device) -> Result<(), GbaError> {
@@ -171,6 +192,7 @@ impl Gba {
         device.fpga.write_u32(fpga::REG_CONTROL, 0b1011)?;
         device.imu.disable_accel().unwrap();
 
+        self.save_path = None;
         Ok(())
     }
 
@@ -228,10 +250,35 @@ impl Gba {
         );
         // TODO clear up to the next power of two
 
+        // Load save
         let save_type = save_type_detector.get();
+        let save_size = save_type.get_size() as u32;
         log::info!("Detected save type: {:?}", save_type);
+        let save_path = rom_path.with_extension("sav");
+        if let Ok(mut save_file) = File::open(save_path.as_path()) {
+            log::info!("Loading save file");
 
-        // TODO load backup (save) file
+            let mut pos = 0u32;
+            while pos < save_size {
+                let to_read = ((save_size - pos) as usize).min(CHUNK_SIZE);
+                let n = save_file.read(&mut buf[..to_read])?;
+                if n == 0 {
+                    break;
+                }
+                device.fpga.sram_write(pos, &buf[..n])?;
+                pos += n as u32;
+            }
+        } else {
+            // No save file to load, clear the save region.
+            log::info!("No save file to load");
+            buf.fill(0xFF);
+            let mut pos = 0u32;
+            while pos < save_size {
+                let n = ((save_size - pos) as usize).min(CHUNK_SIZE);
+                device.fpga.sram_write(pos, &buf[..n])?;
+                pos += n as u32;
+            }
+        }
 
         // Configure emulated cartridge control registers
         let emu_cart_config = match save_type {
@@ -252,6 +299,35 @@ impl Gba {
 
         // Resume
         device.fpga.write_u32(fpga::REG_CONTROL, 0b1011)?;
+
+        self.save_path = Some(save_path);
+        self.save_size = save_size;
+        Ok(())
+    }
+
+    pub fn persist_save(&mut self) -> Result<(), GbaError> {
+        let save_path = match self.save_path.as_ref() {
+            Some(save_path) => save_path,
+            None => return Ok(()),
+        };
+
+        log::info!("Saving to: {}", save_path.display());
+
+        let mut file = File::create(save_path)?;
+        const CHUNK_SIZE: usize = 8 * 1024;
+        let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
+        let mut address: u32 = 0;
+        let mut bytes_left = self.save_size as usize;
+
+        let mut device = Device::lock();
+        while bytes_left > 0 {
+            let to_read = CHUNK_SIZE.min(bytes_left);
+            let data = &mut buf[0..to_read];
+            device.fpga.sram_read(address, data)?;
+            file.write(data)?;
+            address += to_read as u32;
+            bytes_left -= to_read;
+        }
 
         Ok(())
     }

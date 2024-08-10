@@ -229,6 +229,9 @@ impl UiState {
                 }
                 CurrentBitstream::Gba(x) => {
                     x.set_paused(paused).unwrap();
+                    if paused {
+                        x.persist_save().unwrap();
+                    }
                 }
             }
         });
