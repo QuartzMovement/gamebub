@@ -1,1 +1,7 @@
 partition_table = "partitions.csv"
+
+[flash]
+# QIO seems to be broken: https://github.com/esp-rs/espflash/issues/657
+# mode = "qio"
+size = "16MB"
+frequency = "80MHz"
