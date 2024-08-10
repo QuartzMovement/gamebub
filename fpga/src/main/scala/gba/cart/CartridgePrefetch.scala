@@ -327,6 +327,7 @@ class CartridgePrefetch extends Module {
 
             // Flush the buffer, because this is the word at the *end*.
             buffer.io.flush := true.B
+            regBufferAddress := regRequestAddress + 1.U
           }
         }
       } .elsewhen (hasRomRequest) {
@@ -353,6 +354,7 @@ class CartridgePrefetch extends Module {
               buffer.io.writeData := romInitiator.dataRead
               // And flush the buffer, because otherwise this would be the *last* entry.
               buffer.io.flush := true.B
+              regBufferAddress := regRequestAddress + 1.U
               // And continue the prefetch
               romInitiator.address := regRequestAddress + 1.U
               regRequestAddress := regRequestAddress + 1.U
