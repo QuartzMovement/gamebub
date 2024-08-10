@@ -5,7 +5,7 @@ import chisel3.util._
 import gba.GBA
 import gba.cart.EmulatedCartridge
 import lib.mem.cache.DirectReadCache
-import lib.mem.{MemoryInterface, MemoryMap, RegisterMap}
+import lib.mem.{MemoryArbiter, MemoryInterface, MemoryMap, RegisterMap}
 
 /**
  * Clocked by a 16777216 Hz clock.
@@ -45,13 +45,7 @@ class HandheldGba extends Module with HandheldModule {
     )
   }
 
-  // Memory interfaces
-  io.sram.enable := false.B
-  io.sram.write := false.B
-  io.sram.address := DontCare
-  io.sram.dataWrite := DontCare
-  io.sram.writeStrobe := DontCare
-
+  // SDRAM interface and port
   val sdramCache = Module(new DirectReadCache(addressWidth = 23, dataWidth = 32, numEntries = 1024))
   io.sdram <> sdramCache.io.out
   io.sdram.address := sdramCache.io.out.address << 2
@@ -61,6 +55,12 @@ class HandheldGba extends Module with HandheldModule {
   sdramPort.write := false.B
   sdramPort.writeStrobe := DontCare
   sdramPort.dataWrite := DontCare
+
+  // SRAM arbiter (shared between EWRAM and emucart)
+  val sramArbiter = Module(new MemoryArbiter(addressWidth = 18, dataWidth = 16, n = 2))
+  io.sram <> sramArbiter.io.target
+  val sramEwram = sramArbiter.io.initiator(0)
+  val sramEmuCart = sramArbiter.io.initiator(1)
 
   // Gameboy
   val gba = Module(new GBA)
@@ -110,10 +110,15 @@ class HandheldGba extends Module with HandheldModule {
     emuCartAddr := emuCart.io.rom.address
     emuCartBusy := true.B
   }
-
-  // TODO: actually connect to SRAM
-  emuCart.io.backup.dataRead := 0xFF.U(8.W)
-  emuCart.io.backup.done := true.B
+  // Emulated cartridge SRAM: convert 8-bit accesses to 16-bit. Starts at 0 bytes into SRAM (takes 128KiB / 512 KiB).
+  val regEmuCartSramByte = RegEnable(emuCart.io.backup.address(0), emuCart.io.backup.enable)
+  sramEmuCart.enable := emuCart.io.backup.enable
+  sramEmuCart.address := emuCart.io.backup.address >> 1
+  sramEmuCart.write := emuCart.io.backup.write
+  sramEmuCart.dataWrite := Fill(2, emuCart.io.backup.dataWrite)
+  sramEmuCart.writeStrobe := Mux(emuCart.io.backup.address(0), "b10".U(2.W), "b01".U(2.W))
+  emuCart.io.backup.done := sramEmuCart.done
+  emuCart.io.backup.dataRead := sramEmuCart.dataRead.asTypeOf(Vec(2, UInt(8.W)))(regEmuCartSramByte)
 
   // Cartridge
   when (configRegEmuCart.enabled) {
@@ -235,11 +240,9 @@ class HandheldGba extends Module with HandheldModule {
   bios.readPorts(0).address := gba.io.biosRom.address
   gba.io.biosRom.data := bios.readPorts(0).data
 
-  // EWRAM
-  // TODO support part of this going to EmuCartridge
-  io.sram <> gba.io.ewram
-  io.sram.address := gba.io.ewram.address
-
+  // EWRAM. Starts at 256KB into the external SRAM.
+  sramEwram <> gba.io.ewram
+  sramEwram.address := Cat(1.U(1.W), gba.io.ewram.address)
 
   // Unused
   io.vibrate := false.B
