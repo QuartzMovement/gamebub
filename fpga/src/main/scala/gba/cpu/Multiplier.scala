@@ -27,12 +27,16 @@ class Multiplier extends Module {
   val output = Reg(UInt(64.W))
   val counter = Reg(UInt(2.W))
 
+  // Determine cycle length.
+  // Early termination based on the number of leading 0s or 1s.
+  // For unsigned long multiply, it's only leading 0s.
   val prefixZeroes = VecInit(!io.b(31, 24).orR, !io.b(23, 16).orR, !io.b(15, 8).orR, !io.b(7, 0).orR).asUInt
   val prefixOnes = VecInit(io.b(31, 24).andR, io.b(23, 16).andR, io.b(15, 8).andR, io.b(7, 0).andR).asUInt
+  val termOnes = !(io.long && !io.signed)
   val numCycles = MuxCase(3.U, Seq(
-    (prefixZeroes(2, 0) === "b111".U || prefixOnes(2, 0) === "b111".U) -> 0.U,
-    (prefixZeroes(1, 0) === "b11".U || prefixOnes(1, 0) === "b11".U) -> 1.U,
-    (prefixZeroes(0, 0) === "b1".U || prefixOnes(0, 0) === "b1".U) -> 2.U,
+    (prefixZeroes(2, 0) === "b111".U || (prefixOnes(2, 0) === "b111".U && termOnes)) -> 0.U,
+    (prefixZeroes(1, 0) === "b11".U || (prefixOnes(1, 0) === "b11".U && termOnes)) -> 1.U,
+    (prefixZeroes(0, 0) === "b1".U || (prefixOnes(0, 0) === "b1".U && termOnes)) -> 2.U,
   ))
 
   when (io.enable) {
