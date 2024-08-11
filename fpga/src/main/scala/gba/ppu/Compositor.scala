@@ -306,7 +306,7 @@ class Compositor extends Module {
       // Set up the next set by fetching an object.
       io.objectRead := true.B
       io.objectIndex := fetchX
-      val objOpaque = io.objectData.opaque && windowControl.obj
+      val objOpaque = io.objectData.opaque && windowControl.obj && io.displayControl.enableObj
       regSortObjBlend := objOpaque && io.objectData.blend
       regSortFirst.isBackdrop := !objOpaque
       regSortFirst.isObj := objOpaque
