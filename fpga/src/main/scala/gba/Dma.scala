@@ -64,6 +64,9 @@ class Dma extends Module {
     ))
   )
 
+  // Whether any channel is active and in the "store" phase.
+  val isAnyChannelStoring = WireDefault(false.B)
+
   for (i <- 0 until 4) {
     val configSource = regConfigSource(i)
     val configDest = regConfigDest(i)
@@ -138,8 +141,18 @@ class Dma extends Module {
       }
     }
 
+    // Each DMA channel can only be pre-empted during the "load" phase -- that is, once a DMA channel
+    // submits a load to the bus, it won't be pre-empted until after it completes the store.
+    //
+    // This is done slightly messily here: if any channel is storing, a DMA can't start,
+    // unless it's *us* who is storing, or we're past the initial load/store.
+    when (active && regStage === 1.U) {
+      isAnyChannelStoring := true.B
+    }
+    val isNotBlocked = !isAnyChannelStoring || regStage === 1.U || !regInitial
+
     // Run DMA
-    when (io.enable && active) {
+    when (io.enable && active && isNotBlocked) {
       when (regStage === 0.U) {
         val complete = regCount === 0.U && !regInitial
         // Begin Load (if not end)
