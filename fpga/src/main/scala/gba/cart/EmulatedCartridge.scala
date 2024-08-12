@@ -122,6 +122,15 @@ class EmulatedCartridge extends Module {
   backupSram.io.ramReqEnd := DontCare
   backupSram.io.backup.dataRead := DontCare
   backupSram.io.backup.done := DontCare
+  val backupFlash = Module(new FlashBackup)
+  backupFlash.io.size := io.config.backupSize
+  backupFlash.io.ramEnable := false.B
+  backupFlash.io.ramAddress := DontCare
+  backupFlash.io.ramIsWrite := DontCare
+  backupFlash.io.ramDataWrite := DontCare
+  backupFlash.io.ramReqEnd := DontCare
+  backupFlash.io.backup.dataRead := DontCare
+  backupFlash.io.backup.done := DontCare
 
   switch (io.config.backupType) {
     is (EmulatedCartridge.BackupType.None) {
@@ -142,23 +151,17 @@ class EmulatedCartridge extends Module {
       }
     }
     is (EmulatedCartridge.BackupType.Flash) {
-      // Stub out flash ID
-      // TODO: actually implement Flash
-      val regData = Reg(UInt(8.W))
-      io.interface.AHiIn := regData
-      when (ramStart) {
-        val stub = WireDefault(0xFF.U(8.W))
-        when (io.interface.reqAddress < 2.U) {
-          when (io.config.backupSize === 0.U) {
-            // 64 KiB (Panasonic)
-            stub := Mux(io.interface.reqAddress(0) === 0.U, 0x32.U, 0x1B.U)
-          } .otherwise {
-            // 128 KiB (Sanyo)
-            stub := Mux(io.interface.reqAddress(0) === 0.U, 0x62.U, 0x13.U)
-          }
-        }
-        regData := stub
-        logger.debug(cf"Flash stub: ${io.interface.reqAddress}%x -> ${stub}%x")
+      io.backup <> backupFlash.io.backup
+
+      backupFlash.io.ramEnable := ramStart
+      backupFlash.io.ramAddress := io.interface.reqAddress
+      backupFlash.io.ramIsWrite := io.interface.reqWrite
+      io.interface.AHiIn := backupFlash.io.ramDataRead
+      backupFlash.io.ramDataWrite := io.interface.AHiOut
+      backupFlash.io.ramReqEnd := io.interface.reqEnd
+
+      when (backupFlash.io.stall) {
+        io.stall := true.B
       }
     }
     // TODO: implement EEPROM
