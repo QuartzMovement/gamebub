@@ -113,43 +113,32 @@ class EmulatedCartridge extends Module {
     memWaiting := true.B
   }
 
+  // Backups
+  val backupSram = Module(new SramBackup)
+  backupSram.io.ramEnable := false.B
+  backupSram.io.ramAddress := DontCare
+  backupSram.io.ramIsWrite := DontCare
+  backupSram.io.ramDataWrite := DontCare
+  backupSram.io.ramReqEnd := DontCare
+  backupSram.io.backup.dataRead := DontCare
+  backupSram.io.backup.done := DontCare
+
   switch (io.config.backupType) {
     is (EmulatedCartridge.BackupType.None) {
       io.interface.AHiIn := 0xFF.U(8.W)
     }
     is (EmulatedCartridge.BackupType.Sram) {
-      val ramAddress = Reg(UInt(16.W))
-      val ramBusy = Reg(Bool())
-      val ramWrite = Reg(Bool())
+      io.backup <> backupSram.io.backup
 
-      io.interface.AHiIn := io.backup.dataRead
-      io.backup.dataWrite := io.interface.AHiOut
+      backupSram.io.ramEnable := ramStart
+      backupSram.io.ramAddress := io.interface.reqAddress
+      backupSram.io.ramIsWrite := io.interface.reqWrite
+      io.interface.AHiIn := backupSram.io.ramDataRead
+      backupSram.io.ramDataWrite := io.interface.AHiOut
+      backupSram.io.ramReqEnd := io.interface.reqEnd
 
-      when (ramStart) {
-        ramAddress := io.interface.reqAddress
-        ramBusy := true.B
-        ramWrite := io.interface.reqWrite
-
-        io.backup.enable := true.B
-        io.backup.address := io.interface.reqAddress
-        io.backup.write := io.interface.reqWrite
-      }
-      when (ramBusy) {
-        io.backup.enable := true.B
-        io.backup.address := ramAddress
-        io.backup.write := ramWrite
-
-        when (io.backup.done) {
-          ramBusy := false.B
-          when (ramWrite) {
-            logger.debug(cf"SRAM write done: data=0x${io.backup.dataWrite}%x")
-          } .otherwise {
-            logger.debug(cf"SRAM read done: data=0x${io.backup.dataRead}%x")
-          }
-        } .elsewhen (io.interface.reqEnd) {
-          logger.warn("RAM request stall")
-          io.stall := true.B
-        }
+      when (backupSram.io.stall) {
+        io.stall := true.B
       }
     }
     is (EmulatedCartridge.BackupType.Flash) {

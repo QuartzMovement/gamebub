@@ -62,7 +62,7 @@ class SimGba extends Module {
   gba.io.ewram.done := true.B
 
   // Emulated cartridge
-  val emuCart = Module(new VerificationEmulatedCartridge)
+  val emuCart = Module(new EmulatedCartridge)
   emuCart.io.config := io.emuCartConfig
   gba.io.cartridge <> emuCart.io.interface
   io.emuCartRom <> emuCart.io.rom
