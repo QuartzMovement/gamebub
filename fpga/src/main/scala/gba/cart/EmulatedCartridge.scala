@@ -33,6 +33,8 @@ class EmulatedCartridge extends Module {
   val io = IO(new Bundle {
     val config = Input(new EmulatedCartridge.Config)
     val interface = Flipped(new CartridgeInterface)
+    /// Size of the ROM, minus one
+    val romSize = Input(UInt(25.W))
 
     /// External ROM memory interface, assumed synchronous.
     /// Must keep read data on the bus until the next request.

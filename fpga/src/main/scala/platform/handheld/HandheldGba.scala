@@ -18,7 +18,7 @@ class HandheldGba extends Module with HandheldModule {
   def clockSdramHz = clockSystemHz * 4
 
   val configRegEmuCart = RegInit(0.U.asTypeOf(new EmulatedCartridge.Config))
-  // TODO support emu cart mask
+  val configRegRomSize = RegInit(0.U(25.W))
   val statRegStalls = RegInit(0.U(32.W))
   val statRegCycles = RegInit(0.U(32.W))
 
@@ -38,6 +38,8 @@ class HandheldGba extends Module with HandheldModule {
       dataWidth = 32,
       entries = Seq(
         0x0000 -> RegisterMap.Entry.rw(configRegEmuCart),
+        // Rom size (minus one), max (2**25 - 1), 32MiB
+        0x0004 -> RegisterMap.Entry.rw(configRegRomSize),
 
         0x1000 -> RegisterMap.Entry.rw(statRegStalls),
         0x1004 -> RegisterMap.Entry.rw(statRegCycles),
@@ -85,6 +87,7 @@ class HandheldGba extends Module with HandheldModule {
     sdramCache.reset := true.B
   }
   emuCart.io.config := configRegEmuCart
+  emuCart.io.romSize := configRegRomSize
 
   // Convert 16-bit addresses to 32-bit byte addresses
   // Also dealing with enable = true when done = true

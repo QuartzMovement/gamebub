@@ -10,6 +10,7 @@ public:
     ~Cartridge();
 
     std::vector<uint8_t> rom;
+    int rom_size;
     std::vector<uint8_t> backup;
     int config_backup_type;
     int config_backup_size;

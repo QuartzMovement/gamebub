@@ -13,6 +13,7 @@ Cartridge::Cartridge(std::filesystem::path rom_path) : rom_path(rom_path) {
     detect_backup_type();
 
     // Pad to 32 MiB (for now)
+    this->rom_size = rom.size();
     this->rom.resize(32 * 1024 * 1024, 0xFF);
 
     // Load save file.

@@ -29,6 +29,7 @@ class SimGba extends Module {
 
     val emuCartConfig = Input(new EmulatedCartridge.Config)
     val emuCartRom = Flipped(new MemoryInterface(addressWidth = 24, dataWidth = 16))
+    val emuCartRomSize = Input(UInt(25.W))
     val emuCartBackup = Flipped(new MemoryInterface(addressWidth = 17, dataWidth = 8))
     val emuCartStall = Output(Bool())
   })
@@ -65,6 +66,7 @@ class SimGba extends Module {
   // Emulated cartridge
   val emuCart = Module(new EmulatedCartridge)
   emuCart.io.config := io.emuCartConfig
+  emuCart.io.romSize := io.emuCartRomSize
   io.emuCartStall := emuCart.io.stall
   gba.io.cartridge <> emuCart.io.interface
   io.emuCartRom <> emuCart.io.rom

@@ -14,6 +14,7 @@ use super::Bitstream;
 
 const ROM_HEADER_LENGTH: usize = 192;
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
+const REG_EMU_CART_ROM_SIZE: u32 = 0xC000_0004;
 
 #[derive(Debug, Error)]
 pub enum GbaError {
@@ -248,6 +249,7 @@ impl Gba {
             transfer_duration.as_millis(),
             detect_duration.as_millis(),
         );
+        let rom_size = total;
         // TODO clear up to the next power of two
 
         // Load save
@@ -293,6 +295,7 @@ impl Gba {
         device
             .fpga
             .write_u32(REG_EMU_CART_CONFIG, emu_cart_config)?;
+        device.fpga.write_u32(REG_EMU_CART_ROM_SIZE, rom_size - 1)?;
 
         // Disable IRQs (including vblank)
         device.fpga.write_u32(fpga::REG_IRQ_ENABLE, 0)?;
