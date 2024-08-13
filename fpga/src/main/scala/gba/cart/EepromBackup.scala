@@ -33,13 +33,36 @@ class EepromBackup extends Module {
   io.backup.writeStrobe := 1.U
   io.backup.dataRead := DontCare
   io.dataRead := 1.U
+  val readPulse = !io.nRD && RegNext(io.nRD)
+  val writePulse = !io.nWR && RegNext(io.nWR)
 
+  // Size autodetection, based on number of bits transferred in the first read
+  val eepromSize = WireDefault(io.configSize)
+  val regDetectCounter = RegInit(0.U(5.W))
+  val regDetectDone = RegInit(false.B)
+  val regDetectSize = Reg(Bool())
+  when (io.configAutodetect && !regDetectDone) {
+    when (io.selected && writePulse) {
+      regDetectCounter := regDetectCounter + 1.U
+    }
+    when (regDetectCounter > 0.U && !io.selected) {
+      // 512B: 9 bits
+      // 8KB: 17 bits
+      regDetectDone := true.B
+      val detectedSize = regDetectCounter > 9.U
+      regDetectSize := detectedSize
+      logger.warn(cf"Detected EEPROM size: ${detectedSize} (counter: ${regDetectCounter})")
+    }
+  }
+  when (io.configAutodetect && regDetectDone) {
+    eepromSize := regDetectSize
+  }
 
   when (io.selected) {
-    when (!io.nRD && RegNext(io.nRD)) {
+    when (readPulse) {
       logger.debug(cf"EEPROM read")
     }
-    when (!io.nWR && RegNext(io.nWR)) {
+    when (writePulse) {
       logger.debug(cf"EEPROM write: ${io.dataWrite}")
     }
   }
