@@ -64,6 +64,8 @@ class EmulatedCartridge extends Module {
   // Whether we're waiting on data to come back for the ROM or backup.
   val memWaiting = WireDefault(false.B)
   io.stall := memWaiting && io.interface.reqEnd
+  // True if a non-ROM peripheral in the ROM chip-select (EEPROM or GPIO) is selected (based on address).
+  val romPeripheralSelected = WireDefault(false.B)
 
   val romBusy = RegInit(false.B)
   val romAddress = Reg(UInt(24.W))
@@ -77,12 +79,14 @@ class EmulatedCartridge extends Module {
       logger.info(cf"Rom request aborted, new addr=0x${io.rom.address << 1}%x")
       romAbort := true.B
     } .elsewhen (io.interface.reqRom) {
-      // TODO handle out-of-bounds ROM request
-      logger.debug(cf"ROM request start: addr=0x${io.rom.address << 1}%x | busy=${romBusy}")
-      io.rom.enable := true.B
-      io.rom.address := io.interface.reqAddress
-      romBusy := true.B
-      romAddress := io.interface.reqAddress
+      when (!romPeripheralSelected) {
+        // TODO handle out-of-bounds ROM request
+        logger.debug(cf"ROM request start: addr=0x${io.rom.address << 1}%x | busy=${romBusy}")
+        io.rom.enable := true.B
+        io.rom.address := io.interface.reqAddress
+        romBusy := true.B
+        romAddress := io.interface.reqAddress
+      }
     } .otherwise {
       logger.debug(cf"RAM request start: addr=0x${io.interface.reqAddress(15, 0)}%x")
       ramStart := true.B
@@ -133,6 +137,16 @@ class EmulatedCartridge extends Module {
   backupFlash.io.ramReqEnd := DontCare
   backupFlash.io.backup.dataRead := DontCare
   backupFlash.io.backup.done := DontCare
+  val backupEeprom = Module(new EepromBackup)
+  backupEeprom.io.configSize := io.config.backupSize
+  backupEeprom.io.configAutodetect := io.config.backupAutodetect
+  backupEeprom.io.selected := false.B
+  backupEeprom.io.nRD := DontCare
+  backupEeprom.io.nWR := DontCare
+  backupEeprom.io.dataWrite := DontCare
+  backupEeprom.io.reqEnd := DontCare
+  backupEeprom.io.backup.dataRead := DontCare
+  backupEeprom.io.backup.done := DontCare
 
   switch (io.config.backupType) {
     is (EmulatedCartridge.BackupType.None) {
@@ -166,6 +180,39 @@ class EmulatedCartridge extends Module {
         io.stall := true.B
       }
     }
-    // TODO: implement EEPROM
+    is (EmulatedCartridge.BackupType.Eeprom) {
+      io.backup <> backupEeprom.io.backup
+
+      // Determine if ROM bus is selecting the EEPROM.
+      val addressed = WireDefault(false.B)
+      when (io.romSize(24) === 0.U) {
+        // <=16MiB ROM, top bit is used
+        addressed := io.interface.reqAddress(23)
+      } .otherwise {
+        addressed := io.interface.reqAddress(23, 7).andR
+      }
+      when (addressed) {
+        romPeripheralSelected := true.B
+      }
+
+      val selected = RegInit(false.B)
+      when (!io.interface.nCS && RegNext(io.interface.nCS) && addressed) {
+        // Falling edge of nCS when addressed, we're selected.
+        selected := true.B
+        logger.debug("Selected eeprom")
+      }
+      when (selected && io.interface.nCS) {
+        selected := false.B
+      }
+
+      backupEeprom.io.selected := selected
+      backupEeprom.io.nRD := io.interface.nRD
+      backupEeprom.io.nWR := io.interface.nWR
+      backupEeprom.io.dataWrite := io.interface.ADLoOut(0)
+      backupEeprom.io.reqEnd := io.interface.reqEnd
+      when (selected) {
+        io.interface.ADLoIn := backupEeprom.io.dataRead
+      }
+    }
   }
 }
