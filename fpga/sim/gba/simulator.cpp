@@ -80,6 +80,7 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
         top->io_enable = true;
         top->clock = 0;
         top->eval();
+        top->io_enable = !top->io_emuCartStall;
         top->clock = 1;
         top->eval();
 

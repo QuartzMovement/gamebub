@@ -14,7 +14,6 @@ object FlashBackup {
     val BankSwap = Value
     val PrepareWrite = Value
     val DoWrite = Value
-    val DoErase = Value
   }
 }
 
@@ -41,6 +40,7 @@ class FlashBackup extends Module {
   val regReadBusy = RegInit(false.B)
   val regReadData = Reg(UInt(8.W))
   val regAddress = Reg(UInt(17.W))
+  val regEraseBusy = RegInit(false.B)
   val regEraseFull = Reg(Bool())
 
   io.stall := false.B
@@ -50,6 +50,10 @@ class FlashBackup extends Module {
   io.backup.writeStrobe := 1.U
   io.backup.dataWrite := io.ramDataWrite
   io.ramDataRead := regReadData
+
+  when (io.ramEnable && io.ramIsWrite) {
+    logger.debug(cf"write addr=${io.ramAddress}%x data=${io.ramDataWrite}%x | state=${regState}")
+  }
 
   // Handle reading
   when (io.ramEnable && !io.ramIsWrite) {
@@ -66,7 +70,28 @@ class FlashBackup extends Module {
       regAddress := Cat(regBank, io.ramAddress)
     }
   }
-  when (regReadBusy) {
+  when (regEraseBusy) {
+    io.backup.enable := true.B
+    io.backup.write := true.B
+    io.backup.dataWrite := 0xFF.U
+    when (io.backup.done) {
+      val nextAddress = regAddress + 1.U
+      regAddress := nextAddress
+
+      when (regEraseFull && nextAddress === 0.U) {
+        logger.info(cf"Finished erase full")
+        regEraseBusy := false.B
+      }
+      when (!regEraseFull && nextAddress(11, 0) === 0.U) {
+        logger.info(cf"Finished erase sector")
+        regEraseBusy := false.B
+      }
+    }
+    when (io.ramReqEnd) {
+      logger.warn("Flash erase stall")
+      io.stall := true.B
+    }
+  } .elsewhen (regReadBusy) {
     io.backup.enable := true.B
     io.backup.write := false.B
     when (io.backup.done) {
@@ -123,7 +148,7 @@ class FlashBackup extends Module {
                 logger.info("Erase chip")
                 regModeErase := false.B
                 regAddress := 0.U
-                regState := State.DoErase
+                regEraseBusy := true.B
                 regEraseFull := true.B
               }
             }
@@ -144,8 +169,8 @@ class FlashBackup extends Module {
           val sector = io.ramAddress(15, 12)
           logger.info(cf"Erase sector ${sector}")
           regModeErase := false.B
-          regState := State.DoErase
           regAddress := Cat(regBank, sector, 0.U(12.W))
+          regEraseBusy := true.B
           regEraseFull := false.B
         }
       }
@@ -176,32 +201,6 @@ class FlashBackup extends Module {
           regBank := io.ramDataWrite(0)
           logger.debug(cf"Bank swap: ${io.ramDataWrite(0)}")
         }
-      }
-    }
-    is (State.DoErase) {
-      // This does the entire erase in a single request cycle, which essentially
-      // guarantees a stall. This is done to make it so we don't have to worry about
-      // erasing and reading at the same time. It probably doesn't matter, because
-      // the erase is still pretty fast (at ~3 cycles per erased byte, 128KiB is
-      // ~23 ms. A sector is 0.7ms.
-      io.backup.enable := true.B
-      io.backup.write := true.B
-      io.backup.dataWrite := 0xFF.U
-      when (io.backup.done) {
-        val nextAddress = regAddress + 1.U
-        regAddress := nextAddress
-
-        when (regEraseFull && nextAddress === 0.U) {
-          logger.info(cf"Finished erase full")
-          regState := State.Ready
-        }
-        when (!regEraseFull && nextAddress(11, 0) === 0.U) {
-          logger.info(cf"Finished erase sector")
-          regState := State.Ready
-        }
-      }
-      when (io.ramReqEnd) {
-        io.stall := true.B
       }
     }
   }
