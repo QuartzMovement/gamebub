@@ -7,7 +7,7 @@ import lib.mem.cache.DirectReadCache._
 
 object DirectReadCache {
   object State extends ChiselEnum {
-    val init, idle, waitCache, waitMem = Value
+    val init, idle, waitCache, waitMem, doneMem = Value
   }
 
   class Entry(tagWidth: Int, dataWidth: Int) extends Bundle {
@@ -48,6 +48,7 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
    *  it's just to avoid a combinatorial loop in HandheldGba.
    */
   val regAddress = Reg(UInt(addressWidth.W))
+  val regDataRead = Reg(UInt(dataWidth.W))
   io.in.done := false.B
   io.in.dataRead := DontCare
   io.out.enable := false.B
@@ -102,9 +103,6 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
     is (State.waitMem) {
       io.out.enable := true.B
       when (io.out.done) {
-        io.in.done := true.B
-        io.in.dataRead := io.out.dataRead
-
         // Insert into cache.
         cachePort.enable := true.B
         cachePort.isWrite := true.B
@@ -115,8 +113,20 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
         wire.tag := getTag(regAddress)
         cachePort.writeData := wire.asUInt
 
-        state := State.idle
+        // We don't set io.in.done = true and return the data this cycle, because the 'done' signal might be
+        // coming from a faster clock domain. If we forward it directly here, then the downstream consumer
+        // will only have a *fast* clock period to do all logic.
+        // Instead, register it and pass it forward next cycle.
+        // TODO this should almost certainly be happening at a layer above this
+        regDataRead := io.out.dataRead
+        state := State.doneMem
       }
+    }
+
+    is (State.doneMem) {
+      io.in.done := true.B
+      io.in.dataRead := regDataRead
+      state := State.idle
     }
   }
 }
