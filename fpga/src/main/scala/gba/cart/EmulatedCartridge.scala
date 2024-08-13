@@ -183,6 +183,10 @@ class EmulatedCartridge extends Module {
     is (EmulatedCartridge.BackupType.Eeprom) {
       io.backup <> backupEeprom.io.backup
 
+      when (backupEeprom.io.stall) {
+        io.stall := true.B
+      }
+
       // Determine if ROM bus is selecting the EEPROM.
       val addressed = WireDefault(false.B)
       when (io.romSize(24) === 0.U) {
