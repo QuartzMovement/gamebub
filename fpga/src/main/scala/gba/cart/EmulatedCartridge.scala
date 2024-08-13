@@ -73,11 +73,13 @@ class EmulatedCartridge extends Module {
   // Whether the cartridge controller has aborted the current request.
   // Once the data comes back, ignore it, and start the next request.
   val romAbort = RegInit(false.B)
+  val romAbortNextAddress = Reg(UInt(24.W))
 
   when (io.interface.reqStart) {
     when (romBusy) {
-      logger.info(cf"Rom request aborted, new addr=0x${io.rom.address << 1}%x")
+      logger.info(cf"Rom request aborted, new addr=0x${io.interface.reqAddress << 1}%x")
       romAbort := true.B
+      romAbortNextAddress := io.interface.reqAddress
     } .elsewhen (io.interface.reqRom) {
       when (!romPeripheralSelected) {
         // TODO handle out-of-bounds ROM request
@@ -110,11 +112,11 @@ class EmulatedCartridge extends Module {
     }
   }
   when (romAbort && !romBusy) {
-    logger.debug(cf"ROM request start: addr=0x${io.rom.address << 1}%x")
+    logger.debug(cf"ROM request start (after abort): addr=0x${romAbortNextAddress << 1}%x")
     io.rom.enable := true.B
-    io.rom.address := io.interface.reqAddress
+    io.rom.address := romAbortNextAddress
     romBusy := true.B
-    romAddress := io.interface.reqAddress
+    romAddress := romAbortNextAddress
     romAbort := false.B
     memWaiting := true.B
   }
