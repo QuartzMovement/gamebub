@@ -5,7 +5,7 @@ import _root_.circt.stage.ChiselStage
 import chisel3.util.SRAM
 import gba._
 import gba.apu.ApuOutput
-import gba.cart.{EmulatedCartridge, VerificationEmulatedCartridge}
+import gba.cart.emu.{EmulatedCartridge, VerificationEmulatedCartridge}
 import gba.ppu.PpuOutput
 import lib.log.Log
 import lib.mem.MemoryInterface

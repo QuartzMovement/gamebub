@@ -1,7 +1,8 @@
-package gba.cart
+package gba.cart.emu
 
 import chisel3._
 import chisel3.util._
+import gba.cart.CartridgeInterface
 import lib.log.Logger
 import lib.mem.MemoryInterface
 

@@ -3,7 +3,7 @@ package platform.handheld
 import chisel3._
 import chisel3.util._
 import gba.GBA
-import gba.cart.EmulatedCartridge
+import gba.cart.emu.EmulatedCartridge
 import lib.mem.cache.DirectReadCache
 import lib.mem.{MemoryArbiter, MemoryInterface, MemoryMap, RegisterMap}
 

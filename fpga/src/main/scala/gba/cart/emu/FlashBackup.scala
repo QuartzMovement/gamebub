@@ -1,8 +1,8 @@
-package gba.cart
+package gba.cart.emu
 
 import chisel3._
 import chisel3.util._
-import gba.cart.FlashBackup.State
+import gba.cart.emu.FlashBackup.State
 import lib.log.Logger
 import lib.mem.MemoryInterface
 
