@@ -11,6 +11,7 @@ Cartridge::Cartridge(std::filesystem::path rom_path) : rom_path(rom_path) {
     this->rom = read_file(rom_path);
 
     detect_backup_type();
+    apply_overrides();
 
     // Pad to 32 MiB (for now)
     this->rom_size = rom.size();
@@ -73,4 +74,8 @@ void Cartridge::detect_backup_type() {
     } else {
         printf("Detected no backup\n");
     }
+}
+
+void Cartridge::apply_overrides() {
+  // TODO set config_has_gpio appropriately
 }

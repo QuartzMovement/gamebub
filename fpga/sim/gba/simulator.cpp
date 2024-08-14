@@ -44,6 +44,7 @@ void Simulator::reset()
     top->io_emuCartConfig_backupType = cartridge.config_backup_type;
     top->io_emuCartConfig_backupSize = cartridge.config_backup_size;
     top->io_emuCartConfig_backupAutodetect = cartridge.config_backup_autodetect;
+    top->io_emuCartConfig_hasGpio = cartridge.config_has_gpio;
     top->io_emuCartRomSize = cartridge.rom_size - 1;
 
     top->reset = 1;

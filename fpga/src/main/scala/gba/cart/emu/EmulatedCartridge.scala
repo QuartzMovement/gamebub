@@ -19,6 +19,8 @@ object EmulatedCartridge {
   }
 
   class Config extends Bundle {
+    /// Whether a GPIO controller is present
+    val hasGpio = Bool()
     /// Auto-detect backup size (EEPROM only)
     val backupAutodetect = Bool()
     /// Per-type backup size
@@ -67,6 +69,10 @@ class EmulatedCartridge extends Module {
   io.stall := memWaiting && io.interface.reqEnd
   // True if a non-ROM peripheral in the ROM chip-select (EEPROM or GPIO) is selected (based on address).
   val romPeripheralSelected = WireDefault(false.B)
+  // Whether ROM nCS fell this cycle
+  val romSelectNegedge = !io.interface.nCS && RegNext(io.interface.nCS)
+  val readNegedge = !io.interface.nRD && RegNext(io.interface.nRD)
+  val writeNegedge = !io.interface.nWR && RegNext(io.interface.nWR)
 
   val romBusy = RegInit(false.B)
   val romAddress = Reg(UInt(24.W))
@@ -144,8 +150,8 @@ class EmulatedCartridge extends Module {
   backupEeprom.io.configSize := io.config.backupSize
   backupEeprom.io.configAutodetect := io.config.backupAutodetect
   backupEeprom.io.selected := false.B
-  backupEeprom.io.nRD := DontCare
-  backupEeprom.io.nWR := DontCare
+  backupEeprom.io.readPulse := DontCare
+  backupEeprom.io.writePulse := DontCare
   backupEeprom.io.dataWrite := DontCare
   backupEeprom.io.reqEnd := DontCare
   backupEeprom.io.backup.dataRead := DontCare
@@ -203,7 +209,7 @@ class EmulatedCartridge extends Module {
       }
 
       val selected = RegInit(false.B)
-      when (!io.interface.nCS && RegNext(io.interface.nCS) && addressed) {
+      when (romSelectNegedge && addressed) {
         // Falling edge of nCS when addressed, we're selected.
         selected := true.B
         logger.debug("Selected eeprom")
@@ -213,12 +219,49 @@ class EmulatedCartridge extends Module {
       }
 
       backupEeprom.io.selected := selected
-      backupEeprom.io.nRD := io.interface.nRD
-      backupEeprom.io.nWR := io.interface.nWR
+      backupEeprom.io.readPulse := readNegedge
+      backupEeprom.io.writePulse := writeNegedge
       backupEeprom.io.dataWrite := io.interface.ADLoOut(0)
       backupEeprom.io.reqEnd := io.interface.reqEnd
       when (selected) {
         io.interface.ADLoIn := backupEeprom.io.dataRead
+      }
+    }
+  }
+
+  // GPIO controller (optional), with registers at 0xC4, 0xC6, 0xC8
+  val gpio = Module(new Gpio)
+  gpio.io.reqRead := false.B
+  gpio.io.reqWrite := false.B
+  gpio.io.reqAddress := DontCare
+  gpio.io.dataWrite := io.interface.ADLoOut(3, 0)
+  gpio.io.pinIn := 0.U
+  when (io.config.hasGpio) {
+    val regAddress = Reg(UInt(2.W))
+    val regDataRead = Reg(UInt(4.W))
+    val addressed = io.interface.reqAddress >= (0xC2 / 2).U && io.interface.reqAddress <= (0xC8 / 2).U
+    when (addressed) {
+      romPeripheralSelected := true.B
+      when (io.interface.reqStart) {
+        regAddress := io.interface.reqAddress
+      }
+    }
+    gpio.io.reqAddress := regAddress
+
+    val selected = RegInit(false.B)
+    when (romSelectNegedge && addressed) {
+      selected := true.B
+      logger.debug("Selected gpio")
+    }
+    when (selected) {
+      when (io.interface.nCS) {
+        selected := false.B
+      }
+      gpio.io.reqRead := readNegedge
+      gpio.io.reqWrite := writeNegedge
+      io.interface.ADLoIn := regDataRead
+      when (readNegedge) {
+        regDataRead := gpio.io.dataRead
       }
     }
   }

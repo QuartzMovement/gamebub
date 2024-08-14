@@ -25,10 +25,8 @@ class EepromBackup extends Module {
 
     /// Whether the EEPROM chip is selected
     val selected = Input(Bool())
-    /// State of nRD pin
-    val nRD = Input(Bool())
-    /// State of nWR pin
-    val nWR = Input(Bool())
+    val readPulse = Input(Bool())
+    val writePulse = Input(Bool())
     val dataRead = Output(UInt(1.W))
     val dataWrite = Input(UInt(1.W))
     val reqEnd = Input(Bool())
@@ -46,8 +44,6 @@ class EepromBackup extends Module {
   io.backup.write := DontCare
   io.backup.writeStrobe := 1.U
   io.backup.dataRead := DontCare
-  val readPulse = !io.nRD && RegNext(io.nRD)
-  val writePulse = !io.nWR && RegNext(io.nWR)
   val regOut = RegInit(1.U(1.W))
   io.dataRead := regOut
 
@@ -68,7 +64,7 @@ class EepromBackup extends Module {
   val regDummy = Reg(UInt(3.W))
 
   // Handle writes
-  when (io.selected && writePulse) {
+  when (io.selected && io.writePulse) {
 //    logger.debug(cf"EEPROM write: ${io.dataWrite}")
     val bit = io.dataWrite
     switch (regState) {
@@ -136,7 +132,7 @@ class EepromBackup extends Module {
     }
   }
 
-  when (io.selected && readPulse) {
+  when (io.selected && io.readPulse) {
     when (regDummy > 0.U) {
       regDummy := regDummy - 1.U
       regOut := 0.U
