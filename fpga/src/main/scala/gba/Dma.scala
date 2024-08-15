@@ -127,7 +127,7 @@ class Dma extends Module {
       activateSpecial := control.startControl === DmaStartControl.special && io.triggerFifo(i - 1)
     } else if (i == 3) {
       activateSpecial := control.startControl === DmaStartControl.special && io.triggerVideo
-      when (io.stopVideo) {
+      when (control.startControl === DmaStartControl.special && io.stopVideo) {
         control.enable := false.B
       }
     }
