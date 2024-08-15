@@ -129,10 +129,10 @@ class BackgroundRenderer extends Module {
   when (io.enable) {
     when (isVdraw) {
       for (i <- 0 until 2) {
-        when (io.writeAffX(0)) {
+        when (io.writeAffX(i)) {
           affX(i) := io.bgAffX(i)
         }
-        when (io.writeAffY(0)) {
+        when (io.writeAffY(i)) {
           affY(i) := io.bgAffY(i)
         }
       }
