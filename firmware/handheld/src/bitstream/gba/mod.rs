@@ -93,7 +93,7 @@ impl EmulatedCartridgeConfig {
             SaveType::Eeprom512 => 0b0011,
             SaveType::Eeprom8K => 0b0111,
         };
-        let has_gpio = self.has_rumble || self.has_rtc || self.has_accel || self.has_gyro;
+        let has_gpio = self.has_rumble || self.has_rtc || self.has_gyro;
         1 | (backup << 1)
             | ((has_gpio as u32) << 5)
             | ((self.has_rumble as u32) << 6)
