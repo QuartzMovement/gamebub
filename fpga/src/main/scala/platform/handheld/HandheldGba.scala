@@ -47,6 +47,8 @@ class HandheldGba extends Module with HandheldModule {
     )
   }
 
+  io.vibrate := false.B
+
   // SDRAM interface and port
   val sdramCache = Module(new DirectReadCache(addressWidth = 23, dataWidth = 32, numEntries = 1024))
   io.sdram <> sdramCache.io.out
@@ -128,6 +130,10 @@ class HandheldGba extends Module with HandheldModule {
     // Connect emulated cartridge
     gba.io.cartridge <> emuCart.io.interface
     doStall := emuCart.io.stall || gba.io.ewramStall
+
+    when (emuCart.io.vibrate) {
+      io.vibrate := true.B
+    }
 
     // Disconnect physical cartridge
     io.cartridgeEnabled := false.B
@@ -246,9 +252,6 @@ class HandheldGba extends Module with HandheldModule {
   // EWRAM. Starts at 256KB into the external SRAM.
   sramEwram <> gba.io.ewram
   sramEwram.address := Cat(1.U(1.W), gba.io.ewram.address)
-
-  // Unused
-  io.vibrate := false.B
 
   io.pmod.out := Cat(clock.asBool, gba.io.cartridge.nWR, gba.io.cartridge.nRD, gba.io.cartridge.nCS)
   io.pmod.dir := "b1111".U(4.W)

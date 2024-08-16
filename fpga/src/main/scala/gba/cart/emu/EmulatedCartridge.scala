@@ -19,6 +19,14 @@ object EmulatedCartridge {
   }
 
   class Config extends Bundle {
+    /// Whether the cartridge has a Z gyroscope
+    val hasGyro = Bool()
+    /// Whether the cartridge has an X-Y accelerometer
+    val hasAccel = Bool()
+    /// Whether the cartridge has a real-time clock
+    val hasRtc = Bool()
+    /// Whether the cartridge has rumble
+    val hasRumble = Bool()
     /// Whether a GPIO controller is present
     val hasGpio = Bool()
     /// Auto-detect backup size (EEPROM only)
@@ -47,6 +55,9 @@ class EmulatedCartridge extends Module {
     val backup = Flipped(new MemoryInterface(addressWidth = 17, dataWidth = 8))
     /// Whether the previous memory request has not yet completed by the time the GBA needs it to.
     val stall = Output(Bool())
+
+    /// Vibration control
+    val vibrate = Output(Bool())
   })
   val logger = Logger("cart.emu")
 
@@ -265,4 +276,7 @@ class EmulatedCartridge extends Module {
       }
     }
   }
+
+  // Rumble, connected to GPIO 3
+  io.vibrate := io.config.hasRumble && gpio.io.pinOut(3) && gpio.io.pinDir(3)
 }
