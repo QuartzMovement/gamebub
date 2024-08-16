@@ -1,0 +1,29 @@
+use super::{EmulatedCartridgeConfig, SaveType};
+
+macro_rules! config {
+    ($save_type:ident $(, $field:ident)*) => {
+        {
+            let mut config = EmulatedCartridgeConfig::from_save_type(SaveType::$save_type);
+            $(
+                config.$field = true;
+            )*
+            config
+        }
+    }
+}
+
+/// The game database.
+static DATABASE: &[(&'static [u8; 4], EmulatedCartridgeConfig)] = &[
+    (b"ALUE", config!(Flash128K, has_rtc)), // Pokemon - Ruby Version (USA, Europe)
+    (b"AXPE", config!(Flash128K, has_rtc)), // Pokemon - Sapphire Version (USA, Europe)
+    (b"BPEE", config!(Flash128K, has_rtc)), // Pokemon - Emerald Version (USA, Europe)
+    (b"V49E", config!(Sram, has_rumble)),   // Drill Dozer (USA)
+    (b"RZWE", config!(Sram, has_rumble, has_gyro)), // Wario Ware Twisted
+];
+
+pub fn lookup(key: &[u8; 4]) -> Option<EmulatedCartridgeConfig> {
+    DATABASE
+        .iter()
+        .find(|(&code, _)| *key == code)
+        .map(|(_, config)| config.clone())
+}

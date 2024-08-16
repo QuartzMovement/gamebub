@@ -12,6 +12,8 @@ use crate::device::{drivers::fpga, Device};
 
 use super::Bitstream;
 
+mod game_db;
+
 const ROM_HEADER_LENGTH: usize = 192;
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
 const REG_EMU_CART_ROM_SIZE: u32 = 0xC000_0004;
@@ -54,6 +56,48 @@ impl SaveType {
             Self::Flash64K => 64 * 1024,
             Self::Flash128K => 128 * 1024,
         }
+    }
+}
+
+#[derive(Copy, Clone)]
+struct EmulatedCartridgeConfig {
+    pub save_type: SaveType,
+    pub has_rumble: bool,
+    pub has_rtc: bool,
+    pub has_accel: bool,
+    pub has_gyro: bool,
+}
+
+impl EmulatedCartridgeConfig {
+    pub const DISABLED: u32 = 0;
+
+    const fn from_save_type(save_type: SaveType) -> Self {
+        EmulatedCartridgeConfig {
+            save_type,
+            has_rumble: false,
+            has_rtc: false,
+            has_accel: false,
+            has_gyro: false,
+        }
+    }
+
+    fn as_config_u32(self) -> u32 {
+        let backup: u32 = match self.save_type {
+            SaveType::None => 0b0000,
+            SaveType::Sram => 0b0001,
+            SaveType::Flash64K => 0b0010,
+            SaveType::Flash128K => 0b0110,
+            SaveType::EepromAuto => 0b1011,
+            SaveType::Eeprom512 => 0b0011,
+            SaveType::Eeprom8K => 0b0111,
+        };
+        let has_gpio = self.has_rumble || self.has_rtc || self.has_accel || self.has_gyro;
+        1 | (backup << 1)
+            | ((has_gpio as u32) << 5)
+            | ((self.has_rumble as u32) << 6)
+            | ((self.has_rtc as u32) << 7)
+            | ((self.has_accel as u32) << 8)
+            | ((self.has_gyro as u32) << 9)
     }
 }
 
@@ -184,7 +228,9 @@ impl Gba {
         self.load_bios(&mut device)?;
 
         // Switch to physical cartridge.
-        device.fpga.write_u32(REG_EMU_CART_CONFIG, 0)?;
+        device
+            .fpga
+            .write_u32(REG_EMU_CART_CONFIG, EmulatedCartridgeConfig::DISABLED)?;
 
         // Disable IRQs (including vblank)
         device.fpga.write_u32(fpga::REG_IRQ_ENABLE, 0)?;
@@ -214,7 +260,9 @@ impl Gba {
         rom_file.seek(std::io::SeekFrom::Start(0))?;
         let rom_header = RomHeader::parse(rom_header);
         log::info!("Loading rom: {}", rom_header);
+
         let mut save_type_detector = SaveTypeDetector::new();
+        let emu_cart_config = game_db::lookup(&rom_header.game_code);
 
         const CHUNK_SIZE: usize = 16 * 1024;
         let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
@@ -237,7 +285,9 @@ impl Gba {
             transfer_duration += transfer_start.elapsed();
 
             let detect_start = Instant::now();
-            save_type_detector.process(&buf[..n]);
+            if emu_cart_config.is_none() {
+                save_type_detector.process(&buf[..n]);
+            }
             detect_duration += detect_start.elapsed();
         }
         let duration = start_time.elapsed();
@@ -252,10 +302,16 @@ impl Gba {
         let rom_size = total;
         // TODO clear up to the next power of two
 
+        match emu_cart_config {
+            Some(config) => log::info!("Using save config: {:?}", config.save_type),
+            None => log::info!("Detected save type: {:?}", save_type_detector.get()),
+        }
+        let emu_cart_config = emu_cart_config
+            .unwrap_or_else(|| EmulatedCartridgeConfig::from_save_type(save_type_detector.get()));
+
         // Load save
-        let save_type = save_type_detector.get();
+        let save_type = emu_cart_config.save_type;
         let save_size = save_type.get_size() as u32;
-        log::info!("Detected save type: {:?}", save_type);
         let save_path = rom_path.with_extension("sav");
         if let Ok(mut save_file) = File::open(save_path.as_path()) {
             log::info!("Loading save file");
@@ -283,18 +339,9 @@ impl Gba {
         }
 
         // Configure emulated cartridge control registers
-        let emu_cart_config = match save_type {
-            SaveType::None => 0b00001,
-            SaveType::Sram => 0b00011,
-            SaveType::Flash64K => 0b00101,
-            SaveType::Flash128K => 0b01101,
-            SaveType::EepromAuto => 0b10111,
-            SaveType::Eeprom512 => 0b00111,
-            SaveType::Eeprom8K => 0b01111,
-        };
         device
             .fpga
-            .write_u32(REG_EMU_CART_CONFIG, emu_cart_config)?;
+            .write_u32(REG_EMU_CART_CONFIG, emu_cart_config.as_config_u32())?;
         device.fpga.write_u32(REG_EMU_CART_ROM_SIZE, rom_size - 1)?;
 
         // Disable IRQs (including vblank)
