@@ -50,7 +50,7 @@ class HandheldGba extends Module with HandheldModule {
   io.vibrate := false.B
 
   // SDRAM interface and port
-  val sdramCache = Module(new DirectReadCache(addressWidth = 23, dataWidth = 32, numEntries = 1024))
+  val sdramCache = Module(new DirectReadCache(addressWidth = 23, dataWidth = 32, numEntries = 4096))
   io.sdram <> sdramCache.io.out
   io.sdram.address := sdramCache.io.out.address << 2
   val sdramPort = sdramCache.io.in
