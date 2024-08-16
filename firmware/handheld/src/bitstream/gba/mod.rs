@@ -17,6 +17,8 @@ mod game_db;
 const ROM_HEADER_LENGTH: usize = 192;
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
 const REG_EMU_CART_ROM_SIZE: u32 = 0xC000_0004;
+const REG_STAT_STALLS: u32 = 0xC000_1000;
+const REG_STAT_CYCLES: u32 = 0xC000_1004;
 
 #[derive(Debug, Error)]
 pub enum GbaError {
@@ -398,7 +400,19 @@ impl Bitstream for Gba {
 
         device
             .fpga
-            .write_u32(fpga::REG_CONTROL, 0b1010u32 | ((!paused) as u32))
+            .write_u32(fpga::REG_CONTROL, 0b1010u32 | ((!paused) as u32))?;
+
+        if paused {
+            // Debug output stall stats
+            let num_cycles = device.fpga.read_u32(REG_STAT_CYCLES)?;
+            let num_stalls = device.fpga.read_u32(REG_STAT_STALLS)?;
+            device.fpga.write_u32(REG_STAT_CYCLES, 0)?;
+            device.fpga.write_u32(REG_STAT_STALLS, 0)?;
+            let rate = (num_cycles as f32) / ((num_cycles as f32) + (num_stalls as f32));
+            log::info!("Run rate: {}%", rate * 100.0);
+        }
+
+        Ok(())
     }
 
     fn reset(&mut self) -> Result<(), fpga::Error> {
