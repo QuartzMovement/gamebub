@@ -69,6 +69,7 @@ class Ppu extends Module {
   val regBlendA = RegInit(0.U(5.W))
   val regBlendB = RegInit(0.U(5.W))
   val regBlendFade = RegInit(0.U(5.W))
+  val regMosaic = RegInit(0.U.asTypeOf(new PpuRegisters.MosaicSize))
 
   /// VRAM: 96KiB, 16-bit access without byte strobe (internally split into multiple banks for bg/obj)
   val vram = Module(new Vram)
@@ -176,6 +177,7 @@ class Ppu extends Module {
     0x40 -> MmioMap.Entry.w8(regWin0Bounds.xEnd, regWin0Bounds.xStart, regWin1Bounds.xEnd, regWin1Bounds.xStart),
     0x44 -> MmioMap.Entry.w8(regWin0Bounds.yEnd, regWin0Bounds.yStart, regWin1Bounds.yEnd, regWin1Bounds.yStart),
     0x48 -> MmioMap.Entry.rw8(regWin0Control, regWin1Control, regWinOutControl, regWinObjControl),
+    0x4C -> MmioMap.Entry.w(regMosaic),
     0x50 -> MmioMap.Entry(
       MmioMap.ReadFn(_ => {
         val data = Cat(

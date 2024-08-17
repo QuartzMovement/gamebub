@@ -82,4 +82,15 @@ object PpuRegisters {
     val topObj = Bool()
     val topBg = UInt(4.W)
   }
+
+  class MosaicSize extends Bundle {
+    /// Object mosaic vertical size (minus 1)
+    val objY = UInt(4.W)
+    /// Object mosaic horizontal size (minus 1)
+    val objX = UInt(4.W)
+    /// Background mosaic vertical size (minus 1)
+    val bgY = UInt(4.W)
+    /// Background mosaic horizontal size (minus 1)
+    val bgX = UInt(4.W)
+  }
 }
