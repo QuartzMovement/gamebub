@@ -75,6 +75,7 @@ class ObjectRenderer extends Module {
     val enable = Input(Bool())
 
     val displayControl = Input(new PpuRegisters.DisplayControl)
+    val mosaicY = Input(UInt(4.W))
 
     /// OBJ VRAM access
     val vram = Flipped(new PpuMemoryInterface(32 * 1024 / 2, 16.W))
@@ -95,6 +96,8 @@ class ObjectRenderer extends Module {
 
   val active = RegInit(false.B)
   val renderY = Reg(UInt(8.W))
+  val renderYMosaic = Reg(UInt(8.W))
+  val mosaicCounter = Reg(UInt(4.W))
   val evenTick = io.tick(0) === 0.U
 
   // Object scanline buffer. 240 entries, times two, rounded to power-of-two.
@@ -298,7 +301,8 @@ class ObjectRenderer extends Module {
           val attr0 = io.oam.readData(15, 0).asTypeOf(new ObjectAttribute0)
           val attr1 = io.oam.readData(31, 16).asTypeOf(new ObjectAttribute1)
           val (width, height) = getObjectSize(attr0, attr1)
-          val objRow = (renderY -& attr0.y)(7, 0)
+          val objY = Mux(attr0.mosaic, renderYMosaic, renderY)
+          val objRow = (objY -& attr0.y)(7, 0)
 
           oamAttrs.x := attr1.x
           oamAttrs.row := Mux(attr1.flipY && !attr0.affine, objRow ^ ((height << 3).asUInt - 1.U), objRow)
@@ -436,8 +440,17 @@ class ObjectRenderer extends Module {
     when (io.displayControl.enableObj && (io.scanline < 160.U || io.scanline === 227.U) && io.tick === 39.U) {
       active := true.B
       renderY := io.scanline + 1.U
+
+      mosaicCounter := mosaicCounter + 1.U
+      when (mosaicCounter === io.mosaicY) {
+        mosaicCounter := 0.U
+        renderYMosaic := io.scanline + 1.U
+      }
+
       when (io.scanline === 227.U) {
         renderY := 0.U
+        renderYMosaic := 0.U
+        mosaicCounter := 0.U
       }
       bufferPage := !bufferPage
       when (bufferPage === 0.U) {

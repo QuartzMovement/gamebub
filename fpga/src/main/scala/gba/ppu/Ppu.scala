@@ -202,6 +202,7 @@ class Ppu extends Module {
   val objRender = Module(new ObjectRenderer)
   objRender.io.enable := io.enable
   objRender.io.displayControl := regDisplayControl
+  objRender.io.mosaicY := regMosaic.objY
   objRender.io.tick := tick
   objRender.io.scanline := scanline
   objRender.io.vram <> vram.io.portOBJ
