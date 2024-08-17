@@ -159,7 +159,7 @@ class Compositor extends Module {
     val blendEnabled =
       (regBlendWindow || isObjBlend) &&
         (blendEffect =/= BlendEffect.none) &&
-        (blendFirst || isObjBlend) &&
+        (blendFirst || (isObjBlend && blendSecond)) &&
         !(blendEffect === BlendEffect.alpha && !blendSecond)
 
     io.pixel := regBlendFirst.color
