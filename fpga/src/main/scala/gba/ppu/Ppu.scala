@@ -222,6 +222,7 @@ class Ppu extends Module {
   compositor.io.blendAlphaA := regBlendA
   compositor.io.blendAlphaB := regBlendB
   compositor.io.blendFade := regBlendFade
+  compositor.io.mosaic := regMosaic
   compositor.io.tick := tick
   compositor.io.scanline := scanline
   compositor.io.paletteRam <> paletteRam.io.ppuTarget

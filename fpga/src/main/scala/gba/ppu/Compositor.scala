@@ -42,6 +42,7 @@ class Compositor extends Module {
     val blendAlphaA = Input(UInt(5.W))
     val blendAlphaB = Input(UInt(5.W))
     val blendFade = Input(UInt(5.W))
+    val mosaic = Input(new PpuRegisters.MosaicSize)
 
     val tick = Input(UInt(11.W))
     val scanline = Input(UInt(8.W))
@@ -75,11 +76,14 @@ class Compositor extends Module {
   val win0ActiveY = Reg(Bool())
   val win1ActiveY = Reg(Bool())
 
+  val mosaicObjCounter = Reg(UInt(4.W))
+
   val fetchX = Reg(UInt(8.W))
   val active = Reg(Bool())
   when (io.enable) {
     when (io.tick === 0.U) {
       fetchX := 0.U
+      mosaicObjCounter := 0.U
 
       // Window Y activation / deactivation
       when (io.scanline === io.win0Bounds.yStart) {
@@ -239,6 +243,8 @@ class Compositor extends Module {
   val regSortSecond = Reg(new Compositor.Layer)
   val regSortWindow = Reg(new PpuRegisters.WindowControl)
   val regSortObjBlend = Reg(Bool())
+  /// Object latch for horizontal mosaic (previous object data)
+  val regSortObjMosaic = Reg(new ObjectBufferEntry)
   when (io.enable && active) {
     val nextFirstLayer = WireDefault(regSortFirst)
     val nextSecondLayer = WireDefault(regSortSecond)
@@ -297,6 +303,7 @@ class Compositor extends Module {
       } .elsewhen (io.displayControl.displayWindow(1) && win1ActiveX && win1ActiveY) {
         windowControl := io.win1Control
       } .elsewhen (io.displayControl.objWindow && io.objectData.window) {
+        // Note that object window never uses the mosaic data.
         windowControl := io.winObjControl
       } .otherwise {
         windowControl := io.winOutControl
@@ -306,13 +313,29 @@ class Compositor extends Module {
       // Set up the next set by fetching an object.
       io.objectRead := true.B
       io.objectIndex := fetchX
-      val objOpaque = io.objectData.opaque && windowControl.obj && io.displayControl.enableObj
-      regSortObjBlend := objOpaque && io.objectData.blend
+
+      // Handle horizontal object mosaic:
+      // Use new object data (rather than mosaic) if the new object doesn't have mosaic bit,
+      // or the old data doesn't have mosaic bit, or the mosaic counter is at 0.
+      val mosaicUpdate = !io.objectData.mosaic || !regSortObjMosaic.mosaic || mosaicObjCounter === 0.U
+      val objectData = WireDefault(regSortObjMosaic)
+      when (mosaicUpdate) {
+        regSortObjMosaic := io.objectData
+        objectData := io.objectData
+      }
+      // Update object mosaic counter.
+      mosaicObjCounter := mosaicObjCounter + 1.U
+      when (mosaicObjCounter === io.mosaic.objX) {
+        mosaicObjCounter := 0.U
+      }
+
+      val objOpaque = objectData.opaque && windowControl.obj && io.displayControl.enableObj
+      regSortObjBlend := objOpaque && objectData.blend
       regSortFirst.isBackdrop := !objOpaque
       regSortFirst.isObj := objOpaque
       regSortFirst.isBg := 0.U
-      regSortFirst.color := io.objectData.color
-      regSortFirst.priority := io.objectData.priority
+      regSortFirst.color := objectData.color
+      regSortFirst.priority := objectData.priority
       regSortSecond.isBackdrop := true.B
       regSortSecond.isObj := false.B
       regSortSecond.isBg := 0.U

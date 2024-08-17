@@ -42,6 +42,7 @@ class ObjectBufferEntry extends Bundle {
   val priority = UInt(2.W)
   val window = Bool()
   val blend = Bool()
+  val mosaic = Bool()
 }
 
 /// Combined and calculated object attributes from the OAM fetch stage.
@@ -66,6 +67,7 @@ class ObjectAttributeFull extends Bundle {
   val affine = Bool()
   val window = Bool()
   val blend = Bool()
+  val mosaic = Bool()
 }
 
 class ObjectRenderer extends Module {
@@ -142,7 +144,7 @@ class ObjectRenderer extends Module {
       // GBA compositing bug: a *transparent* pixel drawn over an opaque pixel of lower priority
       // overwrites the priority. Not present in DS or later.
       bufferWriteData.priority := pixel.priority
-      // TODO mosaic is also set here
+      bufferWriteData.mosaic := pixel.mosaic
     }
 
     drawData(0) := drawData(1)
@@ -213,6 +215,7 @@ class ObjectRenderer extends Module {
             drawData(i).priority := fetchObj.priority
             drawData(i).window := fetchObj.window
             drawData(i).blend := fetchObj.blend
+            drawData(i).mosaic := fetchObj.mosaic
           }
         } .otherwise {
           val tileData = io.vram.readData.asTypeOf(Vec(4, UInt(4.W)))
@@ -224,6 +227,7 @@ class ObjectRenderer extends Module {
             drawData(i).priority := fetchObj.priority
             drawData(i).window := fetchObj.window
             drawData(i).blend := fetchObj.blend
+            drawData(i).mosaic := fetchObj.mosaic
           }
         }
       } .otherwise {
@@ -240,6 +244,7 @@ class ObjectRenderer extends Module {
           drawData(0).priority := fetchObj.priority
           drawData(0).window := fetchObj.window
           drawData(0).blend := fetchObj.blend
+          drawData(0).mosaic := fetchObj.mosaic
         } .otherwise {
           val tileData = io.vram.readData.asTypeOf(Vec(4, UInt(4.W)))
           val color = tileData(subtileX(1, 0))
@@ -248,6 +253,7 @@ class ObjectRenderer extends Module {
           drawData(0).priority := fetchObj.priority
           drawData(0).window := fetchObj.window
           drawData(0).blend := fetchObj.blend
+          drawData(0).mosaic := fetchObj.mosaic
         }
 
         fetchAffX := (fetchAffX.asUInt.asSInt + fetchAffineParams.pa.asUInt.asSInt).asTypeOf(new AffineReferencePoint)
@@ -305,6 +311,7 @@ class ObjectRenderer extends Module {
           oamAttrs.affine := attr0.affine
           oamAttrs.window := attr0.effect === ObjectEffectKind.Window
           oamAttrs.blend := attr0.effect === ObjectEffectKind.Alpha
+          oamAttrs.mosaic := attr0.mosaic
           oamAffineIndex := Cat(attr1.flipY, attr1.flipX, attr1.affineIndexLo)
 
           val boundingH = Mux(attr0.double, height << 4, height << 3).asUInt
