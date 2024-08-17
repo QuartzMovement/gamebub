@@ -16,6 +16,11 @@ object Compositor {
     val color = UInt(15.W)
     val priority = UInt(2.W)
   }
+
+  class BgMosaicBuffer extends Bundle {
+    val opaque = Bool()
+    val color = UInt(15.W)
+  }
 }
 
 /// PPU compositor
@@ -77,6 +82,7 @@ class Compositor extends Module {
   val win1ActiveY = Reg(Bool())
 
   val mosaicObjCounter = Reg(UInt(4.W))
+  val mosaicBgCounter = Reg(UInt(4.W))
 
   val fetchX = Reg(UInt(8.W))
   val active = Reg(Bool())
@@ -84,6 +90,11 @@ class Compositor extends Module {
     when (io.tick === 0.U) {
       fetchX := 0.U
       mosaicObjCounter := 0.U
+      // We start the BG mosaic counter at the maximum value, so that when it's incremented
+      // for the first time, it gets reset to zero. This because the first increment happens
+      // in the first subCycle = 3 when active, which is *before* the first BG pixel.
+      // If we didn't skip the first increment, BG mosaic would be off by a pixel.
+      mosaicBgCounter := io.mosaic.bgX
 
       // Window Y activation / deactivation
       when (io.scanline === io.win0Bounds.yStart) {
@@ -245,12 +256,15 @@ class Compositor extends Module {
   val regSortObjBlend = Reg(Bool())
   /// Object latch for horizontal mosaic (previous object data)
   val regSortObjMosaic = Reg(new ObjectBufferEntry)
+  /// Background latch for horizontal mosaic
+  val regSortBgMosaic = Reg(Vec(4, new Compositor.BgMosaicBuffer))
   when (io.enable && active) {
     val nextFirstLayer = WireDefault(regSortFirst)
     val nextSecondLayer = WireDefault(regSortSecond)
 
+    val bgControl = io.bgControl(subCycle)
     val bgFifo = io.bgFifo(subCycle)
-    val bgPriority = io.bgControl(subCycle).priority
+    val bgPriority = bgControl.priority
     when (io.displayControl.enableBg(subCycle) && !(isBitmap16bpp && subCycle === 3.U)) {
       // Pull from BG fifo if background is enabled.
       // *Don't* pull from BG3 fifo if we're in a 16bpp bitmap mode: BG3 is never enabled,
@@ -266,7 +280,17 @@ class Compositor extends Module {
       color := Cat(io.bgFifo(3).bits.color, bgFifo.bits.color)
     }
 
-    when (bgFifo.valid && bgFifo.bits.opaque && io.displayControl.enableBg(subCycle) && regSortWindow.bg(subCycle)) {
+    // Handle horizontal mosaic
+    val opaque = WireDefault(bgFifo.bits.opaque)
+    when (bgControl.mosaic && mosaicBgCounter =/= 0.U) {
+      color := regSortBgMosaic(subCycle).color
+      opaque := regSortBgMosaic(subCycle).opaque
+    } .otherwise {
+      regSortBgMosaic(subCycle).color := color
+      regSortBgMosaic(subCycle).opaque := opaque
+    }
+
+    when (bgFifo.valid && opaque && io.displayControl.enableBg(subCycle) && regSortWindow.bg(subCycle)) {
       when (regSortFirst.isBackdrop || bgPriority < regSortFirst.priority) {
         nextFirstLayer.isBackdrop := false.B
         nextFirstLayer.isObj := false.B
@@ -323,10 +347,14 @@ class Compositor extends Module {
         regSortObjMosaic := io.objectData
         objectData := io.objectData
       }
-      // Update object mosaic counter.
+      // Update mosaic counters.
       mosaicObjCounter := mosaicObjCounter + 1.U
       when (mosaicObjCounter === io.mosaic.objX) {
         mosaicObjCounter := 0.U
+      }
+      mosaicBgCounter := mosaicBgCounter + 1.U
+      when (mosaicBgCounter === io.mosaic.bgX) {
+        mosaicBgCounter := 0.U
       }
 
       val objOpaque = objectData.opaque && windowControl.obj && io.displayControl.enableObj
