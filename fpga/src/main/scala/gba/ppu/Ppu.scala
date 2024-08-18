@@ -121,6 +121,7 @@ class Ppu extends Module {
   bgRender.io.bgAffY := regBgAffY
   bgRender.io.writeAffX := VecInit.fill(2)(false.B)
   bgRender.io.writeAffY := VecInit.fill(2)(false.B)
+  bgRender.io.mosaicY := regMosaic.bgY
   bgRender.io.tick := tick
   bgRender.io.scanline := scanline
   bgRender.io.vram <> vram.io.portBG

@@ -45,6 +45,7 @@ class BackgroundRenderer extends Module {
     val bgAffY = Input(Vec(2, new PpuRegisters.AffineReferencePoint))
     val writeAffX = Input(Vec(2, Bool()))
     val writeAffY = Input(Vec(2, Bool()))
+    val mosaicY = Input(UInt(4.W))
 
     /// BG VRAM access
     val vram = Flipped(new PpuMemoryInterface(96 * 1024 / 2, 16.W))
@@ -73,6 +74,8 @@ class BackgroundRenderer extends Module {
   val affY = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
   val affXLine = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
   val affYLine = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
+
+  val mosaicCounter = Reg(UInt(4.W))
 
   val isVdraw = io.scanline < 160.U
 
@@ -122,6 +125,11 @@ class BackgroundRenderer extends Module {
         affYLine(i) := newY
       }
       fifoFlush := true.B
+
+      mosaicCounter := mosaicCounter + 1.U
+      when (mosaicCounter === io.mosaicY) {
+        mosaicCounter := 0.U
+      }
     }
   }
 
@@ -141,6 +149,7 @@ class BackgroundRenderer extends Module {
       affY := io.bgAffY
       affXLine := io.bgAffX
       affYLine := io.bgAffY
+      mosaicCounter := 0.U
     }
   }
 
@@ -156,7 +165,7 @@ class BackgroundRenderer extends Module {
     // Render
     when (io.enable && state.active) {
       val x = state.pos + io.bgOffX(index)
-      val y = io.scanline + io.bgOffY(index)
+      val y = io.scanline + io.bgOffY(index) - Mux(control.mosaic, mosaicCounter, 0.U)
       val stage = state.cycle(4, 2)
       val fetch4bpp = (stage(1, 0) === 1.U) && !control.bpp8
       val fetch8bpp = (stage(0) === 1.U) && control.bpp8
