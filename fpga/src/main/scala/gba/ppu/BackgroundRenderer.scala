@@ -74,6 +74,8 @@ class BackgroundRenderer extends Module {
   val affY = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
   val affXLine = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
   val affYLine = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
+  val affXMosaic = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
+  val affYMosaic = Reg(Vec(2, new PpuRegisters.AffineReferencePoint))
 
   val mosaicCounter = Reg(UInt(4.W))
 
@@ -123,6 +125,14 @@ class BackgroundRenderer extends Module {
         affY(i) := newY
         affXLine(i) := newX
         affYLine(i) := newY
+
+        when (mosaicCounter === io.mosaicY) {
+          affXMosaic(i) := newX
+          affYMosaic(i) := newY
+        } .elsewhen (io.bgControl(i + 2).mosaic) {
+          affX(i) := affXMosaic(i)
+          affY(i) := affYMosaic(i)
+        }
       }
       fifoFlush := true.B
 
@@ -149,6 +159,8 @@ class BackgroundRenderer extends Module {
       affY := io.bgAffY
       affXLine := io.bgAffX
       affYLine := io.bgAffY
+      affXMosaic := io.bgAffX
+      affYMosaic := io.bgAffY
       mosaicCounter := 0.U
     }
   }
