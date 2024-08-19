@@ -200,7 +200,6 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
   io.cartridge.chipSelect := cartRomSelect
   io.cartridge.dataWrite := busDataWrite
   io.cartridge.address := busAddress
-  when (cartRomSelect || cartRamSelect) { busDataRead := io.cartridge.dataRead }
 
   // Work ram
   workRam.io.address := Cat(Mux(busAddress(12), systemControl.io.wramBank, 0.U), busAddress(11, 0))
