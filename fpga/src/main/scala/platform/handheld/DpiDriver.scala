@@ -42,31 +42,53 @@ class DpiDriver(
     val pixelY = Output(UInt(log2Ceil(vActive).W))
   })
 
+  assert(hActive > 0)
+  assert(hSync > 0)
+  assert(hBackPorch > 0)
+  assert(hFrontPorch > 0)
+  assert(vActive > 0)
+  assert(vSync > 0)
+  assert(vBackPorch > 0)
+  assert(vFrontPorch > 0)
   val totalWidth = hActive + hSync + hBackPorch + hFrontPorch
   val totalHeight = vActive + vSync + vBackPorch + vFrontPorch
 
+  val regHsync = RegInit(true.B)
+  val regVsync = RegInit(true.B)
+  val regActive = RegInit(false.B)
+  io.signals.dotclk := clock
+  io.signals.hsync := regHsync
+  io.signals.vsync := regVsync
+  io.signals.enable := regActive
+
   val x = RegInit(0.U(log2Ceil(totalWidth).W))
   val y = RegInit(0.U(log2Ceil(totalHeight).W))
-  when (x === (totalWidth - 1).U) {
-    x := 0.U
-    when (y === (totalHeight - 1).U) {
-      y := 0.U
-    } .otherwise {
-      y := y + 1.U
-    }
-  } .otherwise {
-    x := x + 1.U
-  }
-
   io.pixelX := x - (hSync + hBackPorch).U
   io.pixelY := y - (vSync + vBackPorch).U
 
-  io.signals.dotclk := clock
-  io.signals.enable :=
-      (x >= (hSync + hBackPorch).U) &&
-        (x < (hSync + hBackPorch + hActive).U) &&
-        (y >= (vSync + vBackPorch).U) &&
-        (y < (vSync + vBackPorch + vActive).U)
-  io.signals.hsync := x < hSync.U
-  io.signals.vsync := y < vSync.U
+  when (x === (totalWidth - 1).U) {
+    regHsync := true.B
+    x := 0.U
+    when (y === (totalHeight - 1).U) {
+      regVsync := true.B
+      y := 0.U
+    } .otherwise {
+      y := y + 1.U
+      when (y === (vSync - 1).U) {
+        regVsync := false.B
+      }
+    }
+  } .otherwise {
+    x := x + 1.U
+    when (x === (hSync - 1).U) {
+      regHsync := false.B
+    }
+    val isVActive = (y >= (vSync + vBackPorch).U) && (y < (vSync + vBackPorch + vActive).U)
+    when (x === (hSync + hBackPorch - 1).U && isVActive) {
+      regActive := true.B
+    }
+    when (x === (hSync + hBackPorch + hActive - 1).U) {
+      regActive := false.B
+    }
+  }
 }
