@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import gameboy.Gameboy
 import gameboy.cart.{EmuCartConfig, EmuCartridge, Mbc3RtcAccess, RtcState}
-import lib.mem.RegisterMap
+import lib.mem.{MemoryInterface, MemoryMap, RegisterMap}
 
 /**
  * Clocked by the 8.3886 MHz "Gameboy" clock.
@@ -48,8 +48,18 @@ class HandheldGameboy extends Module with HandheldModule {
     )
   }
 
+  val registerInterface = Wire(new MemoryInterface(addressWidth = 16, dataWidth = 32))
+  val biosInterface = Wire(new MemoryInterface(addressWidth = 11, dataWidth = 8)) // 2 KiB
+  io.mcuInterface <> MemoryMap(
+    addressWidth = 24,
+    dataWidth = 32,
+    entries = Seq(
+      "b0000".U(4.W) -> registerInterface,
+      "b0001".U(4.W) -> biosInterface,
+    ))
+
   suppressEnumCastWarning {
-    io.mcuInterface <> RegisterMap(
+    registerInterface <> RegisterMap(
       addressWidth = 16,
       dataWidth = 32,
       entries = Seq(
@@ -306,4 +316,15 @@ class HandheldGameboy extends Module with HandheldModule {
     emuCart.io.cartridgeIo.chipSelect := false.B
     emuCart.io.cartridgeIo.address := 0.U
   }
+
+  // Boot ROM
+  val bios = SRAM(2048, UInt(8.W), numReadPorts = 1, numWritePorts = 1, numReadwritePorts = 0)
+  bios.writePorts(0).enable := biosInterface.enable && biosInterface.write
+  bios.writePorts(0).address := biosInterface.address
+  bios.writePorts(0).data := biosInterface.dataWrite
+  biosInterface.dataRead := 0.U
+  biosInterface.done := RegNext(bios.writePorts(0).enable || bios.readPorts(0).enable)
+  bios.readPorts(0).enable := gameboy.io.bootRom.read
+  bios.readPorts(0).address := gameboy.io.bootRom.address
+  gameboy.io.bootRom.data := bios.readPorts(0).data
 }

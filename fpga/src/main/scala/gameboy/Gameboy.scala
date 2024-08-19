@@ -52,6 +52,9 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
     // Control signals
     val clockConfig = new ClockConfig
 
+    /// Boot ROM access
+    val bootRom = new BootRomAccess
+
     // Regular I/O signals
     val cartridge = new CartridgeIo()
     val ppu = new PpuOutput()
@@ -139,6 +142,7 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
   val bootRom = Module(new BootRom(config))
   bootRom.io.address := cpu.io.memAddress
   bootRom.io.mapped := systemControl.io.bootRomMapped
+  io.bootRom <> bootRom.io.access
 
   // Module: VRAM DMA (HDMA) - CGB only
   val vramDma = Module(new VramDma)

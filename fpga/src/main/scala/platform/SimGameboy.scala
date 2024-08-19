@@ -36,6 +36,18 @@ class SimGameboy extends Module {
   io.joypad <> gameboy.io.joypad
   io.apu <> gameboy.io.apu
 
+  // Boot ROM, to be filled in by verilator simulator
+  val bootRom = {
+    val rom = SyncReadMem(2048, UInt(8.W))
+    // dontTouch: hack to ensure Chisel doesn't optimize the mem out
+    val temp = dontTouch(WireDefault(false.B))
+    when (temp) {
+      rom.write(0.U, 0.U)
+    }
+    rom
+  }
+  gameboy.io.bootRom.data := bootRom.read(gameboy.io.bootRom.address, gameboy.io.bootRom.read)
+
   // Disconnected serial
   gameboy.io.serial.clockIn := true.B
   gameboy.io.serial.in := true.B

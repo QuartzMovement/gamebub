@@ -143,6 +143,23 @@ impl Gameboy {
         }
     }
 
+    fn load_bootrom(&mut self, device: &mut Device) -> Result<(), GameboyError> {
+        log::info!("Loading CGB bootrom");
+        let mut rom_file = File::open("/sdcard/system/gameboy.bios-cgb.bin")?;
+        let mut buf = vec![0u8; 2048].into_boxed_slice();
+        rom_file.read(&mut buf)?;
+
+        let address = 0xC010_0000;
+        let command = fpga::SpiCommand {
+            word_size: fpga::FpgaSpiWordSize::Bits8,
+            byte_swap: true,
+            increment_address: true,
+        };
+        device.fpga.spi_write(command, address, &buf)?;
+
+        Ok(())
+    }
+
     pub fn set_physical_cartridge(&mut self) -> Result<(), GameboyError> {
         self.ram_path = None;
 
@@ -329,8 +346,8 @@ impl Bitstream for Gameboy {
     }
 
     fn on_after_program(&mut self) -> Result<(), String> {
-        // TODO: load BIOS when it's separate
-        Ok(())
+        let mut device = Device::lock();
+        self.load_bootrom(&mut device).map_err(|e| e.to_string())
     }
 
     fn set_paused(&mut self, paused: bool) -> Result<(), fpga::Error> {

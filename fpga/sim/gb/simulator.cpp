@@ -4,16 +4,34 @@
 #include "common.hpp"
 #include "simulator.hpp"
 
+#include "VSimGameboy___024root.h"
+
 // "hollow knight inspired" palette
 //static const uint32_t palette[4] = {0xfafbf6, 0xc6b7be, 0x565a75, 0x0f0f1b};
 // gray palette
 //static const uint32_t palette[4] = {0xffffff, 0xaaaaaa, 0x555555, 0x000000};
 
-Simulator::Simulator(std::filesystem::path rom_path, std::filesystem::path /* bios_path */)
+Simulator::Simulator(std::filesystem::path rom_path, std::filesystem::path bios_path)
     : framebuffer(width(), height())
 {
     this->cart = std::make_unique<Cartridge>(rom_path);
     this->top = new VSimGameboy;
+
+    if (bios_path.empty()) {
+        std::cerr << "ERROR: must specify bios path\n";
+        std::exit(1);
+    }
+    auto bios = read_file(bios_path);
+    if (bios.size() != 256 && bios.size() != 2048) {
+        std::cerr << "ERROR: incorrect bios size: " << bios.size() << " (expected 256 or 2048)\n";
+        std::exit(1);
+    }
+    // Note: assumes little-endian
+    memcpy(
+        &this->top->rootp->SimGameboy__DOT__bootRom_ext__DOT__Memory,
+        bios.data(),
+        bios.size()
+    );
 }
 
 Simulator::~Simulator()
