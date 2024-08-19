@@ -65,7 +65,16 @@ impl UiState {
         }
     }
 
-    fn program_bitstream(path: &str) {
+    fn set_current_bitstream(&mut self, bitstream: CurrentBitstream) -> Result<(), String> {
+        self.bitstream = bitstream;
+        if let Some(bitstream) = self.bitstream() {
+            Self::program_fpga(bitstream.get_bitstream_path());
+            bitstream.on_after_program()?;
+        }
+        Ok(())
+    }
+
+    fn program_fpga(path: &str) {
         log::info!("Loading bitstream {}", path);
         let mut device = Device::lock();
         let file = File::open(path).unwrap();
@@ -82,9 +91,7 @@ impl UiState {
             CurrentBitstream::Gameboy(_) => Ok(()),
             _ => {
                 let x = Gameboy::new();
-                Self::program_bitstream(x.get_bitstream_path());
-                self.bitstream = CurrentBitstream::Gameboy(x);
-                Ok(())
+                self.set_current_bitstream(CurrentBitstream::Gameboy(x))
             }
         }
     }
@@ -94,9 +101,7 @@ impl UiState {
             CurrentBitstream::Gba(_) => Ok(()),
             _ => {
                 let x = Gba::new();
-                Self::program_bitstream(x.get_bitstream_path());
-                self.bitstream = CurrentBitstream::Gba(x);
-                Ok(())
+                self.set_current_bitstream(CurrentBitstream::Gba(x))
             }
         }
     }

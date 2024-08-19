@@ -226,9 +226,6 @@ impl Gba {
         // Hold in reset
         device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
 
-        // Load bios
-        self.load_bios(&mut device)?;
-
         // Switch to physical cartridge.
         device
             .fpga
@@ -250,10 +247,6 @@ impl Gba {
 
         // Hold in reset
         device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
-
-        // Load bios
-        // TODO shouldn't need to keep doing this, just do it once the bitstream is loaded.
-        self.load_bios(&mut device)?;
 
         // Load ROM
         let mut rom_file = File::open(rom_path)?;
