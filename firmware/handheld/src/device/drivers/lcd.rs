@@ -131,12 +131,7 @@ where
     /// Set the LCD to be controlled by the FPGA.
     pub fn enable_fpga_control(&mut self) -> Result<(), Error> {
         // Display Function Control: enable RGB interface, bypassing memory
-        // self.write_cmd(0xB6, &[0xB2, 0x62])
-        // .map_err(|_| Error::SpiError)?;
-
-        // Display Function Control: enable RGB interface, not bypassing memory
-        // TODO: figure out why this is needed for GBA
-        self.write_cmd(0xB6, &[0x32, 0x02])
+        self.write_cmd(0xB6, &[0xB2, 0x62])
             .map_err(|_| Error::SpiError)?;
 
         // Display Inversion Control: setup column inversion
