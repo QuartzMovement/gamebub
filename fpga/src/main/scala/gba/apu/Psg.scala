@@ -2,7 +2,7 @@ package gba.apu
 
 import chisel3._
 import chisel3.util._
-import gameboy.apu.{ChannelIO, FrameSequencer, FrequencySweepConfig, PulseChannel, PulseChannelWithSweep, VolumeEnvelopeConfig}
+import gameboy.apu.{ChannelIO, FrameSequencer, FrequencySweepConfig, NoiseChannel, NoiseChannelConfig, PulseChannel, PulseChannelWithSweep, VolumeEnvelopeConfig}
 import gba.{MMIO, MmioMap, MmioTarget}
 import lib.log.Logger
 
@@ -74,7 +74,16 @@ class Psg extends Module {
   channel2.io.duty := regChannel2Duty
 
   val channel3 = Module(new NullPsgChannel)
-  val channel4 = Module(new NullPsgChannel)
+
+  // Channel 4
+  val regChannel4VolumeConfig = RegInit(0.U.asTypeOf(new VolumeEnvelopeConfig))
+  val regChannel4LfsrConfig = RegInit(0.U.asTypeOf(new NoiseChannelConfig))
+  val channel4 = Module(new NoiseChannel)
+  channel4.io.lengthConfig.length := DontCare
+  channel4.io.lengthConfig.lengthLoad := false.B
+  channel4.io.lengthConfig.enabled := regLengthEnable(3)
+  channel4.io.volumeConfig := regChannel4VolumeConfig
+  channel4.io.lfsrConfig := regChannel4LfsrConfig
 
   // Shared channel stuff
   val channels: Seq[ChannelIO] = Seq(channel1.io, channel2.io, channel3.io, channel4.io)
@@ -148,6 +157,36 @@ class Psg extends Module {
           when (mask(1)) {
             regLengthEnable(1) := data(14)
             channelTrigger(1) := data(15)
+          }
+        }
+      })
+    ),
+    // SOUND4CNT_L
+    0x78 -> MmioMap.Entry(
+      MmioMap.ReadFn(Cat(regChannel4VolumeConfig.asUInt, 0.U(8.W))),
+      MmioMap.WriteFn((enable, data, mask) => {
+        when (enable) {
+          when (mask(0)) {
+            channel4.io.lengthConfig.length := data(5, 0)
+            channel4.io.lengthConfig.lengthLoad := true.B
+          }
+          when (mask(1)) {
+            regChannel4VolumeConfig := data(15, 8).asTypeOf(regChannel4VolumeConfig)
+          }
+        }
+      })
+    ),
+    // SOUND4CNT_H
+    0x7C -> MmioMap.Entry(
+      MmioMap.ReadFn(Cat(regLengthEnable(3), 0.U(6.W), regChannel4LfsrConfig.asUInt)),
+      MmioMap.WriteFn((enable, data, mask) => {
+        when (enable) {
+          when (mask(0)) {
+            regChannel4LfsrConfig := data(7, 0).asTypeOf(regChannel4LfsrConfig)
+          }
+          when (mask(1)) {
+            regLengthEnable(3) := data(14)
+            channelTrigger(3) := data(15)
           }
         }
       })
