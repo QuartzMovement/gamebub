@@ -2,7 +2,7 @@ package gba.apu
 
 import chisel3._
 import chisel3.util._
-import gameboy.apu.{ChannelIO, FrameSequencer, FrequencySweepConfig, PulseChannelWithSweep, VolumeEnvelopeConfig}
+import gameboy.apu.{ChannelIO, FrameSequencer, FrequencySweepConfig, PulseChannel, PulseChannelWithSweep, VolumeEnvelopeConfig}
 import gba.{MMIO, MmioMap, MmioTarget}
 import lib.log.Logger
 
@@ -61,7 +61,18 @@ class Psg extends Module {
   channel1.io.duty := regChannel1Duty
   channel1.io.sweepConfig := regChannel1SweepConfig
 
-  val channel2 = Module(new NullPsgChannel)
+  // Channel 2
+  val regChannel2VolumeConfig = RegInit(0.U.asTypeOf(new VolumeEnvelopeConfig))
+  val regChannel2Duty = RegInit(0.U(2.W))
+  val regChannel2Wavelength = RegInit(0.U(11.W))
+  val channel2 = Module(new PulseChannel)
+  channel2.io.lengthConfig.length := DontCare
+  channel2.io.lengthConfig.lengthLoad := false.B
+  channel2.io.lengthConfig.enabled := regLengthEnable(1)
+  channel2.io.volumeConfig := regChannel2VolumeConfig
+  channel2.io.wavelength := regChannel2Wavelength
+  channel2.io.duty := regChannel2Duty
+
   val channel3 = Module(new NullPsgChannel)
   val channel4 = Module(new NullPsgChannel)
 
@@ -106,6 +117,37 @@ class Psg extends Module {
           when (mask(1)) {
             regLengthEnable(0) := data(14)
             channelTrigger(0) := data(15)
+          }
+        }
+      })
+    ),
+    // SOUND2CNT_L
+    0x68 -> MmioMap.Entry(
+      MmioMap.ReadFn(Cat(regChannel2VolumeConfig.asUInt, regChannel2Duty.asUInt, 0.U(6.W))),
+      MmioMap.WriteFn((enable, data, mask) => {
+        when (enable) {
+          when (mask(0)) {
+            regChannel2Duty := data(7, 6)
+            channel2.io.lengthConfig.length := data(5, 0)
+            channel2.io.lengthConfig.lengthLoad := true.B
+          }
+          when (mask(1)) {
+            regChannel2VolumeConfig := data(15, 8).asTypeOf(regChannel2VolumeConfig)
+          }
+        }
+      })
+    ),
+    // SOUND2CNT_H
+    0x6C -> MmioMap.Entry(
+      MmioMap.ReadFn(Cat(regLengthEnable(1), 0.U(14.W))),
+      MmioMap.WriteFn((enable, data, mask) => {
+        when (enable) {
+          val newWavelength = MMIO.mask(regChannel2Wavelength, data(10, 0), mask(1, 0))
+          channel2.io.wavelength := newWavelength
+          regChannel2Wavelength := newWavelength
+          when (mask(1)) {
+            regLengthEnable(1) := data(14)
+            channelTrigger(1) := data(15)
           }
         }
       })
