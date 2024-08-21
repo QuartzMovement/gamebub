@@ -60,7 +60,7 @@ class GBA extends Module {
   val busPortCpu = busArbiter.io.inputPorts(4)
 
   // MMIO Bus
-  val mmio = Module(new MMIO(numTargets = 8))
+  val mmio = Module(new MMIO(numTargets = 9))
   mmio.io.enable := io.enable
   bus.io.targetPort(3) <> mmio.io.mem
 
@@ -146,6 +146,7 @@ class GBA extends Module {
   apu.io.enable := io.enable
   io.apu := apu.io.output
   mmio.targets(5) <> apu.io.mmio
+  mmio.targets(6) <> apu.io.mmio2
   dma.io.triggerFifo := apu.io.dmaTrigger
   apu.io.timerOverflow := timer.io.timerOverflow
 
@@ -153,7 +154,7 @@ class GBA extends Module {
   val cart = Module(new CartridgeController)
   cart.io.enable := io.enable
   cart.io.cartridge <> io.cartridge
-  mmio.targets(6) <> cart.io.mmio
+  mmio.targets(7) <> cart.io.mmio
   bus.io.targetPort(10) <> cart.io.busTargetRam
 
   val cartPrefetch = Module(new CartridgePrefetch)
@@ -171,6 +172,6 @@ class GBA extends Module {
   // Serial unit
   val serial = Module(new Serial)
   serial.io.enable := io.enable
-  mmio.targets(7) <> serial.io.mmio
+  mmio.targets(8) <> serial.io.mmio
   interrupt.io.peripheralIrq.serial := serial.io.irq
 }

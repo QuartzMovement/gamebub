@@ -6,6 +6,7 @@ object ApuRegisters {
   /// SOUNDCNT_L lower - PSG volume
   class PsgVolume extends Bundle {
     val volumeLeft = UInt(3.W)
+    val _padding1 = UInt(1.W)
     val volumeRight = UInt(3.W)
   }
 
