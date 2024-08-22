@@ -348,9 +348,21 @@ class ObjectRenderer extends Module {
             oamStage := 2.U
           } .otherwise {
             // Go to draw stage
-            fetchCol := 0.U
             fetchActive := true.B
             advanceIndex := true.B
+
+            // Handle left-side clipping of regular sprites.
+            // If fetchObj.x + fetchCol > 240 (wrapping at 512), the pixel is invisible,
+            // see logic for affine sprites below.
+            fetchCol := 0.U
+            when (oamAttrs.x >= 240.U) {
+              val clipped = (~oamAttrs.x).asUInt + 1.U
+              // fetchCol must be even
+              fetchCol := Cat(clipped(7, 1), 0.U(1.W))
+              when (clipped >= (oamAttrs.w << 3).asUInt) {
+                fetchActive := false.B
+              }
+            }
           }
         }
       }
@@ -401,9 +413,21 @@ class ObjectRenderer extends Module {
       is (6.U) {
         // Go to draw stage
         when (!evenTick) {
-          fetchCol := 0.U
           fetchActive := true.B
           advanceIndex := true.B
+
+          // Handle left-side clipping of affine sprites.
+          // If fetchObj.x + fetchCol > 240 (wrapping at 512), the pixel is invisible.
+          fetchCol := 0.U
+          when (fetchObj.x >= 240.U) {
+            // fetchObj.x + fetchCol = 512
+            // fetchCol = 512 - fetchObj.x
+            val clipped = (~fetchObj.x).asUInt + 1.U
+            fetchCol := clipped
+            when (clipped >= (fetchObj.w << 3).asUInt) {
+              fetchActive := false.B
+            }
+          }
 
           // TODO, make more efficient? pipelineable?
           val halfwidth = (fetchObj.w << 2).asUInt.zext
