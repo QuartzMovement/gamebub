@@ -73,7 +73,26 @@ class Psg extends Module {
   channel2.io.wavelength := regChannel2Wavelength
   channel2.io.duty := regChannel2Duty
 
-  val channel3 = Module(new NullPsgChannel)
+  // Channel 3
+  val regChannel3DacEnable = RegInit(false.B)
+  val regChannel3WaveRamBank = RegInit(0.U(1.W))
+  val regChannel3WaveRamSize = RegInit(0.U(1.W))
+  val regChannel3Volume = RegInit(0.U(2.W))
+  val regChannel3VolumeForce = RegInit(false.B)
+  val regChannel3Wavelength = RegInit(0.U(11.W))
+  // TODO: waveram should actually be a shift register
+  val waveRam = Reg(Vec(8, UInt(32.W)))
+  val channel3 = Module(new WavePsgChannel)
+  channel3.io.lengthConfig.length := DontCare
+  channel3.io.lengthConfig.lengthLoad := false.B
+  channel3.io.lengthConfig.enabled := regLengthEnable(2)
+  channel3.io.dacEnable := regChannel3DacEnable
+  channel3.io.volume := regChannel3Volume
+  channel3.io.volumeForce := regChannel3VolumeForce
+  channel3.io.waveRamBank := regChannel3WaveRamBank
+  channel3.io.waveRamSize := regChannel3WaveRamSize
+  channel3.io.wavelength := regChannel3Wavelength
+  channel3.io.waveRamDataRead := waveRam(channel3.io.waveRamAddress)
 
   // Channel 4
   val regChannel4VolumeConfig = RegInit(0.U.asTypeOf(new VolumeEnvelopeConfig))
@@ -95,7 +114,7 @@ class Psg extends Module {
     when (io.enable && channels(i).channelDisable || !channels(i).dacEnabled) { channelEnabled(i) := false.B }
   }
 
-  io.mmio <> MmioMap(
+  io.mmio <> MmioMap.fromSeq(Seq(
     // SOUND1CNT_L / H
     0x60 -> MmioMap.Entry(
       MmioMap.ReadFn(Cat(regChannel1VolumeConfig.asUInt, regChannel1Duty.asUInt, 0.U(15.W), regChannel1SweepConfig.asUInt)),
@@ -161,6 +180,52 @@ class Psg extends Module {
         }
       })
     ),
+    // SOUND3CNT_L / H
+    0x70 -> MmioMap.Entry(
+      MmioMap.ReadFn(Cat(
+        regChannel3VolumeForce,
+        regChannel3Volume,
+        0.U(5.W),
+        0.U(8.W),
+        0.U(8.W),
+        regChannel3DacEnable,
+        regChannel3WaveRamBank,
+        regChannel3WaveRamSize,
+        0.U(5.W)
+      )),
+      MmioMap.WriteFn((enable, data, mask) => {
+        when (enable) {
+          when (mask(0)) {
+            regChannel3WaveRamSize := data(5)
+            regChannel3WaveRamBank := data(6)
+            regChannel3DacEnable := data(7)
+          }
+          when (mask(2)) {
+            channel3.io.lengthConfig.length := data(23, 16)
+            channel3.io.lengthConfig.lengthLoad := true.B
+          }
+          when (mask(3)) {
+            regChannel3Volume := data(30, 29)
+            regChannel3VolumeForce := data(31)
+          }
+        }
+      })
+    ),
+    // SOUND3CNT_X
+    0x74 -> MmioMap.Entry(
+      MmioMap.ReadFn(Cat(regLengthEnable(2), 0.U(14.W))),
+      MmioMap.WriteFn((enable, data, mask) => {
+        when (enable) {
+          val newWavelength = MMIO.mask(regChannel3Wavelength, data(10, 0), mask(1, 0))
+          channel3.io.wavelength := newWavelength
+          regChannel3Wavelength := newWavelength
+          when (mask(1)) {
+            regLengthEnable(2) := data(14)
+            channelTrigger(2) := data(15)
+          }
+        }
+      })
+    ),
     // SOUND4CNT_L
     0x78 -> MmioMap.Entry(
       MmioMap.ReadFn(Cat(regChannel4VolumeConfig.asUInt, 0.U(8.W))),
@@ -191,6 +256,24 @@ class Psg extends Module {
         }
       })
     ),
+    )
+    ++
+    // WAVE RAM
+    // Addressed ram accesses the bank that *isn't* selected.
+    (0 until 4).map(i => {
+      (0x90 + (i * 4)) -> MmioMap.Entry(
+        MmioMap.ReadFn(Mux(regChannel3WaveRamBank === 0.U, waveRam(4 + i), waveRam(i))),
+        MmioMap.WriteFn((enable, data, mask) => {
+          when (enable) {
+            when (regChannel3WaveRamBank === 0.U) {
+              waveRam(4 + i) := MMIO.mask(waveRam(4 + i), data, mask)
+            } .otherwise {
+              waveRam(i) := MMIO.mask(waveRam(i), data, mask)
+            }
+          }
+        })
+      )
+    })
   )
 
   // Mixing
