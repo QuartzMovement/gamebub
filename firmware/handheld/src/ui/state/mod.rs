@@ -317,7 +317,7 @@ impl UiState {
         });
 
         backend.on_tools_usb_drive(move || {
-            log::info!("TODO: expose SD card over USB");
+            crate::device::drivers::usb::setup_tinyusb().expect("USB init failed");
         });
 
         // Focus stack: allowing dialogs to push and pop focus.

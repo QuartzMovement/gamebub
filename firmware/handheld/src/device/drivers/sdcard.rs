@@ -22,6 +22,13 @@ mod constants {
 }
 use constants::*;
 
+pub struct Sdcard {
+    #[allow(unused)]
+    card: *mut esp_idf_sys::sdmmc_card_t,
+}
+unsafe impl Send for Sdcard {}
+unsafe impl Sync for Sdcard {}
+
 pub fn mount_sdcard(
     path: &str,
     pin_clk: AnyOutputPin,
@@ -31,7 +38,7 @@ pub fn mount_sdcard(
     pin_d2: AnyIOPin,
     pin_d3: AnyIOPin,
     pin_cd: Option<AnyInputPin>,
-) -> Result<(), EspError> {
+) -> Result<Sdcard, EspError> {
     let host_config = esp_idf_sys::sdmmc_host_t {
         flags: SDMMC_HOST_FLAG_1BIT | SDMMC_HOST_FLAG_4BIT | SDMMC_HOST_FLAG_DDR,
         slot: 1,
@@ -95,5 +102,19 @@ pub fn mount_sdcard(
             &mut card,
         )
     };
-    EspError::convert(sdmmc_mount_result)
+    EspError::convert(sdmmc_mount_result)?;
+
+    // Configure TinyUSB MSC driver with the sdcard. This doesn't actually expose it
+    // over USB, but it configures it for if/when we actually do install tinyusb.
+    let tinyusb_msc_sdmmc_config = esp_idf_sys::tinyusb_msc_sdmmc_config_t {
+        card,
+        callback_mount_changed: None,
+        callback_premount_changed: None,
+        mount_config,
+    };
+    let tinyusb_result =
+        unsafe { esp_idf_sys::tinyusb_msc_storage_init_sdmmc(&tinyusb_msc_sdmmc_config) };
+    EspError::convert(tinyusb_result)?;
+
+    Ok(Sdcard { card })
 }

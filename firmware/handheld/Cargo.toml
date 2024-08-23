@@ -58,3 +58,7 @@ time = "0.3.34"
 [build-dependencies]
 embuild = "0.31.3"
 slint-build = "~1.7.2"
+
+[[package.metadata.esp-idf-sys.extra_components]]
+remote_component = { name = "espressif/esp_tinyusb", version = "^1.4.4" }
+bindings_header = "bindings_esp_tinyusb.h"

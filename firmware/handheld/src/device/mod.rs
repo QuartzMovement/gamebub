@@ -3,6 +3,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
 use crate::ui::buttons::ButtonMap;
+use drivers::sdcard::Sdcard;
 use embedded_hal::pwm::SetDutyCycle;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
 use esp_idf_svc::hal::gpio::{
@@ -87,6 +88,9 @@ pub struct Device<'a> {
     /// Event queue
     event_sender: mpsc::Sender<Event>,
     event_receiver: Option<mpsc::Receiver<Event>>,
+
+    /// Sdcard,
+    pub sdcard: Sdcard,
 }
 
 impl Device<'_> {
@@ -250,7 +254,7 @@ impl Device<'_> {
         );
 
         // Mount sdcard to /sdcard
-        drivers::sdcard::mount_sdcard(
+        let sdcard = drivers::sdcard::mount_sdcard(
             "/sdcard",
             pin_sdio_clk,
             pin_sdio_cmd,
@@ -282,6 +286,7 @@ impl Device<'_> {
             imu,
             event_sender,
             event_receiver: Some(event_receiver),
+            sdcard,
         };
         device.init_datetime();
         DEVICE
