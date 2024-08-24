@@ -142,15 +142,22 @@ impl UiState {
             let c2 = (f2.1.is_file(), f2.0.as_str());
             c1.cmp(&c2)
         });
-        let files = std::iter::once("..".to_string())
-            .chain(files.into_iter().map(|f| f.0))
-            .collect();
+        let files = files.into_iter().map(|f| f.0).collect();
         Ok(files)
     }
 
     fn rom_select_update_list(&self) {
         let path = &self.rom_select_directory;
-        let files = Self::rom_select_get_files(path).unwrap();
+        let mut files = match Self::rom_select_get_files(path) {
+            Ok(files) => files,
+            Err(e) => {
+                log::warn!("Error reading directory: {:?}", e);
+                Vec::new()
+            }
+        };
+        if path != Path::new(ROM_SELECT_BASE_DIR) {
+            files.insert(0, "..".to_string());
+        }
 
         // Determine initial selected file.
         // Note: this doesn't take effect during navigation, only when entering the screen.
