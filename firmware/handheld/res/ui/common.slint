@@ -6,6 +6,7 @@ export enum ScreenId {
     RomSelect,
     Game,
     Settings,
+    Tools,
 }
 
 export global Palette { }
@@ -54,6 +55,7 @@ export global Backend {
     callback volume-changed(int);
     callback brightness-changed(int);
     callback power-off();
+    callback reboot();
 
     callback main-menu-run-cartridge();
     callback main-menu-load-rom();
@@ -61,6 +63,7 @@ export global Backend {
     callback game-set-paused(bool);
     callback game-reset();
     callback setting-changed(int, SettingValue);
+    callback tools-usb-drive();
 
     callback screen-enter(ScreenId);
 

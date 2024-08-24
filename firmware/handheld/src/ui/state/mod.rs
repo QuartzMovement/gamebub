@@ -304,12 +304,20 @@ impl UiState {
             Device::lock().power_off();
         });
 
+        backend.on_reboot(|| {
+            Device::lock().reboot();
+        });
+
         let state_ = state.clone();
         backend.on_setting_changed(move |i, value| {
             state_
                 .borrow_mut()
                 .settings_model
                 .changed(i as usize, value);
+        });
+
+        backend.on_tools_usb_drive(move || {
+            log::info!("TODO: expose SD card over USB");
         });
 
         // Focus stack: allowing dialogs to push and pop focus.

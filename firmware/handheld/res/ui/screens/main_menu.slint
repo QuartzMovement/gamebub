@@ -82,6 +82,9 @@ export component MainMenuScreen inherits ScreenBase {
                             btn-settings.focus();
                             accept
                         }
+                        on-pressed => {
+                            Global.set-screen(ScreenId.Tools);
+                        }
                     }
                 }
             }

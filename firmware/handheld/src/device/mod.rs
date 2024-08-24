@@ -339,6 +339,16 @@ impl Device<'_> {
         }
     }
 
+    /// Gracefully soft reset.
+    pub fn reboot(&mut self) -> ! {
+        log::info!("Rebooting");
+        let _ = self.lcd_backlight.set_duty_cycle_fully_off();
+        let _ = self.set_fpga_power(false);
+        kvs::keys::flush_all();
+        esp_idf_svc::hal::reset::restart();
+        unreachable!();
+    }
+
     /// Set the LCD brightness. The input is a float in the range [0.0, 1.0].
     pub fn set_brightness(&mut self, brightness: f32) {
         // Brightness is perceived non-linearly -- 50% brightness is one step

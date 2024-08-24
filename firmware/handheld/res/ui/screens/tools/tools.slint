@@ -1,0 +1,75 @@
+import { Global, ScreenId, Backend } from "../../common.slint";
+import { ScreenBase } from "../../components/screen.slint";
+import { TextListView } from "../../components/list_view.slint";
+
+export component ToolsScreen inherits ScreenBase {
+    in property <[string]> tools: ["Mount SD Card over USB"];
+    private property <int> selected-tool: -1;
+
+    title: "Tools";
+    forward-focus: i-focus-scope;
+
+    i-focus-scope := FocusScope {
+        key-pressed(event) => {
+            if (event.text == "b") {
+                Global.set-screen(ScreenId.MainMenu);
+                accept
+            } else {
+                reject
+            }
+        }
+
+        if selected-tool == -1: VerticalLayout {
+            init => {
+                list.focus();
+            }
+            visible: root.selected-tool == -1;
+            height: 100%;
+            list := TextListView {
+                model: root.tools;
+                wrap: true;
+                on-item-selected(i) => {
+                    debug("on-item-selected ", i);
+                    root.selected-tool = i;
+                }
+            }
+
+            HorizontalLayout {
+                Text {
+                    text: "A: Select";
+                }
+
+                Text {
+                    text: "B: Cancel";
+                    horizontal-alignment: right;
+                }
+            }
+        }
+
+        if selected-tool == 0: FocusScope {
+            init => {
+                self.focus();
+                Backend.tools-usb-drive();
+            }
+            key-pressed(event) => {
+                if (event.text == "Start") {
+                    Backend.reboot();
+                }
+                accept
+            }
+            VerticalLayout {
+                alignment: center;
+                spacing: 16px;
+                Text {
+                    horizontal-alignment: center;
+                    text: "Exposing SD card as USB drive";
+                }
+
+                Text {
+                    horizontal-alignment: center;
+                    text: "Press START to reboot";
+                }
+            }
+        }
+    }
+}
