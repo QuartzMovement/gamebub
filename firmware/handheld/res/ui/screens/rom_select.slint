@@ -36,6 +36,8 @@ export component RomSelectScreen inherits ScreenBase {
                 on-item-selected(i) => {
                     if Backend.rom-select-selected(i) {
                         Global.set-screen(ScreenId.Game);
+                    } else {
+                        self.set-focus-item(0);
                     }
                 }
             }

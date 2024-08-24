@@ -1,5 +1,5 @@
 use std::fs::File;
-use std::{cell::RefCell, path::Path, rc::Rc, time::Duration};
+use std::{cell::RefCell, path::Path, path::PathBuf, rc::Rc, time::Duration};
 
 use slint::private_unstable_api::re_exports as slint_re_exports;
 use slint::{ComponentHandle, Global, Model, ModelRc, Timer, TimerMode, VecModel, Weak};
@@ -29,17 +29,28 @@ pub struct UiState {
     root: Weak<MainWindow>,
     focus_stack: Vec<slint_re_exports::ItemWeak>,
 
+    rom_select_directory: PathBuf,
     bitstream: CurrentBitstream,
     settings_model: Rc<settings::SettingsModel>,
 }
 
+const ROM_SELECT_BASE_DIR: &str = "/sdcard/";
+
 impl UiState {
     pub fn new(root: &MainWindow, device: &mut Device) -> Rc<RefCell<Self>> {
-        let state = UiState {
+        let rom_select_directory = kvs::keys::LAST_ROM_PATH
+            .get()
+            .map(|mut p| {
+                p.pop();
+                p
+            })
+            .unwrap_or_else(|| Path::new(ROM_SELECT_BASE_DIR).to_path_buf());
+        let state: UiState = UiState {
             root: root.as_weak(),
             focus_stack: Vec::new(),
             bitstream: CurrentBitstream::None,
             settings_model: Rc::new(settings::SettingsModel::new(device)),
+            rom_select_directory,
         };
         let state = Rc::new(RefCell::new(state));
         state.borrow_mut().setup(state.clone(), device);
@@ -137,21 +148,90 @@ impl UiState {
         Ok(files)
     }
 
-    fn rom_select_update_list(&self, path: &Path) {
+    fn rom_select_update_list(&self) {
+        let path = &self.rom_select_directory;
         let files = Self::rom_select_get_files(path).unwrap();
+
+        // Determine initial selected file.
+        // Note: this doesn't take effect during navigation, only when entering the screen.
         let selected = kvs::keys::LAST_ROM_PATH
             .get()
             .and_then(|last_path| files.iter().position(|f| last_path == path.join(f)))
             .unwrap_or(0);
+
         let files = ModelRc::from(Rc::new(VecModel::from(
-            files.iter().map(|s| s.into()).collect::<Vec<_>>(),
+            files.into_iter().map(|s| s.into()).collect::<Vec<_>>(),
         )));
+
+        // Remove base directory from name before displaying.
+        let mut directory = path
+            .strip_prefix(ROM_SELECT_BASE_DIR)
+            .unwrap_or(&path)
+            .to_string_lossy()
+            .into_owned();
+        if !directory.starts_with("/") {
+            directory.insert_str(0, "/");
+        }
 
         let root = self.root.unwrap();
         let backend = Backend::get(&root);
-        backend.set_rom_select_path(path.to_string_lossy().into_owned().into());
+        backend.set_rom_select_path(directory.into());
         backend.set_rom_select_list(files);
         backend.set_rom_select_initial(selected as i32);
+    }
+
+    /// Handle selection. Returns whether UI should move to the Game screen.
+    fn rom_select_handle_select(&mut self, path: PathBuf, filename: &str) -> bool {
+        if filename == ".." {
+            if self.rom_select_directory == Path::new(ROM_SELECT_BASE_DIR) {
+                log::warn!("No parent directory");
+            } else {
+                self.rom_select_directory.pop();
+                self.rom_select_update_list();
+            }
+            return false;
+        }
+        if path.is_dir() {
+            log::info!("Entering subdirectory {}", filename);
+            self.rom_select_directory.push(filename);
+            self.rom_select_update_list();
+            return false;
+        }
+
+        log::info!("Selected ROM {}", path.display());
+        if filename.ends_with(".gbc") || filename.ends_with(".gb") {
+            self.ensure_bitstream_gameboy().unwrap();
+        } else if filename.ends_with(".gba") {
+            self.ensure_bitstream_gba().unwrap();
+        } else {
+            log::error!("Unsupported ROM file type");
+            return false;
+        }
+        kvs::keys::LAST_ROM_PATH.set(&path);
+
+        match &mut self.bitstream {
+            CurrentBitstream::None => false,
+            CurrentBitstream::Gameboy(x) => {
+                match x.set_emulated_cartridge(path.as_path()) {
+                    Ok(_) => true,
+                    Err(e) => {
+                        // TODO show an error message
+                        log::error!("Error loading ROM: {:?}", e);
+                        false
+                    }
+                }
+            }
+            CurrentBitstream::Gba(x) => {
+                match x.set_emulated_cartridge(path.as_path()) {
+                    Ok(_) => true,
+                    Err(e) => {
+                        // TODO show an error message
+                        log::error!("Error loading ROM: {:?}", e);
+                        false
+                    }
+                }
+            }
+        }
     }
 
     fn setup(&mut self, state: Rc<RefCell<UiState>>, device: &mut Device) {
@@ -183,10 +263,10 @@ impl UiState {
             }
         });
 
-        let rom_select_path: &Path = "/sdcard/roms".as_ref();
         let state_ = state.clone();
         backend.on_main_menu_load_rom(move || {
-            state_.borrow().rom_select_update_list(rom_select_path);
+            let state = state_.borrow();
+            state.rom_select_update_list();
         });
 
         let state_ = state.clone();
@@ -194,42 +274,8 @@ impl UiState {
             let mut state = state_.borrow_mut();
             let list = Backend::get(&state.root.unwrap()).get_rom_select_list();
             if let Some(data) = list.row_data(index as usize) {
-                let path = rom_select_path.join(data.as_str());
-                log::info!("Selected ROM {}", path.display());
-                kvs::keys::LAST_ROM_PATH.set(&path);
-
-                if data.ends_with(".gbc") || data.ends_with(".gb") {
-                    state.ensure_bitstream_gameboy().unwrap();
-                } else if data.ends_with(".gba") {
-                    state.ensure_bitstream_gba().unwrap();
-                } else {
-                    log::error!("Unsupported ROM file type");
-                    return false;
-                }
-
-                match &mut state.bitstream {
-                    CurrentBitstream::None => false,
-                    CurrentBitstream::Gameboy(x) => {
-                        match x.set_emulated_cartridge(path.as_path()) {
-                            Ok(_) => true,
-                            Err(e) => {
-                                // TODO show an error message
-                                log::error!("Error loading ROM: {:?}", e);
-                                false
-                            }
-                        }
-                    }
-                    CurrentBitstream::Gba(x) => {
-                        match x.set_emulated_cartridge(path.as_path()) {
-                            Ok(_) => true,
-                            Err(e) => {
-                                // TODO show an error message
-                                log::error!("Error loading ROM: {:?}", e);
-                                false
-                            }
-                        }
-                    }
-                }
+                let path = state.rom_select_directory.join(data.as_str());
+                state.rom_select_handle_select(path, data.as_str())
             } else {
                 false
             }
