@@ -40,6 +40,7 @@ export global Backend {
     in property <int> battery-level: 11;
     in property <int> rom-select-initial: 0;
     in property <[string]> rom-select-list: ["a", "b", "c", "d", "e"];
+    in property <string> rom-select-path: "/roms/";
     in property <[SettingEntry]> settings: [
         { name: "check 1", type: SettingType.checkbox, value: { bool-value: true } },
         { name: "check 2", type: SettingType.checkbox, value: { bool-value: false } },

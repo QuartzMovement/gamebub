@@ -21,6 +21,12 @@ export component RomSelectScreen inherits ScreenBase {
 
         VerticalLayout {
             height: 100%;
+            spacing: 1px;
+
+            Text {
+                text: Backend.rom-select-path;
+            }
+
             list := TextListView {
                 model: root.files;
                 wrap: true;

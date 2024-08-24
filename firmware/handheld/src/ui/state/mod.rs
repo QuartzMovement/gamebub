@@ -106,21 +106,52 @@ impl UiState {
         }
     }
 
+    /// Get the list of eligible files for the ROM select menu at the given directory
     fn rom_select_get_files(path: &Path) -> std::io::Result<Vec<String>> {
         let mut files = path
             .read_dir()?
-            .filter_map(|e| e.ok())
-            .filter(|f| f.metadata().is_ok_and(|m| m.is_file()))
-            .filter(|f| {
-                f.file_name().to_str().is_some_and(|n| {
-                    !n.starts_with(".")
-                        && (n.ends_with(".gbc") || n.ends_with(".gb") || n.ends_with(".gba"))
-                })
+            .filter_map(|e| {
+                let e = e.ok()?;
+                let name = e.file_name();
+                let name = name.to_str()?;
+                let kind = e.metadata().ok()?.file_type();
+                if name.starts_with(".") {
+                    return None;
+                }
+                let extensions = &[".gb", ".gbc", ".gba"];
+                if kind.is_file() && !extensions.iter().any(|&ext| name.ends_with(ext)) {
+                    return None;
+                }
+                Some((name.to_string(), kind))
             })
-            .filter_map(|f| f.file_name().into_string().ok())
             .collect::<Vec<_>>();
-        files.sort();
+        files.sort_unstable_by(|f1, f2| {
+            // Sort by name, with directories first.
+            let c1 = (f1.1.is_file(), f1.0.as_str());
+            let c2 = (f2.1.is_file(), f2.0.as_str());
+            c1.cmp(&c2)
+        });
+        let files = std::iter::once("..".to_string())
+            .chain(files.into_iter().map(|f| f.0))
+            .collect();
         Ok(files)
+    }
+
+    fn rom_select_update_list(&self, path: &Path) {
+        let files = Self::rom_select_get_files(path).unwrap();
+        let selected = kvs::keys::LAST_ROM_PATH
+            .get()
+            .and_then(|last_path| files.iter().position(|f| last_path == path.join(f)))
+            .unwrap_or(0);
+        let files = ModelRc::from(Rc::new(VecModel::from(
+            files.iter().map(|s| s.into()).collect::<Vec<_>>(),
+        )));
+
+        let root = self.root.unwrap();
+        let backend = Backend::get(&root);
+        backend.set_rom_select_path(path.to_string_lossy().into_owned().into());
+        backend.set_rom_select_list(files);
+        backend.set_rom_select_initial(selected as i32);
     }
 
     fn setup(&mut self, state: Rc<RefCell<UiState>>, device: &mut Device) {
@@ -155,23 +186,7 @@ impl UiState {
         let rom_select_path: &Path = "/sdcard/roms".as_ref();
         let state_ = state.clone();
         backend.on_main_menu_load_rom(move || {
-            let files = Self::rom_select_get_files(rom_select_path).unwrap();
-            let selected = kvs::keys::LAST_ROM_PATH
-                .get()
-                .and_then(|last_path| {
-                    files
-                        .iter()
-                        .position(|f| last_path == rom_select_path.join(f))
-                })
-                .unwrap_or(0);
-            let files = ModelRc::from(Rc::new(VecModel::from(
-                files.iter().map(|s| s.into()).collect::<Vec<_>>(),
-            )));
-
-            let root = state_.borrow().root.unwrap();
-            let backend = Backend::get(&root);
-            backend.set_rom_select_list(files);
-            backend.set_rom_select_initial(selected as i32);
+            state_.borrow().rom_select_update_list(rom_select_path);
         });
 
         let state_ = state.clone();
