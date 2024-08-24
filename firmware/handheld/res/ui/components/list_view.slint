@@ -10,11 +10,10 @@ export component ListViewBase inherits Rectangle {
     private property <int> into-view-item: 0;
     private property <length> into-view-item-y: root.item-y(root.into-view-item);
     private property <bool> has-focus;
-
     callback on-focus-item-changed(/* focus-item */ int);
     callback on-item-selected(/* selected-item */ int);
 
-    public function set-focus-item(index: int){
+    public function set-focus-item(index: int) {
         if (!wrap && (index < 0 || index >= num-items)) {
             return;
         }
@@ -31,7 +30,7 @@ export component ListViewBase inherits Rectangle {
         return area.viewport-y + index * root.item-height;
     }
 
-    function bring-into-view(index: int){
+    function bring-into-view(index: int) {
         if (index < 0 || index >= num-items) {
             return;
         }
@@ -45,20 +44,20 @@ export component ListViewBase inherits Rectangle {
         }
     }
 
-    protected function focus-up(){
+    protected function focus-up() {
         root.set-focus-item(root.focus-item - 1);
     }
 
-    protected function focus-down(){
+    protected function focus-down() {
         root.set-focus-item(root.focus-item + 1);
     }
 
-    protected function select-focus-item(){
+    protected function select-focus-item() {
         root.item-selected = true;
         root.on-item-selected(root.focus-item);
     }
 
-    protected function unselect(){
+    protected function unselect() {
         root.item-selected = false;
         root.focus();
     }

@@ -20,7 +20,7 @@ export global Global {
     in-out property <bool> ui-status-bar: true;
     in-out property <bool> power-menu-visible: false;
 
-    public function set-screen(screen: ScreenId){
+    public function set-screen(screen: ScreenId) {
         current-screen = screen;
         ui-transparent = (screen == ScreenId.Game);
         Backend.screen-enter(screen);

@@ -13,14 +13,14 @@ export { ScreenId, Backend }
 export component MainWindow inherits Window {
     private property <string> screen-title;
 
-    protected function update-volume(amount: int){
+    protected function update-volume(amount: int) {
         Backend.volume-visible = true;
         Backend.volume-level = clamp(Backend.volume-level + amount, 0, 100);
         Backend.volume-changed(Backend.volume-level);
         Backend.brightness-visible = false;
     }
 
-    protected function update-brightness(amount: int){
+    protected function update-brightness(amount: int) {
         Backend.brightness-visible = true;
         Backend.brightness-level = clamp(Backend.brightness-level + amount, 0, 100);
         Backend.brightness-changed(Backend.brightness-level);

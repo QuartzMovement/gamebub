@@ -6,7 +6,7 @@ export component GameScreen inherits ScreenBase {
     private property <bool> paused: false;
     forward-focus: i-focus-scope;
 
-    protected function set-paused(paused: bool){
+    protected function set-paused(paused: bool) {
         Global.ui-status-bar = paused;
         Backend.game-set-paused(paused);
         self.paused = paused;

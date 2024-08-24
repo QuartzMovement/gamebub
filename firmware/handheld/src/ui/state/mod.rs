@@ -329,7 +329,7 @@ impl UiState {
             let window_inner = slint_re_exports::WindowInner::from_pub(root.window());
             while let Some(item) = state.focus_stack.pop() {
                 if let Some(item) = item.upgrade() {
-                    window_inner.set_focus_item(&item);
+                    window_inner.set_focus_item(&item, true);
                     break;
                 }
             }

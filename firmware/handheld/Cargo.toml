@@ -41,7 +41,7 @@ embedded-hal-bus = "0.1.0"
 flate2 = "1.0.28"
 thiserror = "1.0.57"
 enum-map = "2.7.3"
-slint = { version = "~1.5.1", default-features = false, features = [
+slint = { version = "~1.7.2", default-features = false, features = [
     "compat-1-2",
     "unsafe-single-threaded",
     "libm",
@@ -57,4 +57,4 @@ time = "0.3.34"
 
 [build-dependencies]
 embuild = "0.31.3"
-slint-build = "1.4.1"
+slint-build = "~1.7.2"

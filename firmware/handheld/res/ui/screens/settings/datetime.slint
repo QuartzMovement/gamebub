@@ -9,7 +9,7 @@ export component DatetimePicker {
 
     callback on-changed(SettingDatetime);
 
-    protected pure function pad(val: int,pad: string) -> string {
+    protected pure function pad(val: int, pad: string) -> string {
         if val < 10 {
             "\{pad}\{val}"
         } else {
@@ -17,11 +17,11 @@ export component DatetimePicker {
         }
     }
 
-    protected function update(delta: SettingDatetime){
+    protected function update(delta: SettingDatetime) {
         dt = Backend.datetime-add(dt, delta);
     }
 
-    protected function update-delta(delta: int){
+    protected function update-delta(delta: int) {
         if part == 0 {
             update({ year: delta })
         } else if part == 1 {
