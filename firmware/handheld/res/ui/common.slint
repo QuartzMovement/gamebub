@@ -63,7 +63,8 @@ export global Backend {
     callback game-set-paused(bool);
     callback game-reset();
     callback setting-changed(int, SettingValue);
-    callback tools-usb-drive();
+    callback tools-start-usb-drive();
+    callback tools-end-usb-drive();
 
     callback screen-enter(ScreenId);
 

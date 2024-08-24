@@ -316,8 +316,12 @@ impl UiState {
                 .changed(i as usize, value);
         });
 
-        backend.on_tools_usb_drive(move || {
-            crate::device::drivers::usb::setup_tinyusb().expect("USB init failed");
+        backend.on_tools_start_usb_drive(move || {
+            crate::device::drivers::usb::setup_tinyusb().expect("USB setup failed");
+        });
+        backend.on_tools_end_usb_drive(move || {
+            crate::device::drivers::usb::teardown_tinyusb().expect("USB teardown failed");
+            Device::lock().reboot();
         });
 
         // Focus stack: allowing dialogs to push and pop focus.

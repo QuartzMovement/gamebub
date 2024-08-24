@@ -49,11 +49,11 @@ export component ToolsScreen inherits ScreenBase {
         if selected-tool == 0: FocusScope {
             init => {
                 self.focus();
-                Backend.tools-usb-drive();
+                Backend.tools-start-usb-drive();
             }
             key-pressed(event) => {
                 if (event.text == "Start") {
-                    Backend.reboot();
+                    Backend.tools-end-usb-drive();
                 }
                 accept
             }
