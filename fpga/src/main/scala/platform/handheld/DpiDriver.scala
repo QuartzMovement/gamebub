@@ -40,6 +40,9 @@ class DpiDriver(
 
     val pixelX = Output(UInt(log2Ceil(hActive).W))
     val pixelY = Output(UInt(log2Ceil(vActive).W))
+
+    /// Pulsed high at the beginning of the first scanline (before pixels are drawn).
+    val frameStart = Output(Bool())
   })
 
   assert(hActive > 0)
@@ -65,6 +68,7 @@ class DpiDriver(
   val y = RegInit(0.U(log2Ceil(totalHeight).W))
   io.pixelX := x - (hSync + hBackPorch).U
   io.pixelY := y - (vSync + vBackPorch).U
+  io.frameStart := false.B
 
   when (x === (totalWidth - 1).U) {
     regHsync := true.B
@@ -76,6 +80,9 @@ class DpiDriver(
       y := y + 1.U
       when (y === (vSync - 1).U) {
         regVsync := false.B
+      }
+      when (y === (vSync + vBackPorch - 1).U) {
+        io.frameStart := true.B
       }
     }
   } .otherwise {

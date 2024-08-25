@@ -8,6 +8,20 @@ set_property BITSTREAM.GENERAL.COMPRESS True [current_design]
 set_property CFGBVS VCCO [current_design]
 set_property CONFIG_VOLTAGE 3.3 [current_design]
 
+# Configure framebuffers with "power-optimized" ram-decomposition.
+#
+# This affects how Vivado elaborates RAMs that are larger than a RAMB36: by default,
+# it'll optimize for timing, which means splitting entries across multiple BRAMs.
+# This is problematic if the number of rows isn't a power of two, because it'll waste
+# a significant amount of space (e.g. a 240x160 framebuffer, with 38,400 15-bit entries,
+# will end up using 30 BRAMs (each 1 bit x 32768) (with expansion).
+#
+# Power optimized decomposition will split rows across BRAMs, so the same framebuffer will
+# use 19 BRAMs (each 15-bit x 2048) (depth expansion).
+set_property ram_decomp power [get_cells handheld_top/overlayFramebuffer_ext/Memory_reg]
+set_property ram_decomp power [get_cells handheld_top/framebuffers_mem_ext/Memory_reg]
+set_property ram_decomp power [get_cells handheld_top/framebuffers_mem_*_ext/Memory_reg]
+
 ########################################
 # Cartridge Slot
 ########################################

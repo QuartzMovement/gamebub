@@ -212,6 +212,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val sdram = new SdramController.Signals(sdramConfig)
   })
 
+  val statNumDuplicatedFrames = Wire(UInt(24.W))
+
   //////////////////////////////////
   // MCU Communication
   //////////////////////////////////
@@ -284,6 +286,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       // Framebuffer dimensions
       0x200 -> RegisterMap.Entry.r(
         Cat(module.framebufferW.U(16.W), module.framebufferH.U(16.W))),
+      // Stats
+      0x300 -> RegisterMap.Entry.r(XpmCdcHandshake.continuous(clock, statNumDuplicatedFrames)),
     )
   )
 
@@ -353,7 +357,20 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val screenHeight = 320
   val videoWidth = module.framebufferW
   val videoHeight = module.framebufferH
-  val framebuffer = SyncReadMem(videoWidth * videoHeight, UInt(ColorARGB.rgb555().getWidth.W))
+
+  // Triple buffering
+  val framebuffers = (0 until 3).map(_ =>
+    SRAM(
+      videoWidth * videoHeight, UInt(ColorARGB.rgb555().getWidth.W),
+      readPortClocks = Seq(io.clock_av), writePortClocks = Seq(), readwritePortClocks = Seq(clock)
+    )
+  )
+  val readFramebufferIndex = withClock(io.clock_av) {
+    RegInit(0.U(2.W))
+  }
+  val writeFramebufferIndex = RegInit(1.U(2.W))
+  // The index of the last completely drawn frame.
+  val lastCompleteFrameIndex = RegInit(2.U(2.W))
 
   val overlayScale = 2
   val overlayWidth = screenWidth / overlayScale
@@ -388,9 +405,30 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val framebufferReadAddress =
       (((dpiY - videoOffsetY.U + framebufferReadDelay.U) / videoScale.U) * videoWidth.U) +
         ((dpiX - videoOffsetX.U) / videoScale.U)
+
     // Buffering the read allows this to be a block ram instead of distributed ram
     // and an additional output buffer allows Vivado to improve timing.
-    val framebufferRead = RegNext(RegNext(framebuffer.read(framebufferReadAddress, io.clock_av))).asTypeOf(ColorARGB.rgb555())
+    //
+    // Read from the correct framebuffer.
+    for (i <- 0 until 3) {
+      framebuffers(i).readPorts(0).enable := readFramebufferIndex === i.U
+      framebuffers(i).readPorts(0).address := framebufferReadAddress
+    }
+    val framebufferRead = MuxLookup(readFramebufferIndex, 0.U)(
+      (0 until 3).map(i => i.U -> RegNext(RegNext(framebuffers(i).readPorts(0).data)))
+    ).asTypeOf(ColorARGB.rgb555())
+
+
+    val regStatDuplicatedFrames = RegInit(0.U(24.W))
+    val nextFrameIndex = XpmCdcHandshake.continuous(clock, lastCompleteFrameIndex)
+    when (dpiDriver.io.frameStart) {
+      // Start sending the most recently completed frame.
+      readFramebufferIndex := nextFrameIndex
+      when (nextFrameIndex === readFramebufferIndex) {
+        regStatDuplicatedFrames := regStatDuplicatedFrames + 1.U
+      }
+    }
+    statNumDuplicatedFrames := regStatDuplicatedFrames
 
     // Similar for overlay framebuffer.
     val overlayXControl = XpmCdcHandshake.continuous(clock, overlayXControlRegister)
@@ -451,12 +489,27 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     }
   }
 
-
-  // Framebuffer read via memory.
+  // Framebuffer read via SPI.
+  for (i <- 0 until 3) {
+    framebuffers(i).readwritePorts(0).enable := false.B
+    framebuffers(i).readwritePorts(0).address := DontCare
+    framebuffers(i).readwritePorts(0).isWrite := DontCare
+    framebuffers(i).readwritePorts(0).writeData := DontCare
+  }
   val framebufferInterfaceRead = framebufferInterface.enable && !framebufferInterface.write
-  framebufferInterface.dataRead := RegNext(RegNext(
-    framebuffer.read((framebufferInterface.address >> 1).asUInt, framebufferInterfaceRead)
-  ))
+  when (framebufferInterfaceRead) {
+    for (i <- 0 until 3) {
+      when (lastCompleteFrameIndex === i.U) {
+        framebuffers(i).readwritePorts(0).enable := true.B
+        framebuffers(i).readwritePorts(0).address := (framebufferInterface.address >> 1.U).asUInt
+        framebuffers(i).readwritePorts(0).isWrite := false.B
+      }
+    }
+  }
+  framebufferInterface.dataRead := MuxLookup(lastCompleteFrameIndex, 0.U)(
+    (0 until 3).map(i => i.U ->
+      RegNext(RegNext(framebuffers(i).readwritePorts(0).readData))
+    ))
   framebufferInterface.done := RegNext(RegNext(framebufferInterfaceRead))
   when (framebufferInterface.write) {
     // Writes are not supported.
@@ -496,13 +549,25 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     (RegNext(RegNext(~io.buttons.asUInt)).asUInt | buttonRegister.asUInt).asTypeOf(new HandheldButtons)
 
   // Framebuffer writes
-  when (module.io.framebufferWriteEnable) {
+  when (module.io.framebufferWriteEnable && !framebufferInterfaceRead) {
     // Module framebuffer write and SPI framebuffer read share the same read/write port,
     // so ensure that they're not activated at the same time (so they can be inferred correctly).
-    when (!framebufferInterfaceRead) {
-      val address = (module.io.framebufferY * videoWidth.U(8.W)) + module.io.framebufferX
-      framebuffer.write(address, module.io.framebufferData.asUInt)
+    val address = (module.io.framebufferY * videoWidth.U(8.W)) + module.io.framebufferX
+    for (i <- 0 until 3) {
+      framebuffers(i).readwritePorts(0).enable := (i.U === writeFramebufferIndex)
+      framebuffers(i).readwritePorts(0).address := address
+      framebuffers(i).readwritePorts(0).isWrite := true.B
+      framebuffers(i).readwritePorts(0).writeData := module.io.framebufferData.asUInt
     }
+  }
+
+  val syncReadFramebufferIndex = XpmCdcHandshake.continuous(io.clock_av, readFramebufferIndex)
+  when (module.io.vblank && !RegNext(module.io.vblank)) {
+    // Module has finished drawing a frame, update the most recently rendered framebuffer.
+    lastCompleteFrameIndex := writeFramebufferIndex
+
+    // Select the framebuffer that isn't the one we're writing to or is being read from.
+    writeFramebufferIndex := (0 + 1 + 2).U(2.W) - writeFramebufferIndex - syncReadFramebufferIndex
   }
 
   // N.B. Audio synchronization happens above.
