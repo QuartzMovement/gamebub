@@ -375,7 +375,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val overlayScale = 2
   val overlayWidth = screenWidth / overlayScale
   val overlayHeight = screenHeight / overlayScale
-  val overlayFramebuffer = SyncReadMem(overlayWidth * overlayHeight, UInt(ColorARGB.argb1555().getWidth.W))
+  val overlayFramebuffer = SRAM(
+    overlayWidth * overlayHeight, UInt(ColorARGB.argb1555().getWidth.W),
+    readPortClocks = Seq(io.clock_av), writePortClocks = Seq(clock), readwritePortClocks = Seq(),
+  )
   withClock (io.clock_av) {
     /**
      * DPI video signal output
@@ -437,7 +440,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val overlayReadAddress =
       ((((dpiY + overlayReadDelay.U(16.W)) / overlayScale.U(16.W)) + overlayYControl.scroll)(7, 0) * overlayWidth.U(16.W)) +
         ((dpiX / overlayScale.U) + overlayXControl.scroll)(7, 0)
-    val overlayRead = RegNext(RegNext(overlayFramebuffer.read(overlayReadAddress, io.clock_av))).asTypeOf(ColorARGB.argb1555())
+
+    overlayFramebuffer.readPorts(0).enable := true.B
+    overlayFramebuffer.readPorts(0).address := overlayReadAddress
+    val overlayRead = RegNext(RegNext(overlayFramebuffer.readPorts(0).data)).asTypeOf(ColorARGB.argb1555())
 
     val videoOutput = ColorARGB.rgb555().makeBlack()
     when (
@@ -476,18 +482,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // partial rectangular updates.
   overlayInterface.dataRead := DontCare
   overlayInterface.done := false.B
-  when (overlayInterface.enable) {
-    when (overlayInterface.write) {
-      overlayFramebuffer.write(
-        (overlayInterface.address >> 1).asUInt,
-        overlayInterface.dataWrite
-      )
-      overlayInterface.done := true.B
-    } .otherwise {
-      // Reads are not supported.
-      overlayInterface.done := true.B
-    }
-  }
+  overlayFramebuffer.writePorts(0).enable := overlayInterface.enable && overlayInterface.write
+  overlayFramebuffer.writePorts(0).address := (overlayInterface.address >> 1).asUInt
+  overlayFramebuffer.writePorts(0).data := overlayInterface.dataWrite
+  overlayInterface.done := RegNext(overlayInterface.enable)
 
   // Framebuffer read via SPI.
   for (i <- 0 until 3) {
@@ -510,11 +508,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     (0 until 3).map(i => i.U ->
       RegNext(RegNext(framebuffers(i).readwritePorts(0).readData))
     ))
-  framebufferInterface.done := RegNext(RegNext(framebufferInterfaceRead))
-  when (framebufferInterface.write) {
-    // Writes are not supported.
-    framebufferInterface.done := true.B
-  }
+  framebufferInterface.done := RegNext(RegNext(framebufferInterface.enable))
 
   //////////////////////////////////
   // Audio
