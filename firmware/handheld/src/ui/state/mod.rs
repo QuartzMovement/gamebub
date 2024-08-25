@@ -125,7 +125,7 @@ impl UiState {
         backend.set_rom_select_initial(selected as i32);
     }
 
-    /// Handle selection. Returns whether UI should move to the Game screen.
+    /// Handle selection. Returns whether UI should adjust its focus item to position 0.
     fn rom_select_handle_select(&mut self, path: PathBuf, filename: &str) -> bool {
         if filename == ".." {
             if self.rom_select_directory == Path::new(ROM_SELECT_BASE_DIR) {
@@ -134,13 +134,13 @@ impl UiState {
                 self.rom_select_directory.pop();
                 self.rom_select_update_list();
             }
-            return false;
+            return true;
         }
         if path.is_dir() {
             log::info!("Entering subdirectory {}", filename);
             self.rom_select_directory.push(filename);
             self.rom_select_update_list();
-            return false;
+            return true;
         }
 
         log::info!("Selected ROM {}", path.display());

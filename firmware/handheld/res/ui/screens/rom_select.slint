@@ -4,6 +4,7 @@ import { TextListView } from "../components/list_view.slint";
 
 export component RomSelectScreen inherits ScreenBase {
     in property <[string]> files;
+    private property <bool> is-loading: false;
 
     title: "Load ROM...";
     forward-focus: list;
@@ -34,10 +35,11 @@ export component RomSelectScreen inherits ScreenBase {
                     self.set-focus-item(Backend.rom-select-initial);
                 }
                 on-item-selected(i) => {
+                    is-loading = true;
                     if Backend.rom-select-selected(i) {
-                        Global.set-screen(ScreenId.Game);
-                    } else {
                         self.set-focus-item(0);
+                    } else {
+                        i-loading-popup.focus();
                     }
                 }
             }
@@ -50,6 +52,26 @@ export component RomSelectScreen inherits ScreenBase {
                 Text {
                     text: "B: Cancel";
                     horizontal-alignment: right;
+                }
+            }
+        }
+    }
+
+    i-loading-popup := FocusScope {
+        visible: is-loading;
+        Rectangle {
+            background: #FFF;
+            border-color: black;
+            border-width: 1px;
+            width: i-layout.min-width;
+            height: i-layout.min-height;
+
+            i-layout := VerticalLayout {
+                padding: 8px;
+                spacing: 4px;
+                Text {
+                    horizontal-alignment: center;
+                    text: "Loading...";
                 }
             }
         }
