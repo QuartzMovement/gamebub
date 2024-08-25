@@ -22,16 +22,13 @@ class HighRam extends Module {
   val io = IO(new PeripheralAccess)
 
   // But only 127 bytes are accessible
-  val memory = SyncReadMem(128, UInt(8.W))
-  io.dataRead := 0.U
-  io.valid := false.B
+  val memory = SRAM(128, UInt(8.W), numReadPorts = 0, numWritePorts = 0, numReadwritePorts = 1)
+  val port = memory.readwritePorts(0)
 
-  when (io.enabled && io.address >= 0x80.U && io.address <= 0xFE.U) {
-    when (io.write) {
-      memory.write(io.address(6, 0), io.dataWrite)
-    } .otherwise {
-      io.valid := true.B
-      io.dataRead := memory.read(io.address(6, 0))
-    }
-  }
+  port.enable := io.enabled && io.address >= 0x80.U && io.address <= 0xFE.U
+  port.address := io.address(6, 0)
+  port.isWrite := io.write
+  port.writeData := io.dataWrite
+  io.dataRead := port.readData
+  io.valid := port.enable && !port.isWrite
 }

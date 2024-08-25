@@ -18,14 +18,12 @@ class SinglePortRam(size: Int) extends Module {
     val dataRead = Output(UInt(8.W))
   })
 
-  val ram = SyncReadMem(size, UInt(8.W))
+  val ram = SRAM(size, UInt(8.W), numReadPorts = 0, numWritePorts = 0, numReadwritePorts = 1)
+  val port = ram.readwritePorts(0)
 
-  io.dataRead := 0xFF.U
-  when (io.enabled) {
-    when (io.write) {
-      ram.write(io.address, io.dataWrite)
-    } .otherwise {
-      io.dataRead := ram.read(io.address)
-    }
-  }
+  port.enable := io.enabled
+  port.address := io.address
+  port.isWrite := io.write
+  port.writeData := io.dataWrite
+  io.dataRead := port.readData
 }
