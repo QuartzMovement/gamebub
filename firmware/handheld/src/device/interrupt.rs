@@ -125,6 +125,14 @@ impl Device<'_> {
                         }
                     }
 
+                    // DAC IRQs.
+                    if let Ok(dac_irq) = device.dac.get_interrupt_status() {
+                        if dac_irq.headset_detected {
+                            let has_headphones = device.dac.get_headphones_detected().unwrap();
+                            let _ = event_sender.send(super::Event::HeadphoneState(has_headphones));
+                        }
+                    }
+
                     // Read FPGA.
                     // TODO: only read and ack interrupts that we've enabled?
                     let fpga_irq = device.fpga.read_u32(fpga::REG_IRQ_STATUS).unwrap();

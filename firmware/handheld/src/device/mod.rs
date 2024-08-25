@@ -223,10 +223,12 @@ impl Device<'_> {
         let dac_reset = PinDriver::output(pin_dac_reset)?;
         let mut dac = drivers::dac::TLV320DAC3101::new(dac_reset, MutexI2C::new(&i2c));
         dac.init()?;
+        dac.configure_interrupts()?;
         dac.set_volume(kvs::keys::VOLUME.get().unwrap())?;
         dac.set_mute(false)?;
-        dac.set_headphones_enabled(true)?;
-        dac.set_speakers_enabled(true)?;
+        let headphones_detected = dac.get_headphones_detected()?;
+        dac.set_headphones_enabled(headphones_detected)?;
+        dac.set_speakers_enabled(!headphones_detected)?;
 
         // Setup FPGA (without programming)
         let fpga_done = PinDriver::input(pin_fpga_done)?;
@@ -422,4 +424,5 @@ pub enum Event {
     Button(ButtonMap),
     FpgaIrq(u32),
     FuelGaugeAlert(fuel_gauge::Alert),
+    HeadphoneState(bool),
 }

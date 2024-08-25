@@ -16,6 +16,22 @@ pub enum Error {
     I2cError,
 }
 
+#[derive(Copy, Clone)]
+pub struct InterruptStatus {
+    /// Short circuit detected at HPL / left class-D driver
+    pub left_short_circuit: bool,
+    /// Short circuit detected at HPR / right class-D driver
+    pub right_short_circuit: bool,
+    /// Headset button pressed
+    pub headset_button_pressed: bool,
+    /// Headset insertion or removal is detected
+    pub headset_detected: bool,
+    /// Left DAC signal power is above signal threshold of DRC
+    pub left_dac_power: bool,
+    /// Right DAC signal power is above signal threshold of DRC
+    pub right_dac_power: bool,
+}
+
 pub struct TLV320DAC3101<PinReset: OutputPin, I2C: I2c> {
     pin_reset: PinReset,
     i2c: I2C,
@@ -173,7 +189,7 @@ where
         self.write_reg(0, 0x3F, 0xD4)?;
 
         // Enable headphone detection
-        self.write_reg(0, 0x43, 0x80)?;
+        self.configure_headphone_detection(true)?;
 
         Ok(())
     }
@@ -211,6 +227,38 @@ where
 
     pub fn set_speakers_enabled(&mut self, enabled: bool) -> Result<(), Error> {
         self.write_reg(1, 0x20, if enabled { 0xC6 } else { 0x06 })
+    }
+
+    /// Enable or disable headphone detection.
+    pub fn configure_headphone_detection(&mut self, enabled: bool) -> Result<(), Error> {
+        let debounce_headset = 0b011u8; // 128ms
+        let debounce_button = 0u8; // 0ms
+        let value = ((enabled as u8) << 7) | (debounce_headset << 2) | debounce_button;
+        self.write_reg(0, 0x43, value)
+    }
+
+    /// Get whether headphones are plugged in.
+    pub fn get_headphones_detected(&mut self) -> Result<bool, Error> {
+        self.read_reg(0, 0x43).map(|x| (x & 0x20) != 0)
+    }
+
+    pub fn configure_interrupts(&mut self) -> Result<(), Error> {
+        // Configure INT1 to use headphone detection interrupt.
+        self.write_reg(0, 0x30, 0x80)?;
+        // Configure GPIO1 as INT1 output
+        self.write_reg(0, 0x33, 0x14)
+    }
+
+    pub fn get_interrupt_status(&mut self) -> Result<InterruptStatus, Error> {
+        let value = self.read_reg(0, 0x2C)?;
+        Ok(InterruptStatus {
+            left_short_circuit: (value & (1 << 7)) != 0,
+            right_short_circuit: (value & (1 << 6)) != 0,
+            headset_button_pressed: (value & (1 << 5)) != 0,
+            headset_detected: (value & (1 << 4)) != 0,
+            left_dac_power: (value & (1 << 3)) != 0,
+            right_dac_power: (value & (1 << 2)) != 0,
+        })
     }
 
     fn set_page(&mut self, page: u8) -> Result<(), Error> {

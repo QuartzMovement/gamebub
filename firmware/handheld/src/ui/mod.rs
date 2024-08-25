@@ -107,6 +107,12 @@ impl UI {
                             .borrow_mut()
                             .update_battery_level(&mut Device::lock());
                     }
+                    device::Event::HeadphoneState(has_headphones) => {
+                        log::info!("Headphone detection: {}", has_headphones);
+                        let mut device = Device::lock();
+                        device.dac.set_headphones_enabled(has_headphones).unwrap();
+                        device.dac.set_speakers_enabled(!has_headphones).unwrap();
+                    }
                     _ => {
                         log::info!("event: {:?}", event);
                     }
