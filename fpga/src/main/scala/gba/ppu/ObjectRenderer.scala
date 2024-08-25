@@ -418,27 +418,29 @@ class ObjectRenderer extends Module {
 
           // Handle left-side clipping of affine sprites.
           // If fetchObj.x + fetchCol > 240 (wrapping at 512), the pixel is invisible.
-          fetchCol := 0.U
+          val clippedFetchCol = WireDefault(0.U(8.W))
           when (fetchObj.x >= 240.U) {
             // fetchObj.x + fetchCol = 512
             // fetchCol = 512 - fetchObj.x
-            val clipped = (~fetchObj.x).asUInt + 1.U
-            fetchCol := clipped
-            when (clipped >= (fetchObj.w << 3).asUInt) {
+            clippedFetchCol := (~fetchObj.x).asUInt + 1.U
+            when (clippedFetchCol >= (fetchObj.w << 3).asUInt) {
               fetchActive := false.B
             }
           }
+          fetchCol := clippedFetchCol
 
           // TODO, make more efficient? pipelineable?
           val halfwidth = (fetchObj.w << 2).asUInt.zext
           val halfheight = (fetchObj.h << 2).asUInt.zext
+          val offsetX = clippedFetchCol.zext - halfwidth
+          val offsetY = oamAttrs.row.zext - halfheight
           fetchAffX := (
-            (fetchAffineParams.pb.asUInt.asSInt * (oamAttrs.row.zext - halfheight)) -&
-              (fetchAffineParams.pa.asUInt.asSInt * halfwidth)
+            (fetchAffineParams.pb.asUInt.asSInt * offsetY) +&
+              (fetchAffineParams.pa.asUInt.asSInt * offsetX)
           ).pad((new AffineReferencePoint).getWidth).asTypeOf(new AffineReferencePoint)
           fetchAffY := (
-            (fetchAffineParams.pd.asUInt.asSInt * (oamAttrs.row.zext - halfheight)) -&
-              (fetchAffineParams.pc.asUInt.asSInt * halfwidth)
+            (fetchAffineParams.pd.asUInt.asSInt * offsetY) +&
+              (fetchAffineParams.pc.asUInt.asSInt * offsetX)
           ).pad((new AffineReferencePoint).getWidth).asTypeOf(new AffineReferencePoint)
         }
       }
