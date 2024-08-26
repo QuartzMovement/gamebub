@@ -414,4 +414,8 @@ impl Bitstream for Gba {
         device.fpga.write_u32(fpga::REG_CONTROL, 0b1010)?;
         Ok(())
     }
+
+    fn on_vblank_irq(&mut self) {
+        // TODO: read IMU
+    }
 }

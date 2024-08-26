@@ -68,7 +68,7 @@ impl UiState {
         backend.set_battery_level(level);
     }
 
-    fn bitstream(&mut self) -> Option<&mut dyn Bitstream> {
+    pub fn bitstream(&mut self) -> Option<&mut dyn Bitstream> {
         match &mut self.bitstream {
             CurrentBitstream::None => None,
             CurrentBitstream::Gameboy(x) => Some(x),

@@ -322,22 +322,6 @@ impl Gameboy {
 
         Ok(())
     }
-
-    pub fn handle_vblank_irq(&mut self) {
-        let mut device = Device::lock();
-        let sample = device.imu.read_accel().unwrap();
-        // Invert X and Y
-        let accel_x = ((0x81D0 as f32) + ((0x70 as f32) * -sample.x)) as u16;
-        let accel_y = ((0x81D0 as f32) + ((0x70 as f32) * -sample.y)) as u16;
-        device
-            .fpga
-            .write_u32(REG_IMU_ACCEL_X, accel_x as u32)
-            .unwrap();
-        device
-            .fpga
-            .write_u32(REG_IMU_ACCEL_Y, accel_y as u32)
-            .unwrap();
-    }
 }
 
 impl Bitstream for Gameboy {
@@ -370,6 +354,22 @@ impl Bitstream for Gameboy {
         device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
         device.fpga.write_u32(fpga::REG_CONTROL, 0b1010)?;
         Ok(())
+    }
+
+    fn on_vblank_irq(&mut self) {
+        let mut device = Device::lock();
+        let sample = device.imu.read_accel().unwrap();
+        // Invert X and Y
+        let accel_x = ((0x81D0 as f32) + ((0x70 as f32) * -sample.x)) as u16;
+        let accel_y = ((0x81D0 as f32) + ((0x70 as f32) * -sample.y)) as u16;
+        device
+            .fpga
+            .write_u32(REG_IMU_ACCEL_X, accel_x as u32)
+            .unwrap();
+        device
+            .fpga
+            .write_u32(REG_IMU_ACCEL_Y, accel_y as u32)
+            .unwrap();
     }
 }
 
