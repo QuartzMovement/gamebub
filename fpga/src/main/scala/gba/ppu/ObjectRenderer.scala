@@ -70,6 +70,24 @@ class ObjectAttributeFull extends Bundle {
   val mosaic = Bool()
 }
 
+class ObjectBuffer extends Module {
+  val io = IO(new Bundle {
+    val writeEnable = Input(Bool())
+    val writeIndex = Input(UInt(8.W))
+    val writeData = Input(UInt((new ObjectBufferEntry).getWidth.W))
+    val writeReadback = Output(UInt((new ObjectBufferEntry).getWidth.W))
+    val readIndex = Input(UInt(8.W))
+    val readData = Output(UInt((new ObjectBufferEntry).getWidth.W))
+  })
+
+  val buffer = RegInit(VecInit.fill(240)(0.U((new ObjectBufferEntry).getWidth.W)))
+  when (io.writeEnable) {
+    buffer(io.writeIndex) := io.writeData
+  }
+  io.writeReadback := buffer(io.writeIndex)
+  io.readData := buffer(io.readIndex)
+}
+
 class ObjectRenderer extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
@@ -101,29 +119,27 @@ class ObjectRenderer extends Module {
   val evenTick = io.tick(0) === 0.U
 
   // Object scanline buffer. 240 entries, times two, rounded to power-of-two.
-  // TODO: this absolutely kills simulation performance relative to a SyncReadMem
-  val buffer0 = Reg(Vec(240, UInt((new ObjectBufferEntry).getWidth.W)))
-  val buffer1 = Reg(Vec(240, UInt((new ObjectBufferEntry).getWidth.W)))
+  val buffer0 = Module(new ObjectBuffer)
+  val buffer1 = Module(new ObjectBuffer)
   val bufferWriteIndex = Wire(UInt(8.W))
   val bufferWriteData = Wire(new ObjectBufferEntry)
   val bufferWriteEnable = WireDefault(false.B)
   val bufferWriteReadback = Wire(new ObjectBufferEntry)
   val bufferPage = Reg(UInt(1.W))
+  for (buffer <- Seq(buffer0, buffer1)) {
+    buffer.io.writeEnable := false.B
+    buffer.io.writeIndex := bufferWriteIndex
+    buffer.io.writeData := bufferWriteData.asUInt
+    buffer.io.readIndex := io.bufferIndex
+  }
   bufferWriteIndex := DontCare
   bufferWriteData := DontCare
-  io.bufferData := Mux(bufferPage === 1.U, buffer0(io.bufferIndex), buffer1(io.bufferIndex)).asTypeOf(new ObjectBufferEntry)
+  io.bufferData := Mux(bufferPage === 1.U, buffer0.io.readData, buffer1.io.readData).asTypeOf(new ObjectBufferEntry)
   when (bufferWriteEnable && io.enable) {
-    when (bufferPage === 0.U) {
-      buffer0(bufferWriteIndex) := bufferWriteData.asUInt
-    } .otherwise {
-      buffer1(bufferWriteIndex) := bufferWriteData.asUInt
-    }
+    buffer0.io.writeEnable := bufferPage === 0.U
+    buffer1.io.writeEnable := bufferPage === 1.U
   }
-  when (bufferPage === 0.U) {
-    bufferWriteReadback := buffer0(bufferWriteIndex).asTypeOf(new ObjectBufferEntry)
-  } .otherwise {
-    bufferWriteReadback := buffer1(bufferWriteIndex).asTypeOf(new ObjectBufferEntry)
-  }
+  bufferWriteReadback := Mux(bufferPage === 0.U, buffer0.io.writeReadback, buffer1.io.writeReadback).asTypeOf(new ObjectBufferEntry)
 
   // Pixel draw
   val drawX = Reg(UInt(9.W))
@@ -480,9 +496,9 @@ class ObjectRenderer extends Module {
       }
       bufferPage := !bufferPage
       when (bufferPage === 0.U) {
-        buffer1 := VecInit.fill(240)(0.U)
+        buffer1.reset := true.B
       } .otherwise {
-        buffer0 := VecInit.fill(240)(0.U)
+        buffer0.reset := true.B
       }
       oamIndex := 0.U
       oamStage := 0.U

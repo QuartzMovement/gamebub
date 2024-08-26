@@ -17,7 +17,13 @@ object SimGba extends App {
     case None =>
   }
 
-  ChiselStage.emitSystemVerilogFile(new SimGba, args)
+  ChiselStage.emitSystemVerilogFile(
+    new SimGba,
+    args,
+    firtoolOpts = Array(
+      "--preserve-aggregate=1d-vec",
+    )
+  )
 }
 
 class SimGba extends Module {

@@ -26,6 +26,9 @@ object HandheldTop extends App {
   ChiselStage.emitSystemVerilogFile(
     new HandheldTop(moduleFactory()),
     argRest,
+    firtoolOpts = Array(
+      "--preserve-aggregate=1d-vec",
+    )
   )
 }
 
