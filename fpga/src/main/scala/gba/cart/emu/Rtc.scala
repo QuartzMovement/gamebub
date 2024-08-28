@@ -61,7 +61,7 @@ object Rtc {
   }
 }
 
-/// RTC chip: Seiko S-3511
+/// RTC chip: Seiko S-3511A
 class Rtc extends Module {
   val clockRate = 16 * 1024 * 1024
   val io = IO(new Bundle {

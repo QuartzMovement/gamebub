@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use rtc::RtcState;
 use thiserror::Error;
 
 use crate::device::{drivers::fpga, Device};
@@ -13,11 +14,14 @@ use crate::device::{drivers::fpga, Device};
 use super::Bitstream;
 
 mod game_db;
+mod rtc;
 
 const ROM_HEADER_LENGTH: usize = 192;
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
 const REG_EMU_CART_ROM_SIZE: u32 = 0xC000_0004;
 const REG_IMU_GYRO_Z: u32 = 0xC000_0100;
+const REG_RTC_LO: u32 = 0xC000_0200;
+const REG_RTC_HI: u32 = 0xC000_0204;
 const REG_STAT_STALLS: u32 = 0xC000_1000;
 const REG_STAT_CYCLES: u32 = 0xC000_1004;
 
@@ -314,6 +318,7 @@ impl Gba {
         let save_type = emu_cart_config.save_type;
         let save_size = save_type.get_size() as u32;
         let save_path = rom_path.with_extension("sav");
+        let mut rtc_state: Option<RtcState> = None;
         if let Ok(mut save_file) = File::open(save_path.as_path()) {
             log::info!("Loading save file");
 
@@ -326,6 +331,35 @@ impl Gba {
                 }
                 device.fpga.sram_write(pos, &buf[..n])?;
                 pos += n as u32;
+            }
+
+            if emu_cart_config.has_rtc {
+                // Read next 16 bytes for RTC data.
+                let n = save_file.read(&mut buf[..16])?;
+                if n == 16 {
+                    let prev_state = RtcState::from_disk(buf[0..8].try_into().unwrap());
+                    let rtc_timestamp = u64::from_le_bytes(buf[8..16].try_into().unwrap());
+                    let elapsed = device
+                        .get_datetime()
+                        .unix_timestamp()
+                        .saturating_sub_unsigned(rtc_timestamp);
+
+                    match prev_state.to_offset_date_time() {
+                        Ok(time) => {
+                            let datetime = time.saturating_add(time::Duration::seconds(elapsed));
+                            let new_state = RtcState::from_offset_date_time(datetime);
+                            log::info!(
+                                "Loaded saved RTC state: {:?}, elapsed={}",
+                                new_state,
+                                elapsed
+                            );
+                            rtc_state = Some(new_state);
+                        }
+                        Err(_) => {
+                            log::warn!("Saved RTC state invalid");
+                        }
+                    }
+                }
             }
         } else {
             // No save file to load, clear the save region.
@@ -344,6 +378,18 @@ impl Gba {
             .fpga
             .write_u32(REG_EMU_CART_CONFIG, emu_cart_config.as_config_u32())?;
         device.fpga.write_u32(REG_EMU_CART_ROM_SIZE, rom_size - 1)?;
+
+        // Update RTC state
+        let rtc_state = match rtc_state {
+            Some(state) => state,
+            None => {
+                let datetime = device.get_datetime();
+                RtcState::from_offset_date_time(datetime)
+            }
+        };
+        let (rtc_lo, rtc_hi) = rtc_state.to_fpga();
+        device.fpga.write_u32(REG_RTC_LO, rtc_lo)?;
+        device.fpga.write_u32(REG_RTC_HI, rtc_hi)?;
 
         // If IMU is needed, enable vsync IRQ
         let irq_mask = if emu_cart_config.has_gyro {
@@ -386,6 +432,15 @@ impl Gba {
             file.write(data)?;
             address += to_read as u32;
             bytes_left -= to_read;
+        }
+
+        if self.emu_cart_config.as_ref().map_or(false, |e| e.has_rtc) {
+            let rtc_lo = device.fpga.read_u32(REG_RTC_LO)?;
+            let rtc_hi = device.fpga.read_u32(REG_RTC_HI)?;
+            let rtc_state = RtcState::from_fpga(rtc_lo, rtc_hi);
+            file.write(&rtc_state.to_disk())?;
+            file.write(&(device.get_datetime().unix_timestamp() as u64).to_le_bytes())?;
+            log::info!("Wrote RTC state: {:?}", rtc_state);
         }
 
         Ok(())
