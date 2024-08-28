@@ -23,28 +23,41 @@ object Rtc {
     val Time = Value
   }
 
-  class DateTime extends Bundle {
-    val yearLo = UInt(4.W)
-    val yearHi = UInt(4.W)
-    val monthLo = UInt(4.W)
-    val monthHi = UInt(1.W)
-    val dayLo = UInt(4.W)
-    val dayHi = UInt(2.W)
+  class Date extends Bundle {
+    val _padding3 = UInt(5.W)
     val dayOfWeek = UInt(3.W)
-    val hourLo = UInt(4.W)
-    val hourHi = UInt(2.W)
-    val amPm = UInt(1.W)
-    val minuteLo = UInt(4.W)
-    val minuteHi = UInt(3.W)
-    val secondLo = UInt(4.W)
+    val _padding2 = UInt(2.W)
+    val dayHi = UInt(2.W)
+    val dayLo = UInt(4.W)
+    val _padding1 = UInt(3.W)
+    val monthHi = UInt(1.W)
+    val monthLo = UInt(4.W)
+    val yearHi = UInt(4.W)
+    val yearLo = UInt(4.W)
+  }
+
+  class Time extends Bundle {
+    val _padding3 = UInt(1.W)
     val secondHi = UInt(3.W)
+    val secondLo = UInt(4.W)
+    val _padding2 = UInt(1.W)
+    val minuteHi = UInt(3.W)
+    val minuteLo = UInt(4.W)
+    val amPm = UInt(1.W)
+    val _padding1 = UInt(1.W)
+    val hourHi = UInt(2.W)
+    val hourLo = UInt(4.W)
   }
 
   class Status extends Bundle {
+    val _padding4 = UInt(1.W)
     val hour24 = Bool()
     val intAe = Bool()
+    val _padding3 = UInt(1.W)
     val intMe = Bool()
+    val _padding2 = UInt(1.W)
     val intFe = Bool()
+    val _padding1 = UInt(1.W)
   }
 }
 
@@ -52,7 +65,12 @@ object Rtc {
 class Rtc extends Module {
   val clockRate = 16 * 1024 * 1024
   val io = IO(new Bundle {
-    // TODO add way to get/set date and time
+    /// Access for emulator
+    /// Select first 32-bits or second 32-bits of data.
+    val emuDataSelect = Input(UInt(1.W))
+    val emuDataIn = Input(UInt(32.W))
+    val emuDataOut = Output(UInt(32.W))
+    val emuDataWrite = Input(Bool())
 
     /// Serial clock: data sampled on rising edge, set on falling edge. Idles high.
     val serialClock = Input(Bool())
@@ -68,8 +86,10 @@ class Rtc extends Module {
 
   /// Tick counter (subsecond)
   val tickCounter = new Counter(clockRate)
-  /// Current date and time
-  val regDateTime = Reg(new Rtc.DateTime)
+  /// Current date
+  val regDate = Reg(new Rtc.Date)
+  /// Current time
+  val regTime = Reg(new Rtc.Time)
   /// Current status register
   val regStatus = Reg(new Rtc.Status)
   /// Current register that's being written
@@ -83,21 +103,20 @@ class Rtc extends Module {
   /// Serial output bit
   val regOut = RegInit(1.U(1.W))
 
-  // FOR TESTING
 //  when (reset.asBool) {
-//    regDateTime.yearHi := 5.U
-//    regDateTime.yearLo := 2.U
-//    regDateTime.monthHi := 0.U
-//    regDateTime.monthLo := 2.U
-//    regDateTime.dayHi := 2.U
-//    regDateTime.dayLo := 8.U
-//    regDateTime.dayOfWeek := 2.U
-//    regDateTime.hourHi := 2.U
-//    regDateTime.hourLo := 3.U
-//    regDateTime.minuteHi := 5.U
-//    regDateTime.minuteLo := 9.U
-//    regDateTime.secondHi := 5.U
-//    regDateTime.secondLo := 8.U
+//    regDate.yearHi := 5.U
+//    regDate.yearLo := 2.U
+//    regDate.monthHi := 0.U
+//    regDate.monthLo := 2.U
+//    regDate.dayHi := 2.U
+//    regDate.dayLo := 8.U
+//    regDate.dayOfWeek := 2.U
+//    regTime.hourHi := 2.U
+//    regTime.hourLo := 3.U
+//    regTime.minuteHi := 5.U
+//    regTime.minuteLo := 9.U
+//    regTime.secondHi := 5.U
+//    regTime.secondLo := 8.U
 //  }
 
   io.irq := false.B
@@ -106,11 +125,11 @@ class Rtc extends Module {
   // Days in the month
   val maxDayLo = WireDefault(0.U(4.W))
   val maxDayHi = WireDefault(3.U(2.W))
-  val bcdMonth = Cat(regDateTime.monthHi, regDateTime.monthLo)
+  val bcdMonth = Cat(regDate.monthHi, regDate.monthLo)
   // Leap year in BCD: for the range 2000-2099, we only care if the last 2 digits are divisible by 4.
   // divisible = ((lo + (hi << 1)) & 0b11) == 0
   val isLeapYear = {
-    val sum = regDateTime.yearLo + (regDateTime.yearHi << 1).asUInt
+    val sum = regDate.yearLo + (regDate.yearHi << 1).asUInt
     sum(1, 0) === 0.U
   }
   when (VecInit(Seq("h1", "h3", "h5", "h7", "h8", "h10", "h12").map(x => bcdMonth === x.U)).asUInt.orR) {
@@ -126,18 +145,18 @@ class Rtc extends Module {
   val tick = tickCounter.inc()
   // Cascade of time values: (register, max value)
   val cascade = Seq(
-    (regDateTime.secondLo, 9.U),
-    (regDateTime.secondHi, 5.U),
-    (regDateTime.minuteLo, 9.U),
-    (regDateTime.minuteHi, 5.U),
-    (regDateTime.hourLo, Mux(regDateTime.hourHi === 2.U, 3.U, 9.U)),
-    (regDateTime.hourHi, 2.U),
-    (regDateTime.dayLo, Mux(regDateTime.dayHi === maxDayHi, maxDayLo, 9.U)),
-    (regDateTime.dayHi, maxDayHi),
-    (regDateTime.monthLo, Mux(regDateTime.monthHi === 1.U, 2.U, 9.U)),
-    (regDateTime.monthHi, 1.U),
-    (regDateTime.yearLo, 9.U),
-    (regDateTime.yearHi, 9.U),
+    (regTime.secondLo, 9.U),
+    (regTime.secondHi, 5.U),
+    (regTime.minuteLo, 9.U),
+    (regTime.minuteHi, 5.U),
+    (regTime.hourLo, Mux(regTime.hourHi === 2.U, 3.U, 9.U)),
+    (regTime.hourHi, 2.U),
+    (regDate.dayLo, Mux(regDate.dayHi === maxDayHi, maxDayLo, 9.U)),
+    (regDate.dayHi, maxDayHi),
+    (regDate.monthLo, Mux(regDate.monthHi === 1.U, 2.U, 9.U)),
+    (regDate.monthHi, 1.U),
+    (regDate.yearLo, 9.U),
+    (regDate.yearHi, 9.U),
   )
   val ticked = WireDefault(VecInit.fill(cascade.length)(false.B))
   ticked(0) := tick
@@ -154,45 +173,19 @@ class Rtc extends Module {
   }
   when (ticked(6)) {
     // dayLo ticked, update day of week
-    regDateTime.dayOfWeek := regDateTime.dayOfWeek + 1.U
-    when (regDateTime.dayOfWeek === 6.U) {
-      regDateTime.dayOfWeek := 0.U
+    regDate.dayOfWeek := regDate.dayOfWeek + 1.U
+    when (regDate.dayOfWeek === 6.U) {
+      regDate.dayOfWeek := 0.U
     }
   }
   when (ticked(8)) {
     // monthLo ticked, so dayHi overflowed. Restart at 1.
-    regDateTime.dayLo := 1.U
+    regDate.dayLo := 1.U
   }
   when (ticked(10)) {
     // yearLo ticked, so monthHi overflowed. Restart at 1.
-    regDateTime.monthLo := 1.U
+    regDate.monthLo := 1.U
   }
-
-
-  val readTime = Cat(
-    0.U(1.W),
-    regDateTime.secondHi,
-    regDateTime.secondLo,
-    0.U(1.W),
-    regDateTime.minuteHi,
-    regDateTime.minuteLo,
-    regDateTime.amPm,
-    0.U(1.W),
-    regDateTime.hourHi,
-    regDateTime.hourLo,
-  )
-  val readDate = Cat(
-    0.U(5.W),
-    regDateTime.dayOfWeek,
-    0.U(2.W),
-    regDateTime.dayHi,
-    regDateTime.dayLo,
-    0.U(3.W),
-    regDateTime.monthHi,
-    regDateTime.monthLo,
-    regDateTime.yearHi,
-    regDateTime.yearLo,
-  )
 
   // Serial access
   val prevSelect = RegNext(io.serialSelect)
@@ -228,36 +221,27 @@ class Rtc extends Module {
                 is ("b000".U) {
                   logger.info("Reset")
                   regStatus := 0.U.asTypeOf(new Rtc.Status)
-                  regDateTime.yearLo := 0.U
-                  regDateTime.yearHi := 0.U
-                  regDateTime.monthLo := 1.U
-                  regDateTime.monthHi := 0.U
-                  regDateTime.dayLo := 1.U
-                  regDateTime.dayHi := 0.U
-                  regDateTime.dayOfWeek := 0.U
-                  regDateTime.hourLo := 0.U
-                  regDateTime.hourHi := 0.U
-                  regDateTime.amPm := 0.U
-                  regDateTime.minuteLo := 0.U
-                  regDateTime.minuteHi := 0.U
-                  regDateTime.secondLo := 0.U
-                  regDateTime.secondHi := 0.U
+                  regDate.yearLo := 0.U
+                  regDate.yearHi := 0.U
+                  regDate.monthLo := 1.U
+                  regDate.monthHi := 0.U
+                  regDate.dayLo := 1.U
+                  regDate.dayHi := 0.U
+                  regDate.dayOfWeek := 0.U
+                  regTime.hourLo := 0.U
+                  regTime.hourHi := 0.U
+                  regTime.amPm := 0.U
+                  regTime.minuteLo := 0.U
+                  regTime.minuteHi := 0.U
+                  regTime.secondLo := 0.U
+                  regTime.secondHi := 0.U
                 }
                 is ("b001".U) {
                   // Status register
                   logger.info("Status")
                   when (isRead) {
                     regState := State.Read
-                    regBuffer := Cat(
-                      0.U(1.W),
-                      regStatus.hour24,
-                      regStatus.intAe,
-                      0.U(1.W),
-                      regStatus.intMe,
-                      0.U(1.W),
-                      regStatus.intFe,
-                      0.U(1.W),
-                    )
+                    regBuffer := regStatus.asUInt
                   } .otherwise {
                     regState := State.Write
                     regWriteRegister := Rtc.Register.Status
@@ -269,7 +253,7 @@ class Rtc extends Module {
                   logger.info("Date and time")
                   when (isRead) {
                     regState := State.Read
-                    regBuffer := Cat(readTime, readDate)
+                    regBuffer := Cat(regTime.asUInt, regDate.asUInt)
                   } .otherwise {
                     regState := State.Write
                     regWriteRegister := Rtc.Register.DateTime
@@ -281,7 +265,7 @@ class Rtc extends Module {
                   logger.info("Time")
                   when (isRead) {
                     regState := State.Read
-                    regBuffer := readTime
+                    regBuffer := regTime.asUInt
                   } .otherwise {
                     regState := State.Write
                     regWriteRegister := Rtc.Register.Time
@@ -319,6 +303,24 @@ class Rtc extends Module {
           regState := State.Done
         }
       }
+    }
+  }
+
+  // Emulator buffer access
+  when (io.emuDataSelect === 0.U) {
+    io.emuDataOut := regDate.asUInt
+  } .otherwise {
+    io.emuDataOut := Cat(regStatus.asUInt, regTime.asUInt)
+  }
+  when (io.emuDataWrite) {
+    when (io.emuDataSelect === 0.U) {
+      regDate := io.emuDataIn.asTypeOf(new Rtc.Date)
+      regDate._padding1 := 0.U
+      regDate._padding2 := 0.U
+      regDate._padding3 := 0.U
+    } .otherwise {
+      regTime := io.emuDataIn(23, 0).asTypeOf(new Rtc.Time)
+      regStatus := io.emuDataIn(31, 24).asTypeOf(new Rtc.Status)
     }
   }
 }

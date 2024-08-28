@@ -23,6 +23,29 @@ class HandheldGba extends Module with HandheldModule {
   val statRegStalls = RegInit(0.U(32.W))
   val statRegCycles = RegInit(0.U(32.W))
 
+  val rtcDataSelect = Wire(UInt(1.W))
+  val rtcDataWrite = WireDefault(false.B)
+  val rtcDataIn = Wire(UInt(32.W))
+  val rtcDataOut = Wire(UInt(32.W))
+  rtcDataSelect := DontCare
+  rtcDataIn := DontCare
+  private def makeRtcAccess(select: Int): RegisterMap.Entry = {
+    RegisterMap.Entry(
+      32,
+      read = RegisterMap.ReadFn((read: Bool) => {
+        when (read) { rtcDataSelect := select.U }
+        rtcDataOut.asUInt
+      }),
+      write = RegisterMap.WriteFn((write: Bool, data: UInt) =>
+        when (write) {
+          rtcDataSelect := select.U
+          rtcDataIn := data
+          rtcDataWrite := true.B
+        }
+      ),
+    )
+  }
+
   val registerInterface = Wire(new MemoryInterface(addressWidth = 16, dataWidth = 32))
   val biosInterface = Wire(new MemoryInterface(addressWidth = 14, dataWidth = 32)) // 16 KiB
   io.mcuInterface <> MemoryMap(
@@ -42,6 +65,8 @@ class HandheldGba extends Module with HandheldModule {
         // Rom size (minus one), max (2**25 - 1), 32MiB
         0x0004 -> RegisterMap.Entry.rw(configRegRomSize),
         0x0100 -> RegisterMap.Entry.rw(configRegImuGyroZ),
+        0x0200 -> makeRtcAccess(0),
+        0x0204 -> makeRtcAccess(1),
 
         0x1000 -> RegisterMap.Entry.rw(statRegStalls),
         0x1004 -> RegisterMap.Entry.rw(statRegCycles),
@@ -93,6 +118,11 @@ class HandheldGba extends Module with HandheldModule {
   emuCart.io.config := configRegEmuCart
   emuCart.io.romSize := configRegRomSize
   emuCart.io.imuGyroZ := configRegImuGyroZ
+
+  emuCart.io.rtcDataWrite := rtcDataWrite
+  emuCart.io.rtcDataIn := rtcDataIn
+  emuCart.io.rtcDataSelect := rtcDataSelect
+  rtcDataOut := emuCart.io.rtcDataOut
 
   // Convert 16-bit addresses to 32-bit byte addresses
   // Also dealing with enable = true when done = true

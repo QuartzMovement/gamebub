@@ -49,6 +49,12 @@ class EmulatedCartridge extends Module {
     /// Current gyroscope Z sample
     val imuGyroZ = Input(UInt(12.W))
 
+    /// RTC access
+    val rtcDataSelect = Input(UInt(1.W))
+    val rtcDataIn = Input(UInt(32.W))
+    val rtcDataOut = Output(UInt(32.W))
+    val rtcDataWrite = Input(Bool())
+
     /// External ROM memory interface, assumed synchronous.
     /// Must keep read data on the bus until the next request.
     val rom = Flipped(new MemoryInterface(addressWidth = 24, dataWidth = 16))
@@ -290,6 +296,10 @@ class EmulatedCartridge extends Module {
 
   // RTC, connected to GPIO 0, 1, 2
   val rtc = Module(new Rtc)
+  rtc.io.emuDataSelect := io.rtcDataSelect
+  rtc.io.emuDataIn := io.rtcDataIn
+  rtc.io.emuDataWrite := io.rtcDataWrite
+  io.rtcDataOut := rtc.io.emuDataOut
   rtc.io.serialClock := gpio.io.pinOut(0).asBool
   rtc.io.serialIn := gpio.io.pinOut(1)
   rtc.io.serialSelect := gpio.io.pinOut(2).asBool

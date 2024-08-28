@@ -74,6 +74,9 @@ class SimGba extends Module {
   emuCart.io.config := io.emuCartConfig
   emuCart.io.romSize := io.emuCartRomSize
   emuCart.io.imuGyroZ := DontCare  // No gyro support in simulator
+  emuCart.io.rtcDataWrite := false.B
+  emuCart.io.rtcDataIn := DontCare
+  emuCart.io.rtcDataSelect := DontCare
   io.emuCartStall := emuCart.io.stall
   gba.io.cartridge <> emuCart.io.interface
   io.emuCartRom <> emuCart.io.rom
