@@ -17,6 +17,7 @@ mod game_db;
 const ROM_HEADER_LENGTH: usize = 192;
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
 const REG_EMU_CART_ROM_SIZE: u32 = 0xC000_0004;
+const REG_IMU_GYRO_Z: u32 = 0xC000_0100;
 const REG_STAT_STALLS: u32 = 0xC000_1000;
 const REG_STAT_CYCLES: u32 = 0xC000_1004;
 
@@ -194,6 +195,8 @@ pub struct Gba {
     save_path: Option<PathBuf>,
     /// Size of the save, if this is an emulated cartridge.
     save_size: u32,
+    /// Emulated cartridge config.
+    emu_cart_config: Option<EmulatedCartridgeConfig>,
 }
 
 impl Gba {
@@ -201,6 +204,7 @@ impl Gba {
         Gba {
             save_path: None,
             save_size: 0,
+            emu_cart_config: None,
         }
     }
 
@@ -236,9 +240,10 @@ impl Gba {
 
         // Resume
         device.fpga.write_u32(fpga::REG_CONTROL, 0b1011)?;
-        device.imu.disable_accel().unwrap();
+        device.imu.disable_gyro().unwrap();
 
         self.save_path = None;
+        self.emu_cart_config = None;
         Ok(())
     }
 
@@ -247,6 +252,7 @@ impl Gba {
 
         // Hold in reset
         device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
+        device.imu.disable_gyro().unwrap();
 
         // Load ROM
         let mut rom_file = File::open(rom_path)?;
@@ -339,14 +345,22 @@ impl Gba {
             .write_u32(REG_EMU_CART_CONFIG, emu_cart_config.as_config_u32())?;
         device.fpga.write_u32(REG_EMU_CART_ROM_SIZE, rom_size - 1)?;
 
-        // Disable IRQs (including vblank)
-        device.fpga.write_u32(fpga::REG_IRQ_ENABLE, 0)?;
+        // If IMU is needed, enable vsync IRQ
+        let irq_mask = if emu_cart_config.has_gyro {
+            // XXX: if other components need IMU too, switch to a global lease system
+            device.imu.enable_gyro().unwrap();
+            0b1
+        } else {
+            0b0
+        };
+        device.fpga.write_u32(fpga::REG_IRQ_ENABLE, irq_mask)?;
 
         // Resume
         device.fpga.write_u32(fpga::REG_CONTROL, 0b1011)?;
 
         self.save_path = Some(save_path);
         self.save_size = save_size;
+        self.emu_cart_config = Some(emu_cart_config);
         Ok(())
     }
 
@@ -391,6 +405,13 @@ impl Bitstream for Gba {
     fn set_paused(&mut self, paused: bool) -> Result<(), fpga::Error> {
         let mut device = Device::lock();
 
+        // Enable/disable IMU as needed
+        if !paused && self.emu_cart_config.as_ref().map_or(false, |h| h.has_gyro) {
+            device.imu.enable_gyro().unwrap();
+        } else {
+            device.imu.disable_gyro().unwrap();
+        }
+
         device
             .fpga
             .write_u32(fpga::REG_CONTROL, 0b1010u32 | ((!paused) as u32))?;
@@ -416,6 +437,12 @@ impl Bitstream for Gba {
     }
 
     fn on_vblank_irq(&mut self) {
-        // TODO: read IMU
+        let mut device = Device::lock();
+        let sample = device.imu.read_gyro().unwrap();
+        let gyro_z = ((0x700 as f32) - sample.z) as u16;
+        device
+            .fpga
+            .write_u32(REG_IMU_GYRO_Z, gyro_z as u32)
+            .unwrap();
     }
 }

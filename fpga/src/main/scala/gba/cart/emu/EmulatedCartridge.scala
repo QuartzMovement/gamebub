@@ -46,6 +46,8 @@ class EmulatedCartridge extends Module {
     val interface = Flipped(new CartridgeInterface)
     /// Size of the ROM, minus one
     val romSize = Input(UInt(25.W))
+    /// Current gyroscope Z sample
+    val imuGyroZ = Input(UInt(12.W))
 
     /// External ROM memory interface, assumed synchronous.
     /// Must keep read data on the bus until the next request.
@@ -242,14 +244,13 @@ class EmulatedCartridge extends Module {
 
   // GPIO controller (optional), with registers at 0xC4, 0xC6, 0xC8
   val gpio = Module(new Gpio)
-  gpio.io.reqRead := false.B
   gpio.io.reqWrite := false.B
   gpio.io.reqAddress := DontCare
   gpio.io.dataWrite := io.interface.ADLoOut(3, 0)
-  gpio.io.pinIn := 0.U
+  val gpioDataIn = WireDefault(VecInit.fill(4)(0.U(1.W)))
+  gpio.io.pinIn := gpioDataIn.asUInt
   when (io.config.hasGpio) {
     val regAddress = Reg(UInt(2.W))
-    val regDataRead = Reg(UInt(4.W))
     val addressed = io.interface.reqAddress >= (0xC2 / 2).U && io.interface.reqAddress <= (0xC8 / 2).U
     when (addressed) {
       romPeripheralSelected := true.B
@@ -268,15 +269,22 @@ class EmulatedCartridge extends Module {
       when (io.interface.nCS) {
         selected := false.B
       }
-      gpio.io.reqRead := readNegedge
       gpio.io.reqWrite := writeNegedge
-      io.interface.ADLoIn := regDataRead
-      when (readNegedge) {
-        regDataRead := gpio.io.dataRead
-      }
+      io.interface.ADLoIn := gpio.io.dataRead
     }
   }
 
   // Rumble, connected to GPIO 3
   io.vibrate := io.config.hasRumble && gpio.io.pinOut(3) && gpio.io.pinDir(3)
+
+  // Gyroscope, connected to GPIO 0, 1, 2
+  val gyroSensor = Module(new GyroSensor)
+  gyroSensor.io.sampleZ := io.imuGyroZ
+  gyroSensor.io.takeSample := false.B
+  gyroSensor.io.serialClock := 0.U
+  when (io.config.hasGyro) {
+    gyroSensor.io.takeSample := gpio.io.pinOut(0).asBool
+    gyroSensor.io.serialClock := gpio.io.pinOut(1).asBool
+    gpioDataIn(2) := gyroSensor.io.serialData
+  }
 }

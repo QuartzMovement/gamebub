@@ -13,6 +13,7 @@ const REG_WHO_AM_I: u8 = 0x0F;
 const REG_CTRL1_XL: u8 = 0x10;
 const REG_CTRL2_G: u8 = 0x11;
 const REG_CTRL3_C: u8 = 0x12;
+const REG_OUTX_L_G: u8 = 0x22;
 const REG_OUTX_L_XL: u8 = 0x28;
 
 #[derive(Debug, Error)]
@@ -96,6 +97,29 @@ where
         (raw as f32) * (4.0 / 32768.0)
     }
 
+    /// Enable the gyroscope.
+    /// Currently hard-coded to 104Hz and 1000 dps range.
+    pub fn enable_gyro(&mut self) -> Result<(), Error> {
+        log::info!("enable gyro");
+        self.i2c
+            .write(ADDRESS, &[REG_CTRL2_G, 0x48])
+            .map_err(|_| Error::I2cError)
+    }
+
+    /// Disable the gyro.
+    pub fn disable_gyro(&mut self) -> Result<(), Error> {
+        log::info!("disable gyro");
+        self.i2c
+            .write(ADDRESS, &[REG_CTRL2_G, 0])
+            .map_err(|_| Error::I2cError)
+    }
+
+    fn convert_gyro_sample(&self, data: &[u8]) -> f32 {
+        let raw = i16::from_le_bytes((&data[0..2]).try_into().unwrap());
+        // Assume +/- 1000dps
+        (raw as f32) * (1000.0 / 32768.0)
+    }
+
     /// Read a sample from the accelerometer.
     pub fn read_accel(&mut self) -> Result<AccelerometerSample, Error> {
         let mut data = [0u8; 6];
@@ -111,6 +135,21 @@ where
             z: self.convert_accel_sample(&data[4..6]),
         })
     }
+
+    /// Read a sample from the gyroscope.
+    pub fn read_gyro(&mut self) -> Result<GyroscopeSample, Error> {
+        let mut data = [0u8; 6];
+        self.i2c
+            .write_read(ADDRESS, &[REG_OUTX_L_G], &mut data)
+            .map_err(|_| Error::I2cError)?;
+
+        // X, Y, then Z. Each is 16-bit little-endian signed integer.
+        Ok(GyroscopeSample {
+            x: self.convert_gyro_sample(&data[0..2]),
+            y: self.convert_gyro_sample(&data[2..4]),
+            z: self.convert_gyro_sample(&data[4..6]),
+        })
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -120,5 +159,15 @@ pub struct AccelerometerSample {
     /// Y acceleration, in 'g's
     pub y: f32,
     /// Z acceleration, in 'g's
+    pub z: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct GyroscopeSample {
+    /// X rotation, in degrees / second
+    pub x: f32,
+    /// Y rotation, in degrees / second
+    pub y: f32,
+    /// Z rotation, in degrees / second
     pub z: f32,
 }

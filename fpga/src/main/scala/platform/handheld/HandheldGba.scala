@@ -19,6 +19,7 @@ class HandheldGba extends Module with HandheldModule {
 
   val configRegEmuCart = RegInit(0.U.asTypeOf(new EmulatedCartridge.Config))
   val configRegRomSize = RegInit(0.U(25.W))
+  val configRegImuGyroZ = RegInit(0.U(12.W))
   val statRegStalls = RegInit(0.U(32.W))
   val statRegCycles = RegInit(0.U(32.W))
 
@@ -40,6 +41,7 @@ class HandheldGba extends Module with HandheldModule {
         0x0000 -> RegisterMap.Entry.rw(configRegEmuCart),
         // Rom size (minus one), max (2**25 - 1), 32MiB
         0x0004 -> RegisterMap.Entry.rw(configRegRomSize),
+        0x0100 -> RegisterMap.Entry.rw(configRegImuGyroZ),
 
         0x1000 -> RegisterMap.Entry.rw(statRegStalls),
         0x1004 -> RegisterMap.Entry.rw(statRegCycles),
@@ -90,6 +92,7 @@ class HandheldGba extends Module with HandheldModule {
   }
   emuCart.io.config := configRegEmuCart
   emuCart.io.romSize := configRegRomSize
+  emuCart.io.imuGyroZ := configRegImuGyroZ
 
   // Convert 16-bit addresses to 32-bit byte addresses
   // Also dealing with enable = true when done = true

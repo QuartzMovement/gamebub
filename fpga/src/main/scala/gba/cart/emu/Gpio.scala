@@ -7,7 +7,6 @@ import lib.log.Logger
 class Gpio extends Module {
   val io = IO(new Bundle {
     val reqAddress = Input(UInt(2.W))
-    val reqRead = Input(Bool())
     val reqWrite = Input(Bool())
     val dataRead = Output(UInt(4.W))
     val dataWrite = Input(UInt(4.W))
@@ -31,18 +30,15 @@ class Gpio extends Module {
   io.pinDir := regDir
   io.isReadable := regReadable
 
-  when (io.reqRead) {
-    logger.info(cf"read  reg=${0xC4.U + ((io.reqAddress - 2.U) << 1)}%x data=${io.dataRead}%b")
-    switch (io.reqAddress) {
-      is (((0xC4 >> 1) & 3).U) {
-        io.dataRead := (io.pinIn & (~regDir).asUInt) | (regOut & regDir)
-      }
-      is (((0xC6 >> 1) & 3).U) {
-        io.dataRead := regDir
-      }
-      is (((0xC8 >> 1) & 3).U) {
-        io.dataRead := regReadable
-      }
+  switch (io.reqAddress) {
+    is (((0xC4 >> 1) & 3).U) {
+      io.dataRead := io.pinIn//(io.pinIn & (~regDir).asUInt) | (regOut & regDir)
+    }
+    is (((0xC6 >> 1) & 3).U) {
+      io.dataRead := regDir
+    }
+    is (((0xC8 >> 1) & 3).U) {
+      io.dataRead := regReadable
     }
   }
 
