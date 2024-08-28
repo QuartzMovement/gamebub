@@ -287,4 +287,15 @@ class EmulatedCartridge extends Module {
     gyroSensor.io.serialClock := gpio.io.pinOut(1).asBool
     gpioDataIn(2) := gyroSensor.io.serialData
   }
+
+  // RTC, connected to GPIO 0, 1, 2
+  val rtc = Module(new Rtc)
+  rtc.io.serialClock := gpio.io.pinOut(0).asBool
+  rtc.io.serialIn := gpio.io.pinOut(1)
+  rtc.io.serialSelect := gpio.io.pinOut(2).asBool
+  when (io.config.hasRtc) {
+    when (rtc.io.serialSelect) {
+      gpioDataIn(1) := rtc.io.serialOut
+    }
+  }
 }
