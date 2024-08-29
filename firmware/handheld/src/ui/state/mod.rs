@@ -1,11 +1,12 @@
 use std::fs::File;
+use std::ops::DerefMut;
 use std::{cell::RefCell, path::Path, path::PathBuf, rc::Rc, time::Duration};
 
 use slint::private_unstable_api::re_exports as slint_re_exports;
 use slint::{ComponentHandle, Global, Model, ModelRc, Timer, TimerMode, VecModel, Weak};
 
-use crate::bitstream;
 use crate::bitstream::gameboy::Gameboy;
+use crate::bitstream::{self, CurrentBitstream};
 use crate::{
     bitstream::gba::Gba,
     bitstream::Bitstream,
@@ -19,18 +20,11 @@ use super::slint::{
 
 mod settings;
 
-enum CurrentBitstream {
-    None,
-    Gameboy(bitstream::gameboy::Gameboy),
-    Gba(bitstream::gba::Gba),
-}
-
 pub struct UiState {
     root: Weak<MainWindow>,
     focus_stack: Vec<slint_re_exports::ItemWeak>,
 
     rom_select_directory: PathBuf,
-    bitstream: CurrentBitstream,
     settings_model: Rc<settings::SettingsModel>,
 }
 
@@ -48,7 +42,6 @@ impl UiState {
         let state: UiState = UiState {
             root: root.as_weak(),
             focus_stack: Vec::new(),
-            bitstream: CurrentBitstream::None,
             settings_model: Rc::new(settings::SettingsModel::new(device)),
             rom_select_directory,
         };
@@ -68,17 +61,13 @@ impl UiState {
         backend.set_battery_level(level);
     }
 
-    pub fn bitstream(&mut self) -> Option<&mut dyn Bitstream> {
-        match &mut self.bitstream {
-            CurrentBitstream::None => None,
-            CurrentBitstream::Gameboy(x) => Some(x),
-            CurrentBitstream::Gba(x) => Some(x),
-        }
-    }
-
-    fn set_current_bitstream(&mut self, bitstream: CurrentBitstream) -> Result<(), String> {
-        self.bitstream = bitstream;
-        if let Some(bitstream) = self.bitstream() {
+    fn set_current_bitstream(
+        &mut self,
+        current: &mut CurrentBitstream,
+        new: CurrentBitstream,
+    ) -> Result<(), String> {
+        *current = new;
+        if let Some(bitstream) = current.get() {
             Self::program_fpga(bitstream.get_bitstream_path());
             bitstream.on_after_program()?;
         }
@@ -98,21 +87,21 @@ impl UiState {
 
     /// Ensure a specific bitstream is loaded.
     fn ensure_bitstream_gameboy(&mut self) -> Result<(), String> {
-        match &self.bitstream {
+        match *crate::bitstream::current() {
             CurrentBitstream::Gameboy(_) => Ok(()),
-            _ => {
+            ref mut current_bitstream => {
                 let x = Gameboy::new();
-                self.set_current_bitstream(CurrentBitstream::Gameboy(x))
+                self.set_current_bitstream(current_bitstream, CurrentBitstream::Gameboy(x))
             }
         }
     }
 
     fn ensure_bitstream_gba(&mut self) -> Result<(), String> {
-        match &self.bitstream {
+        match *crate::bitstream::current() {
             CurrentBitstream::Gba(_) => Ok(()),
-            _ => {
+            ref mut current_bitstream => {
                 let x = Gba::new();
-                self.set_current_bitstream(CurrentBitstream::Gba(x))
+                self.set_current_bitstream(current_bitstream, CurrentBitstream::Gba(x))
             }
         }
     }
@@ -216,7 +205,7 @@ impl UiState {
         }
         kvs::keys::LAST_ROM_PATH.set(&path);
 
-        match &mut self.bitstream {
+        match bitstream::current().deref_mut() {
             CurrentBitstream::None => false,
             CurrentBitstream::Gameboy(x) => {
                 match x.set_emulated_cartridge(path.as_path()) {
@@ -263,7 +252,7 @@ impl UiState {
             };
             result.unwrap();
 
-            match &mut state.bitstream {
+            match bitstream::current().deref_mut() {
                 CurrentBitstream::None => unreachable!(),
                 CurrentBitstream::Gameboy(x) => x.set_physical_cartridge().unwrap(),
                 CurrentBitstream::Gba(x) => x.set_physical_cartridge().unwrap(),
@@ -288,10 +277,8 @@ impl UiState {
             }
         });
 
-        let state_ = state.clone();
         backend.on_game_set_paused(move |paused| {
-            let mut state = state_.borrow_mut();
-            match &mut state.bitstream {
+            match bitstream::current().deref_mut() {
                 CurrentBitstream::None => {}
                 CurrentBitstream::Gameboy(x) => {
                     x.set_paused(paused).unwrap();
@@ -309,14 +296,10 @@ impl UiState {
             }
         });
 
-        let state_ = state.clone();
-        backend.on_game_reset(move || {
-            let mut state = state_.borrow_mut();
-            match &mut state.bitstream {
-                CurrentBitstream::None => {}
-                CurrentBitstream::Gameboy(x) => x.reset().unwrap(),
-                CurrentBitstream::Gba(x) => x.reset().unwrap(),
-            }
+        backend.on_game_reset(move || match bitstream::current().deref_mut() {
+            CurrentBitstream::None => {}
+            CurrentBitstream::Gameboy(x) => x.reset().unwrap(),
+            CurrentBitstream::Gba(x) => x.reset().unwrap(),
         });
 
         let state_ = state.clone();

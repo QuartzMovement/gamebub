@@ -1,3 +1,5 @@
+use std::sync::{Mutex, MutexGuard};
+
 use crate::device::drivers::fpga;
 
 pub mod gameboy;
@@ -19,4 +21,28 @@ pub trait Bitstream {
 
     /// Called when a vblank IRQ occurs.
     fn on_vblank_irq(&mut self);
+}
+
+/// The current global bitstream, behind a lock.
+static CURRENT: Mutex<CurrentBitstream> = Mutex::new(CurrentBitstream::None);
+
+/// Lock and return the current bitstream.
+pub fn current() -> MutexGuard<'static, CurrentBitstream> {
+    CURRENT.lock().unwrap()
+}
+
+pub enum CurrentBitstream {
+    None,
+    Gameboy(gameboy::Gameboy),
+    Gba(gba::Gba),
+}
+
+impl CurrentBitstream {
+    pub fn get(&mut self) -> Option<&mut dyn Bitstream> {
+        match self {
+            CurrentBitstream::None => None,
+            CurrentBitstream::Gameboy(x) => Some(x),
+            CurrentBitstream::Gba(x) => Some(x),
+        }
+    }
 }

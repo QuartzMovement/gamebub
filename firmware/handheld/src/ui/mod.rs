@@ -99,7 +99,7 @@ impl UI {
                     device::Event::FpgaIrq(irq_mask) => {
                         if irq_mask & 0b1 != 0 {
                             // Module vblank
-                            if let Some(bitstream) = self.state.borrow_mut().bitstream() {
+                            if let Some(bitstream) = crate::bitstream::current().get() {
                                 bitstream.on_vblank_irq();
                             }
                         }
