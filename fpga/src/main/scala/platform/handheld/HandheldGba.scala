@@ -19,6 +19,7 @@ class HandheldGba extends Module with HandheldModule {
 
   val configRegEmuCart = RegInit(0.U.asTypeOf(new EmulatedCartridge.Config))
   val configRegRomSize = RegInit(0.U(25.W))
+  val configRegGBPlayer = RegInit(0.U(1.W))
   val configRegImuGyroZ = RegInit(0.U(12.W))
   val configRegImuAccelX = RegInit(0.U(12.W))
   val configRegImuAccelY = RegInit(0.U(12.W))
@@ -66,6 +67,7 @@ class HandheldGba extends Module with HandheldModule {
         0x0000 -> RegisterMap.Entry.rw(configRegEmuCart),
         // Rom size (minus one), max (2**25 - 1), 32MiB
         0x0004 -> RegisterMap.Entry.rw(configRegRomSize),
+        0x0008 -> RegisterMap.Entry.rw(configRegGBPlayer),
         0x0100 -> RegisterMap.Entry.rw(configRegImuGyroZ),
         0x0104 -> RegisterMap.Entry.rw(configRegImuAccelX),
         0x0108 -> RegisterMap.Entry.rw(configRegImuAccelY),
@@ -112,6 +114,7 @@ class HandheldGba extends Module with HandheldModule {
       statRegCycles := statRegCycles + 1.U
     }
   }
+  gba.io.configGBPlayer := configRegGBPlayer.asBool
 
   // Emulated cartridge
   val emuCart = Module(new EmulatedCartridge)

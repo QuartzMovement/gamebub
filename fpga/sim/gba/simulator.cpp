@@ -40,6 +40,7 @@ Simulator::~Simulator()
 void Simulator::reset()
 {
     top->io_enable = true;
+    top->io_configGBPlayer = false;
     top->io_emuCartConfig_enabled = true;
     top->io_emuCartConfig_backupType = cartridge.config_backup_type;
     top->io_emuCartConfig_backupSize = cartridge.config_backup_size;

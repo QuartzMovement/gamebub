@@ -33,6 +33,8 @@ class SimGba extends Module {
     val keypad = Input(new Keypad.State)
     val apu = Output(new ApuOutput)
 
+    val configGBPlayer = Input(Bool())
+
     val emuCartConfig = Input(new EmulatedCartridge.Config)
     val emuCartRom = Flipped(new MemoryInterface(addressWidth = 24, dataWidth = 16))
     val emuCartRomSize = Input(UInt(25.W))
@@ -42,6 +44,7 @@ class SimGba extends Module {
 
   val gba = Module(new GBA())
   gba.io.enable <> io.enable
+  gba.io.configGBPlayer := io.configGBPlayer
   gba.io.ppu <> io.ppu
   gba.io.keypad <> io.keypad
   gba.io.apu <> io.apu

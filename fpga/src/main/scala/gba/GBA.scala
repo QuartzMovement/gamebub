@@ -18,6 +18,8 @@ class GBA extends Module {
   val io = IO(new Bundle {
     /// Global enable signal
     val enable = Input(Bool())
+    /// Whether to enable Game Boy Player functionality
+    val configGBPlayer = Input(Bool())
 
     /// Cartridge interface
     val cartridge = new CartridgeInterface
@@ -174,4 +176,12 @@ class GBA extends Module {
   serial.io.enable := io.enable
   mmio.targets(8) <> serial.io.mmio
   interrupt.io.peripheralIrq.serial := serial.io.irq
+
+  // Game Boy Player
+  val gameBoyPlayer = Module(new GameBoyPlayer)
+  gameBoyPlayer.io.enable := io.enable && io.configGBPlayer
+  gameBoyPlayer.io.ppu := ppu.io.output
+  when (gameBoyPlayer.io.detected && io.configGBPlayer) {
+    keypad.io.state := gameBoyPlayer.io.keypadOverride.asTypeOf(new Keypad.State)
+  }
 }
