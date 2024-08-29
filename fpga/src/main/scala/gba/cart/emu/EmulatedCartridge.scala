@@ -48,6 +48,10 @@ class EmulatedCartridge extends Module {
     val romSize = Input(UInt(25.W))
     /// Current gyroscope Z sample
     val imuGyroZ = Input(UInt(12.W))
+    /// Current accelerometer X sample
+    val imuAccelX = Input(UInt(12.W))
+    /// Current accelerometer Y sample
+    val imuAccelY = Input(UInt(12.W))
 
     /// RTC access
     val rtcDataSelect = Input(UInt(1.W))
@@ -246,6 +250,19 @@ class EmulatedCartridge extends Module {
         io.interface.ADLoIn := backupEeprom.io.dataRead
       }
     }
+  }
+
+  // Tilt sensor (accelerometer), attached to SRAM bus
+  val tiltSensor = Module(new TiltSensor)
+  tiltSensor.io.ramEnable := false.B
+  tiltSensor.io.ramAddress := io.interface.reqAddress(11, 8)
+  tiltSensor.io.ramIsWrite := io.interface.reqWrite
+  tiltSensor.io.ramDataWrite := io.interface.AHiOut
+  tiltSensor.io.sampleX := io.imuAccelX
+  tiltSensor.io.sampleY := io.imuAccelY
+  when (io.config.hasAccel) {
+    tiltSensor.io.ramEnable := ramStart && io.interface.reqAddress(15)
+    io.interface.AHiIn := tiltSensor.io.ramDataRead
   }
 
   // GPIO controller (optional), with registers at 0xC4, 0xC6, 0xC8

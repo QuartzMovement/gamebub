@@ -73,6 +73,8 @@ class SimGba extends Module {
   val emuCart = Module(new EmulatedCartridge)
   emuCart.io.config := io.emuCartConfig
   emuCart.io.romSize := io.emuCartRomSize
+  emuCart.io.imuAccelX := 0x3A0.U
+  emuCart.io.imuAccelY := 0x3A0.U
   emuCart.io.imuGyroZ := DontCare  // No gyro support in simulator
   emuCart.io.rtcDataWrite := false.B
   emuCart.io.rtcDataIn := DontCare

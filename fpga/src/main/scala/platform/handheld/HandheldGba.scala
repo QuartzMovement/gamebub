@@ -20,6 +20,8 @@ class HandheldGba extends Module with HandheldModule {
   val configRegEmuCart = RegInit(0.U.asTypeOf(new EmulatedCartridge.Config))
   val configRegRomSize = RegInit(0.U(25.W))
   val configRegImuGyroZ = RegInit(0.U(12.W))
+  val configRegImuAccelX = RegInit(0.U(12.W))
+  val configRegImuAccelY = RegInit(0.U(12.W))
   val statRegStalls = RegInit(0.U(32.W))
   val statRegCycles = RegInit(0.U(32.W))
 
@@ -65,6 +67,8 @@ class HandheldGba extends Module with HandheldModule {
         // Rom size (minus one), max (2**25 - 1), 32MiB
         0x0004 -> RegisterMap.Entry.rw(configRegRomSize),
         0x0100 -> RegisterMap.Entry.rw(configRegImuGyroZ),
+        0x0104 -> RegisterMap.Entry.rw(configRegImuAccelX),
+        0x0108 -> RegisterMap.Entry.rw(configRegImuAccelY),
         0x0200 -> makeRtcAccess(0),
         0x0204 -> makeRtcAccess(1),
 
@@ -118,6 +122,8 @@ class HandheldGba extends Module with HandheldModule {
   emuCart.io.config := configRegEmuCart
   emuCart.io.romSize := configRegRomSize
   emuCart.io.imuGyroZ := configRegImuGyroZ
+  emuCart.io.imuAccelX := configRegImuAccelX
+  emuCart.io.imuAccelY := configRegImuAccelY
 
   emuCart.io.rtcDataWrite := rtcDataWrite
   emuCart.io.rtcDataIn := rtcDataIn

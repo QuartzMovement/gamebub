@@ -20,6 +20,8 @@ const ROM_HEADER_LENGTH: usize = 192;
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
 const REG_EMU_CART_ROM_SIZE: u32 = 0xC000_0004;
 const REG_IMU_GYRO_Z: u32 = 0xC000_0100;
+const REG_IMU_ACCEL_X: u32 = 0xC000_0104;
+const REG_IMU_ACCEL_Y: u32 = 0xC000_0108;
 const REG_RTC_LO: u32 = 0xC000_0200;
 const REG_RTC_HI: u32 = 0xC000_0204;
 const REG_STAT_STALLS: u32 = 0xC000_1000;
@@ -245,6 +247,7 @@ impl Gba {
         // Resume
         device.fpga.write_u32(fpga::REG_CONTROL, 0b1011)?;
         device.imu.disable_gyro().unwrap();
+        device.imu.disable_accel().unwrap();
 
         self.save_path = None;
         self.emu_cart_config = None;
@@ -257,6 +260,7 @@ impl Gba {
         // Hold in reset
         device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
         device.imu.disable_gyro().unwrap();
+        device.imu.disable_accel().unwrap();
 
         // Load ROM
         let mut rom_file = File::open(rom_path)?;
@@ -392,13 +396,15 @@ impl Gba {
         device.fpga.write_u32(REG_RTC_HI, rtc_hi)?;
 
         // If IMU is needed, enable vsync IRQ
-        let irq_mask = if emu_cart_config.has_gyro {
-            // XXX: if other components need IMU too, switch to a global lease system
+        let mut irq_mask = 0b0;
+        if emu_cart_config.has_gyro {
             device.imu.enable_gyro().unwrap();
-            0b1
-        } else {
-            0b0
-        };
+            irq_mask |= 0b1;
+        }
+        if emu_cart_config.has_accel {
+            device.imu.enable_accel().unwrap();
+            irq_mask |= 0b1;
+        }
         device.fpga.write_u32(fpga::REG_IRQ_ENABLE, irq_mask)?;
 
         // Resume
@@ -466,6 +472,11 @@ impl Bitstream for Gba {
         } else {
             device.imu.disable_gyro().unwrap();
         }
+        if !paused && self.emu_cart_config.as_ref().map_or(false, |h| h.has_accel) {
+            device.imu.enable_accel().unwrap();
+        } else {
+            device.imu.disable_accel().unwrap();
+        }
 
         device
             .fpga
@@ -493,11 +504,31 @@ impl Bitstream for Gba {
 
     fn on_vblank_irq(&mut self) {
         let mut device = Device::lock();
-        let sample = device.imu.read_gyro().unwrap();
-        let gyro_z = ((0x700 as f32) - sample.z) as u16;
-        device
-            .fpga
-            .write_u32(REG_IMU_GYRO_Z, gyro_z as u32)
-            .unwrap();
+
+        // Read IMU
+        let has_gyro = self.emu_cart_config.as_ref().map_or(false, |h| h.has_gyro);
+        if has_gyro {
+            let gyro_sample = device.imu.read_gyro().unwrap();
+            let gyro_z = ((0x700 as f32) - gyro_sample.z) as u16;
+            device
+                .fpga
+                .write_u32(REG_IMU_GYRO_Z, gyro_z as u32)
+                .unwrap();
+        }
+        let has_accel = self.emu_cart_config.as_ref().map_or(false, |h| h.has_accel);
+        if has_accel {
+            let accel_sample = device.imu.read_accel().unwrap();
+            // TODO: determine X and Y inversion
+            let accel_x = ((0x3A0 as f32) + ((0x1D0 as f32) * -accel_sample.x)) as u16;
+            let accel_y = ((0x3A0 as f32) + ((0x1D0 as f32) * -accel_sample.y)) as u16;
+            device
+                .fpga
+                .write_u32(REG_IMU_ACCEL_X, accel_x as u32)
+                .unwrap();
+            device
+                .fpga
+                .write_u32(REG_IMU_ACCEL_Y, accel_y as u32)
+                .unwrap();
+        }
     }
 }

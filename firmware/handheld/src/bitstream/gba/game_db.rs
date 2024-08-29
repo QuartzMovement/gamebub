@@ -19,6 +19,8 @@ static DATABASE: &[(&'static [u8; 4], EmulatedCartridgeConfig)] = &[
     (b"BPEE", config!(Flash128K, has_rtc)), // Pokemon - Emerald Version (USA, Europe)
     (b"V49E", config!(Sram, has_rumble)),   // Drill Dozer (USA)
     (b"RZWE", config!(Sram, has_rumble, has_gyro)), // Wario Ware Twisted
+    (b"KYGE", config!(EepromAuto, has_accel)), // Yoshi Topsy-Turvy
+    (b"KHPJ", config!(EepromAuto, has_accel)), // Korokoro Puzzle - Happy Panecchu!
 ];
 
 pub fn lookup(key: &[u8; 4]) -> Option<EmulatedCartridgeConfig> {
