@@ -9,6 +9,7 @@ use crate::ui::UI;
 mod bitstream;
 mod device;
 pub mod ui;
+mod worker;
 
 fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
@@ -18,15 +19,8 @@ fn main() -> anyhow::Result<()> {
     Device::init()?;
     let mut device = Device::lock();
 
-    let paths = std::fs::read_dir("/sdcard").unwrap();
-    for path in paths {
-        println!("sdcard: {}", path.unwrap().path().display())
-    }
-
-    match device.fuel_gauge.get_battery_level() {
-        Ok(level) => log::info!("Battery charge: {:.0}%", level),
-        Err(_) => log::info!("Unable to read battery charge"),
-    }
+    // Setup workers.
+    worker::start();
 
     // Program FPGA
     {
