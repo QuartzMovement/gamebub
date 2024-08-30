@@ -1,8 +1,6 @@
-use std::sync::{mpsc, MutexGuard};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 
-use crate::ui::buttons::ButtonMap;
 use drivers::sdcard::Sdcard;
 use embedded_hal::pwm::SetDutyCycle;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
@@ -17,8 +15,6 @@ use esp_idf_svc::hal::spi::{
 };
 use esp_idf_svc::hal::units::FromValueType;
 use esp_idf_svc::hal::{i2c::*, ledc};
-
-use self::drivers::fuel_gauge;
 
 pub mod drivers;
 mod input;
@@ -84,10 +80,6 @@ pub struct Device<'a> {
     button_vol_down: PinDriver<'a, AnyInputPin, Input>,
     button_power: PinDriver<'a, AnyIOPin, InputOutput>,
     pin_irq: PinDriver<'a, AnyInputPin, Input>,
-
-    /// Event queue
-    event_sender: mpsc::Sender<Event>,
-    event_receiver: Option<mpsc::Receiver<Event>>,
 
     /// Sdcard,
     pub sdcard: Sdcard,
@@ -267,8 +259,6 @@ impl Device<'_> {
             Some(pin_sd_detect),
         )?;
 
-        let (event_sender, event_receiver) = mpsc::channel();
-
         let mut device = Device {
             led,
             fpga_power,
@@ -286,8 +276,6 @@ impl Device<'_> {
             pin_irq,
             rtc,
             imu,
-            event_sender,
-            event_receiver: Some(event_receiver),
             sdcard,
         };
         device.init_datetime();
@@ -324,11 +312,6 @@ impl Device<'_> {
     pub fn display_framebuffer_raw(&mut self, raw: &[u8]) {
         let _ = self.fpga.write_overlay(0, raw);
         let _ = self.fpga.set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
-    }
-
-    /// Take the event queue receiver.
-    pub fn take_event_receiver(&mut self) -> Option<mpsc::Receiver<Event>> {
-        self.event_receiver.take()
     }
 
     /// Gracefully turn the device off.
@@ -416,13 +399,4 @@ impl Device<'_> {
         let dt = drivers::rtc::Datetime::from_timestamp(ts as u64).unwrap_or_default();
         self.rtc.write_datetime(dt).unwrap();
     }
-}
-
-#[allow(unused)]
-#[derive(Clone, Debug)]
-pub enum Event {
-    Button(ButtonMap),
-    FpgaIrq(u32),
-    FuelGaugeAlert(fuel_gauge::Alert),
-    HeadphoneState(bool),
 }

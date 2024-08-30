@@ -9,6 +9,7 @@ use esp_idf_svc::{
 };
 
 use crate::device::drivers::fpga;
+use crate::ui;
 
 use super::Device;
 
@@ -45,7 +46,7 @@ impl Device<'_> {
         std::thread::spawn(|| {
             let notification = Notification::new();
 
-            let event_sender = {
+            {
                 let device = &mut Device::get().lock().unwrap();
                 setup_gpio_interrupt(
                     &mut device.button_home,
@@ -82,9 +83,7 @@ impl Device<'_> {
                     FLAG_MCU_IRQ,
                 )
                 .unwrap();
-
-                device.event_sender.clone()
-            };
+            }
 
             loop {
                 let flags = match notification.wait(esp_idf_svc::hal::delay::BLOCK) {
@@ -108,7 +107,7 @@ impl Device<'_> {
                 }
 
                 let buttons = device.read_button_state().unwrap();
-                let _ = event_sender.send(super::Event::Button(buttons));
+                ui::send(ui::Message::Button(buttons));
 
                 if (flags & FLAG_MCU_IRQ.get()) != 0 {
                     log::debug!("Interrupt: MCU_IRQ");
@@ -120,7 +119,7 @@ impl Device<'_> {
                     if let Ok(fuel_irq) = device.fuel_gauge.query_alerts() {
                         for (alert, active) in fuel_irq.into_iter() {
                             if active {
-                                let _ = event_sender.send(super::Event::FuelGaugeAlert(alert));
+                                ui::send(ui::Message::FuelGaugeAlert(alert));
                             }
                         }
                     }
@@ -129,7 +128,7 @@ impl Device<'_> {
                     if let Ok(dac_irq) = device.dac.get_interrupt_status() {
                         if dac_irq.headset_detected {
                             let has_headphones = device.dac.get_headphones_detected().unwrap();
-                            let _ = event_sender.send(super::Event::HeadphoneState(has_headphones));
+                            ui::send(ui::Message::HeadphoneState(has_headphones));
                         }
                     }
 
@@ -141,7 +140,7 @@ impl Device<'_> {
                             .fpga
                             .write_u32(fpga::REG_IRQ_STATUS, fpga_irq)
                             .unwrap();
-                        let _ = event_sender.send(super::Event::FpgaIrq(fpga_irq));
+                        ui::send(ui::Message::FpgaIrq(fpga_irq));
                     }
 
                     let _ = device.pin_irq.enable_interrupt();

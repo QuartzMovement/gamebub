@@ -2,9 +2,9 @@ pub mod buttons;
 mod slint;
 mod state;
 
+pub use buttons::{Button, ButtonEvent, ButtonMap};
+use std::sync::{mpsc, OnceLock};
 use std::{cell::RefCell, rc::Rc, sync::mpsc::Receiver, time::Instant};
-
-pub use buttons::{Button, ButtonEvent};
 
 use ::slint::{
     platform::software_renderer::{
@@ -13,12 +13,30 @@ use ::slint::{
     PhysicalSize, Timer,
 };
 
-use crate::device::{self, drivers::fuel_gauge, kvs, Device, Event};
+use crate::device::{drivers::fuel_gauge, kvs, Device};
 
 use self::{slint::Argb1555, state::UiState};
 
 const DISPLAY_WIDTH: usize = 240;
 const DISPLAY_HEIGHT: usize = 160;
+
+#[derive(Debug)]
+pub enum Message {
+    Button(ButtonMap),
+    FpgaIrq(u32),
+    FuelGaugeAlert(fuel_gauge::Alert),
+    HeadphoneState(bool),
+}
+
+/// Send a message to the UI thread.
+pub fn send(message: Message) {
+    match SENDER.get() {
+        Some(sender) => sender.send(message).unwrap(),
+        None => log::error!("Dropping UI message {:?}", message),
+    }
+}
+
+static SENDER: OnceLock<mpsc::Sender<Message>> = OnceLock::new();
 
 struct LineRenderer<'a, 'b, 'c> {
     device: &'a mut Device<'b>,
@@ -50,13 +68,16 @@ impl<'a, 'b, 'c> LineBufferProvider for &mut LineRenderer<'a, 'b, 'c> {
 pub struct UI {
     framebuffer: Vec<Argb1555>,
     window: Rc<MinimalSoftwareWindow>,
-    event_queue: Receiver<Event>,
+    message_queue: Receiver<Message>,
     root: slint::MainWindow,
     state: Rc<RefCell<UiState>>,
 }
 
 impl UI {
     pub fn new(device: &mut Device) -> Self {
+        let (sender, receiver) = mpsc::channel::<Message>();
+        SENDER.set(sender).expect("UI already initialized");
+
         let framebuffer = vec![Argb1555::from_rgb(0, 0, 0); DISPLAY_WIDTH];
 
         let window = MinimalSoftwareWindow::new(RepaintBufferType::ReusedBuffer);
@@ -70,12 +91,11 @@ impl UI {
         ));
 
         let root = slint::MainWindow::new().unwrap();
-        let event_queue = device.take_event_receiver().unwrap();
 
         let ui = UI {
             framebuffer,
             window,
-            event_queue,
+            message_queue: receiver,
             state: UiState::new(&root, device),
             root,
         };
@@ -86,17 +106,17 @@ impl UI {
         let mut button_event_detector = buttons::ButtonEventDetector::new();
 
         let mut first_render = true;
-        let mut pending_event = None;
+        let mut pending_message = None;
         loop {
-            // Process events.
-            while let Some(event) = pending_event {
-                match event {
-                    device::Event::Button(state) => {
+            // Process messages.
+            while let Some(message) = pending_message {
+                match message {
+                    Message::Button(state) => {
                         for button_event in button_event_detector.update(Some(state)) {
                             self.window.dispatch_event(button_event.into());
                         }
                     }
-                    device::Event::FpgaIrq(irq_mask) => {
+                    Message::FpgaIrq(irq_mask) => {
                         if irq_mask & 0b1 != 0 {
                             // Module vblank
                             if let Some(bitstream) = crate::bitstream::current().get() {
@@ -104,22 +124,22 @@ impl UI {
                             }
                         }
                     }
-                    device::Event::FuelGaugeAlert(fuel_gauge::Alert::ChargeChange) => {
+                    Message::FuelGaugeAlert(fuel_gauge::Alert::ChargeChange) => {
                         self.state
                             .borrow_mut()
                             .update_battery_level(&mut Device::lock());
                     }
-                    device::Event::HeadphoneState(has_headphones) => {
+                    Message::HeadphoneState(has_headphones) => {
                         log::info!("Headphone detection: {}", has_headphones);
                         let mut device = Device::lock();
                         device.dac.set_headphones_enabled(has_headphones).unwrap();
                         device.dac.set_speakers_enabled(!has_headphones).unwrap();
                     }
                     _ => {
-                        log::info!("event: {:?}", event);
+                        log::warn!("Unhandled message: {:?}", message);
                     }
                 }
-                pending_event = self.event_queue.try_recv().ok();
+                pending_message = self.message_queue.try_recv().ok();
             }
             for button_event in button_event_detector.update(None) {
                 self.window.dispatch_event(button_event.into());
@@ -165,10 +185,10 @@ impl UI {
             if !self.window.has_active_animations() {
                 match ::slint::platform::duration_until_next_timer_update() {
                     Some(duration) => {
-                        pending_event = self.event_queue.recv_timeout(duration).ok();
+                        pending_message = self.message_queue.recv_timeout(duration).ok();
                     }
                     None => {
-                        pending_event = self.event_queue.recv().ok();
+                        pending_message = self.message_queue.recv().ok();
                     }
                 }
             }
