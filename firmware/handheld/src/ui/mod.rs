@@ -13,7 +13,7 @@ use ::slint::{
     PhysicalSize, Timer,
 };
 
-use crate::device::{drivers::fuel_gauge, kvs, Device};
+use crate::device::{kvs, Device};
 
 use self::{slint::Argb1555, state::UiState};
 
@@ -23,9 +23,7 @@ const DISPLAY_HEIGHT: usize = 160;
 #[derive(Debug)]
 pub enum Message {
     Button(ButtonMap),
-    FpgaIrq(u32),
-    FuelGaugeAlert(fuel_gauge::Alert),
-    HeadphoneState(bool),
+    BatteryStatus { level: f32 },
 }
 
 /// Send a message to the UI thread.
@@ -116,25 +114,10 @@ impl UI {
                             self.window.dispatch_event(button_event.into());
                         }
                     }
-                    Message::FpgaIrq(irq_mask) => {
-                        if irq_mask & 0b1 != 0 {
-                            // Module vblank
-                            if let Some(bitstream) = crate::bitstream::current().get() {
-                                bitstream.on_vblank_irq();
-                            }
-                        }
+                    Message::BatteryStatus { level } => {
+                        self.state.borrow_mut().update_battery_level(level);
                     }
-                    Message::FuelGaugeAlert(fuel_gauge::Alert::ChargeChange) => {
-                        self.state
-                            .borrow_mut()
-                            .update_battery_level(&mut Device::lock());
-                    }
-                    Message::HeadphoneState(has_headphones) => {
-                        log::info!("Headphone detection: {}", has_headphones);
-                        let mut device = Device::lock();
-                        device.dac.set_headphones_enabled(has_headphones).unwrap();
-                        device.dac.set_speakers_enabled(!has_headphones).unwrap();
-                    }
+                    #[allow(unreachable_patterns)]
                     _ => {
                         log::warn!("Unhandled message: {:?}", message);
                     }

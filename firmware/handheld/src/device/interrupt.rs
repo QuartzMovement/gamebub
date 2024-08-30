@@ -10,6 +10,7 @@ use esp_idf_svc::{
 
 use crate::device::drivers::fpga;
 use crate::ui;
+use crate::worker;
 
 use super::Device;
 
@@ -119,7 +120,7 @@ impl Device<'_> {
                     if let Ok(fuel_irq) = device.fuel_gauge.query_alerts() {
                         for (alert, active) in fuel_irq.into_iter() {
                             if active {
-                                ui::send(ui::Message::FuelGaugeAlert(alert));
+                                worker::send(worker::Message::FuelGaugeAlert(alert));
                             }
                         }
                     }
@@ -128,7 +129,7 @@ impl Device<'_> {
                     if let Ok(dac_irq) = device.dac.get_interrupt_status() {
                         if dac_irq.headset_detected {
                             let has_headphones = device.dac.get_headphones_detected().unwrap();
-                            ui::send(ui::Message::HeadphoneState(has_headphones));
+                            worker::send(worker::Message::HeadphoneState(has_headphones));
                         }
                     }
 
@@ -140,7 +141,7 @@ impl Device<'_> {
                             .fpga
                             .write_u32(fpga::REG_IRQ_STATUS, fpga_irq)
                             .unwrap();
-                        ui::send(ui::Message::FpgaIrq(fpga_irq));
+                        worker::send(worker::Message::FpgaIrq(fpga_irq));
                     }
 
                     let _ = device.pin_irq.enable_interrupt();
