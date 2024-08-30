@@ -3,6 +3,7 @@ use super::{EmulatedCartridgeConfig, SaveType};
 macro_rules! config {
     ($save_type:ident $(, $field:ident)*) => {
         {
+            #[allow(unused_mut)]
             let mut config = EmulatedCartridgeConfig::from_save_type(SaveType::$save_type);
             $(
                 config.$field = true;
@@ -21,6 +22,7 @@ static DATABASE: &[(&'static [u8; 4], EmulatedCartridgeConfig)] = &[
     (b"RZWE", config!(Sram, has_rumble, has_gyro)), // Wario Ware Twisted
     (b"KYGE", config!(EepromAuto, has_accel)), // Yoshi Topsy-Turvy
     (b"KHPJ", config!(EepromAuto, has_accel)), // Korokoro Puzzle - Happy Panecchu!
+    (b"FSME", config!(Eeprom512)),          // Classic NES: Super Mario Bros.
 ];
 
 pub fn lookup(key: &[u8; 4]) -> Option<EmulatedCartridgeConfig> {
