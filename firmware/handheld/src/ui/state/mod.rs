@@ -1,18 +1,15 @@
-use std::fs::File;
 use std::ops::DerefMut;
 use std::{cell::RefCell, path::Path, path::PathBuf, rc::Rc, time::Duration};
 
 use slint::private_unstable_api::re_exports as slint_re_exports;
 use slint::{ComponentHandle, Global, Model, ModelRc, Timer, TimerMode, VecModel, Weak};
 
-use crate::bitstream::gameboy::Gameboy;
 use crate::bitstream::{self, CurrentBitstream};
+use crate::worker;
 use crate::{
-    bitstream::gba::Gba,
     bitstream::Bitstream,
     device::{kvs, Device},
 };
-use flate2::read::GzDecoder;
 
 use super::slint::{
     Backend, MainWindow, ScreenId, SettingDatetime, SettingEntry, SettingType, SettingValue,
@@ -56,51 +53,6 @@ impl UiState {
         let root = self.root.unwrap();
         let backend = root.global::<Backend>();
         backend.set_battery_level(level);
-    }
-
-    fn set_current_bitstream(
-        &mut self,
-        current: &mut CurrentBitstream,
-        new: CurrentBitstream,
-    ) -> Result<(), String> {
-        *current = new;
-        if let Some(bitstream) = current.get() {
-            Self::program_fpga(bitstream.get_bitstream_path());
-            bitstream.on_after_program()?;
-        }
-        Ok(())
-    }
-
-    fn program_fpga(path: &str) {
-        log::info!("Loading bitstream {}", path);
-        let mut device = Device::lock();
-        let file = File::open(path).unwrap();
-        let mut bitstream = GzDecoder::new(file);
-        device.lcd.enable_mcu_control().unwrap();
-        device.fpga.program(&mut bitstream).unwrap();
-        device.lcd.enable_fpga_control().unwrap();
-        // TODO: re-render UI
-    }
-
-    /// Ensure a specific bitstream is loaded.
-    fn ensure_bitstream_gameboy(&mut self) -> Result<(), String> {
-        match *crate::bitstream::current() {
-            CurrentBitstream::Gameboy(_) => Ok(()),
-            ref mut current_bitstream => {
-                let x = Gameboy::new();
-                self.set_current_bitstream(current_bitstream, CurrentBitstream::Gameboy(x))
-            }
-        }
-    }
-
-    fn ensure_bitstream_gba(&mut self) -> Result<(), String> {
-        match *crate::bitstream::current() {
-            CurrentBitstream::Gba(_) => Ok(()),
-            ref mut current_bitstream => {
-                let x = Gba::new();
-                self.set_current_bitstream(current_bitstream, CurrentBitstream::Gba(x))
-            }
-        }
     }
 
     /// Get the list of eligible files for the ROM select menu at the given directory
@@ -193,9 +145,9 @@ impl UiState {
 
         log::info!("Selected ROM {}", path.display());
         if filename.ends_with(".gbc") || filename.ends_with(".gb") {
-            self.ensure_bitstream_gameboy().unwrap();
+            bitstream::current().ensure_gameboy().unwrap();
         } else if filename.ends_with(".gba") {
-            self.ensure_bitstream_gba().unwrap();
+            bitstream::current().ensure_gba().unwrap();
         } else {
             log::error!("Unsupported ROM file type");
             return false;
@@ -236,17 +188,15 @@ impl UiState {
         backend.set_volume_level(((kvs::keys::VOLUME.get().unwrap() as i32) * 100) / 255);
         backend.set_brightness_level((kvs::keys::BRIGHTNESS.get().unwrap() * 100.0) as i32);
 
-        let state_ = state.clone();
         backend.on_main_menu_run_cartridge(move || {
-            let mut state = state_.borrow_mut();
             let cart_type = Device::lock().fpga.get_cartridge_slot_button().unwrap();
             log::info!("Cart button: {}", cart_type);
             let result = if cart_type {
                 // Gameboy
-                state.ensure_bitstream_gameboy()
+                bitstream::current().ensure_gameboy()
             } else {
                 // GBA
-                state.ensure_bitstream_gba()
+                bitstream::current().ensure_gba()
             };
             result.unwrap();
 
