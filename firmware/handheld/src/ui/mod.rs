@@ -3,6 +3,7 @@ mod slint;
 mod state;
 
 use ::slint::platform::WindowAdapter;
+use ::slint::ComponentHandle;
 pub use buttons::{Button, ButtonEvent, ButtonMap};
 use std::sync::{mpsc, OnceLock};
 use std::{cell::RefCell, rc::Rc, sync::mpsc::Receiver, time::Instant};
@@ -31,6 +32,8 @@ pub enum Message {
     Redraw,
     /// Go to the "Game" screen
     EnterGame,
+    /// ROM loading progress
+    RomLoadingProgress(f32),
 }
 
 /// Send a message to the UI thread.
@@ -131,6 +134,12 @@ impl UI {
                     }
                     Message::EnterGame => {
                         self.root.invoke_set_screen(slint::ScreenId::Game);
+                    }
+                    Message::RomLoadingProgress(progress) => {
+                        // Update loading bar, in increments of 10%.
+                        self.root
+                            .global::<slint::Backend>()
+                            .set_rom_select_progress((progress * 10.0).ceil() * 10.0);
                     }
                     #[allow(unreachable_patterns)]
                     _ => {

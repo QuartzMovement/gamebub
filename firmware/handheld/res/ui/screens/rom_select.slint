@@ -35,10 +35,10 @@ export component RomSelectScreen inherits ScreenBase {
                     self.set-focus-item(Backend.rom-select-initial);
                 }
                 on-item-selected(i) => {
-                    is-loading = true;
                     if Backend.rom-select-selected(i) {
                         self.set-focus-item(0);
                     } else {
+                        is-loading = true;
                         i-loading-popup.focus();
                     }
                 }
@@ -69,9 +69,15 @@ export component RomSelectScreen inherits ScreenBase {
             i-layout := VerticalLayout {
                 padding: 8px;
                 spacing: 4px;
-                Text {
+                i-text := Text {
                     horizontal-alignment: center;
                     text: "Loading...";
+                }
+
+                Rectangle {
+                    background: black;
+                    width: Backend.rom-select-progress * i-text.min-width;
+                    height: 2px;
                 }
             }
         }

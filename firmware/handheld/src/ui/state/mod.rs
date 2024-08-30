@@ -127,6 +127,10 @@ impl UiState {
 
     /// Handle selection. Returns whether UI should adjust its focus item to position 0.
     fn rom_select_handle_select(&mut self, path: PathBuf, filename: &str) -> bool {
+        self.root
+            .unwrap()
+            .global::<Backend>()
+            .set_rom_select_progress(0.0);
         if filename == ".." {
             if self.rom_select_directory == Path::new(ROM_SELECT_BASE_DIR) {
                 log::warn!("No parent directory");
@@ -165,7 +169,7 @@ impl UiState {
             state.rom_select_update_list();
         });
 
-        let state_ = state.clone();
+        let state_: Rc<RefCell<UiState>> = state.clone();
         backend.on_rom_select_selected(move |index| {
             let mut state = state_.borrow_mut();
             let list = Backend::get(&state.root.unwrap()).get_rom_select_list();

@@ -10,6 +10,7 @@ use rtc::RtcState;
 use thiserror::Error;
 
 use crate::device::{drivers::fpga, Device};
+use crate::ui;
 
 use super::Bitstream;
 
@@ -265,6 +266,7 @@ impl Gba {
 
         // Load ROM
         let mut rom_file = File::open(rom_path)?;
+        let rom_file_size = rom_file.metadata()?.len() as u32;
         let mut rom_header = [0u8; ROM_HEADER_LENGTH];
         rom_file.read(&mut rom_header)?;
         rom_file.seek(std::io::SeekFrom::Start(0))?;
@@ -274,7 +276,7 @@ impl Gba {
         let mut save_type_detector = SaveTypeDetector::new();
         let emu_cart_config = game_db::lookup(&rom_header.game_code);
 
-        const CHUNK_SIZE: usize = 16 * 1024;
+        const CHUNK_SIZE: usize = 32 * 1024;
         let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
         let mut total = 0u32;
         let start_time = Instant::now();
@@ -293,6 +295,10 @@ impl Gba {
             Device::lock().fpga.sdram_write(total, &buf[..n])?;
             total += n as u32;
             transfer_duration += transfer_start.elapsed();
+
+            // Update UI progress bar.
+            let progress = ((total - (n as u32)) as f32) / (rom_file_size as f32);
+            ui::send(ui::Message::RomLoadingProgress(progress));
 
             let detect_start = Instant::now();
             if emu_cart_config.is_none() {
