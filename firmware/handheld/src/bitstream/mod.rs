@@ -4,6 +4,7 @@ use std::{
 };
 
 use crate::device::{drivers::fpga, Device};
+use crate::ui;
 
 use flate2::read::GzDecoder;
 
@@ -44,7 +45,7 @@ fn program_fpga(path: &str) {
     device.lcd.enable_mcu_control().unwrap();
     device.fpga.program(&mut bitstream).unwrap();
     device.lcd.enable_fpga_control().unwrap();
-    // TODO: re-render UI
+    ui::send(ui::Message::Redraw);
 }
 
 pub enum CurrentBitstream {

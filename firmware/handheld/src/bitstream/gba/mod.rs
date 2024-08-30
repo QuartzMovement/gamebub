@@ -255,12 +255,13 @@ impl Gba {
     }
 
     pub fn set_emulated_cartridge(&mut self, rom_path: &Path) -> Result<(), GbaError> {
-        let mut device = Device::lock();
-
         // Hold in reset
-        device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
-        device.imu.disable_gyro().unwrap();
-        device.imu.disable_accel().unwrap();
+        {
+            let mut device = Device::lock();
+            device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
+            device.imu.disable_gyro().unwrap();
+            device.imu.disable_accel().unwrap();
+        }
 
         // Load ROM
         let mut rom_file = File::open(rom_path)?;
@@ -289,7 +290,7 @@ impl Gba {
             }
 
             let transfer_start = Instant::now();
-            device.fpga.sdram_write(total, &buf[..n])?;
+            Device::lock().fpga.sdram_write(total, &buf[..n])?;
             total += n as u32;
             transfer_duration += transfer_start.elapsed();
 
@@ -333,7 +334,7 @@ impl Gba {
                 if n == 0 {
                     break;
                 }
-                device.fpga.sram_write(pos, &buf[..n])?;
+                Device::lock().fpga.sram_write(pos, &buf[..n])?;
                 pos += n as u32;
             }
 
@@ -343,7 +344,7 @@ impl Gba {
                 if n == 16 {
                     let prev_state = RtcState::from_disk(buf[0..8].try_into().unwrap());
                     let rtc_timestamp = u64::from_le_bytes(buf[8..16].try_into().unwrap());
-                    let elapsed = device
+                    let elapsed = Device::lock()
                         .get_datetime()
                         .unix_timestamp()
                         .saturating_sub_unsigned(rtc_timestamp);
@@ -372,10 +373,13 @@ impl Gba {
             let mut pos = 0u32;
             while pos < save_size {
                 let n = ((save_size - pos) as usize).min(CHUNK_SIZE);
-                device.fpga.sram_write(pos, &buf[..n])?;
+                Device::lock().fpga.sram_write(pos, &buf[..n])?;
                 pos += n as u32;
             }
         }
+
+        // Time-intensive ROM loading is complete, so re-acquire Device lock.
+        let mut device = Device::lock();
 
         // Configure emulated cartridge control registers
         device

@@ -2,6 +2,7 @@ pub mod buttons;
 mod slint;
 mod state;
 
+use ::slint::platform::WindowAdapter;
 pub use buttons::{Button, ButtonEvent, ButtonMap};
 use std::sync::{mpsc, OnceLock};
 use std::{cell::RefCell, rc::Rc, sync::mpsc::Receiver, time::Instant};
@@ -22,8 +23,14 @@ const DISPLAY_HEIGHT: usize = 160;
 
 #[derive(Debug)]
 pub enum Message {
+    /// The state of the buttons have changed.
     Button(ButtonMap),
+    /// Battery status has changed.
     BatteryStatus { level: f32 },
+    /// Redraw the entire screen (e.g. after a display change)
+    Redraw,
+    /// Go to the "Game" screen
+    EnterGame,
 }
 
 /// Send a message to the UI thread.
@@ -116,6 +123,14 @@ impl UI {
                     }
                     Message::BatteryStatus { level } => {
                         self.state.borrow_mut().update_battery_level(level);
+                    }
+                    Message::Redraw => {
+                        // TODO: does the redraw setting need to change? to redraw the whole screen
+                        log::info!("Refreshing screen");
+                        self.window.request_redraw();
+                    }
+                    Message::EnterGame => {
+                        self.root.invoke_set_screen(slint::ScreenId::Game);
                     }
                     #[allow(unreachable_patterns)]
                     _ => {

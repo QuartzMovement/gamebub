@@ -28,6 +28,10 @@ export component MainWindow inherits Window {
         Backend.volume-visible = false;
     }
 
+    public function set-screen(screen: ScreenId) {
+        Global.set-screen(screen);
+    }
+
     width: 240px;
     height: 160px;
     background: Global.ui-transparent ? transparent : #E8E8E8;

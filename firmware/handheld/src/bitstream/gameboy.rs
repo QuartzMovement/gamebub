@@ -182,11 +182,12 @@ impl Gameboy {
     }
 
     pub fn set_emulated_cartridge(&mut self, rom_path: &Path) -> Result<(), GameboyError> {
-        let mut device = Device::lock();
-
         // Hold in reset
-        device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
-        device.imu.disable_accel().unwrap();
+        {
+            let mut device = Device::lock();
+            device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
+            device.imu.disable_accel().unwrap();
+        }
 
         // Load ROM
         let mut rom_file = File::open(rom_path)?;
@@ -204,7 +205,7 @@ impl Gameboy {
             if n == 0 {
                 break;
             }
-            device.fpga.sdram_write(total, &buf[..n])?;
+            Device::lock().fpga.sdram_write(total, &buf[..n])?;
             total += n as u32;
         }
 
@@ -221,7 +222,7 @@ impl Gameboy {
                     if n == 0 {
                         break;
                     }
-                    device.fpga.sram_write(pos, &buf[..n])?;
+                    Device::lock().fpga.sram_write(pos, &buf[..n])?;
                     pos += n as u32;
                 }
 
@@ -232,6 +233,7 @@ impl Gameboy {
                         let mut rtc_state = RtcState::from_disk(&buf[0..20].try_into().unwrap());
                         let rtc_latched = RtcState::from_disk(&buf[20..40].try_into().unwrap());
                         let rtc_timestamp = u64::from_le_bytes(buf[40..48].try_into().unwrap());
+                        let mut device = Device::lock();
                         let elapsed = device
                             .get_datetime()
                             .unix_timestamp()
@@ -253,6 +255,8 @@ impl Gameboy {
                 log::info!("Not loading RAM");
             }
         }
+
+        let mut device = Device::lock();
 
         // Configure emulated cartridge control registers
         device

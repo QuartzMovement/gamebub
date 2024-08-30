@@ -1,15 +1,27 @@
 //! Worker threads to do background blocking work.
 
+use std::ops::DerefMut;
+use std::path::PathBuf;
 use std::sync::{mpsc, OnceLock};
 
+use crate::bitstream::CurrentBitstream;
+use crate::device::kvs;
 use crate::device::{drivers::fuel_gauge, Device};
-use crate::ui;
+use crate::{bitstream, ui};
 
 #[derive(Debug)]
 pub enum Message {
+    /// An interrupt request from the FPGA
     FpgaIrq(u32),
+    /// An alert from the fuel gauge (battery)
     FuelGaugeAlert(fuel_gauge::Alert),
+    /// The headphone state has changed
     HeadphoneState(bool),
+
+    /// Run a cartridge
+    RunCartridge,
+    /// Run a ROM file
+    RunRomFile(PathBuf),
 }
 
 /// Send a message to the worker threads.
@@ -22,12 +34,16 @@ pub fn start() {
     let (sender, receiver) = mpsc::channel::<Message>();
     SENDER.set(sender).expect("Worker already initialized");
 
-    std::thread::spawn(move || {
-        while let Ok(message) = receiver.recv() {
-            log::debug!("Dispatch {:?}", message);
-            dispatch(message);
-        }
-    });
+    std::thread::Builder::new()
+        .name("Worker".to_string())
+        .stack_size(16 * 1024)
+        .spawn(move || {
+            while let Ok(message) = receiver.recv() {
+                log::debug!("Dispatch {:?}", message);
+                dispatch(message);
+            }
+        })
+        .unwrap();
 }
 
 static SENDER: OnceLock<mpsc::Sender<Message>> = OnceLock::new();
@@ -51,6 +67,61 @@ fn dispatch(message: Message) {
             let mut device = Device::lock();
             device.dac.set_headphones_enabled(has_headphones).unwrap();
             device.dac.set_speakers_enabled(!has_headphones).unwrap();
+        }
+        Message::RunCartridge => {
+            let cart_type = Device::lock().fpga.get_cartridge_slot_button().unwrap();
+            log::info!("Cart button: {}", cart_type);
+            if cart_type {
+                bitstream::current().ensure_gameboy().unwrap();
+            } else {
+                bitstream::current().ensure_gba().unwrap();
+            };
+
+            match bitstream::current().deref_mut() {
+                CurrentBitstream::None => unreachable!(),
+                CurrentBitstream::Gameboy(x) => x.set_physical_cartridge().unwrap(),
+                CurrentBitstream::Gba(x) => x.set_physical_cartridge().unwrap(),
+            }
+
+            ui::send(ui::Message::EnterGame);
+        }
+        Message::RunRomFile(path) => {
+            match path.extension().and_then(|e| e.to_str()) {
+                Some("gbc") | Some("gb") => bitstream::current().ensure_gameboy().unwrap(),
+                Some("gba") => bitstream::current().ensure_gba().unwrap(),
+                _ => {
+                    log::error!("Unsupported ROM file type");
+                    return;
+                }
+            }
+            kvs::keys::LAST_ROM_PATH.set(&path);
+
+            let success = match bitstream::current().deref_mut() {
+                CurrentBitstream::None => false,
+                CurrentBitstream::Gameboy(x) => {
+                    match x.set_emulated_cartridge(path.as_path()) {
+                        Ok(_) => true,
+                        Err(e) => {
+                            // TODO show an error message
+                            log::error!("Error loading ROM: {:?}", e);
+                            false
+                        }
+                    }
+                }
+                CurrentBitstream::Gba(x) => {
+                    match x.set_emulated_cartridge(path.as_path()) {
+                        Ok(_) => true,
+                        Err(e) => {
+                            // TODO show an error message
+                            log::error!("Error loading ROM: {:?}", e);
+                            false
+                        }
+                    }
+                }
+            };
+            if success {
+                ui::send(ui::Message::EnterGame);
+            }
         }
         _ => {
             log::warn!("Unhandled message: {:?}", message);

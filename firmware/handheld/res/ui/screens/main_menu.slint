@@ -32,7 +32,6 @@ export component MainMenuScreen inherits ScreenBase {
                             accept
                         }
                         on-pressed => {
-                            Global.set-screen(ScreenId.Game);
                             Backend.main-menu-run-cartridge();
                         }
                     }

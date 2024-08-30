@@ -144,39 +144,8 @@ impl UiState {
         }
 
         log::info!("Selected ROM {}", path.display());
-        if filename.ends_with(".gbc") || filename.ends_with(".gb") {
-            bitstream::current().ensure_gameboy().unwrap();
-        } else if filename.ends_with(".gba") {
-            bitstream::current().ensure_gba().unwrap();
-        } else {
-            log::error!("Unsupported ROM file type");
-            return false;
-        }
-        kvs::keys::LAST_ROM_PATH.set(&path);
-
-        match bitstream::current().deref_mut() {
-            CurrentBitstream::None => false,
-            CurrentBitstream::Gameboy(x) => {
-                match x.set_emulated_cartridge(path.as_path()) {
-                    Ok(_) => true,
-                    Err(e) => {
-                        // TODO show an error message
-                        log::error!("Error loading ROM: {:?}", e);
-                        false
-                    }
-                }
-            }
-            CurrentBitstream::Gba(x) => {
-                match x.set_emulated_cartridge(path.as_path()) {
-                    Ok(_) => true,
-                    Err(e) => {
-                        // TODO show an error message
-                        log::error!("Error loading ROM: {:?}", e);
-                        false
-                    }
-                }
-            }
-        }
+        worker::send(worker::Message::RunRomFile(path));
+        false
     }
 
     fn setup(&mut self, state: Rc<RefCell<UiState>>, device: &mut Device) {
@@ -188,24 +157,7 @@ impl UiState {
         backend.set_volume_level(((kvs::keys::VOLUME.get().unwrap() as i32) * 100) / 255);
         backend.set_brightness_level((kvs::keys::BRIGHTNESS.get().unwrap() * 100.0) as i32);
 
-        backend.on_main_menu_run_cartridge(move || {
-            let cart_type = Device::lock().fpga.get_cartridge_slot_button().unwrap();
-            log::info!("Cart button: {}", cart_type);
-            let result = if cart_type {
-                // Gameboy
-                bitstream::current().ensure_gameboy()
-            } else {
-                // GBA
-                bitstream::current().ensure_gba()
-            };
-            result.unwrap();
-
-            match bitstream::current().deref_mut() {
-                CurrentBitstream::None => unreachable!(),
-                CurrentBitstream::Gameboy(x) => x.set_physical_cartridge().unwrap(),
-                CurrentBitstream::Gba(x) => x.set_physical_cartridge().unwrap(),
-            }
-        });
+        backend.on_main_menu_run_cartridge(|| worker::send(worker::Message::RunCartridge));
 
         let state_ = state.clone();
         backend.on_main_menu_load_rom(move || {
