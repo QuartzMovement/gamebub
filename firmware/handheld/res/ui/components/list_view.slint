@@ -1,24 +1,32 @@
 export component ListViewBase inherits Rectangle {
     in property <int> num-items;
     in property <bool> wrap: false;
-    out property <int> focus-item: 0;
+    in-out property <int> focus-item: 0;
     in-out property <bool> item-selected: false;
+    in property <bool> disabled: false;
 
     private property <bool> has-scrollbar: area.viewport-height > area.height;
     private property <length> scrollbar-width: 2px;
     private property <length> item-height: area.viewport-height / self.num-items;
     private property <int> into-view-item: 0;
     private property <length> into-view-item-y: root.item-y(root.into-view-item);
-    private property <bool> has-focus;
-    callback on-focus-item-changed(/* focus-item */ int);
     callback on-item-selected(/* selected-item */ int);
 
-    public function set-focus-item(index: int) {
-        if (!wrap && (index < 0 || index >= num-items)) {
+    changed focus-item => {
+        fix-focus-item();
+    }
+
+    public function fix-focus-item() {
+        if (!wrap) {
+            if (focus-item < 0) {
+                focus-item = 0;
+            } else if (focus-item >= num-items) {
+                focus-item = num-items - 1;
+            }
             return;
         }
         root.unselect();
-        focus-item = mod(num-items + index, num-items);
+        focus-item = mod(num-items + focus-item, num-items);
         bring-into-view(focus-item);
     }
 
@@ -45,11 +53,11 @@ export component ListViewBase inherits Rectangle {
     }
 
     protected function focus-up() {
-        root.set-focus-item(root.focus-item - 1);
+        root.focus-item = root.focus-item - 1;
     }
 
     protected function focus-down() {
-        root.set-focus-item(root.focus-item + 1);
+        root.focus-item = root.focus-item + 1;
     }
 
     protected function select-focus-item() {
@@ -78,12 +86,10 @@ export component ListViewBase inherits Rectangle {
             }
         }
 
-        focus-changed-event => {
-            root.has-focus = self.has-focus;
-        }
-
         key-pressed(event) => {
-            if (event.text == Key.UpArrow) {
+            if (disabled) {
+                return reject;
+            } else if (event.text == Key.UpArrow) {
                 root.focus-up();
                 return accept;
             } else if (event.text == Key.DownArrow) {

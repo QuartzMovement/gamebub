@@ -55,44 +55,8 @@ impl UiState {
         backend.set_battery_level(level);
     }
 
-    /// Get the list of eligible files for the ROM select menu at the given directory
-    fn rom_select_get_files(path: &Path) -> std::io::Result<Vec<String>> {
-        let mut files = path
-            .read_dir()?
-            .filter_map(|e| {
-                let e = e.ok()?;
-                let name = e.file_name();
-                let name = name.to_str()?;
-                let kind = e.metadata().ok()?.file_type();
-                if name.starts_with(".") {
-                    return None;
-                }
-                let extensions = &[".gb", ".gbc", ".gba"];
-                if kind.is_file() && !extensions.iter().any(|&ext| name.ends_with(ext)) {
-                    return None;
-                }
-                Some((name.to_string(), kind))
-            })
-            .collect::<Vec<_>>();
-        files.sort_unstable_by(|f1, f2| {
-            // Sort by name, with directories first.
-            let c1 = (f1.1.is_file(), f1.0.as_str());
-            let c2 = (f2.1.is_file(), f2.0.as_str());
-            c1.cmp(&c2)
-        });
-        let files = files.into_iter().map(|f| f.0).collect();
-        Ok(files)
-    }
-
-    fn rom_select_update_list(&self) {
+    pub fn rom_select_update_list(&mut self, mut files: Vec<String>) {
         let path = &self.rom_select_directory;
-        let mut files = match Self::rom_select_get_files(path) {
-            Ok(files) => files,
-            Err(e) => {
-                log::warn!("Error reading directory: {:?}", e);
-                Vec::new()
-            }
-        };
         if path != Path::new(ROM_SELECT_BASE_DIR) {
             files.insert(0, "..".to_string());
         }
@@ -122,34 +86,33 @@ impl UiState {
         let backend = Backend::get(&root);
         backend.set_rom_select_path(directory.into());
         backend.set_rom_select_list(files);
-        backend.set_rom_select_initial(selected as i32);
+        backend.set_rom_select_index(selected as i32);
+        backend.set_rom_select_is_loading(false);
     }
 
-    /// Handle selection. Returns whether UI should adjust its focus item to position 0.
+    /// Handle selection. Returns whether a loading screen should be displayed.
     fn rom_select_handle_select(&mut self, path: PathBuf, filename: &str) -> bool {
+        if filename == ".." {
+            if self.rom_select_directory == Path::new(ROM_SELECT_BASE_DIR) {
+                log::warn!("No parent directory");
+                return false;
+            } else {
+                self.rom_select_directory.pop();
+                worker::send(worker::Message::ListRoms(self.rom_select_directory.clone()));
+            }
+        } else if path.is_dir() {
+            log::info!("Entering subdirectory {}", filename);
+            self.rom_select_directory.push(filename);
+            worker::send(worker::Message::ListRoms(self.rom_select_directory.clone()));
+        } else {
+            log::info!("Selected ROM {}", path.display());
+            worker::send(worker::Message::RunRomFile(path));
+        }
         self.root
             .unwrap()
             .global::<Backend>()
             .set_rom_select_progress(0.0);
-        if filename == ".." {
-            if self.rom_select_directory == Path::new(ROM_SELECT_BASE_DIR) {
-                log::warn!("No parent directory");
-            } else {
-                self.rom_select_directory.pop();
-                self.rom_select_update_list();
-            }
-            return true;
-        }
-        if path.is_dir() {
-            log::info!("Entering subdirectory {}", filename);
-            self.rom_select_directory.push(filename);
-            self.rom_select_update_list();
-            return true;
-        }
-
-        log::info!("Selected ROM {}", path.display());
-        worker::send(worker::Message::RunRomFile(path));
-        false
+        true
     }
 
     fn setup(&mut self, state: Rc<RefCell<UiState>>, device: &mut Device) {
@@ -165,8 +128,15 @@ impl UiState {
 
         let state_ = state.clone();
         backend.on_main_menu_load_rom(move || {
-            let state = state_.borrow();
-            state.rom_select_update_list();
+            let mut state = state_.borrow_mut();
+            let root = state.root.unwrap();
+            let backend = root.global::<Backend>();
+            worker::send(worker::Message::ListRoms(
+                state.rom_select_directory.clone(),
+            ));
+            state.rom_select_update_list(Vec::new());
+            backend.set_rom_select_is_loading(true);
+            backend.set_rom_select_progress(0.0);
         });
 
         let state_: Rc<RefCell<UiState>> = state.clone();

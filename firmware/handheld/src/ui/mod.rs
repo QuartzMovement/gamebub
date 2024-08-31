@@ -32,6 +32,8 @@ pub enum Message {
     EnterGame,
     /// ROM loading progress
     RomLoadingProgress(f32),
+    /// ROM select file list
+    RomSelectFiles(Vec<String>),
 }
 
 /// Send a message to the UI thread.
@@ -142,6 +144,9 @@ impl UI {
                         self.root
                             .global::<slint::Backend>()
                             .set_rom_select_progress((progress * 10.0).ceil() * 10.0);
+                    }
+                    Message::RomSelectFiles(files) => {
+                        self.state.borrow_mut().rom_select_update_list(files);
                     }
                     #[allow(unreachable_patterns)]
                     _ => {

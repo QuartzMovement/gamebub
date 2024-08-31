@@ -12,14 +12,15 @@ export component RomSelectScreen inherits ScreenBase {
     files: Backend.rom-select-list;
     i-focus-scope := FocusScope {
         key-pressed(event) => {
-            if (event.text == "b") {
+            if (Backend.rom-select-is-loading) {
+                accept
+            } else if (event.text == "b") {
                 Global.set-screen(ScreenId.MainMenu);
                 accept
             } else {
                 reject
             }
         }
-
         VerticalLayout {
             height: 100%;
             spacing: 2px;
@@ -31,16 +32,13 @@ export component RomSelectScreen inherits ScreenBase {
             list := TextListView {
                 model: root.files;
                 wrap: true;
+                disabled: Backend.rom-select-is-loading;
+                focus-item <=> Backend.rom-select-index;
                 init => {
-                    self.set-focus-item(Backend.rom-select-initial);
+                    self.fix-focus-item();
                 }
                 on-item-selected(i) => {
-                    if Backend.rom-select-selected(i) {
-                        self.set-focus-item(0);
-                    } else {
-                        is-loading = true;
-                        i-loading-popup.focus();
-                    }
+                    Backend.rom-select-is-loading = Backend.rom-select-selected(i);
                 }
             }
 
@@ -57,28 +55,25 @@ export component RomSelectScreen inherits ScreenBase {
         }
     }
 
-    i-loading-popup := FocusScope {
-        visible: is-loading;
-        Rectangle {
-            background: #FFF;
-            border-color: black;
-            border-width: 1px;
-            width: i-layout.min-width;
-            height: i-layout.min-height;
+    if Backend.rom-select-is-loading:  Rectangle {
+        background: #FFF;
+        border-color: black;
+        border-width: 1px;
+        width: i-layout.min-width;
+        height: i-layout.min-height;
 
-            i-layout := VerticalLayout {
-                padding: 8px;
-                spacing: 4px;
-                i-text := Text {
-                    horizontal-alignment: center;
-                    text: "Loading...";
-                }
+        i-layout := VerticalLayout {
+            padding: 8px;
+            spacing: 4px;
+            i-text := Text {
+                horizontal-alignment: center;
+                text: "Loading...";
+            }
 
-                Rectangle {
-                    background: black;
-                    width: Backend.rom-select-progress * i-text.min-width;
-                    height: 2px;
-                }
+            Rectangle {
+                background: black;
+                width: Backend.rom-select-progress * i-text.min-width;
+                height: 2px;
             }
         }
     }

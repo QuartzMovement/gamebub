@@ -1,7 +1,7 @@
 //! Worker threads to do background blocking work.
 
 use std::ops::DerefMut;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{mpsc, OnceLock};
 
 use crate::bitstream::CurrentBitstream;
@@ -22,6 +22,8 @@ pub enum Message {
     RunCartridge,
     /// Run a ROM file
     RunRomFile(PathBuf),
+    /// Load ROM select entries
+    ListRoms(PathBuf),
 }
 
 /// Send a message to the worker threads.
@@ -121,10 +123,51 @@ fn dispatch(message: Message) {
             };
             if success {
                 ui::send(ui::Message::EnterGame);
+            } else {
+                // TODO show an error screen
             }
+        }
+        Message::ListRoms(path) => {
+            let files = match rom_select_get_files(&path) {
+                Ok(files) => files,
+                Err(e) => {
+                    log::warn!("Error reading directory: {:?}", e);
+                    Vec::new()
+                }
+            };
+            ui::send(ui::Message::RomSelectFiles(files))
         }
         _ => {
             log::warn!("Unhandled message: {:?}", message);
         }
     }
+}
+
+/// Get the list of eligible files for the ROM select menu at the given directory
+fn rom_select_get_files(path: &Path) -> std::io::Result<Vec<String>> {
+    let mut files = path
+        .read_dir()?
+        .filter_map(|e| {
+            let e = e.ok()?;
+            let name = e.file_name();
+            let name = name.to_str()?;
+            let kind = e.metadata().ok()?.file_type();
+            if name.starts_with(".") {
+                return None;
+            }
+            let extensions = &[".gb", ".gbc", ".gba"];
+            if kind.is_file() && !extensions.iter().any(|&ext| name.ends_with(ext)) {
+                return None;
+            }
+            Some((name.to_string(), kind))
+        })
+        .collect::<Vec<_>>();
+    files.sort_unstable_by(|f1, f2| {
+        // Sort by name, with directories first.
+        let c1 = (f1.1.is_file(), f1.0.as_str());
+        let c2 = (f2.1.is_file(), f2.0.as_str());
+        c1.cmp(&c2)
+    });
+    let files = files.into_iter().map(|f| f.0).collect();
+    Ok(files)
 }
