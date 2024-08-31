@@ -3,21 +3,19 @@ mod slint;
 mod state;
 
 use ::slint::platform::WindowAdapter;
-use ::slint::ComponentHandle;
+use ::slint::{ComponentHandle, WindowSize};
 pub use buttons::{Button, ButtonEvent, ButtonMap};
 use std::sync::{mpsc, OnceLock};
 use std::{cell::RefCell, rc::Rc, sync::mpsc::Receiver, time::Instant};
 
 use ::slint::{
-    platform::software_renderer::{
-        LineBufferProvider, MinimalSoftwareWindow, RepaintBufferType, TargetPixel,
-    },
+    platform::software_renderer::{LineBufferProvider, RepaintBufferType, TargetPixel},
     PhysicalSize, Timer,
 };
 
 use crate::device::{kvs, Device};
 
-use self::{slint::Argb1555, state::UiState};
+use self::{slint::Argb1555, slint::MinimalSoftwareWindow, state::UiState};
 
 const DISPLAY_WIDTH: usize = 240;
 const DISPLAY_HEIGHT: usize = 160;
@@ -93,10 +91,10 @@ impl UI {
             window: window.clone(),
         }))
         .unwrap();
-        window.set_size(PhysicalSize::new(
+        window.set_size(WindowSize::Physical(PhysicalSize::new(
             DISPLAY_WIDTH as u32,
             DISPLAY_HEIGHT as u32,
-        ));
+        )));
 
         let root = slint::MainWindow::new().unwrap();
 
@@ -128,9 +126,13 @@ impl UI {
                         self.state.borrow_mut().update_battery_level(level);
                     }
                     Message::Redraw => {
-                        // TODO: does the redraw setting need to change? to redraw the whole screen
                         log::info!("Refreshing screen");
                         self.window.request_redraw();
+
+                        // Force renderer to clear the dirty region and re-render everything.
+                        self.window
+                            .renderer
+                            .set_repaint_buffer_type(RepaintBufferType::NewBuffer);
                     }
                     Message::EnterGame => {
                         self.root.invoke_set_screen(slint::ScreenId::Game);
@@ -154,8 +156,6 @@ impl UI {
 
             ::slint::platform::update_timers_and_animations();
 
-            // TODO additional application logic
-
             // Render UI if needed.
             self.window.draw_if_needed(|renderer| {
                 let mut device = Device::lock();
@@ -167,7 +167,7 @@ impl UI {
                 renderer.render_by_line(&mut line_buffer);
                 let render_duration = render_start.elapsed();
 
-                log::info!("Render + display {}ms", render_duration.as_millis() as u32);
+                log::info!("Render + display {}ms", render_duration.as_millis() as u32,);
 
                 // TODO: only need to do this when switching overlays
                 let _ = line_buffer
@@ -180,6 +180,13 @@ impl UI {
                     line_buffer
                         .device
                         .set_brightness(kvs::keys::BRIGHTNESS.get().unwrap());
+                }
+
+                // If we changed the repaint buffer type to force a redraw, change it back.
+                if renderer.repaint_buffer_type() == RepaintBufferType::NewBuffer {
+                    renderer.set_repaint_buffer_type(RepaintBufferType::ReusedBuffer);
+                    // For some reason, this doesn't get called automatically after the first render.
+                    self.window.request_redraw();
                 }
             });
 

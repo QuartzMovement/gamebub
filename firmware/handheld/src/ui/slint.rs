@@ -1,10 +1,12 @@
-use std::rc::Rc;
+use std::cell::Cell;
+use std::rc::{Rc, Weak};
 use std::time::Instant;
 
 use slint::platform::software_renderer::{
-    MinimalSoftwareWindow, PremultipliedRgbaColor, TargetPixel,
+    PremultipliedRgbaColor, RepaintBufferType, SoftwareRenderer, TargetPixel,
 };
-use slint::platform::Platform;
+use slint::platform::{Platform, Renderer, WindowAdapter};
+use slint::Window;
 
 static INITIAL_INSTANT: std::sync::OnceLock<std::time::Instant> = std::sync::OnceLock::new();
 
@@ -22,6 +24,66 @@ impl Platform for HandheldPlatform {
     fn duration_since_start(&self) -> core::time::Duration {
         let the_beginning = *INITIAL_INSTANT.get_or_init(Instant::now);
         Instant::now() - the_beginning
+    }
+}
+
+/// Based off of the Slint MinimalSoftwareWindow, with the internal renderer exposed.
+pub struct MinimalSoftwareWindow {
+    window: Window,
+    pub renderer: SoftwareRenderer,
+    needs_redraw: Cell<bool>,
+    size: Cell<slint::PhysicalSize>,
+}
+
+impl MinimalSoftwareWindow {
+    pub fn new(repaint_buffer_type: RepaintBufferType) -> Rc<Self> {
+        Rc::new_cyclic(|w: &Weak<Self>| Self {
+            window: Window::new(w.clone()),
+            renderer: SoftwareRenderer::new_with_repaint_buffer_type(repaint_buffer_type),
+            needs_redraw: Default::default(),
+            size: Default::default(),
+        })
+    }
+
+    pub fn draw_if_needed(&self, render_callback: impl FnOnce(&SoftwareRenderer)) -> bool {
+        if self.needs_redraw.replace(false) {
+            render_callback(&self.renderer);
+            true
+        } else {
+            false
+        }
+    }
+}
+
+impl WindowAdapter for MinimalSoftwareWindow {
+    fn window(&self) -> &Window {
+        &self.window
+    }
+
+    fn renderer(&self) -> &dyn Renderer {
+        &self.renderer
+    }
+
+    fn size(&self) -> slint::PhysicalSize {
+        self.size.get()
+    }
+    fn set_size(&self, size: slint::WindowSize) {
+        self.size.set(size.to_physical(1.));
+        self.window
+            .dispatch_event(slint::platform::WindowEvent::Resized {
+                size: size.to_logical(1.),
+            })
+    }
+
+    fn request_redraw(&self) {
+        self.needs_redraw.set(true);
+    }
+}
+
+impl core::ops::Deref for MinimalSoftwareWindow {
+    type Target = Window;
+    fn deref(&self) -> &Self::Target {
+        &self.window
     }
 }
 
