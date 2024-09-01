@@ -79,6 +79,7 @@ pub struct UI {
     message_queue: Receiver<Message>,
     root: slint::MainWindow,
     state: Rc<RefCell<UiState>>,
+    button_event_detector: buttons::ButtonEventDetector,
 }
 
 impl UI {
@@ -106,56 +107,21 @@ impl UI {
             message_queue: receiver,
             state: UiState::new(&root, device),
             root,
+            button_event_detector: buttons::ButtonEventDetector::new(),
         };
         ui
     }
 
     pub fn run(&mut self) -> ! {
-        let mut button_event_detector = buttons::ButtonEventDetector::new();
-
         let mut first_render = true;
         let mut pending_message = None;
         loop {
             // Process messages.
             while let Some(message) = pending_message {
-                match message {
-                    Message::Button(state) => {
-                        for button_event in button_event_detector.update(Some(state)) {
-                            self.window.dispatch_event(button_event.into());
-                        }
-                    }
-                    Message::BatteryStatus { level } => {
-                        self.state.borrow_mut().update_battery_level(level);
-                    }
-                    Message::Redraw => {
-                        log::info!("Refreshing screen");
-                        self.window.request_redraw();
-
-                        // Force renderer to clear the dirty region and re-render everything.
-                        self.window
-                            .renderer
-                            .set_repaint_buffer_type(RepaintBufferType::NewBuffer);
-                    }
-                    Message::EnterGame => {
-                        self.root.invoke_set_screen(slint::ScreenId::Game);
-                    }
-                    Message::RomLoadingProgress(progress) => {
-                        // Update loading bar, in increments of 10%.
-                        self.root
-                            .global::<slint::Backend>()
-                            .set_rom_select_progress((progress * 10.0).ceil() * 10.0);
-                    }
-                    Message::RomSelectFiles(files) => {
-                        self.state.borrow_mut().rom_select_update_list(files);
-                    }
-                    #[allow(unreachable_patterns)]
-                    _ => {
-                        log::warn!("Unhandled message: {:?}", message);
-                    }
-                }
+                self.dispatch_message(message);
                 pending_message = self.message_queue.try_recv().ok();
             }
-            for button_event in button_event_detector.update(None) {
+            for button_event in self.button_event_detector.update(None) {
                 self.window.dispatch_event(button_event.into());
             }
 
@@ -196,7 +162,7 @@ impl UI {
             });
 
             // Trigger a timer to wake us up for button repeat events.
-            if let Some(wakeup) = button_event_detector.next_wakeup_time() {
+            if let Some(wakeup) = self.button_event_detector.next_wakeup_time() {
                 Timer::single_shot(wakeup.saturating_duration_since(Instant::now()), || ());
             }
 
@@ -210,6 +176,45 @@ impl UI {
                         pending_message = self.message_queue.recv().ok();
                     }
                 }
+            }
+        }
+    }
+
+    /// Handle a message sent to the UI thread.
+    fn dispatch_message(&mut self, message: Message) {
+        match message {
+            Message::Button(state) => {
+                for button_event in self.button_event_detector.update(Some(state)) {
+                    self.window.dispatch_event(button_event.into());
+                }
+            }
+            Message::BatteryStatus { level } => {
+                self.state.borrow_mut().update_battery_level(level);
+            }
+            Message::Redraw => {
+                log::info!("Refreshing screen");
+                self.window.request_redraw();
+
+                // Force renderer to clear the dirty region and re-render everything.
+                self.window
+                    .renderer
+                    .set_repaint_buffer_type(RepaintBufferType::NewBuffer);
+            }
+            Message::EnterGame => {
+                self.root.invoke_set_screen(slint::ScreenId::Game);
+            }
+            Message::RomLoadingProgress(progress) => {
+                // Update loading bar, in increments of 10%.
+                self.root
+                    .global::<slint::Backend>()
+                    .set_rom_select_progress((progress * 10.0).ceil() * 10.0);
+            }
+            Message::RomSelectFiles(files) => {
+                self.state.borrow_mut().rom_select_update_list(files);
+            }
+            #[allow(unreachable_patterns)]
+            _ => {
+                log::warn!("Unhandled message: {:?}", message);
             }
         }
     }
