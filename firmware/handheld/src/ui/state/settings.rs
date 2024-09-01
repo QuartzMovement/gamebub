@@ -1,9 +1,36 @@
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
 
+use super::super::slint::Backend;
 use crate::device::{kvs, Device};
 use crate::ui::state::{SettingDatetime, SettingEntry, SettingType, SettingValue};
-use slint::{Model, ModelNotify, ModelTracker};
+use slint::{ComponentHandle, Model, ModelNotify, ModelRc, ModelTracker};
 use time::OffsetDateTime;
+
+use super::UiState;
+
+impl UiState {
+    /// Set up the "Settings" screen.
+    pub(super) fn setup_settings(&mut self, state: &Rc<RefCell<UiState>>, _device: &mut Device) {
+        let root = self.root.unwrap();
+        let backend = root.global::<Backend>();
+
+        let state_ = state.clone();
+        backend.on_setting_changed(move |i, value| {
+            state_
+                .borrow_mut()
+                .settings_model
+                .changed(i as usize, value);
+        });
+    }
+
+    pub(super) fn on_settings_enter(&mut self) {
+        let root = self.root.unwrap();
+        let backend = root.global::<Backend>();
+        self.settings_model.refresh();
+        backend.set_settings(ModelRc::from(self.settings_model.clone()));
+    }
+}
 
 pub struct SettingsModel {
     notify: ModelNotify,
