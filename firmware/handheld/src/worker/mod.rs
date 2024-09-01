@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{mpsc, OnceLock};
 
 use crate::bitstream::CurrentBitstream;
-use crate::device::kvs;
 use crate::device::{drivers::fuel_gauge, Device};
+use crate::kvs;
 use crate::{bitstream, ui};
 
 #[derive(Debug)]

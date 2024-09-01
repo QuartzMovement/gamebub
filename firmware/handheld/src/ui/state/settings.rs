@@ -2,7 +2,8 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use super::super::slint::Backend;
-use crate::device::{kvs, Device};
+use crate::device::Device;
+use crate::kvs;
 use crate::ui::state::{SettingDatetime, SettingEntry, SettingType, SettingValue};
 use slint::{ComponentHandle, Model, ModelNotify, ModelRc, ModelTracker};
 use time::OffsetDateTime;

@@ -3,7 +3,8 @@ use std::{cell::RefCell, path::Path, path::PathBuf, rc::Rc, time::Duration};
 use slint::private_unstable_api::re_exports as slint_re_exports;
 use slint::{ComponentHandle, Global, Timer, TimerMode, Weak};
 
-use crate::device::{kvs, Device};
+use crate::device::Device;
+use crate::kvs;
 
 use super::slint::{
     Backend, MainWindow, ScreenId, SettingDatetime, SettingEntry, SettingType, SettingValue,

@@ -13,7 +13,8 @@ use ::slint::{
     PhysicalSize, Timer,
 };
 
-use crate::device::{kvs, Device};
+use crate::device::Device;
+use crate::kvs;
 
 use self::{slint::Argb1555, slint::MinimalSoftwareWindow, state::UiState};
 

@@ -7,10 +7,7 @@ use std::{
 use super::super::slint::Backend;
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
-use crate::{
-    device::{kvs, Device},
-    worker,
-};
+use crate::{device::Device, kvs, worker};
 
 use super::UiState;
 

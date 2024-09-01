@@ -8,12 +8,15 @@ use crate::ui::UI;
 
 mod bitstream;
 mod device;
+mod kvs;
 pub mod ui;
 mod worker;
 
 fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
+
+    kvs::Kvs::init()?;
 
     log::info!("Initializing device");
     Device::init()?;
