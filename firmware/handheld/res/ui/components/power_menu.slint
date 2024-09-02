@@ -25,7 +25,7 @@ export component PowerMenu inherits Rectangle {
             btn-power-off := Button {
                 text: "Power Off";
                 on-down => {
-                    btn-close.focus();
+                    btn-reboot.focus();
                     accept
                 }
                 on-pressed => {
@@ -33,10 +33,25 @@ export component PowerMenu inherits Rectangle {
                 }
             }
 
+            btn-reboot := Button {
+                text: "Reboot";
+                on-up => {
+                    btn-power-off.focus();
+                    accept
+                }
+                on-down => {
+                    btn-close.focus();
+                    accept
+                }
+                on-pressed => {
+                    Backend.reboot();
+                }
+            }
+
             btn-close := Button {
                 text: "Close";
                 on-up => {
-                    btn-power-off.focus();
+                    btn-reboot.focus();
                     accept
                 }
                 on-pressed => {
