@@ -64,6 +64,7 @@ export global Backend {
     callback main-menu-run-cartridge();
     callback main-menu-load-rom();
     callback rom-select-selected(int) -> bool;
+    callback rom-select-up() -> bool;
     callback game-set-paused(bool);
     callback game-reset();
     callback setting-changed(int, SettingValue);

@@ -19,7 +19,7 @@ impl UiState {
         let root = self.root.unwrap();
         let backend = root.global::<Backend>();
 
-        let state_: Rc<RefCell<UiState>> = state.clone();
+        let state_ = state.clone();
         backend.on_rom_select_selected(move |index| {
             let mut state = state_.borrow_mut();
             let root = state.root.unwrap();
@@ -31,6 +31,12 @@ impl UiState {
             } else {
                 false
             }
+        });
+
+        let state_ = state.clone();
+        backend.on_rom_select_up(move || {
+            let mut state = state_.borrow_mut();
+            state.rom_select_handle_select(PathBuf::new(), "..")
         });
     }
 

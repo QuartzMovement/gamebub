@@ -14,8 +14,11 @@ export component RomSelectScreen inherits ScreenBase {
         key-pressed(event) => {
             if (Backend.rom-select-is-loading) {
                 accept
-            } else if (event.text == "b") {
+            } else if event.text == "Home" && !Global.home-consumed {
                 Global.set-screen(ScreenId.MainMenu);
+                accept
+            } else if (event.text == "b") {
+                Backend.rom-select-is-loading = Backend.rom-select-up();
                 accept
             } else {
                 reject
@@ -45,10 +48,16 @@ export component RomSelectScreen inherits ScreenBase {
             HorizontalLayout {
                 Text {
                     text: "A: Select";
+                    horizontal-alignment: left;
                 }
 
                 Text {
-                    text: "B: Cancel";
+                    text: "Home: Back";
+                    horizontal-alignment: center;
+                }
+
+                Text {
+                    text: "B: Up";
                     horizontal-alignment: right;
                 }
             }
