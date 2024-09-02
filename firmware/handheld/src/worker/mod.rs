@@ -6,7 +6,6 @@ use std::sync::{mpsc, OnceLock};
 
 use crate::bitstream::CurrentBitstream;
 use crate::device::{drivers::fuel_gauge, Device};
-use crate::kvs;
 use crate::{bitstream, ui};
 
 #[derive(Debug)]
@@ -96,7 +95,6 @@ fn dispatch(message: Message) {
                     return;
                 }
             }
-            kvs::keys::LAST_ROM_PATH.set(&path);
 
             let success = match bitstream::current().deref_mut() {
                 CurrentBitstream::None => false,

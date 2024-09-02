@@ -40,8 +40,8 @@ export global Backend {
     in property <int> battery-level: 11;
     in property <int> rom-select-initial: 0;
     in-out property <int> rom-select-index: 0;
-    in property <[string]> rom-select-list: ["a", "b", "c", "d", "e"];
-    in property <string> rom-select-path: "/roms/";
+    in property <[string]> rom-select-list: [];
+    in property <string> rom-select-path: "/fake/path/";
     in property <percent> rom-select-progress: 0%;
     in property <bool> rom-select-is-loading: false;
     in property <[SettingEntry]> settings: [
@@ -64,6 +64,7 @@ export global Backend {
     callback main-menu-run-cartridge();
     callback main-menu-load-rom();
     callback rom-select-selected(int) -> bool;
+    callback rom-select-focused(int);
     callback rom-select-up() -> bool;
     callback game-set-paused(bool);
     callback game-reset();

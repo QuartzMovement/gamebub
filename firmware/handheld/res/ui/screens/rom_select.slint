@@ -17,7 +17,7 @@ export component RomSelectScreen inherits ScreenBase {
             } else if event.text == "Home" && !Global.home-consumed {
                 Global.set-screen(ScreenId.MainMenu);
                 accept
-            } else if (event.text == "b") {
+            } else if (event.text == "b" && !event.repeat) {
                 Backend.rom-select-is-loading = Backend.rom-select-up();
                 accept
             } else {
@@ -42,6 +42,9 @@ export component RomSelectScreen inherits ScreenBase {
                 }
                 on-item-selected(i) => {
                     Backend.rom-select-is-loading = Backend.rom-select-selected(i);
+                }
+                on-item-focused(i) => {
+                    Backend.rom-select-focused(i);
                 }
             }
 

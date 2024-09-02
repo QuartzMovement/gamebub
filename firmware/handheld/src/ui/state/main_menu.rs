@@ -17,7 +17,7 @@ impl UiState {
 
         let state_ = state.clone();
         backend.on_main_menu_load_rom(move || {
-            let mut state = state_.borrow_mut();
+            let state = state_.borrow_mut();
             let root = state.root.unwrap();
             let backend = root.global::<Backend>();
             worker::send(worker::Message::ListRoms(
@@ -25,7 +25,7 @@ impl UiState {
             ));
 
             // TODO: handle this from the Rom select module?
-            state.rom_select_update_list(Vec::new());
+            state.rom_select_update_path();
             backend.set_rom_select_is_loading(true);
             backend.set_rom_select_progress(0.0);
         });

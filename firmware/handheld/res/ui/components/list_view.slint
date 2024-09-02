@@ -11,6 +11,7 @@ export component ListViewBase inherits Rectangle {
     private property <int> into-view-item: 0;
     private property <length> into-view-item-y: root.item-y(root.into-view-item);
     callback on-item-selected(/* selected-item */ int);
+    callback on-item-focused(/* focused-item*/ int);
 
     changed focus-item => {
         fix-focus-item();
@@ -54,10 +55,14 @@ export component ListViewBase inherits Rectangle {
 
     protected function focus-up() {
         root.focus-item = root.focus-item - 1;
+        fix-focus-item();
+        on-item-focused(root.focus-item);
     }
 
     protected function focus-down() {
         root.focus-item = root.focus-item + 1;
+        fix-focus-item();
+        on-item-focused(root.focus-item);
     }
 
     protected function select-focus-item() {
