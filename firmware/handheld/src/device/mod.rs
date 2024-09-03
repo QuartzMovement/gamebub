@@ -161,12 +161,14 @@ impl Device<'_> {
 
         // Setup SPI
         // TODO: see if there's a good way to do this without making and leaking a Box
+        // Use DMA transfers, with an auto-assigned channel, and a maximum transfer size of 32 KiB.
+        let spi_driver_config = SpiDriverConfig::new().dma(spi::Dma::Auto(32 * 1024));
         let spi_driver = &*Box::leak(Box::new(SpiDriver::new(
             peripherals.spi2,
             pin_spi_clk,
             pin_spi_d0,
             Some(pin_spi_d1),
-            &SpiDriverConfig::new(),
+            &spi_driver_config,
         )?));
 
         // Setup LCD
