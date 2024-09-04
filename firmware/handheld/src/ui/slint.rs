@@ -25,6 +25,10 @@ impl Platform for HandheldPlatform {
         let the_beginning = *INITIAL_INSTANT.get_or_init(Instant::now);
         Instant::now() - the_beginning
     }
+
+    fn debug_log(&self, arguments: core::fmt::Arguments) {
+        log::info!("{}", arguments);
+    }
 }
 
 /// Based off of the Slint MinimalSoftwareWindow, with the internal renderer exposed.

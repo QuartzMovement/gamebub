@@ -45,6 +45,9 @@ export component ListViewBase inherits Rectangle {
         }
         into-view-item = index;
 
+        if (area.viewport-height <= area.height) {
+            area.viewport-y = 0;
+        }
         if (into-view-item-y < 0) {
             area.viewport-y += 0 - into-view-item-y;
         }
@@ -85,7 +88,8 @@ export component ListViewBase inherits Rectangle {
             y: 2px;
             width: root.has-scrollbar ? scroll-bar.x - scrollbar-width - 1px : parent.width - 4px;
             height: parent.height - 4px;
-            VerticalLayout {
+            viewport-height: contents.min-height;
+            contents := VerticalLayout {
                 alignment: start;
                 @children
             }
