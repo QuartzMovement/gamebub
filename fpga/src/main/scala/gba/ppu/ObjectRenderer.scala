@@ -281,7 +281,7 @@ class ObjectRenderer extends Module {
 
       // Allow OAM fetch at the last VRAM fetch cycle.
       when (fetchObj.affine) {
-        allowOam := ((fetchCol + 1.U) >> 3) === fetchObj.w
+        allowOam := ((fetchCol + 2.U) >> 3) === fetchObj.w
       } .otherwise {
         allowOam := ((fetchCol + 3.U) >> 3) === fetchObj.w
       }
