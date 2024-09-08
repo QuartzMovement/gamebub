@@ -6,6 +6,26 @@ import lib.mem.MemoryInterface
 import lib.util.ResetSynchronizer
 import xilinx.{XpmCdcSingle, XpmFifoAsync}
 
+/**
+ * SPI receiver with a FIFO for CDC.
+ *
+ * This allows the system clock speed to be slower than the SPI clock speed.
+ * A "SPI receiver clock" is passed in, which is used to sample the SPI signals, and then
+ * a FIFO is used to synchronize memory accesses to the system clock.
+ *
+ * The SPI receiver clock can be powered down, and only powered up when the chip-select
+ * signal is asserted.
+ *
+ * Note: the maximum supported SPI clock (as in, the CLK SPI signal) is dependent on the
+ * receiver clock. For *write* transactions (from the controller to the receiver), the
+ * SPI clock must be at most 1/4 the receiver clock. That is, for a 200 MHz receiver clock,
+ * the maximum rate is 50 MHz (or ideally a bit lower).
+ * The maximum *read* speed is lower: the SPI clock is synchronized with a double-flip flop,
+ * and passed to an edge detector. This adds 3 clock latency + an additional clock for updating
+ * the SPI output buffer *after* a falling edge. Since the controller samples at the rising
+ * edge, this means that the clock must be low for at least 4 receiver clock cycles. Thus,
+ * the SPI clock during a read should be at most 1/10 the receiver clock.
+ */
 class SpiReceiverFifo(
   commandWidth: Int = 8,
   addressWidth: Int = 32,

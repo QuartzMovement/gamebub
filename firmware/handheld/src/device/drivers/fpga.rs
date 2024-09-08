@@ -41,7 +41,8 @@ pub struct Fpga<
     pin_done: PinDone,
     pin_program_b: PinProgramB,
     pin_init_b: PinInitB,
-    spi: Spi,
+    read_spi: Spi,
+    write_spi: Spi,
     program_spi: ProgramSpi,
 }
 
@@ -58,14 +59,16 @@ where
         pin_done: PinDone,
         pin_program_b: PinProgramB,
         pin_init_b: PinInitB,
-        spi: Spi,
+        read_spi: Spi,
+        write_spi: Spi,
         program_spi: ProgramSpi,
     ) -> Self {
         Fpga {
             pin_done,
             pin_program_b,
             pin_init_b,
-            spi,
+            read_spi,
+            write_spi,
             program_spi,
         }
     }
@@ -135,7 +138,7 @@ where
         data: &[u8],
     ) -> Result<(), Error> {
         let address = address.to_be_bytes();
-        self.spi
+        self.write_spi
             .transaction(&mut [
                 Operation::Write(&[command.as_write_command()]),
                 Operation::Write(&address),
@@ -145,7 +148,7 @@ where
     }
 
     /// Generic SPI read function.
-    fn spi_read(
+    pub fn spi_read(
         &mut self,
         command: SpiCommand,
         address: u32,
@@ -154,7 +157,7 @@ where
         const DUMMY_BYTES: usize = 8;
         let address = address.to_be_bytes();
         let mut dummy = [0u8; DUMMY_BYTES];
-        self.spi
+        self.read_spi
             .transaction(&mut [
                 Operation::Write(&[command.as_read_command()]),
                 Operation::Write(&address),

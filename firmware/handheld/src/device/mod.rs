@@ -10,6 +10,7 @@ use esp_idf_svc::hal::gpio::{
 };
 use esp_idf_svc::hal::gpio::{AnyOutputPin, Output, PinDriver};
 use esp_idf_svc::hal::ledc::{LedcDriver, LedcTimerDriver};
+use esp_idf_svc::hal::peripheral::Peripheral;
 use esp_idf_svc::hal::peripherals::Peripherals;
 use esp_idf_svc::hal::spi::{
     self, SpiDeviceDriver, SpiDriver, SpiDriverConfig, SpiSharedDeviceDriver, SpiSoftCsDeviceDriver,
@@ -110,7 +111,7 @@ impl Device<'_> {
         let pin_fpga_init_b = peripherals.pins.gpio8.downgrade();
         let pin_fpga_done = peripherals.pins.gpio17.downgrade_input();
         let pin_fpga_program_b = peripherals.pins.gpio18.downgrade_output();
-        let pin_fpga_spi_cs = peripherals.pins.gpio10.downgrade_output();
+        let mut pin_fpga_spi_cs = peripherals.pins.gpio10.downgrade_output();
         let pin_spi_clk = peripherals.pins.gpio12.downgrade_output();
         let pin_spi_d0 = peripherals.pins.gpio11.downgrade();
         let pin_spi_d1 = peripherals.pins.gpio13.downgrade();
@@ -226,13 +227,33 @@ impl Device<'_> {
         let fpga_done = PinDriver::input(pin_fpga_done)?;
         let fpga_program_b = PinDriver::output_od(pin_fpga_program_b)?;
         let fpga_init_b = PinDriver::input(pin_fpga_init_b)?;
-        let fpga_spi_config = spi::config::Config::new().baudrate(32.MHz().into());
-        let mut fpga_spi = SpiSoftCsDeviceDriver::new(
-            SpiSharedDeviceDriver::new(spi_driver, &fpga_spi_config)?,
-            pin_fpga_spi_cs,
-            gpio::Level::High,
-        )?;
-        fpga_spi.cs_pre_delay_us(100); // FPGA spi requires >35uS or so to stabilize after nCS.
+        let fpga_read_spi = {
+            // The FPGA supports reading at a lower clock speed than writing
+            let config = spi::config::Config::new().baudrate(16.MHz().into());
+            // SAFETY: this CS pin is used in both the read and write SPI.
+            // They're used in the same mode (output), and controlled only by software,
+            // and never used at the same time (either read *or* write are used at any time).
+            // There doesn't appear to be any other way to use different read/write clock speeds.
+            let cs_pin = unsafe { pin_fpga_spi_cs.clone_unchecked() };
+            let mut spi = SpiSoftCsDeviceDriver::new(
+                SpiSharedDeviceDriver::new(spi_driver, &config)?,
+                cs_pin,
+                gpio::Level::High,
+            )?;
+            spi.cs_pre_delay_us(100); // FPGA spi requires >35uS or so to stabilize after nCS.
+            spi
+        };
+        let fpga_write_spi = {
+            let config = spi::config::Config::new().baudrate(40.MHz().into());
+            let cs_pin = pin_fpga_spi_cs;
+            let mut spi = SpiSoftCsDeviceDriver::new(
+                SpiSharedDeviceDriver::new(spi_driver, &config)?,
+                cs_pin,
+                gpio::Level::High,
+            )?;
+            spi.cs_pre_delay_us(100); // FPGA spi requires >35uS or so to stabilize after nCS.
+            spi
+        };
         let fpga_program_config = spi::config::Config::new().baudrate(80.MHz().into());
         let fpga_program_spi = SpiDeviceDriver::new(
             spi_driver,
@@ -243,7 +264,8 @@ impl Device<'_> {
             fpga_done,
             fpga_program_b,
             fpga_init_b,
-            fpga_spi,
+            fpga_read_spi,
+            fpga_write_spi,
             fpga_program_spi,
         );
 
