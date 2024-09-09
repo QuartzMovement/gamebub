@@ -13,9 +13,11 @@ use crate::device::{drivers::fpga, Device};
 use crate::ui;
 
 use super::Bitstream;
+use save_type_detector::SaveTypeDetector;
 
 mod game_db;
 mod rtc;
+mod save_type_detector;
 
 const ROM_HEADER_LENGTH: usize = 192;
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
@@ -131,68 +133,6 @@ impl Display for RomHeader {
         let title = String::from_utf8_lossy(&self.game_title);
         let code = String::from_utf8_lossy(&self.game_code);
         write!(f, "\'{}\' ({})", title, code)
-    }
-}
-
-/// Helper struct to auto-detect save file types from a ROM file (streaming)
-struct SaveTypeDetector {
-    detected: Option<SaveType>,
-    buffer: Vec<u8>,
-}
-
-impl SaveTypeDetector {
-    const OVERLAP: usize = 16;
-    const STEP: usize = 4;
-
-    pub fn new() -> Self {
-        SaveTypeDetector {
-            detected: None,
-            buffer: vec![],
-        }
-    }
-
-    fn get(&self) -> SaveType {
-        self.detected.unwrap_or_default()
-    }
-
-    fn search(data: &[u8]) -> Option<SaveType> {
-        static PATTERNS: &[(&[u8], SaveType)] = &[
-            (b"EEPROM_V", SaveType::EepromAuto),
-            (b"SRAM_V", SaveType::Sram),
-            (b"SRAM_F_V", SaveType::Sram),
-            (b"FLASH_V", SaveType::Flash64K),
-            (b"FLASH512_V", SaveType::Flash64K),
-            (b"FLASH1M_V", SaveType::Flash128K),
-        ];
-        for start in (0..data.len()).step_by(Self::STEP) {
-            let region = &data[start..];
-            for &(pattern, type_) in PATTERNS {
-                if region.starts_with(pattern) {
-                    return Some(type_);
-                }
-            }
-        }
-        None
-    }
-
-    /// Process the next chunk of data.
-    pub fn process(&mut self, data: &[u8]) {
-        if self.detected.is_some() {
-            return;
-        }
-
-        // Check the overlap of the last buffer to this buffer.
-        let prefix = &data[..(data.len().min(Self::OVERLAP))];
-        self.buffer.extend_from_slice(prefix);
-        self.detected = Self::search(prefix);
-        if self.detected.is_some() {
-            return;
-        }
-
-        self.detected = Self::search(data);
-        let suffix = &data[(data.len().saturating_sub(Self::OVERLAP) & !(Self::STEP - 1))..];
-        self.buffer.clear();
-        self.buffer.extend_from_slice(suffix);
     }
 }
 
