@@ -58,6 +58,11 @@ pub fn mount_sdcard(
         __bindgen_anon_1: esp_idf_sys::sdmmc_host_t__bindgen_ty_1 {
             deinit: Some(esp_idf_sys::sdmmc_host_deinit),
         },
+        input_delay_phase: esp_idf_sys::sdmmc_delay_phase_t_SDMMC_DELAY_PHASE_0,
+        set_input_delay: Some(esp_idf_sys::sdmmc_host_set_input_delay),
+        dma_aligned_buffer: std::ptr::null_mut(),
+        pwr_ctrl_handle: std::ptr::null_mut(),
+        get_dma_info: Some(esp_idf_sys::sdmmc_host_get_dma_info),
     };
 
     let slot_config = esp_idf_sys::sdmmc_slot_config_t {
@@ -86,6 +91,7 @@ pub fn mount_sdcard(
         max_files: 4,
         allocation_unit_size: 16 * 1024,
         disk_status_check_enable: false,
+        use_one_fat: false,
     };
 
     let mount_point = CString::new(path)
