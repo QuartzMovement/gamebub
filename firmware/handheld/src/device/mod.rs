@@ -358,7 +358,6 @@ impl Device<'_> {
         let _ = self.set_fpga_power(false);
         kvs::keys::flush_all();
         esp_idf_svc::hal::reset::restart();
-        unreachable!();
     }
 
     /// Set the LCD brightness. The input is a float in the range [0.0, 1.0].
