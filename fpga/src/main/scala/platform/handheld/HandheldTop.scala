@@ -153,6 +153,8 @@ class HandheldLink extends Bundle {
 }
 
 class HandheldInterrupts extends Bundle {
+  val spiResponseFifoUnderflow = Bool()
+  val spiRequestFifoOverflow = Bool()
   val moduleVblank = Bool()
 }
 
@@ -242,10 +244,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val moduleEnable = Bool()
   }))
   val buttonRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
-  val spiStatusRegister = RegInit(0.U.asTypeOf(new Bundle() {
-    val requestFifoOverflow = Bool()
-    val responseFifoUnderflow = Bool()
-  }))
   val interruptEnable = RegInit(0.U.asTypeOf(new HandheldInterrupts))
   val interruptFlags = RegInit(0.U.asTypeOf(new HandheldInterrupts))
   val statusRegister = Cat(
@@ -270,7 +268,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     entries = Seq(
       0x0 -> RegisterMap.Entry.rw(controlRegister),
       0x4 -> RegisterMap.Entry.rw(buttonRegister),
-      0x8 -> RegisterMap.Entry.rw(spiStatusRegister),
       0xC -> RegisterMap.Entry.rw(interruptEnable),
       0x10 -> RegisterMap.Entry(
         interruptFlags.getWidth,
@@ -313,10 +310,11 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
   controlRegister.moduleVblank := module.io.vblank
   when (spi.io.debugRequestOverflow) {
-    spiStatusRegister.requestFifoOverflow := true.B
+    interruptFlags.spiRequestFifoOverflow := true.B
+
   }
   when (spi.io.debugResponseUnderflow) {
-    spiStatusRegister.responseFifoUnderflow := true.B
+    interruptFlags.spiResponseFifoUnderflow := true.B
   }
 
   //////////////////////////////////
