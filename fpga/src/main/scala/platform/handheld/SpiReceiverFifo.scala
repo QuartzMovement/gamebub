@@ -110,6 +110,7 @@ class SpiReceiverFifo(
       // SPI State
       val shiftRegisterLength = commandWidth.max(addressWidth).max(dataWidth)
       val state = RegInit(State.init)
+      val regLineWidth = RegInit(SpiLineWidth.single)
       val shiftInReg = Reg(UInt(shiftRegisterLength.W))
       val shiftInCounter = Reg(UInt((log2Ceil(shiftRegisterLength) + 1).W))
       val shiftOutReg = Reg(UInt(shiftRegisterLength.W))
@@ -117,15 +118,38 @@ class SpiReceiverFifo(
       val regCommand = Reg(new SpiCommand)
       val regDummyTimer = Reg(UInt((log2Ceil(dummyBytes) + 1).W))
 
+      val lineWidthInBits = WireDefault(1.U(3.W))
       val wordSizeInBits = (8.U << regCommand.wordSize).asUInt
+
+      val dataOut = Wire(UInt(4.W))
+      io.signals.serialOut := DontCare
+      io.signals.serialDir := 0.U
+      switch (regLineWidth) {
+        is (SpiLineWidth.single) {
+          // D0: data input, D1: data output
+          lineWidthInBits := 1.U
+          io.signals.serialOut := Cat(dataOut(3), 0.U(1.W))
+          io.signals.serialDir := "b0010".U(4.W)
+        }
+        is (SpiLineWidth.dual) {
+          lineWidthInBits := 2.U
+          io.signals.serialOut := Cat(dataOut(3), dataOut(2))
+          io.signals.serialDir := Mux(state === State.readData, "b0011".U(4.W), 0.U)
+        }
+        is (SpiLineWidth.quad) {
+          lineWidthInBits := 4.U
+          io.signals.serialOut := Cat(dataOut(3), dataOut(2), dataOut(1), dataOut(0))
+          io.signals.serialDir := Mux(state === State.readData, "b1111".U(4.W), 0.U)
+        }
+      }
 
       // When true, keeps the fast clock powered up even if nCS goes high.
       val keepAlive = RegInit(false.B)
       io.clockSpiPowerDown := io.signals.chipSelect && !keepAlive
 
       // SPI I/O
-      io.signals.serialOut := VecInit(Seq(
-        shiftOutReg(7), shiftOutReg(15), shiftOutReg(31), shiftOutReg(31),
+      dataOut := VecInit(Seq(
+        shiftOutReg(7, 4), shiftOutReg(15, 12), shiftOutReg(31, 28), shiftOutReg(31, 28),
       ))(regCommand.wordSize)
 
       val prevSerialClock = RegNext(serialClock)
@@ -143,8 +167,18 @@ class SpiReceiverFifo(
 
         // Rising clock: sample data
         when(risingClock) {
-          shiftInReg := Cat(shiftInReg, serialIn)
-          shiftInCounter := shiftInCounter - 1.U
+          switch (regLineWidth) {
+            is (SpiLineWidth.single) {
+              shiftInReg := Cat(shiftInReg, serialIn(0))
+            }
+            is (SpiLineWidth.dual) {
+              shiftInReg := Cat(shiftInReg, serialIn(1, 0))
+            }
+            is (SpiLineWidth.quad) {
+              shiftInReg := Cat(shiftInReg, serialIn(3, 0))
+            }
+          }
+          shiftInCounter := shiftInCounter - lineWidthInBits
         }
         // Falling clock: shift out data
         when(fallingClock) {
@@ -192,10 +226,10 @@ class SpiReceiverFifo(
               regDummyTimer := regDummyTimer - 1.U
             }
 
-            shiftOutCounter := wordSizeInBits - 1.U
+            shiftOutCounter := wordSizeInBits - lineWidthInBits
           }.otherwise {
-            shiftOutReg := shiftOutReg << 1
-            shiftOutCounter := shiftOutCounter - 1.U
+            shiftOutReg := shiftOutReg << lineWidthInBits
+            shiftOutCounter := shiftOutCounter - lineWidthInBits
           }
         }
 
@@ -203,9 +237,13 @@ class SpiReceiverFifo(
           switch(state) {
             is(State.writeCommand) {
               // Finished writing command
-              regCommand := shiftInReg.asTypeOf(new SpiCommand)
+              val command = suppressEnumCastWarning {
+                shiftInReg.asTypeOf(new SpiCommand)
+              }
+              regCommand := command
               state := State.writeAddress
               shiftInCounter := addressWidth.U
+              regLineWidth := command.lineWidth
             }
             is(State.writeAddress) {
               // Finished writing address.

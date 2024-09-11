@@ -227,10 +227,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   spi.io.clockSpi := io.clockSpi
   spi.io.clockSpiLocked := io.clockSpiLocked
   io.clockSpiPowerDown := spi.io.clockSpiPowerDown
-  io.mcuSpiDataDir := Mux(io.mcuSpiChipSelect, 0.U, "b0010".U)
-  io.mcuSpiDataOut := Cat(0.U(2.W), spi.io.signals.serialOut, 0.U(1.W))
+  io.mcuSpiDataDir := Mux(io.mcuSpiChipSelect, 0.U, spi.io.signals.serialDir)
+  io.mcuSpiDataOut := spi.io.signals.serialOut
   spi.io.signals.serialClock := io.mcuSpiClock
-  spi.io.signals.serialIn := io.mcuSpiDataIn(0)
+  spi.io.signals.serialIn := io.mcuSpiDataIn
   spi.io.signals.chipSelect := io.mcuSpiChipSelect
 
   val controlRegister = RegInit(0.U.asTypeOf(new Bundle() {

@@ -6,15 +6,23 @@ import chisel3.util._
 /** Raw SPI signals, unsynchronized. */
 class SpiSignals extends Bundle {
   val serialClock = Input(Bool())
-  val serialIn = Input(Bool())
-  /** Serial out, high-z if chip-select is high. */
-  val serialOut = Output(Bool())
+  val serialIn = Input(UInt(4.W))
+  val serialOut = Output(UInt(4.W))
+  val serialDir = Output(UInt(4.W))
   /** Active-low chip select */
   val chipSelect = Input(Bool())
-  // TODO implement QSPI
+}
+
+object SpiLineWidth extends ChiselEnum {
+  val single = Value
+  val dual = Value
+  val quad = Value
+  // last value: single 3-wire?
 }
 
 class SpiCommand extends Bundle {
+  /** Bit 5-6: Address and data line width */
+  val lineWidth = SpiLineWidth()
   /** Bit 4: Autoincrement address by word size */
   val autoIncrement = Bool()
   /** Bit 3: 1 to enable byte swapping (within the word) */
