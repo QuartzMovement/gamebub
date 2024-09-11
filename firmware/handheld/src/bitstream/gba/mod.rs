@@ -6,6 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
+use esp_idf_svc::hal::units::Hertz;
 use rtc::RtcState;
 use thiserror::Error;
 
@@ -23,6 +24,7 @@ mod game_db;
 mod rtc;
 mod save_type_detector;
 
+const SYSTEM_CLOCK_RATE: Hertz = Hertz(16 * 1024 * 1024);
 const ROM_HEADER_LENGTH: usize = 192;
 const PROGRESS_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
 
@@ -189,7 +191,11 @@ impl Gba {
             byte_swap: true,
             increment_address: true,
         };
-        device.fpga.spi_write(command, address, &buf)?;
+        // 32 bits per transfer, 2 clocks each.
+        let max_clock = SYSTEM_CLOCK_RATE * 32 / (4 * 2);
+        device
+            .fpga
+            .spi_write(Some(max_clock), command, address, &buf)?;
 
         self.bios_path = Some(bios_path);
         Ok(())
@@ -458,6 +464,7 @@ impl Bitstream for Gba {
     }
 
     fn on_after_program(&mut self) -> Result<(), String> {
+        Device::lock().fpga.set_system_clock_rate(SYSTEM_CLOCK_RATE);
         Ok(())
     }
 

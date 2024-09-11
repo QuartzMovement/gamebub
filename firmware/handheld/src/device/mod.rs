@@ -15,7 +15,7 @@ use esp_idf_svc::hal::peripherals::Peripherals;
 use esp_idf_svc::hal::spi::{
     self, SpiDeviceDriver, SpiDriver, SpiDriverConfig, SpiSharedDeviceDriver, SpiSoftCsDeviceDriver,
 };
-use esp_idf_svc::hal::units::FromValueType;
+use esp_idf_svc::hal::units::{FromValueType, Hertz};
 use esp_idf_svc::hal::{i2c::*, ledc};
 
 pub mod drivers;
@@ -70,10 +70,10 @@ pub struct Device<'a> {
 
     /// FPGA driver
     pub fpga: drivers::fpga::Fpga<
+        'a,
         PinDriver<'a, AnyInputPin, Input>,
         PinDriver<'a, AnyOutputPin, Output>,
         PinDriver<'a, AnyIOPin, Input>,
-        SpiSoftCsDeviceDriver<'a, SpiSharedDeviceDriver<'a, &'a SpiDriver<'a>>, &'a SpiDriver<'a>>,
         SpiDeviceDriver<'a, &'a SpiDriver<'a>>,
     >,
 
@@ -175,11 +175,13 @@ impl Device<'_> {
         // TODO: see if there's a good way to do this without making and leaking a Box
         // Use DMA transfers, with an auto-assigned channel, and a maximum transfer size of 32 KiB.
         let spi_driver_config = SpiDriverConfig::new().dma(spi::Dma::Auto(32 * 1024));
-        let spi_driver = &*Box::leak(Box::new(SpiDriver::new(
+        let spi_driver = &*Box::leak(Box::new(SpiDriver::new_quad(
             peripherals.spi2,
             pin_spi_clk,
             pin_spi_d0,
-            Some(pin_spi_d1),
+            pin_spi_d1,
+            pin_spi_d2,
+            pin_spi_d3,
             &spi_driver_config,
         )?));
 
@@ -238,33 +240,29 @@ impl Device<'_> {
         let fpga_done = PinDriver::input(pin_fpga_done)?;
         let fpga_program_b = PinDriver::output_od(pin_fpga_program_b)?;
         let fpga_init_b = PinDriver::input(pin_fpga_init_b)?;
-        let fpga_read_spi = {
-            // The FPGA supports reading at a lower clock speed than writing
-            let config = spi::config::Config::new().baudrate(16.MHz().into());
-            // SAFETY: this CS pin is used in both the read and write SPI.
-            // They're used in the same mode (output), and controlled only by software,
-            // and never used at the same time (either read *or* write are used at any time).
-            // There doesn't appear to be any other way to use different read/write clock speeds.
-            let cs_pin = unsafe { pin_fpga_spi_cs.clone_unchecked() };
-            let mut spi = SpiSoftCsDeviceDriver::new(
-                SpiSharedDeviceDriver::new(spi_driver, &config)?,
-                cs_pin,
-                gpio::Level::High,
-            )?;
-            spi.cs_pre_delay_us(100); // FPGA spi requires >35uS or so to stabilize after nCS.
-            spi
-        };
-        let fpga_write_spi = {
-            let config = spi::config::Config::new().baudrate(40.MHz().into());
-            let cs_pin = pin_fpga_spi_cs;
-            let mut spi = SpiSoftCsDeviceDriver::new(
-                SpiSharedDeviceDriver::new(spi_driver, &config)?,
-                cs_pin,
-                gpio::Level::High,
-            )?;
-            spi.cs_pre_delay_us(100); // FPGA spi requires >35uS or so to stabilize after nCS.
-            spi
-        };
+
+        let spi_rates = [40.MHz(), 20.MHz(), 16.MHz(), 10.MHz()];
+        let fpga_data_spis = spi_rates
+            .iter()
+            .map(|&rate| {
+                let config = spi::config::Config::new()
+                    .baudrate(rate.into())
+                    .duplex(spi::config::Duplex::Half);
+                // SAFETY: this CS pin is used in all the data SPIs.
+                // They're used in the same mode (output), and controlled only by software,
+                // and never used at the same time (either read *or* write are used at any time).
+                // There doesn't appear to be any other way to use multiple clock speeds.
+                let cs_pin = unsafe { pin_fpga_spi_cs.clone_unchecked() };
+                let mut spi = SpiSoftCsDeviceDriver::new(
+                    SpiSharedDeviceDriver::new(spi_driver, &config).unwrap(),
+                    cs_pin,
+                    gpio::Level::High,
+                )
+                .unwrap();
+                spi.cs_pre_delay_us(100); // FPGA spi requires >35uS or so to stabilize after nCS.
+                (spi, Hertz::from(rate))
+            })
+            .collect::<Vec<_>>();
         let fpga_program_config = spi::config::Config::new().baudrate(80.MHz().into());
         let fpga_program_spi = SpiDeviceDriver::new(
             spi_driver,
@@ -275,8 +273,7 @@ impl Device<'_> {
             fpga_done,
             fpga_program_b,
             fpga_init_b,
-            fpga_read_spi,
-            fpga_write_spi,
+            fpga_data_spis,
             fpga_program_spi,
         );
 

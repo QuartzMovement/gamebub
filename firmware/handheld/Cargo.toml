@@ -66,3 +66,6 @@ slint-build = "~1.8.0"
 [[package.metadata.esp-idf-sys.extra_components]]
 remote_component = { name = "espressif/esp_tinyusb", version = "^1.4.4" }
 bindings_header = "bindings_esp_tinyusb.h"
+
+[patch.crates-io]
+esp-idf-hal = { git = "https://github.com/esp-rs/esp-idf-hal.git", rev = "97c01ef814" }

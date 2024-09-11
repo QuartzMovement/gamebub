@@ -4,7 +4,11 @@ use std::{io::Read, time::Duration};
 
 use embedded_hal::{
     digital::{InputPin, OutputPin},
-    spi::{Operation, SpiDevice},
+    spi::SpiDevice,
+};
+use esp_idf_svc::hal::{
+    spi::{config::LineWidth, Operation, SpiDriver, SpiSharedDeviceDriver, SpiSoftCsDeviceDriver},
+    units::Hertz,
 };
 use thiserror::Error;
 
@@ -21,6 +25,14 @@ pub const REG_OVERLAY_YCTRL: u32 = 0x0000_0104;
 /// Framebuffer dimensions (read only)
 pub const REG_FB_DIM: u32 = 0x0000_0200;
 
+/// The FPGA (due to the spi implementation) can read at a speed that's some
+/// fraction of the SPI domain clock speed. At 200 MHz SPI receiver clock,
+/// 16 MHz is a safe speed.
+pub const MAX_SPI_READ_CLOCK: Hertz = Hertz(16_000_000);
+
+pub type SpiDataDriver<'a> =
+    SpiSoftCsDeviceDriver<'a, SpiSharedDeviceDriver<'a, &'a SpiDriver<'a>>, &'a SpiDriver<'a>>;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("gpio error")]
@@ -34,44 +46,46 @@ pub enum Error {
 }
 
 pub struct Fpga<
+    'a,
     PinDone: InputPin,
     PinProgramB: OutputPin,
     PinInitB: InputPin,
-    Spi: SpiDevice,
     ProgramSpi: SpiDevice,
 > {
     pin_done: PinDone,
     pin_program_b: PinProgramB,
     pin_init_b: PinInitB,
-    read_spi: Spi,
-    write_spi: Spi,
+    /// List of SPI drivers and their clock speed, from largest to smallest.
+    data_spi: Vec<(SpiDataDriver<'a>, Hertz)>,
     program_spi: ProgramSpi,
+
+    /// Top-level "system" clock speed, which determines how fast reads
+    /// and writes can occur.
+    system_clock: Hertz,
 }
 
-impl<PinDone, PinProgramB, PinInitB, Spi, ProgramSpi>
-    Fpga<PinDone, PinProgramB, PinInitB, Spi, ProgramSpi>
+impl<'a, PinDone, PinProgramB, PinInitB, ProgramSpi>
+    Fpga<'a, PinDone, PinProgramB, PinInitB, ProgramSpi>
 where
     PinDone: InputPin,
     PinProgramB: OutputPin,
     PinInitB: InputPin,
-    Spi: SpiDevice,
     ProgramSpi: SpiDevice,
 {
     pub fn new(
         pin_done: PinDone,
         pin_program_b: PinProgramB,
         pin_init_b: PinInitB,
-        read_spi: Spi,
-        write_spi: Spi,
+        data_spi: Vec<(SpiDataDriver<'a>, Hertz)>,
         program_spi: ProgramSpi,
     ) -> Self {
         Fpga {
             pin_done,
             pin_program_b,
             pin_init_b,
-            read_spi,
-            write_spi,
+            data_spi,
             program_spi,
+            system_clock: Hertz(8 * 1024 * 1024),
         }
     }
 
@@ -120,6 +134,30 @@ where
         Ok(())
     }
 
+    pub fn set_system_clock_rate(&mut self, rate: Hertz) {
+        self.system_clock = rate;
+    }
+
+    /// Finds a SPI data driver with the maximum clock speed.
+    fn spi_transaction(
+        &mut self,
+        max_clock: Option<Hertz>,
+        operations: &mut [Operation],
+    ) -> Result<(), Error> {
+        let driver = &mut self.data_spi.iter_mut().find(|(_, clock)| match max_clock {
+            Some(max_clock) => *clock <= max_clock,
+            None => true,
+        });
+        let driver = match driver {
+            Some(driver) => driver,
+            None => panic!("No suitable spi for max clock {:?}", max_clock),
+        };
+        driver
+            .0
+            .transaction(operations)
+            .map_err(|_| Error::SpiError)
+    }
+
     const fn spi_command(
         read: bool,
         word_size: FpgaSpiWordSize,
@@ -135,38 +173,48 @@ where
     /// Generic SPI write function.
     pub fn spi_write(
         &mut self,
+        max_clock: Option<Hertz>,
         command: SpiCommand,
         address: u32,
         data: &[u8],
     ) -> Result<(), Error> {
+        let width = LineWidth::Quad;
+        let mut command = command.as_write_command();
+        command |= (width as u8) << 5;
         let address = address.to_be_bytes();
-        self.write_spi
-            .transaction(&mut [
-                Operation::Write(&[command.as_write_command()]),
-                Operation::Write(&address),
-                Operation::Write(&data),
-            ])
-            .map_err(|_| Error::SpiError)
+        self.spi_transaction(
+            max_clock,
+            &mut [
+                Operation::Write(&[command]),
+                Operation::WriteWithWidth(&address, width),
+                Operation::WriteWithWidth(&data, width),
+            ],
+        )
     }
 
     /// Generic SPI read function.
     pub fn spi_read(
         &mut self,
+        max_clock: Option<Hertz>,
         command: SpiCommand,
         address: u32,
         buffer: &mut [u8],
     ) -> Result<(), Error> {
-        const DUMMY_BYTES: usize = 8;
+        let width = LineWidth::Quad;
+        let mut command = command.as_read_command();
+        command |= (width as u8) << 5;
         let address = address.to_be_bytes();
+        const DUMMY_BYTES: usize = 8;
         let mut dummy = [0u8; DUMMY_BYTES];
-        self.read_spi
-            .transaction(&mut [
-                Operation::Write(&[command.as_read_command()]),
-                Operation::Write(&address),
-                Operation::Read(&mut dummy),
-                Operation::Read(buffer),
-            ])
-            .map_err(|_| Error::SpiError)
+        self.spi_transaction(
+            max_clock,
+            &mut [
+                Operation::Write(&[command]),
+                Operation::WriteWithWidth(&address, width),
+                Operation::ReadWithWidth(&mut dummy, width),
+                Operation::ReadWithWidth(buffer, width),
+            ],
+        )
     }
 
     pub fn write_u32(&mut self, address: u32, data: u32) -> Result<(), Error> {
@@ -176,7 +224,7 @@ where
             increment_address: true,
         };
         let data = data.to_be_bytes();
-        self.spi_write(command, address, &data)
+        self.spi_write(None, command, address, &data)
     }
 
     pub fn read_u32(&mut self, address: u32) -> Result<u32, Error> {
@@ -186,7 +234,7 @@ where
             byte_swap: false,
             increment_address: true,
         };
-        self.spi_read(command, address, &mut data)?;
+        self.spi_read(Some(MAX_SPI_READ_CLOCK), command, address, &mut data)?;
         Ok(u32::from_be_bytes(data))
     }
 
@@ -197,7 +245,10 @@ where
             byte_swap: true,
             increment_address: true,
         };
-        self.spi_write(command, address, data)
+        // SRAM transfers at 16 bits per transfer and takes 3 (!) cycles.
+        // (rate * (bits per transfer)) / ((bits per quad clock) * (cycles per transfer))
+        let max_clock = (self.system_clock.0 * 16) / (4 * 3);
+        self.spi_write(Some(Hertz(max_clock)), command, address, data)
     }
 
     pub fn sram_read(&mut self, address: u32, data: &mut [u8]) -> Result<(), Error> {
@@ -207,7 +258,9 @@ where
             byte_swap: true,
             increment_address: true,
         };
-        self.spi_read(command, address, data)
+        let max_clock = ((self.system_clock.0 * 16) / (4 * 3)).min(MAX_SPI_READ_CLOCK.0);
+        // log::info!("sram read with {:?}", max_clock);
+        self.spi_read(Some(Hertz(max_clock)), command, address, data)
     }
 
     pub fn sdram_write(&mut self, address: u32, data: &[u8]) -> Result<(), Error> {
@@ -217,7 +270,9 @@ where
             byte_swap: true,
             increment_address: true,
         };
-        self.spi_write(command, address, data)
+        // SDRAM transfers at 32 bits per transfer and takes 3.35 cycles on average (empirical).
+        let max_clock = (self.system_clock.0 as f32) * (32.0 / 4.0) / 3.35;
+        self.spi_write(Some(Hertz(max_clock as u32)), command, address, data)
     }
 
     pub fn sdram_read(&mut self, address: u32, data: &mut [u8]) -> Result<(), Error> {
@@ -227,7 +282,9 @@ where
             byte_swap: true,
             increment_address: true,
         };
-        self.spi_read(command, address, data)
+        let max_clock =
+            (((self.system_clock.0 as f32) * (32.0 / 4.0) / 3.35) as u32).min(MAX_SPI_READ_CLOCK.0);
+        self.spi_read(Some(Hertz(max_clock)), command, address, data)
     }
 
     /// Configure the drawing bounds of the overlay.
@@ -263,7 +320,9 @@ where
             byte_swap: true,
             increment_address: true,
         };
-        self.spi_write(command, 0x38000000 | offset, data)
+        // 16 bits per transfer, 2 cycles per transfer.
+        let max_clock = (self.system_clock.0 * 16) / (4 * 2);
+        self.spi_write(Some(Hertz(max_clock)), command, 0x38000000 | offset, data)
     }
 
     /// Get the state of the cartridge slot button.

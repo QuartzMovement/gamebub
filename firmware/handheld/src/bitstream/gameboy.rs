@@ -1,3 +1,4 @@
+use esp_idf_svc::hal::units::Hertz;
 use std::{
     fs::File,
     io::{Read, Seek, Write},
@@ -15,6 +16,7 @@ use crate::{ui, util::ReaderResult};
 
 use super::Bitstream;
 
+const SYSTEM_CLOCK_RATE: Hertz = Hertz(8 * 1024 * 1024);
 const PROGRESS_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
 
 const REG_EMU_CONFIG: u32 = 0xC000_0000;
@@ -197,7 +199,13 @@ impl Gameboy {
             byte_swap: true,
             increment_address: true,
         };
-        device.fpga.spi_write(command, address, &buf)?;
+        // 8 bits per transfer, 2 clocks each.
+        // This would be ~8 MHz. However, since it's such a short transfer, we can do a slightly
+        // higher rate and let the SPI FIFO buffer it.
+        let max_clock = Hertz(10_000_000);
+        device
+            .fpga
+            .spi_write(Some(max_clock), command, address, &buf)?;
 
         self.bootrom_path = Some(bios_path);
         Ok(())
@@ -403,6 +411,7 @@ impl Bitstream for Gameboy {
     }
 
     fn on_after_program(&mut self) -> Result<(), String> {
+        Device::lock().fpga.set_system_clock_rate(SYSTEM_CLOCK_RATE);
         Ok(())
     }
 
