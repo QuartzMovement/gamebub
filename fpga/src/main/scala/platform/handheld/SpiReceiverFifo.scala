@@ -158,9 +158,12 @@ class SpiReceiverFifo(
             request.data := DontCare
             fifoRequest.io.dataIn.isStart := false.B
             fifoRequest.io.dataIn.inner := request.asUInt
-            when(fifoRequest.io.full) {
+            when (fifoRequest.io.full) {
               fifoRequestOverflow := true.B
-            }.otherwise {
+            } .elsewhen(!fifoRequestOverflow) {
+              // Push the request.
+              // This happens only if there hasn't been an overflow in this transaction, otherwise there's
+              // a good chance the request will be misinterpreted (due to data loss) and cause unexpected writes.
               fifoRequest.io.writeEnable := true.B
             }
 
@@ -219,7 +222,7 @@ class SpiReceiverFifo(
               fifoRequest.io.dataIn.inner := request.asUInt
               when(fifoRequest.io.full) {
                 fifoRequestOverflow := true.B
-              }.otherwise {
+              } .otherwise {
                 fifoRequest.io.writeEnable := true.B
               }
 
@@ -250,7 +253,7 @@ class SpiReceiverFifo(
               fifoRequest.io.dataIn.inner := request.asUInt
               when(fifoRequest.io.full) {
                 fifoRequestOverflow := true.B
-              }.otherwise {
+              } .elsewhen (!fifoRequestOverflow) {
                 fifoRequest.io.writeEnable := true.B
               }
 
