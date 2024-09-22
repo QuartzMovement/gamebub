@@ -21,6 +21,7 @@ fn main() -> anyhow::Result<()> {
     log::info!("Initializing device");
     Device::init()?;
     let mut device = Device::lock();
+    device.set_brightness(kvs::keys::BRIGHTNESS.get().unwrap());
 
     // Setup workers.
     worker::start();

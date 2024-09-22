@@ -86,6 +86,8 @@ impl Device<'_> {
                 .unwrap();
             }
 
+            let mut prev_hdmi_detected: Option<bool> = None;
+
             loop {
                 let flags = match notification.wait(esp_idf_svc::hal::delay::BLOCK) {
                     Some(flags) => flags.get(),
@@ -107,8 +109,15 @@ impl Device<'_> {
                     let _ = device.button_vol_down.enable_interrupt();
                 }
 
-                let buttons = device.read_button_state().unwrap();
+                let io_expander = device.io_expander.get_pins().unwrap();
+                let buttons = device.read_button_state(io_expander).unwrap();
                 ui::send(ui::Message::Button(buttons));
+
+                let hdmi_detected = device.parse_hdmi_detect(io_expander).unwrap();
+                if prev_hdmi_detected != Some(hdmi_detected) {
+                    prev_hdmi_detected = Some(hdmi_detected);
+                    worker::send(worker::Message::HdmiDetectState(hdmi_detected));
+                }
 
                 if (flags & FLAG_MCU_IRQ.get()) != 0 {
                     log::debug!("Interrupt: MCU_IRQ");

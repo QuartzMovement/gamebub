@@ -8,9 +8,11 @@ use embedded_hal::{
 };
 use thiserror::Error;
 
+use crate::device::DisplayMode;
+
 pub const REG_CONTROL: u32 = 0x0000_0000;
 pub const REG_BUTTON: u32 = 0x0000_0004;
-pub const REG_SPI_STATUS: u32 = 0x0000_0008;
+pub const REG_DISPLAY: u32 = 0x0000_0008;
 pub const REG_IRQ_ENABLE: u32 = 0x0000_000C;
 pub const REG_IRQ_STATUS: u32 = 0x0000_0010;
 pub const REG_STATUS: u32 = 0x0000_0014;
@@ -267,6 +269,10 @@ where
     /// Get the state of the cartridge slot button.
     pub fn get_cartridge_slot_button(&mut self) -> Result<bool, Error> {
         Ok((self.read_u32(REG_STATUS)? & 1) != 0)
+    }
+
+    pub fn set_display_mode(&mut self, new_mode: DisplayMode) -> Result<(), Error> {
+        self.write_u32(REG_DISPLAY, (new_mode == DisplayMode::External) as u32)
     }
 }
 

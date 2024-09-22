@@ -1,10 +1,13 @@
 #![allow(unused)]
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use thiserror::Error;
 
 use embedded_hal::digital::OutputPin;
 use embedded_hal::spi::SpiDevice;
+
+/// Duration between successive calls to sleep in / sleep out.
+const SLEEP_CHANGE_DELAY: Duration = Duration::from_millis(120);
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -20,6 +23,7 @@ pub struct ILI9488<PinReset: OutputPin, PinDc: OutputPin, Spi: SpiDevice> {
     pin_reset: PinReset,
     pin_dc: PinDc,
     spi: Spi,
+    last_sleep_change: Instant,
 }
 
 impl<PinReset, PinDc, Spi> ILI9488<PinReset, PinDc, Spi>
@@ -33,6 +37,7 @@ where
             pin_reset,
             pin_dc,
             spi,
+            last_sleep_change: Instant::now(),
         }
     }
 
@@ -40,8 +45,7 @@ where
         self.pin_reset.set_low().map_err(|_| Error::ResetError)?;
         std::thread::sleep(Duration::from_micros(100));
         self.pin_reset.set_high().map_err(|_| Error::ResetError)?;
-        std::thread::sleep(Duration::from_millis(120));
-        // Must wait 120ms to send "sleep out" command.
+        self.last_sleep_change = Instant::now();
 
         // "Adjust Control 3": params have no specified meaning
         self.write_cmd(0xF7, &[0xA9, 0x51, 0x2C, 0x82])?;
@@ -107,13 +111,33 @@ where
         // Display Inversion ON (?? from vendor)
         self.write_cmd(0x21, &[])?;
 
+        Ok(())
+    }
+
+    pub fn enter_sleep(&mut self) -> Result<(), Error> {
+        let wait_time = SLEEP_CHANGE_DELAY.saturating_sub(self.last_sleep_change.elapsed());
+        std::thread::sleep(wait_time);
+
+        // Sleep in
+        self.write_cmd(0x10, &[])?;
+        self.last_sleep_change = Instant::now();
+
+        Ok(())
+    }
+
+    pub fn exit_sleep(&mut self) -> Result<(), Error> {
+        let wait_time = SLEEP_CHANGE_DELAY.saturating_sub(self.last_sleep_change.elapsed());
+        std::thread::sleep(wait_time);
+
         // Sleep out
         self.write_cmd(0x11, &[])?;
-        std::thread::sleep(Duration::from_millis(10));
+        self.last_sleep_change = Instant::now();
+
+        // Must wait 5ms before sending commands after sleep out.
+        std::thread::sleep(Duration::from_millis(5));
 
         // Display on
         self.write_cmd(0x29, &[])?;
-        std::thread::sleep(Duration::from_millis(10));
 
         Ok(())
     }

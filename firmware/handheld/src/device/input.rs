@@ -4,8 +4,7 @@ use enum_map::enum_map;
 
 impl Device<'_> {
     /// Get the current state of the buttons.
-    pub fn read_button_state(&mut self) -> Result<ButtonMap, ()> {
-        let io_expander = self.io_expander.get_pins().map_err(|_| ())?;
+    pub fn read_button_state(&mut self, io_expander: [bool; 16]) -> Result<ButtonMap, ()> {
         Ok(enum_map! {
          Button::A => !io_expander[3],
          Button::B => !io_expander[4],
@@ -24,5 +23,16 @@ impl Device<'_> {
          Button::VolDown => self.button_vol_down.is_low(),
          Button::Power => self.button_power.is_low(),
         })
+    }
+
+    /// Get whether an HDMI cable is plugged in based on IO expander state
+    pub(super) fn parse_hdmi_detect(&mut self, io_expander: [bool; 16]) -> Result<bool, ()> {
+        // Rev A: HDMI hot plug detect is active-low.
+        Ok(!io_expander[5])
+    }
+
+    pub fn read_hdmi_detect(&mut self) -> Result<bool, ()> {
+        let io_expander = self.io_expander.get_pins().map_err(|_| ())?;
+        self.parse_hdmi_detect(io_expander)
     }
 }

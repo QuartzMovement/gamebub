@@ -28,6 +28,13 @@ const FPGA_POWER_DELAY: Duration = Duration::from_millis(100);
 
 static DEVICE: OnceLock<Mutex<Device>> = OnceLock::new();
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum DisplayMode {
+    None,
+    Internal,
+    External,
+}
+
 /// Main container for device hardware.
 pub struct Device<'a> {
     /// Status led, active-high.
@@ -43,6 +50,7 @@ pub struct Device<'a> {
 
     /// LCD backlight PWM driver.
     lcd_backlight: LedcDriver<'a>,
+    lcd_backlight_duty: u16,
 
     /// LCD driver
     pub lcd: drivers::lcd::ILI9488<
@@ -50,6 +58,9 @@ pub struct Device<'a> {
         PinDriver<'a, AnyOutputPin, Output>,
         SpiSoftCsDeviceDriver<'a, SpiSharedDeviceDriver<'a, &'a SpiDriver<'a>>, &'a SpiDriver<'a>>,
     >,
+
+    /// Display mode (if initialized)
+    pub display_mode: DisplayMode,
 
     /// DAC driver
     pub dac: drivers::dac::TLV320DAC3101<
@@ -286,7 +297,9 @@ impl Device<'_> {
             fpga_power,
             i2c,
             lcd_backlight,
+            lcd_backlight_duty: 0,
             lcd,
+            display_mode: DisplayMode::None,
             dac,
             fpga,
             fuel_gauge,
@@ -339,7 +352,7 @@ impl Device<'_> {
     /// Gracefully turn the device off.
     pub fn power_off(&mut self) -> ! {
         log::info!("Powering off");
-        let _ = self.lcd_backlight.set_duty_cycle_fully_off();
+        let _ = self.change_display_mode(DisplayMode::None);
         let _ = self.dac.reset();
         let _ = self.set_fpga_power(false);
         kvs::keys::flush_all();
@@ -354,7 +367,7 @@ impl Device<'_> {
     /// Gracefully soft reset.
     pub fn reboot(&mut self) -> ! {
         log::info!("Rebooting");
-        let _ = self.lcd_backlight.set_duty_cycle_fully_off();
+        let _ = self.change_display_mode(DisplayMode::None);
         let _ = self.set_fpga_power(false);
         kvs::keys::flush_all();
         esp_idf_svc::hal::reset::restart();
@@ -374,7 +387,10 @@ impl Device<'_> {
             duty,
             max_duty
         );
-        self.lcd_backlight.set_duty_cycle(duty).unwrap();
+        self.lcd_backlight_duty = duty;
+        if self.display_mode == DisplayMode::Internal {
+            self.lcd_backlight.set_duty_cycle(duty).unwrap();
+        }
     }
 
     /// Initialize the system time (after boot).
@@ -419,5 +435,35 @@ impl Device<'_> {
         let ts = dt.unix_timestamp();
         let dt = drivers::rtc::Datetime::from_timestamp(ts as u64).unwrap_or_default();
         self.rtc.write_datetime(dt).unwrap();
+    }
+
+    /// Update the display mode (internal vs external).
+    pub fn change_display_mode(&mut self, new_mode: DisplayMode) -> Result<(), anyhow::Error> {
+        let old_mode = self.display_mode;
+        if old_mode == new_mode {
+            return Ok(());
+        }
+        log::info!("Display mode: {:?}", new_mode);
+
+        if old_mode == DisplayMode::Internal {
+            self.lcd_backlight.set_duty_cycle_fully_off().unwrap();
+            self.lcd.enter_sleep()?;
+        }
+
+        self.fpga.set_display_mode(new_mode)?;
+
+        if new_mode == DisplayMode::Internal {
+            self.lcd.exit_sleep()?;
+            self.lcd_backlight
+                .set_duty_cycle(self.lcd_backlight_duty)
+                .unwrap();
+        }
+
+        self.display_mode = new_mode;
+        Ok(())
+    }
+
+    pub fn get_display_mode(&self) -> DisplayMode {
+        self.display_mode
     }
 }

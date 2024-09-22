@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{mpsc, OnceLock};
 
 use crate::bitstream::CurrentBitstream;
+use crate::device::DisplayMode;
 use crate::device::{drivers::fuel_gauge, Device};
 use crate::{bitstream, ui};
 
@@ -16,6 +17,8 @@ pub enum Message {
     FuelGaugeAlert(fuel_gauge::Alert),
     /// The headphone state has changed
     HeadphoneState(bool),
+    /// The HDMI hot plug detect state has changed
+    HdmiDetectState(bool),
 
     /// Run a cartridge
     RunCartridge,
@@ -134,6 +137,15 @@ fn dispatch(message: Message) {
                 }
             };
             ui::send(ui::Message::RomSelectFiles(files))
+        }
+        Message::HdmiDetectState(hdmi_detected) => {
+            let mode = if hdmi_detected {
+                DisplayMode::External
+            } else {
+                DisplayMode::Internal
+            };
+            let mut device = Device::lock();
+            device.change_display_mode(mode).unwrap();
         }
         _ => {
             log::warn!("Unhandled message: {:?}", message);

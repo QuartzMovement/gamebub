@@ -42,9 +42,9 @@ fn program_fpga(path: &str) {
     let mut device = Device::lock();
     let file = File::open(path).unwrap();
     let mut bitstream = GzDecoder::new(file);
-    device.lcd.enable_mcu_control().unwrap();
     device.fpga.program(&mut bitstream).unwrap();
-    device.lcd.enable_fpga_control().unwrap();
+    let display_mode = device.get_display_mode();
+    device.fpga.set_display_mode(display_mode).unwrap();
     ui::send(ui::Message::Redraw);
 }
 

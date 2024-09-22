@@ -13,8 +13,7 @@ use ::slint::{
     PhysicalSize, Timer,
 };
 
-use crate::device::Device;
-use crate::kvs;
+use crate::device::{Device, DisplayMode};
 
 use self::{slint::Argb1555, slint::MinimalSoftwareWindow, state::UiState};
 
@@ -149,9 +148,13 @@ impl UI {
 
                 if first_render {
                     first_render = false;
-                    line_buffer
-                        .device
-                        .set_brightness(kvs::keys::BRIGHTNESS.get().unwrap());
+                    let device = line_buffer.device;
+                    let display_mode = if device.read_hdmi_detect().unwrap() {
+                        DisplayMode::External
+                    } else {
+                        DisplayMode::Internal
+                    };
+                    device.change_display_mode(display_mode).unwrap();
                 }
 
                 // If we changed the repaint buffer type to force a redraw, change it back.
