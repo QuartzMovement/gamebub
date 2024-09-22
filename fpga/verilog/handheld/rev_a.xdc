@@ -23,12 +23,21 @@ set_property ram_decomp power [get_cells handheld_top/framebuffers_mem_ext/Memor
 set_property ram_decomp power [get_cells handheld_top/framebuffers_mem_*_ext/Memory_reg]
 
 ########################################
-# Cartridge Slot
+# Clocking
 ########################################
-# Clock signal
+# External 50 MHz input clock
 set_property -dict { PACKAGE_PIN E3     IOSTANDARD LVCMOS33 } [get_ports { clk_50mhz }];
 create_clock -add -name sys_clk_pin -period 20.00 -waveform {0 10} [get_ports { clk_50mhz }];
 set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets clk_in_50mhz]
+
+# The 'dpi' and 'hdmi' clocks pass through a clock mux, and are mutually exclusive.
+# Mark their fanouts as being in a physically exclusive clock group.
+set_clock_groups -name exclusive_dpi_hdmi -physically_exclusive -group clk_out_dpi_clk_wiz_system -group clk_out_hdmi_clk_wiz_system
+
+# Mark the BUFGMUX_CTRL select input as having a false path.
+# From UG472, the select input's setup/hold times only determine whether the old clock is used for an extra cycle
+# after changing, which we don't care about.
+set_false_path -setup -hold -to bufgmux_av/S0
 
 ########################################
 # Cartridge Slot
@@ -168,14 +177,14 @@ set_property -dict { PACKAGE_PIN J3     IOSTANDARD LVCMOS33 } [get_ports { mcu_i
 # HDMI
 ########################################
 # Note: D0+/- are swapped (should be negated?)
-# set_property -dict { PACKAGE_PIN B1     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_p         }];
-# set_property -dict { PACKAGE_PIN A1     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_n         }];
-# set_property -dict { PACKAGE_PIN C1     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_data_p[0] }];
-# set_property -dict { PACKAGE_PIN C2     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_data_n[0] }];
-# set_property -dict { PACKAGE_PIN E2     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_data_p[1] }];
-# set_property -dict { PACKAGE_PIN D2     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_data_n[1] }];
-# set_property -dict { PACKAGE_PIN F1     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_data_p[2] }];
-# set_property -dict { PACKAGE_PIN E1     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_data_n[2] }];
+set_property -dict { PACKAGE_PIN B1     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_p         }];
+set_property -dict { PACKAGE_PIN A1     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_n         }];
+set_property -dict { PACKAGE_PIN C1     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[0] }];
+set_property -dict { PACKAGE_PIN C2     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_n[0] }];
+set_property -dict { PACKAGE_PIN E2     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[1] }];
+set_property -dict { PACKAGE_PIN D2     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_n[1] }];
+set_property -dict { PACKAGE_PIN F1     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[2] }];
+set_property -dict { PACKAGE_PIN E1     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_n[2] }];
 
 # set_property -dict { PACKAGE_PIN D3     IOSTANDARD LVCMOS33 } [get_ports { hdmi_scl   }];
 # set_property -dict { PACKAGE_PIN E6     IOSTANDARD LVCMOS33 } [get_ports { hdmi_sda   }];

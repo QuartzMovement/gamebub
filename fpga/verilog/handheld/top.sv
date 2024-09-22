@@ -79,7 +79,12 @@ module top_handheld (
     inout  wire [15:0] sdram_dq,
 
     inout  wire [3:0]  pmod,
-    output wire        vibrate_en
+    output wire        vibrate_en,
+
+    output wire        hdmi_clk_p,
+    output wire        hdmi_clk_n,
+    output wire [2:0]  hdmi_data_p,
+    output wire [2:0]  hdmi_data_n
 );
     logic pll_reset = 1'd0;
     logic reset = 1'd0;
@@ -87,6 +92,9 @@ module top_handheld (
     logic clk_sys;
     logic clk_sys_locked;
     logic clk_sdram;
+    logic clk_dpi;
+    logic clk_hdmi;
+    logic clk_hdmi_x5;
     logic clk_av;
     logic clk_spi;
     logic clk_spi_locked;
@@ -106,7 +114,9 @@ module top_handheld (
         .clk_in_50mhz(clk_in_50mhz),
         .clk_out_sys(clk_sys),
         .clk_out_sdram(clk_sdram),
-        .clk_out_av(clk_av)
+        .clk_out_dpi(clk_dpi),
+        .clk_out_hdmi(clk_hdmi),
+        .clk_out_hdmi_x5(clk_hdmi_x5)
     );
     clk_wiz_spi_clk_wiz clk_wiz_spi(
         .reset(pll_reset),
@@ -114,6 +124,15 @@ module top_handheld (
         .power_down(clk_spi_power_down),
         .clk_in_50mhz(clk_in_50mhz),
         .clk_out_spi(clk_spi)
+    );
+
+    // AV clock mux, select between clk_dpi and clk_hdmi
+    logic hdmi_enable;
+    BUFGMUX_CTRL bufgmux_av (
+       .O(clk_av),
+       .I0(clk_dpi),
+       .I1(clk_hdmi),
+       .S(hdmi_enable)
     );
 
     logic [7:0] inner_cart_bank0_in;
@@ -157,6 +176,12 @@ module top_handheld (
     logic [15:0] inner_sdram_dq_out;
     logic inner_sdram_dq_dir;
 
+    logic hdmi_audio_clock;
+    logic [15:0] hdmi_audio [1:0];
+    logic [23:0] hdmi_rgb;
+    logic [9:0] hdmi_cx;
+    logic [9:0] hdmi_cy;
+
     ///// BEGIN Reset synchronizer
     logic [1:0] reset_sync;
     initial reset_sync = 2'b11;
@@ -197,6 +222,14 @@ module top_handheld (
         .io_dac_wclk(dac_wclk),
         .io_dac_bclk(dac_bclk),
         .io_dac_data(dac_din),
+
+        .io_hdmiEnable(hdmi_enable),
+        .io_hdmiAudioClock(hdmi_audio_clock),
+        .io_hdmiAudio_0(hdmi_audio[0]),
+        .io_hdmiAudio_1(hdmi_audio[1]),
+        .io_hdmiRgb(hdmi_rgb),
+        .io_hdmiCx(hdmi_cx),
+        .io_hdmiCy(hdmi_cy),
 
         .io_buttons_a(btn_a),
         .io_buttons_b(btn_b),
@@ -319,6 +352,36 @@ module top_handheld (
     assign {sdram_udqm, sdram_ldqm} = inner_sdram_dqm;
     assign inner_sdram_dq_in = sdram_dq;
     assign sdram_dq = inner_sdram_dq_dir ? inner_sdram_dq_out : 16'hzzzz;
+
+    // HDMI TMDS output
+    // N.B. on Rev A, D0 is inverted.
+    // TODO: see if the OBUFTDS can be used: T must be connected to OSERDESE2 output
+    logic hdmi_tmds_clock;
+    logic [2:0] hdmi_tmds_data;
+    hdmi #(
+        // Video ID code 2: 720x480 @ 60.0Hz
+        .VIDEO_ID_CODE(2),
+        .VIDEO_REFRESH_RATE(60.00),
+        .AUDIO_RATE(48000),
+        .AUDIO_BIT_WIDTH(16)
+    ) hdmi(
+        // Pass clock_hdmi directly as the pixel clock, because the OSERDESE2 requires the two clocks
+        // to pass through the same clocking resources (for phase alignment).
+        .clk_pixel_x5(clk_hdmi_x5),
+        .clk_pixel(clk_hdmi),
+        .clk_audio(hdmi_audio_clock),
+        .reset(~hdmi_enable),
+        .rgb(hdmi_rgb),
+        .audio_sample_word(hdmi_audio),
+        .tmds(hdmi_tmds_data),
+        .tmds_clock(hdmi_tmds_clock),
+        .cx(hdmi_cx),
+        .cy(hdmi_cy)
+    );
+    OBUFDS #(.IOSTANDARD("TMDS_33")) obufds0      (.I(hdmi_tmds_data[0]), .O(hdmi_data_n[0]), .OB(hdmi_data_p[0]));
+    OBUFDS #(.IOSTANDARD("TMDS_33")) obufds1      (.I(hdmi_tmds_data[1]), .O(hdmi_data_p[1]), .OB(hdmi_data_n[1]));
+    OBUFDS #(.IOSTANDARD("TMDS_33")) obufds2      (.I(hdmi_tmds_data[2]), .O(hdmi_data_p[2]), .OB(hdmi_data_n[2]));
+    OBUFDS #(.IOSTANDARD("TMDS_33")) obufds_clock (.I(hdmi_tmds_clock  ), .O(hdmi_clk_p    ), .OB(hdmi_clk_n    ));
 endmodule
 
 `default_nettype wire

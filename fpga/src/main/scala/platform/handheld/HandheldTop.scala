@@ -4,8 +4,8 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, RegisterMap}
-import lib.video.ColorARGB
-import xilinx.XpmCdcHandshake
+import lib.video.{ColorARGB, HdmiTransmitter}
+import xilinx.{XpmCdcHandshake, XpmCdcSingle, XpmCdcSyncRst}
 
 object HandheldTop extends App {
   // Parse arguments.
@@ -173,7 +173,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     timeWr = (2 * 1_000_000_000) / module.clockSdramHz, /* 2 clocks */
   )
   val io = IO(new Bundle {
-    /** Audio/video clock: 12.288 MHz */
+    /** Audio/video clock: 12.288 MHz when HDMI disabled, 27.027 MHz when HDMI enabled */
     val clock_av = Input(Clock())
 
     /** SPI clocking */
@@ -192,6 +192,14 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val lcd = Output(new DpiSignals)
     val lcdData = Output(UInt(18.W))
     val dac = Output(new I2sSignals)
+
+    /** HDMI */
+    val hdmiEnable = Output(Bool())
+    val hdmiAudioClock = Output(Clock())
+    val hdmiAudio = Output(Vec(2, UInt(16.W)))
+    val hdmiRgb = Output(UInt(24.W))
+    val hdmiCx = Input(UInt(10.W))
+    val hdmiCy = Input(UInt(10.W))
 
     /** Raw button input, not registered or inverted. */
     val buttons = Input(new HandheldButtons)
@@ -243,6 +251,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     /** Active-high enable for the inner module. */
     val moduleEnable = Bool()
   }))
+  val displayRegister = RegInit(0.U.asTypeOf(new Bundle() {
+    val enableHdmi = Bool()
+  }))
   val buttonRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
   val interruptEnable = RegInit(0.U.asTypeOf(new HandheldInterrupts))
   val interruptFlags = RegInit(0.U.asTypeOf(new HandheldInterrupts))
@@ -268,6 +279,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     entries = Seq(
       0x0 -> RegisterMap.Entry.rw(controlRegister),
       0x4 -> RegisterMap.Entry.rw(buttonRegister),
+      0x8 -> RegisterMap.Entry.rw(displayRegister),
       0xC -> RegisterMap.Entry.rw(interruptEnable),
       0x10 -> RegisterMap.Entry(
         interruptFlags.getWidth,
@@ -354,10 +366,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   //////////////////////////////////
   // Video
   //////////////////////////////////
-  val screenWidth = 480
-  val screenHeight = 320
   val videoWidth = module.framebufferW
   val videoHeight = module.framebufferH
+
+  io.hdmiEnable := displayRegister.enableHdmi
 
   // Triple buffering
   val framebuffers = (0 until 3).map(_ =>
@@ -373,42 +385,23 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // The index of the last completely drawn frame.
   val lastCompleteFrameIndex = RegInit(2.U(2.W))
 
-  val overlayScale = 2
-  val overlayWidth = screenWidth / overlayScale
-  val overlayHeight = screenHeight / overlayScale
+  val overlayWidth = 240
+  val overlayHeight = 160
   val overlayFramebuffer = SRAM(
     overlayWidth * overlayHeight, UInt(ColorARGB.argb1555().getWidth.W),
     readPortClocks = Seq(io.clock_av), writePortClocks = Seq(clock), readwritePortClocks = Seq(),
   )
-  withClock (io.clock_av) {
-    /**
-     * DPI video signal output
-     * dotclk = 12.288MHz, fps = 60
-     * H = 320, total inactive = 88
-     * V = 480, total inactive = 22
-     */
-    val dpiDriver = Module(new DpiDriver(
-      hActive = screenHeight,
-      hSync = 30, // min = 3
-      hBackPorch = 29, // min = 3
-      hFrontPorch = 29, // min = 3
-      vActive = screenWidth,
-      vSync = 8, // min = 1
-      vBackPorch = 7, // min = 2
-      vFrontPorch = 7, // min = 2
-    ))
-    io.lcd := dpiDriver.io.signals
-    val dpiX = dpiDriver.io.pixelY
-    val dpiY = dpiDriver.io.pixelX
+  val reset_av = withClock(io.clock_av) { XpmCdcSyncRst(reset) }
+  withClockAndReset (clock = io.clock_av, reset = reset_av) {
+    val videoX = Wire(UInt(10.W))
+    val videoY = Wire(UInt(10.W))
+    val frameStart = Wire(Bool())
+    val framebufferReadAddress = Wire(UInt(16.W))
+    val overlayReadAddress = Wire(UInt(16.W))
 
-    // Scale and center framebuffer within output video.
-    val videoScale = 2
-    val videoOffsetX = (screenWidth - (videoWidth * videoScale)) / 2
-    val videoOffsetY = (screenHeight - (videoHeight * videoScale)) / 2
-    val framebufferReadDelay = 3 // 3 cycles to read from the framebuffer
-    val framebufferReadAddress =
-      (((dpiY - videoOffsetY.U + framebufferReadDelay.U) / videoScale.U) * videoWidth.U) +
-        ((dpiX - videoOffsetX.U) / videoScale.U)
+    val audioData = XpmCdcHandshake.continuous(clock, Cat(module.io.audioLeft.asUInt, module.io.audioRight.asUInt))
+    val audioDataLeft = audioData(31, 16)
+    val audioDataRight = audioData(15, 0)
 
     // Buffering the read allows this to be a block ram instead of distributed ram
     // and an additional output buffer allows Vivado to improve timing.
@@ -425,7 +418,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
     val regStatDuplicatedFrames = RegInit(0.U(24.W))
     val nextFrameIndex = XpmCdcHandshake.continuous(clock, lastCompleteFrameIndex)
-    when (dpiDriver.io.frameStart) {
+    when (frameStart) {
       // Start sending the most recently completed frame.
       readFramebufferIndex := nextFrameIndex
       when (nextFrameIndex === readFramebufferIndex) {
@@ -437,38 +430,156 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     // Similar for overlay framebuffer.
     val overlayXControl = XpmCdcHandshake.continuous(clock, overlayXControlRegister)
     val overlayYControl = XpmCdcHandshake.continuous(clock, overlayYControlRegister)
-    val overlayReadDelay = 3
-    val overlayReadAddress =
-      ((((dpiY + overlayReadDelay.U(16.W)) / overlayScale.U(16.W)) + overlayYControl.scroll)(7, 0) * overlayWidth.U(16.W)) +
-        ((dpiX / overlayScale.U) + overlayXControl.scroll)(7, 0)
 
     overlayFramebuffer.readPorts(0).enable := true.B
     overlayFramebuffer.readPorts(0).address := overlayReadAddress
     val overlayRead = RegNext(RegNext(overlayFramebuffer.readPorts(0).data)).asTypeOf(ColorARGB.argb1555())
 
+    val framebufferInBounds = Wire(Bool())
+    val overlayInBounds = Wire(Bool())
     val videoOutput = ColorARGB.rgb555().makeBlack()
-    when (
-      dpiX >= videoOffsetX.U(16.W) &&
-        dpiX < (videoOffsetX + (videoWidth * videoScale)).U(16.W) &&
-        dpiY >= videoOffsetY.U(16.W) &&
-        dpiY < (videoOffsetY + (videoHeight * videoScale)).U(16.W)) {
+    when (framebufferInBounds) {
       videoOutput := framebufferRead
     }
-    when (
-      overlayRead.a.asBool &&
-        dpiX >= (overlayXControl.start * overlayScale.U) &&
-        dpiX < (overlayXControl.end * overlayScale.U) &&
-        dpiY >= (overlayYControl.start * overlayScale.U) &&
-        dpiY < (overlayYControl.end * overlayScale.U)
-    ) {
+    when (overlayRead.a.asBool && overlayInBounds) {
       videoOutput := overlayRead
     }
+
+    /**
+     * DPI video signal output
+     * dotclk = 12.288MHz, fps = 60
+     * H = 320, total inactive = 88
+     * V = 480, total inactive = 22
+     */
+    val dpiDriver = Module(new DpiDriver(
+      hActive = 320,
+      hSync = 30, // min = 3
+      hBackPorch = 29, // min = 3
+      hFrontPorch = 29, // min = 3
+      vActive = 480,
+      vSync = 8, // min = 1
+      vBackPorch = 7, // min = 2
+      vFrontPorch = 7, // min = 2
+    ))
+    io.lcd := dpiDriver.io.signals
     // Pad to 18-bit RGB.
     io.lcdData := Cat(
       Cat(videoOutput.r, 0.U(1.W)),
       Cat(videoOutput.g, 0.U(1.W)),
       Cat(videoOutput.b, 0.U(1.W)),
     )
+
+    val i2sTransmitter =
+      Module(new I2sTransmitter(
+        bitWidth = 16,
+        mclkFactor = 256,
+        channels = 2,
+      ))
+    io.dac := i2sTransmitter.io.signals
+    i2sTransmitter.io.dataLeft := audioDataLeft
+    i2sTransmitter.io.dataRight := audioDataRight
+
+    /**
+     * HDMI audio and video signal output
+     * Video ID Code 2: 720x480 @ 60Hz
+     */
+    val hdmiFrameWidth = 858
+    val hdmiFrameHeight = 525
+    io.hdmiAudio := VecInit(audioDataLeft, audioDataRight)
+    io.hdmiAudioClock := DontCare
+    // Pad to 24-bit RGB.
+    io.hdmiRgb := Cat(
+      videoOutput.r << 3,
+      videoOutput.g << 3,
+      videoOutput.b << 3,
+    )
+
+    val hdmiEnable = XpmCdcSingle(clock, displayRegister.enableHdmi)
+    when (hdmiEnable) {
+      dpiDriver.reset := true.B
+      i2sTransmitter.reset := true.B
+      val screenWidth = 720
+      val screenHeight = 480
+
+      // Correct HDMI video X and Y
+      videoX := io.hdmiCx
+      videoY := io.hdmiCy
+      when (io.hdmiCx >= screenWidth.U) {
+        // Make it so that adding wraps around to 0.
+        // (frameWidth - 1) should be (2**width - 1)
+        videoX := io.hdmiCx + ((1 << io.hdmiCx.getWidth) - hdmiFrameWidth).U
+        videoY := io.hdmiCy + 1.U
+        when (io.hdmiCy === (hdmiFrameHeight - 1).U) {
+          videoY := 0.U
+        }
+      }
+      frameStart := io.hdmiCx === 0.U && io.hdmiCy === (hdmiFrameHeight - 1).U
+
+      // Scale and center framebuffer within output video.
+      val videoScale = 3
+      val videoOffsetX = (screenWidth - (videoWidth * videoScale)) / 2
+      val videoOffsetY = (screenHeight - (videoHeight * videoScale)) / 2
+      val framebufferReadDelay = 3 // 3 cycles to read from the framebuffer -- HDMI is either 2 or 3, not clear.
+      framebufferReadAddress :=
+        (((videoY - videoOffsetY.U) / videoScale.U) * videoWidth.U) +
+          ((videoX - videoOffsetX.U + framebufferReadDelay.U) / videoScale.U)
+      framebufferInBounds := videoX >= videoOffsetX.U &&
+        videoX < (videoOffsetX + (videoWidth * videoScale)).U &&
+        videoY >= videoOffsetY.U &&
+        videoY < (videoOffsetY + (videoHeight * videoScale)).U
+
+      // Scale overlay
+      val overlayScale = 3
+      val overlayReadDelay = 3
+      overlayReadAddress :=
+        ((((videoY) / overlayScale.U) + overlayYControl.scroll)(7, 0) * overlayWidth.U) +
+          (((videoX + overlayReadDelay.U) / overlayScale.U) + overlayXControl.scroll)(7, 0)
+      overlayInBounds := videoX >= (overlayXControl.start * overlayScale.U) &&
+        videoX < (overlayXControl.end * overlayScale.U) &&
+        videoY >= (overlayYControl.start * overlayScale.U) &&
+        videoY < (overlayYControl.end * overlayScale.U)
+
+      // HDMI Audio
+      val audioClock = RegInit(false.B)
+      val audioCounter = Counter(27027000 / (48000 * 2))
+      when (audioCounter.inc()) {
+        audioClock := !audioClock
+      }
+      io.hdmiAudioClock := audioClock.asClock
+    } .otherwise {
+      val screenWidth = 480
+      val screenHeight = 320
+
+      val dpiX = dpiDriver.io.pixelY
+      val dpiY = dpiDriver.io.pixelX
+      videoX := dpiX
+      videoY := dpiY
+      frameStart := dpiDriver.io.frameStart
+
+      // Scale and center framebuffer without output video.
+      val videoScale = 2
+      val videoOffsetX = (screenWidth - (videoWidth * videoScale)) / 2
+      val videoOffsetY = (screenHeight - (videoHeight * videoScale)) / 2
+      val framebufferReadDelay = 3 // 3 cycles to read from the framebuffer
+      framebufferReadAddress :=
+        (((dpiY - videoOffsetY.U + framebufferReadDelay.U) / videoScale.U) * videoWidth.U) +
+          ((dpiX - videoOffsetX.U) / videoScale.U)
+      framebufferInBounds := dpiX >= videoOffsetX.U &&
+        dpiX < (videoOffsetX + (videoWidth * videoScale)).U &&
+        dpiY >= videoOffsetY.U &&
+        dpiY < (videoOffsetY + (videoHeight * videoScale)).U
+
+      // Scale overlay
+      val overlayScale = 2
+      val overlayReadDelay = 3
+      overlayReadAddress :=
+        ((((dpiY + overlayReadDelay.U) / overlayScale.U) + overlayYControl.scroll)(7, 0) * overlayWidth.U) +
+          ((dpiX / overlayScale.U) + overlayXControl.scroll)(7, 0)
+      overlayInBounds := videoX >= (overlayXControl.start * overlayScale.U) &&
+        videoX < (overlayXControl.end * overlayScale.U) &&
+        videoY >= (overlayYControl.start * overlayScale.U) &&
+        videoY < (overlayYControl.end * overlayScale.U)
+    }
   }
 
 //  io.pmod.dir := "b1111".U
@@ -510,24 +621,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       RegNext(RegNext(framebuffers(i).readwritePorts(0).readData))
     ))
   framebufferInterface.done := RegNext(RegNext(framebufferInterface.enable))
-
-  //////////////////////////////////
-  // Audio
-  //////////////////////////////////
-  withClock (io.clock_av) {
-    val i2sTransmitter =
-      Module(new I2sTransmitter(
-        bitWidth = 16,
-        mclkFactor = 256,
-        channels = 2,
-      ))
-    io.dac := i2sTransmitter.io.signals
-
-    val audioData = XpmCdcHandshake.continuous(clock,
-      Cat(module.io.audioLeft.asUInt, module.io.audioRight.asUInt))
-    i2sTransmitter.io.dataLeft := audioData(31, 16)
-    i2sTransmitter.io.dataRight := audioData(15, 0)
-  }
 
   //////////////////////////////////
   // Submodule Connections

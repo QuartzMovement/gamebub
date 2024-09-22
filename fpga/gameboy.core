@@ -164,7 +164,7 @@ targets:
 
   handheld_gameboy:
     default_tool: vivado
-    filesets: [base, handheld, handheld_clk_gameboy]
+    filesets: [base, handheld, handheld_clk_gameboy, hdmi]
     generate: [handheld_gameboy]
     tools:
       vivado:
@@ -173,7 +173,7 @@ targets:
 
   handheld_gba:
     default_tool: vivado
-    filesets: [base, handheld, handheld_clk_gba]
+    filesets: [base, handheld, handheld_clk_gba, hdmi]
     generate: [handheld_gba]
     tools:
       vivado:
