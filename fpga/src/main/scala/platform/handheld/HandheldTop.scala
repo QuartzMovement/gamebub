@@ -226,6 +226,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   })
 
   val statNumDuplicatedFrames = Wire(UInt(24.W))
+  val statNumSkippedFrames = Wire(UInt(24.W))
 
   //////////////////////////////////
   // MCU Communication
@@ -299,7 +300,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       0x200 -> RegisterMap.Entry.r(
         Cat(module.framebufferW.U(16.W), module.framebufferH.U(16.W))),
       // Stats
-      0x300 -> RegisterMap.Entry.r(XpmCdcHandshake.continuous(clock, statNumDuplicatedFrames)),
+      0x300 -> RegisterMap.Entry.r(statNumDuplicatedFrames),
+      0x304 -> RegisterMap.Entry.r(statNumSkippedFrames),
     )
   )
 
@@ -378,12 +380,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       readPortClocks = Seq(io.clock_av), writePortClocks = Seq(), readwritePortClocks = Seq(clock)
     )
   )
-  val readFramebufferIndex = withClock(io.clock_av) {
-    RegInit(0.U(2.W))
-  }
-  val writeFramebufferIndex = RegInit(1.U(2.W))
-  // The index of the last completely drawn frame.
-  val lastCompleteFrameIndex = RegInit(2.U(2.W))
+  val framebufferControl = Module(new TripleBufferControl)
+  statNumDuplicatedFrames := framebufferControl.io.statNumDuplicated
+  statNumSkippedFrames := framebufferControl.io.statNumSkipped
 
   val overlayWidth = 240
   val overlayHeight = 160
@@ -395,7 +394,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   withClockAndReset (clock = io.clock_av, reset = reset_av) {
     val videoX = Wire(UInt(10.W))
     val videoY = Wire(UInt(10.W))
-    val frameStart = Wire(Bool())
+    val framebufferActive = Wire(Bool())
     val framebufferReadAddress = Wire(UInt(16.W))
     val overlayReadAddress = Wire(UInt(16.W))
 
@@ -407,25 +406,17 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     // and an additional output buffer allows Vivado to improve timing.
     //
     // Read from the correct framebuffer.
+    withClock (clock) {
+      framebufferControl.io.readActive := XpmCdcSingle(io.clock_av, framebufferActive)
+    }
+    val framebufferIndex = XpmCdcHandshake.continuous(clock, framebufferControl.io.readIndex)
     for (i <- 0 until 3) {
-      framebuffers(i).readPorts(0).enable := readFramebufferIndex === i.U
+      framebuffers(i).readPorts(0).enable := framebufferIndex === i.U
       framebuffers(i).readPorts(0).address := framebufferReadAddress
     }
-    val framebufferRead = MuxLookup(readFramebufferIndex, 0.U)(
+    val framebufferRead = MuxLookup(framebufferIndex, 0.U)(
       (0 until 3).map(i => i.U -> RegNext(RegNext(framebuffers(i).readPorts(0).data)))
     ).asTypeOf(ColorARGB.rgb555())
-
-
-    val regStatDuplicatedFrames = RegInit(0.U(24.W))
-    val nextFrameIndex = XpmCdcHandshake.continuous(clock, lastCompleteFrameIndex)
-    when (frameStart) {
-      // Start sending the most recently completed frame.
-      readFramebufferIndex := nextFrameIndex
-      when (nextFrameIndex === readFramebufferIndex) {
-        regStatDuplicatedFrames := regStatDuplicatedFrames + 1.U
-      }
-    }
-    statNumDuplicatedFrames := regStatDuplicatedFrames
 
     // Similar for overlay framebuffer.
     val overlayXControl = XpmCdcHandshake.continuous(clock, overlayXControlRegister)
@@ -513,13 +504,13 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
           videoY := 0.U
         }
       }
-      frameStart := io.hdmiCx === 0.U && io.hdmiCy === (hdmiFrameHeight - 1).U
+      framebufferActive := io.hdmiCy < screenHeight.U || io.hdmiCy === (hdmiFrameHeight - 1).U
 
       // Scale and center framebuffer within output video.
       val videoScale = 3
       val videoOffsetX = (screenWidth - (videoWidth * videoScale)) / 2
       val videoOffsetY = (screenHeight - (videoHeight * videoScale)) / 2
-      val framebufferReadDelay = 3 // 3 cycles to read from the framebuffer -- HDMI is either 2 or 3, not clear.
+      val framebufferReadDelay = 3
       framebufferReadAddress :=
         (((videoY - videoOffsetY.U) / videoScale.U) * videoWidth.U) +
           ((videoX - videoOffsetX.U + framebufferReadDelay.U) / videoScale.U)
@@ -554,7 +545,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       val dpiY = dpiDriver.io.pixelX
       videoX := dpiX
       videoY := dpiY
-      frameStart := dpiDriver.io.frameStart
+      framebufferActive := dpiX < screenWidth.U || dpiX === ((1 << dpiX.getWidth) - 1).U
 
       // Scale and center framebuffer without output video.
       val videoScale = 2
@@ -609,14 +600,14 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val framebufferInterfaceRead = framebufferInterface.enable && !framebufferInterface.write
   when (framebufferInterfaceRead) {
     for (i <- 0 until 3) {
-      when (lastCompleteFrameIndex === i.U) {
+      when (framebufferControl.io.latestIndex === i.U) {
         framebuffers(i).readwritePorts(0).enable := true.B
         framebuffers(i).readwritePorts(0).address := (framebufferInterface.address >> 1.U).asUInt
         framebuffers(i).readwritePorts(0).isWrite := false.B
       }
     }
   }
-  framebufferInterface.dataRead := MuxLookup(lastCompleteFrameIndex, 0.U)(
+  framebufferInterface.dataRead := MuxLookup(framebufferControl.io.latestIndex, 0.U)(
     (0 until 3).map(i => i.U ->
       RegNext(RegNext(framebuffers(i).readwritePorts(0).readData))
     ))
@@ -642,21 +633,13 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     // so ensure that they're not activated at the same time (so they can be inferred correctly).
     val address = (module.io.framebufferY * videoWidth.U(8.W)) + module.io.framebufferX
     for (i <- 0 until 3) {
-      framebuffers(i).readwritePorts(0).enable := (i.U === writeFramebufferIndex)
+      framebuffers(i).readwritePorts(0).enable := (i.U === framebufferControl.io.writeIndex)
       framebuffers(i).readwritePorts(0).address := address
       framebuffers(i).readwritePorts(0).isWrite := true.B
       framebuffers(i).readwritePorts(0).writeData := module.io.framebufferData.asUInt
     }
   }
-
-  val syncReadFramebufferIndex = XpmCdcHandshake.continuous(io.clock_av, readFramebufferIndex)
-  when (module.io.vblank && !RegNext(module.io.vblank)) {
-    // Module has finished drawing a frame, update the most recently rendered framebuffer.
-    lastCompleteFrameIndex := writeFramebufferIndex
-
-    // Select the framebuffer that isn't the one we're writing to or is being read from.
-    writeFramebufferIndex := (0 + 1 + 2).U(2.W) - writeFramebufferIndex - syncReadFramebufferIndex
-  }
+  framebufferControl.io.writeActive := !module.io.vblank
 
   // N.B. Audio synchronization happens above.
 
