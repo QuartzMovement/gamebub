@@ -43,7 +43,7 @@ class TripleBufferControl extends Module {
   val readStart = io.readActive && !prevReadActive
   val readEnd = !io.readActive && prevReadActive
 
-  when (readEnd && writeEnd) {
+  when (readStart && writeEnd) {
     // Special case: both updated at the same time.
     readIndex := writeIndex
     // Arbitrary: could be the other buffer too.
@@ -62,8 +62,8 @@ class TripleBufferControl extends Module {
         statNumSkipped := statNumSkipped + 1.U
       }
     }
-    when (readEnd) {
-      // The buffer was just finished reading out, switch to the next ready one.
+    when (readStart) {
+      // The buffer is about to start reading out, switch to the latest available.
       readIndex := latestIndex
 
       when (readIndex === latestIndex) {
