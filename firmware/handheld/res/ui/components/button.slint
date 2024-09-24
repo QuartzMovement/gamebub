@@ -9,14 +9,14 @@ export component Button inherits Rectangle {
 
     horizontal-stretch: 0;
     border-width: 1px;
-    border-color: black;
+    border-color: focus.has-focus ? black : gray;
     background: focus.has-focus ? #fff : #eee;
     height: txt.preferred-height + 6px;
     min-width: txt.preferred-width + 6px;
     txt := Text {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
-        color: #000;
+        color: focus.has-focus ? black : gray;
     }
 
     focus := FocusScope {
