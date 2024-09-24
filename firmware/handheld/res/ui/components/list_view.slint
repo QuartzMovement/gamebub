@@ -27,7 +27,7 @@ export component ListViewBase inherits Rectangle {
             return;
         }
         root.unselect();
-        focus-item = mod(num-items + focus-item, num-items);
+        focus-item = mod(focus-item, num-items);
         bring-into-view(focus-item);
     }
 
