@@ -113,6 +113,9 @@ impl UI {
     }
 
     pub fn run(&mut self) -> ! {
+        // Set this thread (UI) to higher priority than background threads.
+        unsafe { esp_idf_svc::sys::vTaskPrioritySet(std::ptr::null_mut(), 10) };
+
         let mut first_render = true;
         let mut pending_message = None;
         loop {
