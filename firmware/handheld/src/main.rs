@@ -10,6 +10,7 @@ mod bitstream;
 mod device;
 mod kvs;
 pub mod ui;
+mod util;
 mod worker;
 
 fn main() -> anyhow::Result<()> {

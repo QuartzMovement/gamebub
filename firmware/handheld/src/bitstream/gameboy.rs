@@ -5,8 +5,11 @@ use std::{
 };
 use thiserror::Error;
 
-use crate::device::{drivers::fpga, Device};
-use crate::ui;
+use crate::{
+    device::{drivers::fpga, Device},
+    util::BackgroundReader,
+};
+use crate::{ui, util::ReaderResult};
 
 use super::Bitstream;
 
@@ -200,18 +203,20 @@ impl Gameboy {
         log::info!("Loading rom: {:?}", rom_header);
 
         const CHUNK_SIZE: usize = 32 * 1024;
-        let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
+        let mut reader = BackgroundReader::new(rom_file, CHUNK_SIZE);
         let mut total = 0u32;
         loop {
-            let n = rom_file.read(&mut buf)?;
-            if n == 0 {
-                break;
-            }
-            Device::lock().fpga.sdram_write(total, &buf[..n])?;
-            total += n as u32;
+            let chunk = match reader.get() {
+                ReaderResult::Ok(buf) => buf,
+                ReaderResult::Eof => break,
+                ReaderResult::Err(err) => Err(err)?,
+            };
+
+            Device::lock().fpga.sdram_write(total, &chunk)?;
+            total += chunk.len() as u32;
 
             // Update UI progress bar.
-            let progress = ((total - (n as u32)) as f32) / (rom_file_size as f32);
+            let progress = ((total - (chunk.len() as u32)) as f32) / (rom_file_size as f32);
             ui::send(ui::Message::RomLoadingProgress(progress));
         }
 
@@ -220,6 +225,7 @@ impl Gameboy {
         match File::open(ram_path.as_path()) {
             Ok(mut ram_file) => {
                 log::info!("Loading RAM");
+                let mut buf = vec![0; CHUNK_SIZE];
 
                 let mut pos = 0u32;
                 while pos < rom_header.ram_size {

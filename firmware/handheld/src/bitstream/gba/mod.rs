@@ -9,8 +9,11 @@ use std::{
 use rtc::RtcState;
 use thiserror::Error;
 
-use crate::device::{drivers::fpga, Device};
-use crate::ui;
+use crate::{
+    device::{drivers::fpga, Device},
+    util::BackgroundReader,
+};
+use crate::{ui, util::ReaderResult};
 
 use super::Bitstream;
 use save_type_detector::SaveTypeDetector;
@@ -217,41 +220,39 @@ impl Gba {
         let emu_cart_config = game_db::lookup(&rom_header.game_code);
 
         const CHUNK_SIZE: usize = 32 * 1024;
-        let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
+        let mut reader = BackgroundReader::new(rom_file, CHUNK_SIZE);
+
         let mut total = 0u32;
         let start_time = Instant::now();
-        let mut read_duration = Duration::ZERO;
         let mut transfer_duration = Duration::ZERO;
         let mut detect_duration = Duration::ZERO;
         loop {
-            let read_start = Instant::now();
-            let n = rom_file.read(&mut buf)?;
-            read_duration += read_start.elapsed();
-            if n == 0 {
-                break;
-            }
+            let chunk = match reader.get() {
+                ReaderResult::Ok(buf) => buf,
+                ReaderResult::Eof => break,
+                ReaderResult::Err(err) => Err(err)?,
+            };
 
             let transfer_start = Instant::now();
-            Device::lock().fpga.sdram_write(total, &buf[..n])?;
-            total += n as u32;
+            Device::lock().fpga.sdram_write(total, &chunk)?;
+            total += chunk.len() as u32;
             transfer_duration += transfer_start.elapsed();
 
             // Update UI progress bar.
-            let progress = ((total - (n as u32)) as f32) / (rom_file_size as f32);
+            let progress = ((total - (chunk.len() as u32)) as f32) / (rom_file_size as f32);
             ui::send(ui::Message::RomLoadingProgress(progress));
 
             let detect_start = Instant::now();
             if emu_cart_config.is_none() {
-                save_type_detector.process(&buf[..n]);
+                save_type_detector.process(&chunk);
             }
             detect_duration += detect_start.elapsed();
         }
         let duration = start_time.elapsed();
         log::info!(
-            "Loaded ROM: {} bytes in {} ms ({}/{}/{} ms read/transfer/detect)",
+            "Loaded ROM: {} bytes in {} ms ({}/{} ms transfer/detect)",
             total,
             duration.as_millis(),
-            read_duration.as_millis(),
             transfer_duration.as_millis(),
             detect_duration.as_millis(),
         );
@@ -270,6 +271,7 @@ impl Gba {
         let save_size = save_type.get_size() as u32;
         let save_path = rom_path.with_extension("sav");
         let mut rtc_state: Option<RtcState> = None;
+        let mut buf = vec![0; CHUNK_SIZE];
         if let Ok(mut save_file) = File::open(save_path.as_path()) {
             log::info!("Loading save file");
 
