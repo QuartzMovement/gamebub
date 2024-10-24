@@ -15,13 +15,17 @@ class Link extends Module {
   })
   val logger = Logger("link", enable = io.enable)
 
+  val mode = Wire(Link.Mode.Type())
+  val dataIn = io.port.in.asTypeOf(new Link.Ports)
+  val prevDataIn = RegNext(io.port.in).asTypeOf(new Link.Ports)
+
   // RCNT registers
   val regControlMode = RegInit(0.U(2.W))
   val regGpioPinOut = RegInit(0.U(4.W))
   val regGpioPinDir = RegInit(0.U(4.W))
   val regGpioInterrupt = RegInit(false.B)
-
-  val regSiocnt = RegInit(0.U(15.W))
+  // SIOCNT registers
+  val regSiocnt = RegInit(0.U(16.W))
   val regSiodata8 = RegInit(0.U(16.W))
 
   io.irq := false.B
@@ -53,45 +57,50 @@ class Link extends Module {
     ),
   )
 
-  val regTimer = Reg(UInt(11.W))
-  val regActive = RegInit(false.B)
-
-  // TODO: this is stubbed
-  when (io.enable) {
-    when (!regActive && regSiocnt(7)) {
-      logger.info("SIO activate")
-      regActive := true.B
-
-      val clockFast = regSiocnt(1)
-      val transfer32 = regSiocnt(12)
-      when (clockFast) {
-        regTimer := Mux(transfer32, 255.U, 63.U)
+  // Mode selection
+  when (regControlMode(1) === 0.U) {
+    when (regSiocnt(13) === 0.U) {
+      mode := Link.Mode.Normal
+    } .otherwise {
+      when (regSiocnt(14) === 0.U) {
+        mode := Link.Mode.Multi
       } .otherwise {
-        regTimer := Mux(transfer32, 2047.U, 511.U)
+        mode := Link.Mode.Uart
       }
     }
-
-    when (regActive) {
-      regTimer := regTimer - 1.U
-      when (regTimer === 0.U) {
-        logger.info("SIO complete")
-        regActive := false.B
-        val irqEnabled = regSiocnt(14)
-        when (irqEnabled) {
-          io.irq := true.B
-        }
-        // Unset active bit.
-        regSiocnt := Cat(regSiocnt(14, 8), 0.U(1.W), regSiocnt(6, 0))
-      }
+  } .otherwise {
+    when (regControlMode(0) === 0.U) {
+      mode := Link.Mode.Gpio
+    } .otherwise {
+      mode := Link.Mode.Joybus
     }
   }
 
   // Stubbed: all inputs (high-z)
   io.port.out := DontCare
   io.port.dir := 0.U
+
+  switch (mode) {
+    is (Link.Mode.Gpio) {
+      io.port.out := regGpioPinOut
+      io.port.dir := regGpioPinDir
+
+      when (regGpioInterrupt && !dataIn.si && prevDataIn.si) {
+        // SI falling edge interrupt
+        io.irq := true.B
+      }
+    }
+  }
 }
 
 object Link {
+  class Ports extends Bundle {
+    val so = Bool()
+    val si = Bool()
+    val sd = Bool()
+    val sc = Bool()
+  }
+
   /// Link port: [3=SO, 2=SI, 1=SD, 0=SC]
   class Interface extends Bundle {
     val in = Input(UInt(4.W))
@@ -107,5 +116,13 @@ object Link {
     val interrupt = Bool()
     val pinDir = UInt(4.W)
     val pinData = UInt(4.W)
+  }
+
+  object Mode extends ChiselEnum {
+    val Normal = Value
+    val Multi = Value
+    val Uart = Value
+    val Gpio = Value
+    val Joybus = Value
   }
 }
