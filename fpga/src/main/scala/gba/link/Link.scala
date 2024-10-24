@@ -1,16 +1,17 @@
-package gba
+package gba.link
 
 import chisel3._
 import chisel3.util._
+import gba.{MmioMap, MmioTarget}
 import lib.log.Logger
 
-class Serial extends Module {
+class Link extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
     val mmio = new MmioTarget()
     val irq = Output(Bool())
   })
-  val logger = Logger("serial", enable = io.enable)
+  val logger = Logger("link", enable = io.enable)
 
   val regRcnt = RegInit(0.U(16.W))
   val regSiocnt = RegInit(0.U(15.W))

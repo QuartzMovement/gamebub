@@ -6,6 +6,7 @@ import _root_.circt.stage.ChiselStage
 import gba.cart.{CartridgeController, CartridgeInterface, CartridgePrefetch}
 import gba.apu.{Apu, ApuOutput}
 import gba.cpu.ARM7TDMI
+import gba.link.Link
 import gba.mem.{BusAccessWidth, BusArbiter, BusTarget, EwramController, SimpleRam}
 import gba.ppu.{Ppu, PpuOutput}
 import lib.mem.MemoryInterface
@@ -171,11 +172,11 @@ class GBA extends Module {
   cart.io.busTargetRomRegion := cartPrefetch.io.cartInitiatorRomRegion
   cart.io.abortRequest := cartPrefetch.io.cartInitiatorAbortRequest
 
-  // Serial unit
-  val serial = Module(new Serial)
-  serial.io.enable := io.enable
-  mmio.targets(8) <> serial.io.mmio
-  interrupt.io.peripheralIrq.serial := serial.io.irq
+  // Link port controller
+  val link = Module(new Link)
+  link.io.enable := io.enable
+  mmio.targets(8) <> link.io.mmio
+  interrupt.io.peripheralIrq.link := link.io.irq
 
   // Game Boy Player
   val gameBoyPlayer = Module(new GameBoyPlayer)

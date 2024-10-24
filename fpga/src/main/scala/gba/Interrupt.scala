@@ -91,7 +91,7 @@ object Interrupt {
     val cartridge = Bool()
     val keypad = Bool()
     val dma = UInt(4.W)
-    val serial = Bool()
+    val link = Bool()
     val timer = UInt(4.W)
     val vcount = Bool()
     val hblank = Bool()
