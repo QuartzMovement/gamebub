@@ -15,7 +15,12 @@ class Link extends Module {
   })
   val logger = Logger("link", enable = io.enable)
 
-  val regRcnt = RegInit(0.U(16.W))
+  // RCNT registers
+  val regControlMode = RegInit(0.U(2.W))
+  val regGpioPinOut = RegInit(0.U(4.W))
+  val regGpioPinDir = RegInit(0.U(4.W))
+  val regGpioInterrupt = RegInit(false.B)
+
   val regSiocnt = RegInit(0.U(15.W))
   val regSiodata8 = RegInit(0.U(16.W))
 
@@ -24,7 +29,28 @@ class Link extends Module {
     // SIOCNT
     0x128 -> MmioMap.Entry.rw16(regSiocnt, regSiodata8),
     // RCNT
-    0x134 -> MmioMap.Entry.rw(regRcnt),
+    0x134 -> MmioMap.Entry(
+      MmioMap.ReadFn({
+        val out = Wire(new Link.RegisterRcnt)
+        out.pinData := io.port.in
+        out.pinDir := regGpioPinDir
+        out.interrupt := regGpioInterrupt
+        out._unused := 0.U
+        out.mode := regControlMode
+        out
+      }),
+      MmioMap.WriteFn((enable, rawData, mask) => {
+        val data = rawData.asTypeOf(new Link.RegisterRcnt)
+        when (enable && mask(0)) {
+          regGpioPinOut := data.pinData
+          regGpioPinDir := data.pinDir
+        }
+        when (enable && mask(1)) {
+          regGpioInterrupt := data.interrupt
+          regControlMode := data.mode
+        }
+      })
+    ),
   )
 
   val regTimer = Reg(UInt(11.W))
@@ -71,5 +97,15 @@ object Link {
     val in = Input(UInt(4.W))
     val out = Output(UInt(4.W))
     val dir = Output(UInt(4.W))
+  }
+
+  /// RCNT register: SIO mode / GPIO
+  class RegisterRcnt extends Bundle {
+    val mode = UInt(2.W)
+    val _unused = UInt(5.W)
+    /// SI interrupt enable
+    val interrupt = Bool()
+    val pinDir = UInt(4.W)
+    val pinData = UInt(4.W)
   }
 }
