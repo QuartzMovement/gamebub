@@ -86,4 +86,7 @@ class SimGba extends Module {
   gba.io.cartridge <> emuCart.io.interface
   io.emuCartRom <> emuCart.io.rom
   io.emuCartBackup <> emuCart.io.backup
+
+  // Link
+  gba.io.link.in := 0.U
 }

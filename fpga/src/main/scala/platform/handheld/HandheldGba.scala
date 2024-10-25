@@ -298,12 +298,19 @@ class HandheldGba extends Module with HandheldModule {
   io.pmod.out := Cat(clock.asBool, gba.io.cartridge.nWR, gba.io.cartridge.nRD, gba.io.cartridge.nCS)
   io.pmod.dir := "b1111".U(4.W)
 
-  io.link.soOut := DontCare
-  io.link.soDir := false.B
-  io.link.siOut := DontCare
-  io.link.siDir := false.B
-  io.link.sdOut := DontCare
-  io.link.sdDir := false.B
-  io.link.scOut := DontCare
-  io.link.scDir := false.B
+  // Link port
+  io.link.scOut := gba.io.link.out(0)
+  io.link.sdOut := gba.io.link.out(1)
+  io.link.siOut := gba.io.link.out(2)
+  io.link.soOut := gba.io.link.out(3)
+  io.link.scDir := gba.io.link.dir(0)
+  io.link.sdDir := gba.io.link.dir(1)
+  io.link.siDir := gba.io.link.dir(2)
+  io.link.soDir := gba.io.link.dir(3)
+  gba.io.link.in := RegNext(RegNext(Cat(
+    io.link.soIn,
+    io.link.siIn,
+    io.link.sdIn,
+    io.link.scIn,
+  )))
 }

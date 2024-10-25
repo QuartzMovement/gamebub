@@ -10,6 +10,8 @@ class Link extends Module {
     val enable = Input(Bool())
     val mmio = new MmioTarget()
     val irq = Output(Bool())
+
+    val port = new Link.Interface
   })
   val logger = Logger("link", enable = io.enable)
 
@@ -56,5 +58,18 @@ class Link extends Module {
         regSiocnt := Cat(regSiocnt(14, 8), 0.U(1.W), regSiocnt(6, 0))
       }
     }
+  }
+
+  // Stubbed: all inputs (high-z)
+  io.port.out := DontCare
+  io.port.dir := 0.U
+}
+
+object Link {
+  /// Link port: [3=SO, 2=SI, 1=SD, 0=SC]
+  class Interface extends Bundle {
+    val in = Input(UInt(4.W))
+    val out = Output(UInt(4.W))
+    val dir = Output(UInt(4.W))
   }
 }

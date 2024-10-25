@@ -41,6 +41,9 @@ class GBA extends Module {
     /// device-specific storage (e.g. an external SRAM chip).
     val ewram = Flipped(new MemoryInterface(addressWidth = 17, dataWidth = 16))
     val ewramStall = Output(Bool())
+
+    /// Link port
+    val link = new Link.Interface
   })
 
   val bus = Module(new mem.Bus(Seq(
@@ -175,6 +178,7 @@ class GBA extends Module {
   // Link port controller
   val link = Module(new Link)
   link.io.enable := io.enable
+  io.link <> link.io.port
   mmio.targets(8) <> link.io.mmio
   interrupt.io.peripheralIrq.link := link.io.irq
 
