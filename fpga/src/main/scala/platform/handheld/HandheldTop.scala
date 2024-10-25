@@ -646,8 +646,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // Cartridge
   io.cartridge <> module.io.cartridge
   io.cartridgeOutputEnableN := !module.io.cartridgeEnabled
-  io.cartridge3V3Enable := !io.cartridgeSwitch && module.io.cartridgeEnabled
-  io.cartridge5V0Enable := io.cartridgeSwitch && module.io.cartridgeEnabled
+  io.cartridge3V3Enable := !io.cartridgeSwitch
+  io.cartridge5V0Enable := io.cartridgeSwitch
 
   // Memories
   sramArbiter.io.initiator(1) <> module.io.sram
