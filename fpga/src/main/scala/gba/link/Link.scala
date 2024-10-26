@@ -141,6 +141,7 @@ class Link extends Module {
     val regMyId = RegInit(0.U(2.W))
     val regError = RegInit(false.B)
     val regState = RegInit(Link.MultiState.Idle)
+    val regBusy = RegInit(false.B)
     when (io.enable && prevMode =/= Link.Mode.Multi) {
       regState := Link.MultiState.Idle
     }
@@ -154,7 +155,7 @@ class Link extends Module {
     siocntLoRead.sd := io.port.in.sd
     siocntLoRead.id := Mux(isMaster, 0.U, regMyId)
     siocntLoRead.error := regError
-    siocntLoRead.busy := regState =/= Link.MultiState.Idle
+    siocntLoRead.busy := regBusy
     val interruptEnable = regSiocnt(14)
 
     uartTimer.io.baudrate := siocntLo.baud
@@ -177,8 +178,9 @@ class Link extends Module {
 
     switch (regState) {
       is (Link.MultiState.Idle) {
-        val start = RegNext(siocntStartSet)
-        when (io.enable && start) {
+        val startMaster = isMaster && siocntStartSet
+        val startSlave = !isMaster && !io.port.in.sc
+        when (io.enable && (startMaster || startSlave)) {
           logger.info(cf"Multi begin: master=${isMaster}")
 
           regDidTransmit := false.B
@@ -188,12 +190,16 @@ class Link extends Module {
           regError := false.B
           regTxBuffer := Cat(1.U(1.W), regDataA, 0.U(1.W))
           regPulseCounter := 17.U // (1 start, 16 data, 1 stop) minus 1
+          regBusy := true.B
 
           when (isMaster) {
             regState := Link.MultiState.MasterTransmit
           } .otherwise {
-            regState := Link.MultiState.SlaveInitial
+            regState := Link.MultiState.SlaveReceive
           }
+        }
+        when (siocntStartSet) {
+          regBusy := true.B
         }
       }
       is (Link.MultiState.MasterTransmit) {
@@ -229,6 +235,7 @@ class Link extends Module {
           } .elsewhen (nextWaitCounter === 0.U) {
             logger.debug("Master: wait timed out")
             io.irq := interruptEnable
+            regBusy := false.B
             regState := Link.MultiState.Idle
           }
         }
@@ -255,19 +262,13 @@ class Link extends Module {
             when (regPeerId === 3.U) {
               logger.debug("Master: slave 3 ended")
               io.irq := interruptEnable
+              regBusy := false.B
               regState := Link.MultiState.Idle
             } .otherwise {
               regState := Link.MultiState.MasterWait
               regWaitCounter := 0.U
             }
           }
-        }
-      }
-      is (Link.MultiState.SlaveInitial) {
-        when (io.enable && !io.port.in.sc) {
-          logger.debug("Slave initial: transfer began")
-          uartTimer.reset := true.B
-          regState := Link.MultiState.SlaveReceive
         }
       }
       is (Link.MultiState.SlaveReceive) {
@@ -317,6 +318,7 @@ class Link extends Module {
           logger.debug("Slave wait: SC went back high")
           // End
           io.irq := interruptEnable
+          regBusy := false.B
           regState := Link.MultiState.Idle
         }
       }
@@ -345,6 +347,7 @@ class Link extends Module {
 
     when (regState =/= Link.MultiState.Idle && siocntStartUnset) {
       logger.debug("Abort multi")
+      regBusy := false.B
       regState := Link.MultiState.Idle
     }
   }
@@ -402,8 +405,6 @@ object Link {
     val MasterWait = Value
     /// Master: Receiving data from a slave
     val MasterReceive = Value
-    /// Slave: Waiting for the master to pull SC low
-    val SlaveInitial = Value
     /// Slave: Receiving data from another peer
     val SlaveReceive = Value
     /// Slave: Waiting for next peer to start
