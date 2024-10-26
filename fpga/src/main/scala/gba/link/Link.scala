@@ -21,6 +21,7 @@ class Link extends Module {
   val prevPortIn = RegNext(io.port.in)
   /// Whether bit 7 of SIOCNT has been written this cycle (only for Normal and Multi mode).
   val siocntStartSet = WireDefault(false.B)
+  val siocntStartUnset = WireDefault(false.B)
   /// SIOCNT read value (mode-dependent), low 8-bits. Upper 8 bits are all R/W and shared
   val siocntReadValueLo = WireDefault(0.U(8.W))
 
@@ -54,6 +55,7 @@ class Link extends Module {
           regSiocnt := MMIO.mask(regSiocnt, data(15, 0), mask(1, 0))
           regDataA := MMIO.mask(regDataA, data(31, 16), mask(3, 2))
           siocntStartSet := mask(0) && data(7)
+          siocntStartUnset := mask(0) && !data(7)
         }
       })
     ),
@@ -262,7 +264,6 @@ class Link extends Module {
         }
       }
       is (Link.MultiState.SlaveInitial) {
-        // TODO: allow abort by unsetting the busy flag
         when (io.enable && !io.port.in.sc) {
           logger.debug("Slave initial: transfer began")
           uartTimer.reset := true.B
@@ -318,7 +319,6 @@ class Link extends Module {
           io.irq := interruptEnable
           regState := Link.MultiState.Idle
         }
-        // TODO: allow abort by unsetting the busy flag
       }
       is (Link.MultiState.SlaveTransmit) {
         io.port.dir.sd := true.B
@@ -341,6 +341,11 @@ class Link extends Module {
           }
         }
       }
+    }
+
+    when (regState =/= Link.MultiState.Idle && siocntStartUnset) {
+      logger.debug("Abort multi")
+      regState := Link.MultiState.Idle
     }
   }
 }
