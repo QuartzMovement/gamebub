@@ -175,32 +175,22 @@ class Link extends Module {
 
     switch (regState) {
       is (Link.MultiState.Idle) {
-        when (isMaster) {
-          // Master
-          when (io.enable && RegNext(siocntStartSet)) {
-            logger.info("Master begin")
-            regState := Link.MultiState.MasterTransmit
+        val start = RegNext(siocntStartSet)
+        when (io.enable && start) {
+          logger.info(cf"Multi begin: master=${isMaster}")
 
-            rxDataRegs.foreach(r => r := 0xFFFF.U)
-            uartTimer.reset := true.B
-            regPeerId := 0.U
-            regError := false.B
-            regTxBuffer := Cat(1.U(1.W), regDataA, 0.U(1.W))
-            regPulseCounter := 17.U // (1 start, 16 data, 1 stop) minus 1
-          }
-        } .otherwise {
-          // Slave
-          when (io.enable && io.port.in.sc === 0.U) {
-            logger.info("Slave begin")
-            regState := Link.MultiState.SlaveReceive
-            regDidTransmit := false.B
-            // TODO: dedupe
-            rxDataRegs.foreach(r => r := 0xFFFF.U)
-            uartTimer.reset := true.B
-            regPeerId := 0.U
-            regError := false.B
-            regTxBuffer := Cat(1.U(1.W), regDataA, 0.U(1.W))
-            regPulseCounter := 17.U // (1 start, 16 data, 1 stop) minus 1
+          regDidTransmit := false.B
+          rxDataRegs.foreach(r => r := 0xFFFF.U)
+          uartTimer.reset := true.B
+          regPeerId := 0.U
+          regError := false.B
+          regTxBuffer := Cat(1.U(1.W), regDataA, 0.U(1.W))
+          regPulseCounter := 17.U // (1 start, 16 data, 1 stop) minus 1
+
+          when (isMaster) {
+            regState := Link.MultiState.MasterTransmit
+          } .otherwise {
+            regState := Link.MultiState.SlaveInitial
           }
         }
       }
@@ -271,6 +261,14 @@ class Link extends Module {
           }
         }
       }
+      is (Link.MultiState.SlaveInitial) {
+        // TODO: allow abort by unsetting the busy flag
+        when (io.enable && !io.port.in.sc) {
+          logger.debug("Slave initial: transfer began")
+          uartTimer.reset := true.B
+          regState := Link.MultiState.SlaveReceive
+        }
+      }
       is (Link.MultiState.SlaveReceive) {
         io.port.out.so := !regDidTransmit
 
@@ -320,6 +318,7 @@ class Link extends Module {
           io.irq := interruptEnable
           regState := Link.MultiState.Idle
         }
+        // TODO: allow abort by unsetting the busy flag
       }
       is (Link.MultiState.SlaveTransmit) {
         io.port.dir.sd := true.B
@@ -398,6 +397,8 @@ object Link {
     val MasterWait = Value
     /// Master: Receiving data from a slave
     val MasterReceive = Value
+    /// Slave: Waiting for the master to pull SC low
+    val SlaveInitial = Value
     /// Slave: Receiving data from another peer
     val SlaveReceive = Value
     /// Slave: Waiting for next peer to start
