@@ -2,11 +2,12 @@ package gba.link
 
 import chisel3._
 import chisel3.util._
-import gba.{MmioMap, MmioTarget}
+import gba.{MMIO, MmioMap, MmioTarget}
 import lib.log.Logger
 
 class Link extends Module {
   val io = IO(new Bundle {
+    // TODO: handle properly
     val enable = Input(Bool())
     val mmio = new MmioTarget()
     val irq = Output(Bool())
@@ -16,27 +17,51 @@ class Link extends Module {
   val logger = Logger("link", enable = io.enable)
 
   val mode = Wire(Link.Mode.Type())
-  val dataIn = io.port.in.asTypeOf(new Link.Ports)
-  val prevDataIn = RegNext(io.port.in).asTypeOf(new Link.Ports)
+  val prevMode = RegNext(mode)
+  val prevPortIn = RegNext(io.port.in)
+  /// Whether bit 7 of SIOCNT has been written this cycle (only for Normal and Multi mode).
+  val siocntStartSet = WireDefault(false.B)
+  /// SIOCNT read value (mode-dependent), low 8-bits. Upper 8 bits are all R/W and shared
+  val siocntReadValueLo = WireDefault(0.U(8.W))
 
   // RCNT registers
   val regControlMode = RegInit(0.U(2.W))
   val regGpioPinOut = RegInit(0.U(4.W))
   val regGpioPinDir = RegInit(0.U(4.W))
   val regGpioInterrupt = RegInit(false.B)
-  // SIOCNT registers
-  val regSiocnt = RegInit(0.U(16.W))
-  val regSiodata8 = RegInit(0.U(16.W))
+  // SIOCNT register
+  val regSiocnt = RegInit(0.U(15.W))
+  // 0x12A: SIODATA8 / SIOMLT_SEND
+  val regDataA = RegInit(0.U(16.W))
+  // 0x120: SIODATA32_L / SIOMULTI0
+  val regDataB0 = RegInit(0.U(16.W))
+  // 0x122: SIODATA32_H / SIOMULTI1
+  val regDataB1 = RegInit(0.U(16.W))
+  // 0x124: SIOMULTI2
+  val regDataB2 = RegInit(0.U(16.W))
+  // 0x126: SIOMULTI3
+  val regDataB3 = RegInit(0.U(16.W))
 
   io.irq := false.B
   io.mmio <> MmioMap(
+    0x120 -> MmioMap.Entry.rw16(regDataB0, regDataB1),
+    0x124 -> MmioMap.Entry.rw16(regDataB2, regDataB3),
     // SIOCNT
-    0x128 -> MmioMap.Entry.rw16(regSiocnt, regSiodata8),
+    0x128 -> MmioMap.Entry(
+      MmioMap.ReadFn(Cat(regDataA, 0.U(1.W), regSiocnt(14, 8), siocntReadValueLo)),
+      MmioMap.WriteFn((enable, data, mask) => {
+        when (enable) {
+          regSiocnt := MMIO.mask(regSiocnt, data(15, 0), mask(1, 0))
+          regDataA := MMIO.mask(regDataA, data(31, 16), mask(3, 2))
+          siocntStartSet := mask(0) && data(7)
+        }
+      })
+    ),
     // RCNT
     0x134 -> MmioMap.Entry(
       MmioMap.ReadFn({
         val out = Wire(new Link.RegisterRcnt)
-        out.pinData := io.port.in
+        out.pinData := io.port.in.asUInt
         out.pinDir := regGpioPinDir
         out.interrupt := regGpioInterrupt
         out._unused := 0.U
@@ -62,7 +87,7 @@ class Link extends Module {
     when (regSiocnt(13) === 0.U) {
       mode := Link.Mode.Normal
     } .otherwise {
-      when (regSiocnt(14) === 0.U) {
+      when (regSiocnt(12) === 0.U) {
         mode := Link.Mode.Multi
       } .otherwise {
         mode := Link.Mode.Uart
@@ -78,16 +103,174 @@ class Link extends Module {
 
   // Stubbed: all inputs (high-z)
   io.port.out := DontCare
-  io.port.dir := 0.U
+  io.port.out.sd := false.B
+  io.port.dir.si := false.B
+  io.port.dir.so := false.B
+  io.port.dir.sd := true.B
+  io.port.dir.sc := false.B
+
+  val uartTimer = Module(new UartTimer)
+  uartTimer.io.enable := io.enable
+  uartTimer.io.baudrate := DontCare
 
   switch (mode) {
+    is (Link.Mode.Multi) {
+      handleMulti()
+    }
     is (Link.Mode.Gpio) {
-      io.port.out := regGpioPinOut
-      io.port.dir := regGpioPinDir
+      handleGpio()
+    }
+  }
 
-      when (regGpioInterrupt && !dataIn.si && prevDataIn.si) {
-        // SI falling edge interrupt
-        io.irq := true.B
+  private def handleGpio(): Unit = {
+    io.port.out := regGpioPinOut.asTypeOf(new Link.Ports)
+    io.port.dir := regGpioPinDir.asTypeOf(new Link.Ports)
+
+    when (regGpioInterrupt && !io.port.in.si && prevPortIn.si) {
+      // SI falling edge interrupt
+      io.irq := true.B
+    }
+  }
+
+  private def handleMulti(): Unit = {
+//    val isMaster = !io.port.in.si
+    val isMaster = true.B // TODO: TESTING
+    val rxDataRegs = Seq(regDataB0, regDataB1, regDataB2, regDataB3)
+
+    val regMyId = RegInit(0.U(2.W))
+    val regError = RegInit(false.B)
+    val regState = RegInit(Link.MultiState.Idle)
+    when (io.enable && prevMode =/= Link.Mode.Multi) {
+      regState := Link.MultiState.Idle
+    }
+
+    // SIOCNT
+    val siocntLo = regSiocnt.asTypeOf(new Link.MultiSiocntLo)
+    val siocntLoRead = Wire(new Link.MultiSiocntLo)
+    siocntReadValueLo := siocntLoRead.asUInt
+    siocntLoRead.baud := siocntLo.baud
+    siocntLoRead.si := !isMaster
+    siocntLoRead.sd := io.port.in.sd
+    siocntLoRead.id := Mux(isMaster, 0.U, regMyId)
+    siocntLoRead.error := regError
+    siocntLoRead.busy := regState =/= Link.MultiState.Idle
+    val interruptEnable = regSiocnt(14)
+
+    uartTimer.io.baudrate := siocntLo.baud
+
+    io.port.dir.so := true.B  // Always Output
+    io.port.dir.si := false.B // Always Input
+    io.port.dir.sd := false.B // Default: input
+    io.port.dir.sc := isMaster && (regState =/= Link.MultiState.Idle)
+    io.port.out.so := true.B  // Default: high
+    io.port.out.si := DontCare
+    io.port.out.sd := DontCare
+    io.port.out.sc := false.B
+
+    val regPeerId = Reg(UInt(2.W))
+    val regTxBuffer = Reg(UInt(18.W))
+    val regRxBuffer = Reg(UInt(18.W))
+    val regPulseCounter = Reg(UInt(5.W))
+    val regWaitCounter = Reg(UInt(9.W))
+
+    switch (regState) {
+      is (Link.MultiState.Idle) {
+        when (isMaster) {
+          // Master
+          when (io.enable && RegNext(siocntStartSet)) {
+            logger.info("Master begin")
+            regState := Link.MultiState.MasterTransmit
+
+            rxDataRegs.foreach(r => r := 0xFFFF.U)
+            uartTimer.reset := true.B
+            regPeerId := 0.U
+            regError := false.B
+            regTxBuffer := Cat(1.U(1.W), regDataA, 0.U(1.W))
+            regPulseCounter := 17.U // (1 start, 16 data, 1 stop) minus 1
+          }
+        } .otherwise {
+          // Slave
+          when (io.enable && io.port.in.sc === 0.U) {
+            logger.info("Slave begin")
+            regState := Link.MultiState.SlaveReceive
+            // TODO: dedupe
+            rxDataRegs.foreach(r => r := 0xFFFF.U)
+            uartTimer.reset := true.B
+            regPeerId := 0.U
+            regError := false.B
+            regTxBuffer := Cat(1.U(1.W), regDataA, 0.U(1.W))
+            regPulseCounter := 17.U // (1 start, 16 data, 1 stop) minus 1
+          }
+        }
+      }
+      is (Link.MultiState.MasterTransmit) {
+        io.port.dir.sd := true.B
+        io.port.out.sd := regTxBuffer(0)
+        // TODO: should be receiving here too?
+
+        when (io.enable && uartTimer.io.pulse) {
+          logger.info("Master TX pulse")
+          regTxBuffer := regTxBuffer >> 1
+          regPulseCounter := regPulseCounter - 1.U
+          when (regPulseCounter === 0.U) {
+            logger.info("Master TX end")
+            regState := Link.MultiState.MasterWait
+            regWaitCounter := 0.U
+            regDataB0 := regDataA // XXX: should instead be storing what is seen on input pins?
+          }
+        }
+      }
+      is (Link.MultiState.MasterWait) {
+        io.port.out.so := false.B
+
+        val nextWaitCounter = regWaitCounter + 1.U
+        when (io.enable) {
+          regWaitCounter := nextWaitCounter
+
+          when (!io.port.in.sd) {
+            logger.info("Master: saw slave start bit")
+            regPeerId := regPeerId + 1.U
+            regState := Link.MultiState.MasterReceive
+            regPulseCounter := 17.U
+            uartTimer.reset := true.B
+            // TODO
+          } .elsewhen (nextWaitCounter === 0.U) {
+            logger.info("Master: wait timed out")
+            // TODO
+            io.irq := interruptEnable
+            regState := Link.MultiState.Idle
+          }
+        }
+      }
+      is (Link.MultiState.MasterReceive) {
+        io.port.out.so := false.B
+
+        when (io.enable && uartTimer.io.pulseMid) {
+          logger.info("Master RX mid-pulse")
+          regRxBuffer := Cat(io.port.in.sd, regRxBuffer >> 1)
+        }
+        when (io.enable && uartTimer.io.pulse) {
+          logger.info("Master RX pulse")
+          regPulseCounter := regPulseCounter - 1.U
+          when (regPulseCounter === 0.U) {
+            logger.info("Master RX end")
+            val rxData = regRxBuffer(16, 1)
+            rxDataRegs.zipWithIndex.foreach(r => {
+              when (regPeerId === r._2.U) {
+                r._1 := rxData
+              }
+            })
+
+            when (regPeerId === 3.U) {
+              logger.info("Master: slave 3 ended")
+              io.irq := interruptEnable
+              regState := Link.MultiState.Idle
+            } .otherwise {
+              regState := Link.MultiState.MasterWait
+              regWaitCounter := 0.U
+            }
+          }
+        }
       }
     }
   }
@@ -103,9 +286,9 @@ object Link {
 
   /// Link port: [3=SO, 2=SI, 1=SD, 0=SC]
   class Interface extends Bundle {
-    val in = Input(UInt(4.W))
-    val out = Output(UInt(4.W))
-    val dir = Output(UInt(4.W))
+    val in = Input(new Ports)
+    val out = Output(new Ports)
+    val dir = Output(new Ports)
   }
 
   /// RCNT register: SIO mode / GPIO
@@ -124,5 +307,32 @@ object Link {
     val Uart = Value
     val Gpio = Value
     val Joybus = Value
+  }
+
+  class MultiSiocntLo extends Bundle {
+    val busy = Bool()
+    val error = Bool()
+    val id = UInt(2.W)
+    val sd = Bool()
+    val si = Bool()
+    val baud = UInt(2.W)
+  }
+
+  /// States for the multiplayer state machine
+  object MultiState extends ChiselEnum {
+    /// Idle State: waiting for a transfer to begin
+    val Idle = Value
+    /// Master: Sending out our data
+    val MasterTransmit = Value
+    /// Master: Waiting for a slave to start sending data
+    val MasterWait = Value
+    /// Master: Receiving data from a slave
+    val MasterReceive = Value
+    /// Slave: Receiving data from another peer
+    val SlaveReceive = Value
+    /// Slave: Waiting for next peer to start
+    val SlaveWait = Value
+    /// Slave: Sending out our data
+    val SlaveTransmit = Value
   }
 }

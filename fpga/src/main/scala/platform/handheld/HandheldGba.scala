@@ -295,22 +295,20 @@ class HandheldGba extends Module with HandheldModule {
   sramEwram <> gba.io.ewram
   sramEwram.address := Cat(1.U(1.W), gba.io.ewram.address)
 
-  io.pmod.out := Cat(clock.asBool, gba.io.cartridge.nWR, gba.io.cartridge.nRD, gba.io.cartridge.nCS)
+  io.pmod.out := gba.io.link.in.asUInt
   io.pmod.dir := "b1111".U(4.W)
 
   // Link port
-  io.link.scOut := gba.io.link.out(0)
-  io.link.sdOut := gba.io.link.out(1)
-  io.link.siOut := gba.io.link.out(2)
-  io.link.soOut := gba.io.link.out(3)
-  io.link.scDir := gba.io.link.dir(0)
-  io.link.sdDir := gba.io.link.dir(1)
-  io.link.siDir := gba.io.link.dir(2)
-  io.link.soDir := gba.io.link.dir(3)
-  gba.io.link.in := RegNext(RegNext(Cat(
-    io.link.soIn,
-    io.link.siIn,
-    io.link.sdIn,
-    io.link.scIn,
-  )))
+  io.link.scOut := RegNext(gba.io.link.out.sc)
+  io.link.sdOut := RegNext(gba.io.link.out.sd)
+  io.link.siOut := RegNext(gba.io.link.out.si)
+  io.link.soOut := RegNext(gba.io.link.out.so)
+  io.link.scDir := RegNext(gba.io.link.dir.sc)
+  io.link.sdDir := RegNext(gba.io.link.dir.sd)
+  io.link.siDir := RegNext(gba.io.link.dir.si)
+  io.link.soDir := RegNext(gba.io.link.dir.so)
+  gba.io.link.in.sc := RegNext(RegNext(io.link.scIn))
+  gba.io.link.in.sd := RegNext(RegNext(io.link.sdIn))
+  gba.io.link.in.si := RegNext(RegNext(io.link.siIn))
+  gba.io.link.in.so := RegNext(RegNext(io.link.soIn))
 }

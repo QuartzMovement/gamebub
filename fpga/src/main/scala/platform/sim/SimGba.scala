@@ -88,5 +88,8 @@ class SimGba extends Module {
   io.emuCartBackup <> emuCart.io.backup
 
   // Link
-  gba.io.link.in := 0.U
+  gba.io.link.in.si := false.B
+  gba.io.link.in.so := true.B
+  gba.io.link.in.sc := true.B
+  gba.io.link.in.sd := true.B
 }
