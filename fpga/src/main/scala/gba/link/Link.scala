@@ -133,8 +133,7 @@ class Link extends Module {
   }
 
   private def handleMulti(): Unit = {
-//    val isMaster = !io.port.in.si
-    val isMaster = true.B // TODO: TESTING
+    val isMaster = !io.port.in.si
     val rxDataRegs = Seq(regDataB0, regDataB1, regDataB2, regDataB3)
 
     val regMyId = RegInit(0.U(2.W))
@@ -172,6 +171,7 @@ class Link extends Module {
     val regRxBuffer = Reg(UInt(18.W))
     val regPulseCounter = Reg(UInt(5.W))
     val regWaitCounter = Reg(UInt(9.W))
+    val regDidTransmit = Reg(Bool())
 
     switch (regState) {
       is (Link.MultiState.Idle) {
@@ -193,6 +193,7 @@ class Link extends Module {
           when (io.enable && io.port.in.sc === 0.U) {
             logger.info("Slave begin")
             regState := Link.MultiState.SlaveReceive
+            regDidTransmit := false.B
             // TODO: dedupe
             rxDataRegs.foreach(r => r := 0xFFFF.U)
             uartTimer.reset := true.B
@@ -209,11 +210,11 @@ class Link extends Module {
         // TODO: should be receiving here too?
 
         when (io.enable && uartTimer.io.pulse) {
-          logger.info("Master TX pulse")
+          logger.debug("Master TX pulse")
           regTxBuffer := regTxBuffer >> 1
           regPulseCounter := regPulseCounter - 1.U
           when (regPulseCounter === 0.U) {
-            logger.info("Master TX end")
+            logger.debug("Master TX end")
             regState := Link.MultiState.MasterWait
             regWaitCounter := 0.U
             regDataB0 := regDataA // XXX: should instead be storing what is seen on input pins?
@@ -228,15 +229,13 @@ class Link extends Module {
           regWaitCounter := nextWaitCounter
 
           when (!io.port.in.sd) {
-            logger.info("Master: saw slave start bit")
+            logger.debug("Master: saw slave start bit")
             regPeerId := regPeerId + 1.U
             regState := Link.MultiState.MasterReceive
             regPulseCounter := 17.U
             uartTimer.reset := true.B
-            // TODO
           } .elsewhen (nextWaitCounter === 0.U) {
-            logger.info("Master: wait timed out")
-            // TODO
+            logger.debug("Master: wait timed out")
             io.irq := interruptEnable
             regState := Link.MultiState.Idle
           }
@@ -246,14 +245,14 @@ class Link extends Module {
         io.port.out.so := false.B
 
         when (io.enable && uartTimer.io.pulseMid) {
-          logger.info("Master RX mid-pulse")
+          logger.debug("Master RX mid-pulse")
           regRxBuffer := Cat(io.port.in.sd, regRxBuffer >> 1)
         }
         when (io.enable && uartTimer.io.pulse) {
-          logger.info("Master RX pulse")
+          logger.debug("Master RX pulse")
           regPulseCounter := regPulseCounter - 1.U
           when (regPulseCounter === 0.U) {
-            logger.info("Master RX end")
+            logger.debug("Master RX end")
             val rxData = regRxBuffer(16, 1)
             rxDataRegs.zipWithIndex.foreach(r => {
               when (regPeerId === r._2.U) {
@@ -262,13 +261,84 @@ class Link extends Module {
             })
 
             when (regPeerId === 3.U) {
-              logger.info("Master: slave 3 ended")
+              logger.debug("Master: slave 3 ended")
               io.irq := interruptEnable
               regState := Link.MultiState.Idle
             } .otherwise {
               regState := Link.MultiState.MasterWait
               regWaitCounter := 0.U
             }
+          }
+        }
+      }
+      is (Link.MultiState.SlaveReceive) {
+        io.port.out.so := !regDidTransmit
+
+        when (io.enable && uartTimer.io.pulseMid) {
+          logger.debug("Slave RX mid-pulse")
+          regRxBuffer := Cat(io.port.in.sd, regRxBuffer >> 1)
+        }
+        when (io.enable && uartTimer.io.pulse) {
+          logger.debug("Slave RX pulse")
+          regPulseCounter := regPulseCounter - 1.U
+          when (regPulseCounter === 0.U) {
+            logger.debug("Slave RX end")
+            val rxData = regRxBuffer(16, 1)
+            rxDataRegs.zipWithIndex.foreach(r => {
+              when (regPeerId === r._2.U) {
+                r._1 := rxData
+              }
+            })
+
+            regState := Link.MultiState.SlaveWait
+            regPeerId := regPeerId + 1.U
+          }
+        }
+      }
+      is (Link.MultiState.SlaveWait) {
+        io.port.out.so := !regDidTransmit
+
+        when (io.enable && !io.port.in.sd) {
+          logger.debug("Slave wait: got start bit")
+          // Go to Receive
+          uartTimer.reset := true.B
+          regPulseCounter := 17.U // (1 start, 16 data, 1 stop) minus 1
+          regState := Link.MultiState.SlaveReceive
+        }
+        when (io.enable && !io.port.in.si && !regDidTransmit) {
+          logger.debug("Slave wait: saw SI go low")
+          // Go to Transmit
+          uartTimer.reset := true.B
+          regMyId := regPeerId
+          regPulseCounter := 17.U // (1 start, 16 data, 1 stop) minus 1
+          regState := Link.MultiState.SlaveTransmit
+          regDidTransmit := true.B
+        }
+        when (io.enable && io.port.in.sc) {
+          logger.debug("Slave wait: SC went back high")
+          // End
+          io.irq := interruptEnable
+          regState := Link.MultiState.Idle
+        }
+      }
+      is (Link.MultiState.SlaveTransmit) {
+        io.port.dir.sd := true.B
+        io.port.out.sd := regTxBuffer(0)
+        // TODO: should be receiving here too?
+
+        when (io.enable && uartTimer.io.pulse) {
+          logger.debug("Slave TX pulse")
+          regTxBuffer := regTxBuffer >> 1
+          regPulseCounter := regPulseCounter - 1.U
+          when (regPulseCounter === 0.U) {
+            logger.debug("Slave TX end")
+            // XXX: should instead be storing what is seen on input pins?
+            rxDataRegs.zipWithIndex.foreach(r => {
+              when (regMyId === r._2.U) {
+                r._1 := regDataA
+              }
+            })
+            regState := Link.MultiState.SlaveWait
           }
         }
       }
