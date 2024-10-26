@@ -2,7 +2,7 @@ package gba.link
 
 import chisel3._
 
-class UartTimer(counterWidth: Int = 16) extends Module {
+class UartTimer(counterWidth: Int = 17) extends Module {
   val io = IO(new Bundle {
     val enable = Input(Bool())
     val baudrate = Input(UInt(2.W))
@@ -14,17 +14,30 @@ class UartTimer(counterWidth: Int = 16) extends Module {
     val pulseMid = Output(Bool())
   })
 
+  // The actual timing can't be gated by enable, because UART is very time sensitive.
+  // So running a percent or two slow (because of stalls) would break communication.
+  // Instead, always count the timer (even when not enabled), and latch the pulse bits
+  // until the next enabled cycle.
+  val latchedPulse = RegInit(false.B)
+  val latchedPulseMid = RegInit(false.B)
   io.pulse := false.B
   io.pulseMid := false.B
 
   val counter = RegInit(0.U(counterWidth.W))
   val increment = VecInit(counterIncrements)(io.baudrate)
-  when (io.enable) {
-    val nextCounter = counter +& increment
-    counter := nextCounter
+  val nextCounter = counter +& increment
+  counter := nextCounter
 
-    io.pulseMid := nextCounter(counterWidth - 1) && !counter(counterWidth - 1)
-    io.pulse := nextCounter(counterWidth)
+  val pulseMid = nextCounter(counterWidth - 1) && !counter(counterWidth - 1)
+  val pulse = nextCounter(counterWidth)
+  when (io.enable) {
+    io.pulse := latchedPulse || pulse
+    io.pulseMid := latchedPulseMid || pulseMid
+    latchedPulse := false.B
+    latchedPulseMid := false.B
+  } .otherwise {
+    latchedPulse := latchedPulse || pulse
+    latchedPulseMid := latchedPulseMid || pulseMid
   }
 
   private def counterIncrements: Seq[UInt] = {
