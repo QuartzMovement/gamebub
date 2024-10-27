@@ -7,7 +7,6 @@ import lib.log.Logger
 
 class Link extends Module {
   val io = IO(new Bundle {
-    // TODO: handle properly
     val enable = Input(Bool())
     val mmio = new MmioTarget()
     val irq = Output(Bool())
@@ -17,8 +16,8 @@ class Link extends Module {
   val logger = Logger("link", enable = io.enable)
 
   val mode = Wire(Link.Mode.Type())
-  val prevMode = RegNext(mode)
-  val prevPortIn = RegNext(io.port.in)
+  val prevMode = RegEnable(mode, io.enable)
+  val prevPortIn = RegEnable(io.port.in, io.enable)
   /// Whether bit 7 of SIOCNT has been written this cycle (only for Normal and Multi mode).
   val siocntStartSet = WireDefault(false.B)
   val siocntStartUnset = WireDefault(false.B)
