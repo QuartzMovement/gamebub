@@ -116,6 +116,9 @@ class Link extends Module {
   uartTimer.io.baudrate := DontCare
 
   switch (mode) {
+    is (Link.Mode.Normal) {
+      handleNormal()
+    }
     is (Link.Mode.Multi) {
       handleMulti()
     }
@@ -131,6 +134,132 @@ class Link extends Module {
     when (regGpioInterrupt && !io.port.in.si && prevPortIn.si) {
       // SI falling edge interrupt
       io.irq := true.B
+    }
+  }
+
+  private def handleNormal(): Unit = {
+    val regBusy = RegInit(false.B)
+    val regMasterHold = Reg(Bool())
+    val regBitCounter = Reg(UInt(6.W))
+    val regClockCounter = Reg(UInt(5.W))
+    val regClockOut = Reg(Bool())
+    val regDataOut = Reg(Bool())
+    val regShiftIn = Reg(UInt(32.W))
+    val regShiftOut = Reg(UInt(32.W))
+
+    // SIOCNT
+    val siocntLo = regSiocnt.asTypeOf(new Link.NormalSiocntLo)
+    val siocntLoRead = Wire(new Link.NormalSiocntLo)
+    siocntReadValueLo := siocntLoRead.asUInt
+    siocntLoRead.busy := regBusy
+    siocntLoRead._unused := 0.U
+    siocntLoRead.soIdle := siocntLo.soIdle
+    siocntLoRead.si := io.port.in.si
+    siocntLoRead.fastClock := siocntLo.fastClock
+    siocntLoRead.master := siocntLo.master
+    val transfer32 = regSiocnt(12)
+    val interruptEnable = regSiocnt(14)
+    val isMaster = siocntLo.master
+    val fastClock = siocntLo.fastClock
+
+    io.port.dir.si := false.B
+    io.port.dir.so := true.B
+    io.port.dir.sd := true.B
+    io.port.dir.sc := siocntLo.master
+    io.port.out.si := DontCare
+    io.port.out.so := Mux(regBusy, regDataOut, siocntLo.soIdle)
+    io.port.out.sd := false.B // Always SD = low
+    io.port.out.sc := Mux(regBusy, regClockOut, true.B)
+
+    when (siocntStartSet) {
+      logger.info(cf"Normal start, master=${isMaster}")
+      regBusy := true.B
+      regMasterHold := false.B
+      regBitCounter := Mux(transfer32, 32.U, 8.U)
+      regClockCounter := 0.U
+      regClockOut := true.B
+      regDataOut := siocntLo.soIdle
+      when (transfer32) {
+        regShiftOut := Cat(regDataB1, regDataB0)
+      } .otherwise {
+        regShiftOut := regDataA(7, 0)
+      }
+    }
+
+    when (io.enable && regBusy) {
+      val clockRising = WireDefault(false.B)
+      val clockFalling = WireDefault(false.B)
+
+      // Control master clock
+      when (isMaster) {
+        val nextClockCounter = regClockCounter +& 1.U
+        regClockCounter := nextClockCounter
+        // Tick every clock *edge* (rising or falling)
+        val tick = Mux(fastClock, nextClockCounter(2), nextClockCounter(5))
+        when (tick) {
+          logger.debug("Normal master clock tick")
+          regClockOut := !regClockOut
+          when (regClockOut) {
+            clockFalling := true.B
+          } .otherwise {
+            clockRising := true.B
+          }
+        }
+      } .otherwise {
+        when (io.port.in.sc && !prevPortIn.sc) {
+          clockRising := true.B
+        }
+        when (!io.port.in.sc && prevPortIn.sc) {
+          clockFalling := true.B
+        }
+      }
+
+      when (clockFalling) {
+        // Shift out
+        logger.debug("Falling clock")
+        regDataOut := Mux(transfer32, regShiftOut(31), regShiftOut(7))
+        regShiftOut := regShiftOut << 1
+      }
+
+      when (clockRising) {
+        // Shift in
+        logger.debug("Rising clock")
+        val nextRegShiftIn = Cat(regShiftIn, io.port.in.si)
+        regShiftIn := nextRegShiftIn
+
+        val nextBitCounter = regBitCounter - 1.U
+        regBitCounter := nextBitCounter
+        when (nextBitCounter === 0.U) {
+          logger.info("Normal transfer done")
+          when (isMaster) {
+            // Master needs to hold data for another half cycle or so for slave to read.
+            regMasterHold := true.B
+          } .otherwise {
+            regBusy := false.B
+            io.irq := interruptEnable
+          }
+          when (transfer32) {
+            regDataB0 := nextRegShiftIn(15, 0)
+            regDataB1 := nextRegShiftIn(31, 16)
+          } .otherwise {
+            regDataA := nextRegShiftIn(7, 0)
+          }
+        }
+      }
+
+      when (regMasterHold) {
+        regClockOut := true.B
+        when (clockFalling) {
+          logger.info("Master hold complete")
+          regBusy := false.B
+          io.irq := interruptEnable
+        }
+      }
+
+      when (siocntStartUnset) {
+        logger.info("Normal transfer cancelled")
+        regBusy := false.B
+      }
     }
   }
 
@@ -384,6 +513,23 @@ object Link {
     val Uart = Value
     val Gpio = Value
     val Joybus = Value
+  }
+
+  class NormalSiocntLo extends Bundle {
+    val busy = Bool()
+    val _unused = UInt(3.W)
+    val soIdle = Bool()
+    val si = Bool()
+    val fastClock = Bool()
+    val master = Bool()
+  }
+
+  /// States for the 'normal' spi state machine
+  object NormalState extends ChiselEnum {
+    val Idle = Value
+    val Ready = Value
+    val Active = Value
+    val Hold = Value
   }
 
   class MultiSiocntLo extends Bundle {
