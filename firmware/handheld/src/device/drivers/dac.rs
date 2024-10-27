@@ -170,14 +170,14 @@ where
         self.write_reg(1, 0x2B, 0x04)?;
 
         // Configure output drivers
-        // Enable HPL output analog volume, set = -9 dB
-        self.write_reg(1, 0x24, 0x92)?;
-        // Enable HPR output analog volume, set = -9 dB
-        self.write_reg(1, 0x25, 0x92)?;
-        // Enable speaker left output analog volume, set = -9 dB
-        self.write_reg(1, 0x26, 0x92)?;
-        // Enable speaker right output analog volume, set = -9 dB
-        self.write_reg(1, 0x27, 0x92)?;
+        // Enable HPL output analog volume, set = 0 dB
+        self.write_reg(1, 0x24, 0x80)?;
+        // Enable HPR output analog volume, set = 0 dB
+        self.write_reg(1, 0x25, 0x80)?;
+        // Enable speaker left output analog volume, set = 0 dB
+        self.write_reg(1, 0x26, 0x80)?;
+        // Enable speaker right output analog volume, set = 0 dB
+        self.write_reg(1, 0x27, 0x80)?;
 
         // TODO: Apply waiting time determined by the de-pop settings and the soft-stepping settings
         //    of the driver gain or poll page 1 / register 63
@@ -200,12 +200,15 @@ where
     }
 
     /// Sets DAC volume for left and right.
-    /// Mapped to DAC's volume range of -63.5 dB to 24dB.
+    /// Mapped to DAC's volume range of -63.5 dB to 0dB.
+    ///
+    /// Max DAC digital volume is 24dB, but full-range waveforms
+    /// would be clipped at > 0dB, so cap the volume range to 0dB.
     pub fn set_volume(&mut self, volume: u8) -> Result<(), Error> {
         self.volume = volume;
-        // map 0 -> -127, 255 -> 48
-        // range = 175
-        let value = ((((volume as i32) * 175) / 255) - 127) as u8;
+        // map 0 -> -127, 255 -> 0
+        // range = 127
+        let value = ((((volume as i32) * 127) / 255) - 127) as u8;
         self.write_reg(0, 0x41, value)?;
         self.write_reg(0, 0x42, value)?;
         Ok(())
