@@ -145,6 +145,9 @@ class Link extends Module {
     val regDataOut = Reg(Bool())
     val regShiftIn = Reg(UInt(32.W))
     val regShiftOut = Reg(UInt(32.W))
+    when (io.enable && prevMode =/= Link.Mode.Normal) {
+      regBusy := false.B
+    }
 
     // SIOCNT
     val siocntLo = regSiocnt.asTypeOf(new Link.NormalSiocntLo)
@@ -272,6 +275,8 @@ class Link extends Module {
     val regBusy = RegInit(false.B)
     when (io.enable && prevMode =/= Link.Mode.Multi) {
       regState := Link.MultiState.Idle
+      regBusy := false.B
+      regError := false.B
     }
 
     // SIOCNT
