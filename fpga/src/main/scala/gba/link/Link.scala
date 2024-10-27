@@ -124,6 +124,8 @@ class Link extends Module {
     is (Link.Mode.Gpio) {
       handleGpio()
     }
+    // TODO support UART mode
+    // TODO support JOYBUS mode
   }
 
   private def handleGpio(): Unit = {
