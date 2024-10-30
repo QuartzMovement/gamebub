@@ -2,6 +2,7 @@ package gba.link
 
 import chisel3._
 import chisel3.util._
+import gba.link.Link.JoybusCommand
 import gba.{MMIO, MmioMap, MmioTarget}
 import lib.log.Logger
 
@@ -51,9 +52,7 @@ class Link extends Module {
   // 0x154: JOY_TRANS
   val regJoyTrans = RegInit(0.U(32.W))
   // 0x158: JOYSTAT
-  // TODO: set this bit after a "data write" joybus command
   val regJoyStatRx = RegInit(false.B)
-  // TODO: unset this bit after a "data read" joybus command
   val regJoyStatTx = RegInit(false.B)
   val regJoyStatFlags = RegInit(0.U(2.W))
   val joyStatRead = Cat(
@@ -200,8 +199,10 @@ class Link extends Module {
     is (Link.Mode.Gpio) {
       handleGpio()
     }
+    is (Link.Mode.Joybus) {
+      handleJoybus()
+    }
     // TODO support UART mode
-    // TODO support JOYBUS mode
   }
 
   private def handleGpio(): Unit = {
@@ -562,6 +563,248 @@ class Link extends Module {
       regState := Link.MultiState.Idle
     }
   }
+
+  private def handleJoybus(): Unit = {
+    // Whether we should receive bits into the receive buffer (MSB first)
+    val doReceive = WireDefault(false.B)
+    val doTransmit = WireDefault(false.B)
+
+    val regState = RegInit(Link.JoybusState.Idle)
+    // SI high 1024 cycle reset counter
+    val regResetCounter = RegInit(0.U(10.W))
+    // Current command
+    val regCommand = Reg(JoybusCommand.Type())
+    // Receive shift register
+    val regRxBuffer = Reg(UInt(32.W))
+    // Receive bit counter
+    val regRxBitCounter = Reg(UInt(6.W))
+    // Receive: number of low cycles seen
+    val regRxLoCount = Reg(UInt(10.W))
+    // Receive: number of high cycles seen
+    val regRxHiCount = Reg(UInt(10.W))
+    // Transmit shift register
+    val regTxBuffer = Reg(UInt(32.W))
+    // Transmit bit counter
+    val regTxBitCounter = Reg(UInt(6.W))
+    // Transmit cycle counter
+    val regTxCycleCounter = Reg(UInt(6.W))
+
+    // Handle reseting the state
+    val resetState = WireDefault(false.B)
+    when (resetState) {
+      regState := Link.JoybusState.Idle
+    }
+    when (io.enable && prevMode =/= Link.Mode.Joybus) {
+      resetState := true.B
+    }
+    // After 1024 cycles of not seeing SI low at all, reset the state back to Idle.
+    // This accounts for two behaviors:
+    // 1) The GBA, if it's transmitting, and it doesn't see a "SI = 0"
+    //    for ~60us, it stops transmitting. This happens naturally because
+    //    it normally sees itself transmitting (and producing low values
+    //    due to the GCN/GBA adapter).
+    // 2) After receiving an unknown command, it takes about ~60us of
+    //    no "SI = 0" before it will recognize another command.
+    // Any cycle where SI = 0 resets this counter.
+    when (io.enable && io.port.in.si && regState =/= Link.JoybusState.Idle) {
+      val nextResetCounter = regResetCounter + 1.U
+      regResetCounter := nextResetCounter
+      when (nextResetCounter === 0.U) {
+        logger.info("Joybus: inactivity, resetting")
+        resetState := true.B
+      }
+    }
+    when (io.enable && !io.port.in.si) {
+      regResetCounter := 0.U
+    }
+
+    io.port.dir.so := false.B  // Default: Input (pull-up)
+    io.port.dir.si := false.B  // Always Input
+    io.port.dir.sd := true.B   // Always output
+    io.port.dir.sc := true.B   // Always output
+    io.port.out.so := true.B
+    io.port.out.si := DontCare
+    io.port.out.sd := false.B
+    io.port.out.sc := false.B
+
+    switch (regState) {
+      is (Link.JoybusState.Idle) {
+        when (io.enable && !io.port.in.si) {
+          logger.info("Joybus: exiting Idle")
+          regState := Link.JoybusState.ReceiveCommand
+          regRxBitCounter := 8.U // 8 bit command
+          regRxLoCount := 0.U
+          regRxHiCount := 0.U
+          regResetCounter := 0.U
+        }
+      }
+      is (Link.JoybusState.ReceiveCommand) {
+        doReceive := regRxBitCounter > 0.U
+
+        when (io.enable && regRxBitCounter === 0.U) {
+          val command = regRxBuffer(7, 0)
+          logger.info(cf"Joybus: RX command 0x${command}%x")
+
+          // Set up counters and buffers to receive the payload.
+          regState := Link.JoybusState.ReceivePayload
+          when (command === 0xFF.U) {
+            regCommand := Link.JoybusCommand.Reset
+            regRxBitCounter := 0.U
+            regTxBitCounter := 16.U
+            regTxBuffer := Cat(0x00.U(8.W), 0x04.U(8.W), 0.U(16.W))
+          } .elsewhen (command === 0x00.U) {
+            regCommand := Link.JoybusCommand.Status
+            regRxBitCounter := 0.U
+            regTxBitCounter := 16.U
+            regTxBuffer := Cat(0x00.U(8.W), 0x04.U(8.W), 0.U(16.W))
+          } .elsewhen (command === 0x15.U) {
+            regCommand := Link.JoybusCommand.DataWrite
+            regRxBitCounter := 32.U
+            regTxBitCounter := 0.U
+          } .elsewhen (command === 0x14.U) {
+            regCommand := Link.JoybusCommand.DataRead
+            regRxBitCounter := 0.U
+            regTxBitCounter := 32.U
+            regTxBuffer := Cat(
+              regJoyTrans(7, 0),
+              regJoyTrans(15, 8),
+              regJoyTrans(23, 16),
+              regJoyTrans(31, 24),
+            )
+          } .otherwise {
+           regState := Link.JoybusState.UnknownCommand
+          }
+        }
+      }
+      is (Link.JoybusState.ReceivePayload) {
+        doReceive := regRxBitCounter > 0.U
+
+        when (io.enable && regRxBitCounter === 0.U) {
+          logger.info(cf"Joybus: finished RX payload")
+          regState := Link.JoybusState.ReceiveStopBit
+        }
+      }
+      is (Link.JoybusState.ReceiveStopBit) {
+        // We enter this state with SI low, so we're waiting for it to go back high.
+        when (io.enable && io.port.in.si) {
+          logger.info(cf"Joybus stop bit went back high")
+          regState := Link.JoybusState.TransmitSetup
+          regTxCycleCounter := 0.U
+        }
+      }
+      is (Link.JoybusState.TransmitSetup) {
+        io.port.dir.so := true.B
+        io.port.out.so := true.B
+        when (io.enable) {
+          val nextCycleCounter = regTxCycleCounter + 1.U
+          regTxCycleCounter := nextCycleCounter
+          when (nextCycleCounter === 0.U) {
+            regState := Link.JoybusState.TransmitPayload
+          }
+        }
+      }
+      is (Link.JoybusState.TransmitPayload) {
+        io.port.dir.so := true.B
+        doTransmit := regTxBitCounter > 0.U
+
+        when (io.enable && regTxBitCounter === 0.U) {
+          logger.info(cf"Joybus: finished TX payload")
+          regTxBitCounter := 8.U
+          regTxBuffer := Cat(joyStatRead, 0.U(24.W))
+          regState := Link.JoybusState.TransmitStatus
+        }
+      }
+      is (Link.JoybusState.TransmitStatus) {
+        io.port.dir.so := true.B
+        doTransmit := regTxBitCounter > 0.U
+
+        when (io.enable && regTxBitCounter === 0.U) {
+          logger.info(cf"Joybus: finished TX status")
+          regState := Link.JoybusState.TransmitStopBit
+          regTxCycleCounter := 0.U
+        }
+      }
+      is (Link.JoybusState.TransmitStopBit) {
+        io.port.dir.so := true.B
+        io.port.out.so := false.B
+        when (io.enable) {
+          val nextCycleCounter = regTxCycleCounter + 1.U
+          regTxCycleCounter := nextCycleCounter
+          when (nextCycleCounter === 0.U) {
+            logger.info(cf"Joybus: Finished stop bit")
+            regState := Link.JoybusState.Idle
+            io.irq := regJoyCntInterrupt && (regCommand =/= Link.JoybusCommand.Status)
+
+            switch (regCommand) {
+              is (Link.JoybusCommand.Reset) {
+                regJoyCntReset := true.B
+              }
+              is (Link.JoybusCommand.DataWrite) {
+                // Set regJoyCntReceive when data has been pushed to the GBA.
+                regJoyCntReceive := true.B
+                regJoyStatRx := true.B
+                regJoyRecv := Cat(
+                  regRxBuffer(7, 0),
+                  regRxBuffer(15, 8),
+                  regRxBuffer(23, 16),
+                  regRxBuffer(31, 24),
+                )
+              }
+              is (Link.JoybusCommand.DataRead) {
+                // Set regJoyCntSend when data has been pulled from GBA.
+                regJoyCntSend := true.B
+                regJoyStatTx := false.B
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Receive bit logic
+    when (io.enable && doReceive) {
+      when (!io.port.in.si) {
+        regRxLoCount := regRxLoCount + 1.U
+      } .otherwise {
+        regRxHiCount := regRxHiCount + 1.U
+      }
+
+      // Falling edge: receive a bit
+      when (!io.port.in.si && prevPortIn.si) {
+        logger.debug(cf"Joybus: RX bit lo=${regRxLoCount} hi=${regRxHiCount}")
+        val bit = regRxHiCount > regRxLoCount
+        regRxBuffer := Cat(regRxBuffer, bit)
+        regRxLoCount := 0.U
+        regRxHiCount := 0.U
+        regRxBitCounter := regRxBitCounter - 1.U
+      }
+    }
+    // Transmit bit logic
+    when (doTransmit) {
+      val bit = regTxBuffer(31)
+      val counterHi = regTxCycleCounter(5, 4)
+      when (counterHi === 0.U) {
+        // First quarter: always low
+        io.port.out.so := false.B
+      } .elsewhen (counterHi === 3.U) {
+        // Fourth quarter: always high
+        io.port.out.so := true.B
+      } .otherwise {
+        // Middle two quarters: the bit value
+        io.port.out.so := bit
+      }
+
+      when (io.enable) {
+        val nextCycleCounter = regTxCycleCounter + 1.U
+        regTxCycleCounter := nextCycleCounter
+        when (nextCycleCounter === 0.U) {
+          logger.debug("Joybus: TX bit finished")
+          regTxBitCounter := regTxBitCounter - 1.U
+          regTxBuffer := regTxBuffer << 1
+        }
+      }
+    }
+  }
 }
 
 object Link {
@@ -639,5 +882,38 @@ object Link {
     val SlaveWait = Value
     /// Slave: Sending out our data
     val SlaveTransmit = Value
+  }
+
+  /// States for the joybus state machine
+  object JoybusState extends ChiselEnum {
+    /// Waiting for a command to start
+    val Idle = Value
+    /// Receiving command byte
+    val ReceiveCommand = Value
+    /// Receiving command payload (if any)
+    val ReceivePayload = Value
+    /// Wait for a stop bit following the command+payload
+    val ReceiveStopBit = Value
+    /// Wait before starting transmit.
+    val TransmitSetup = Value
+    /// Transmit the response payload (if any)
+    val TransmitPayload = Value
+    /// Transmit the status byte
+    val TransmitStatus = Value
+    /// Transmit the final stop bit
+    val TransmitStopBit = Value
+    /// Ignoring an unknown command
+    val UnknownCommand = Value
+  }
+
+  object JoybusCommand extends ChiselEnum {
+    // 0xFF: Reset
+    val Reset = Value
+    // 0x00: Status
+    val Status = Value
+    // 0x15: Data Write (to GBA)
+    val DataWrite = Value
+    // 0x14: Data Read (from GBA)
+    val DataRead = Value
   }
 }
