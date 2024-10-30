@@ -41,6 +41,29 @@ class Link extends Module {
   val regDataB2 = RegInit(0.U(16.W))
   // 0x126: SIOMULTI3
   val regDataB3 = RegInit(0.U(16.W))
+  // 0x140: JOYCNT
+  val regJoyCntReset = RegInit(false.B)
+  val regJoyCntReceive = RegInit(false.B)
+  val regJoyCntSend = RegInit(false.B)
+  val regJoyCntInterrupt = RegInit(false.B)
+  // 0x150: JOY_RECV
+  val regJoyRecv = RegInit(0.U(32.W))
+  // 0x154: JOY_TRANS
+  val regJoyTrans = RegInit(0.U(32.W))
+  // 0x158: JOYSTAT
+  // TODO: set this bit after a "data write" joybus command
+  val regJoyStatRx = RegInit(false.B)
+  // TODO: unset this bit after a "data read" joybus command
+  val regJoyStatTx = RegInit(false.B)
+  val regJoyStatFlags = RegInit(0.U(2.W))
+  val joyStatRead = Cat(
+    0.U(2.W),
+    regJoyStatFlags,
+    regJoyStatTx,
+    0.U(1.W),
+    regJoyStatRx,
+    0.U(1.W),
+  )
 
   io.irq := false.B
   io.mmio <> MmioMap(
@@ -78,6 +101,59 @@ class Link extends Module {
         when (enable && mask(1)) {
           regGpioInterrupt := data.interrupt
           regControlMode := data.mode
+        }
+      })
+    ),
+    // JOYCNT
+    0x140 -> MmioMap.Entry(
+      MmioMap.ReadFn(Cat(
+        regJoyCntInterrupt,
+        0.U(3.W),
+        regJoyCntSend,
+        regJoyCntReceive,
+        regJoyCntReset,
+      )),
+      MmioMap.WriteFn((enable, data, mask) => {
+        when (enable && mask(0)) {
+          when (data(0)) {
+            regJoyCntReset := false.B
+          }
+          when (data(1)) {
+            regJoyCntReceive := false.B
+          }
+          when (data(2)) {
+            regJoyCntSend := false.B
+          }
+          regJoyCntInterrupt := data(6)
+        }
+      })
+    ),
+    // JOY_RECV
+    0x150 -> MmioMap.Entry(
+      MmioMap.ReadFn(enable => {
+        when (enable) {
+          regJoyStatRx := false.B
+        }
+        (regJoyRecv, true.B)
+      }),
+      MmioMap.WriteFn(regJoyRecv),
+    ),
+    // JOY_TRANS
+    0x154 -> MmioMap.Entry(
+      MmioMap.ReadFn(regJoyTrans),
+      MmioMap.WriteFn((enable, data, mask) => {
+        when (enable) {
+          regJoyTrans := MMIO.mask(regJoyTrans, data, mask)
+          regJoyStatTx := true.B
+        }
+      })
+    ),
+    // JOYSTAT
+    0x158 -> MmioMap.Entry(
+      MmioMap.ReadFn(joyStatRead),
+      MmioMap.WriteFn((enable, data, mask) => {
+        when (enable && mask(0)) {
+          regJoyStatFlags := data(5, 4)
         }
       })
     ),
