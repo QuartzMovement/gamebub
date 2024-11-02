@@ -114,7 +114,11 @@ class HandheldGba extends Module with HandheldModule {
       statRegCycles := statRegCycles + 1.U
     }
   }
+
   gba.io.configGBPlayer := configRegGBPlayer.asBool
+  when (gba.io.configGBPlayer && gba.io.gbpRumble) {
+    io.vibrate := true.B
+  }
 
   // Emulated cartridge
   val emuCart = Module(new EmulatedCartridge)

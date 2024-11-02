@@ -44,6 +44,9 @@ class GBA extends Module {
 
     /// Link port
     val link = new Link.Interface
+
+    /// Game Boy Player Rumble
+    val gbpRumble = Output(Bool())
   })
 
   val bus = Module(new mem.Bus(Seq(
@@ -186,7 +189,14 @@ class GBA extends Module {
   val gameBoyPlayer = Module(new GameBoyPlayer)
   gameBoyPlayer.io.enable := io.enable && io.configGBPlayer
   gameBoyPlayer.io.ppu := ppu.io.output
-  when (gameBoyPlayer.io.detected && io.configGBPlayer) {
-    keypad.io.state := gameBoyPlayer.io.keypadOverride.asTypeOf(new Keypad.State)
+  gameBoyPlayer.io.link.in := link.io.port.out
+  io.gbpRumble := gameBoyPlayer.io.rumble
+  when (io.configGBPlayer) {
+    when (gameBoyPlayer.io.doKeypadOverride) {
+      keypad.io.state := gameBoyPlayer.io.keypadOverride.asTypeOf(new Keypad.State)
+    }
+    when (gameBoyPlayer.io.doLinkOverride) {
+      link.io.port.in := gameBoyPlayer.io.link.out
+    }
   }
 }
