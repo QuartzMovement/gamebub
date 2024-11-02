@@ -119,18 +119,20 @@ class Serial(config: Gameboy.Configuration) extends Module {
   io.interruptRequest := false.B
   val regOut = RegInit(1.U(1.W))
   io.serial.out := regOut
-  when (io.clocker.enable && clockFalling) {
-    regOut := regData(7)
-    regData := regData << 1
-  }
-  when (io.clocker.enable && clockRising) {
-    regData := Cat(regData(7, 1), io.serial.in)
+  when (io.clocker.enable && regEnable) {
+    when (clockFalling) {
+      regOut := regData(7)
+      regData := regData << 1
+    }
+    when (clockRising) {
+      regData := Cat(regData(7, 1), io.serial.in)
 
-    regBitsLeft := regBitsLeft - 1.U
-    when (regBitsLeft === 1.U) {
-      // Transfer complete, we're going down to 0
-      regEnable := false.B
-      io.interruptRequest := true.B
+      regBitsLeft := regBitsLeft - 1.U
+      when (regBitsLeft === 1.U) {
+        // Transfer complete, we're going down to 0
+        regEnable := false.B
+        io.interruptRequest := true.B
+      }
     }
   }
 

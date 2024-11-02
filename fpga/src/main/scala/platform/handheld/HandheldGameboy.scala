@@ -126,12 +126,12 @@ class HandheldGameboy extends Module with HandheldModule {
   // Link port
   io.link.soOut := gameboy.io.serial.out
   io.link.soDir := true.B
-  gameboy.io.serial.in := io.link.siIn
+  gameboy.io.serial.in := RegNext(RegNext(io.link.siIn))
   io.link.siOut := DontCare
   io.link.siDir := false.B
   io.link.sdOut := DontCare
   io.link.sdDir := false.B
-  gameboy.io.serial.clockIn := io.link.scIn
+  gameboy.io.serial.clockIn := RegNext(RegNext(io.link.scIn))
   io.link.scOut := gameboy.io.serial.clockOut
   io.link.scDir := gameboy.io.serial.clockEnable
 
