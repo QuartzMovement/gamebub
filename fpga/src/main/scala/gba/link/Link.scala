@@ -252,7 +252,7 @@ class Link extends Module {
     io.port.out.sd := false.B // Always SD = low
     io.port.out.sc := Mux(regBusy, regClockOut, true.B)
 
-    when (siocntStartSet) {
+    when (siocntStartSet && !regBusy) {
       logger.info(cf"Normal start, master=${isMaster}")
       regBusy := true.B
       regMasterHold := false.B
