@@ -211,10 +211,9 @@ impl UI {
                 self.root.invoke_set_screen(slint::ScreenId::Game);
             }
             Message::RomLoadingProgress(progress) => {
-                // Update loading bar, in increments of 10%.
                 self.root
                     .global::<slint::Backend>()
-                    .set_rom_select_progress((progress * 10.0).ceil() * 10.0);
+                    .set_rom_select_progress(progress * 100.0);
             }
             Message::RomSelectFiles(files) => {
                 self.state.borrow_mut().rom_select_update_list(files);

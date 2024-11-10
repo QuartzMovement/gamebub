@@ -2,6 +2,7 @@ use std::{
     fs::File,
     io::{Read, Seek, Write},
     path::{Path, PathBuf},
+    time::{Duration, Instant},
 };
 use thiserror::Error;
 
@@ -12,6 +13,8 @@ use crate::{
 use crate::{ui, util::ReaderResult};
 
 use super::Bitstream;
+
+const PROGRESS_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
 
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
 const REG_EMU_CART_ROM_ADDR: u32 = 0xC000_0004;
@@ -203,6 +206,7 @@ impl Gameboy {
         log::info!("Loading rom: {:?}", rom_header);
 
         const CHUNK_SIZE: usize = 32 * 1024;
+        let mut last_progress_update = Instant::now();
         let mut reader = BackgroundReader::new(rom_file, CHUNK_SIZE);
         let mut total = 0u32;
         loop {
@@ -216,9 +220,13 @@ impl Gameboy {
             total += chunk.len() as u32;
 
             // Update UI progress bar.
-            let progress = ((total - (chunk.len() as u32)) as f32) / (rom_file_size as f32);
-            ui::send(ui::Message::RomLoadingProgress(progress));
+            if last_progress_update.elapsed() > PROGRESS_UPDATE_INTERVAL {
+                let progress = (total as f32) / (rom_file_size as f32);
+                ui::send(ui::Message::RomLoadingProgress(progress));
+                last_progress_update = Instant::now();
+            }
         }
+        ui::send(ui::Message::RomLoadingProgress(1.0));
 
         // Load RAM
         let ram_path = rom_path.with_extension("sav");

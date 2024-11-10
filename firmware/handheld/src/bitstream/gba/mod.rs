@@ -23,6 +23,8 @@ mod rtc;
 mod save_type_detector;
 
 const ROM_HEADER_LENGTH: usize = 192;
+const PROGRESS_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
+
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
 const REG_EMU_CART_ROM_SIZE: u32 = 0xC000_0004;
 const REG_IMU_GYRO_Z: u32 = 0xC000_0100;
@@ -223,6 +225,7 @@ impl Gba {
         let mut reader = BackgroundReader::new(rom_file, CHUNK_SIZE);
 
         let mut total = 0u32;
+        let mut last_progress_update = Instant::now();
         let start_time = Instant::now();
         let mut transfer_duration = Duration::ZERO;
         let mut detect_duration = Duration::ZERO;
@@ -239,8 +242,11 @@ impl Gba {
             transfer_duration += transfer_start.elapsed();
 
             // Update UI progress bar.
-            let progress = ((total - (chunk.len() as u32)) as f32) / (rom_file_size as f32);
-            ui::send(ui::Message::RomLoadingProgress(progress));
+            if last_progress_update.elapsed() > PROGRESS_UPDATE_INTERVAL {
+                let progress = (total as f32) / (rom_file_size as f32);
+                ui::send(ui::Message::RomLoadingProgress(progress));
+                last_progress_update = Instant::now();
+            }
 
             let detect_start = Instant::now();
             if emu_cart_config.is_none() {
@@ -248,6 +254,7 @@ impl Gba {
             }
             detect_duration += detect_start.elapsed();
         }
+        ui::send(ui::Message::RomLoadingProgress(1.0));
         let duration = start_time.elapsed();
         log::info!(
             "Loaded ROM: {} bytes in {} ms ({}/{} ms transfer/detect)",
