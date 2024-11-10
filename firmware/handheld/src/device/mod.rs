@@ -368,8 +368,10 @@ impl Device<'_> {
     pub fn reboot(&mut self) -> ! {
         log::info!("Rebooting");
         let _ = self.change_display_mode(DisplayMode::None);
+        let _ = self.dac.reset();
         let _ = self.set_fpga_power(false);
         kvs::keys::flush_all();
+
         esp_idf_svc::hal::reset::restart();
     }
 
