@@ -62,13 +62,26 @@ class PpuMem(name: String, size: Int, width: Width) extends Module {
   memWritePort.data := DontCare
   io.cpuTarget.done := false.B
 
+  // Read / write conflict handling (on different ports).
+  // The write is supposed to have occurred before the read, so forward the write data.
+  val conflictWrite = RegInit(false.B)
+  val conflictWriteData = Reg(UInt(width))
+  val conflictWriteMask = Reg(UInt(widthBytes.W))
+  when (memReadPort.enable) {
+    conflictWrite := false.B
+  }
+  val memReadData = WireDefault(memReadPort.data.asUInt)
+  when (conflictWrite) {
+    memReadData := gba.MMIO.mask(memReadPort.data.asUInt, conflictWriteData, conflictWriteMask);
+  }
+
   // Latch read data, in case io.enable goes to false.
   val lastRead = RegNext(memReadPort.enable)
   val readDataLatch = Reg(UInt(32.W))
   when (lastRead) {
-    readDataLatch := memReadPort.data.asUInt
+    readDataLatch := memReadData.asUInt
   }
-  val readData = Mux(lastRead, memReadPort.data.asUInt, readDataLatch)
+  val readData = Mux(lastRead, memReadData.asUInt, readDataLatch)
   io.cpuTarget.dataRead := readData
   io.ppuTarget.readData := readData
 
@@ -91,6 +104,13 @@ class PpuMem(name: String, size: Int, width: Width) extends Module {
         memWritePort.address := queuedAddress
         memWritePort.mask.get := mask
         memWritePort.data := io.cpuTarget.dataWrite.asTypeOf(Vec(widthHalfwords, UInt(16.W)))
+
+        when (memReadPort.enable && memReadPort.address === memWritePort.address) {
+          // Write conflict!
+          conflictWriteData := io.cpuTarget.dataWrite
+          conflictWrite := true.B
+          conflictWriteMask := queuedWriteMask
+        }
       }
     }
 

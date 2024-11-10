@@ -35,11 +35,24 @@ class SimpleRam(name: String, size: Int, width: Width, waitStates: Int = 0) exte
   io.target.done := false.B
   io.target.dataRead := DontCare
 
+  // Read / write conflict handling (on different ports).
+  // The write is supposed to have occurred before the read, so forward the write data.
+  val conflictWrite = RegInit(false.B)
+  val conflictWriteData = Reg(UInt(width))
+  val conflictWriteMask = Reg(UInt(widthBytes.W))
+  when (memReadPort.enable) {
+    conflictWrite := false.B
+  }
+  val memReadData = WireDefault(memReadPort.data.asUInt)
+  when (conflictWrite) {
+    memReadData := gba.MMIO.mask(memReadPort.data.asUInt, conflictWriteData, conflictWriteMask);
+  }
+
   // Latch read data, in case io.enable goes to false.
   val lastRead = RegNext(memReadPort.enable)
   val readDataLatch = Reg(UInt(32.W))
   when (lastRead) {
-    readDataLatch := memReadPort.data.asUInt
+    readDataLatch := memReadData
   }
 
   when (io.enable) {
@@ -56,8 +69,15 @@ class SimpleRam(name: String, size: Int, width: Width, waitStates: Int = 0) exte
           memWritePort.address := queuedAddress
           memWritePort.mask.get := queuedWriteMask.asBools
           memWritePort.data := io.target.dataWrite.asTypeOf(Vec(widthBytes, UInt(8.W)))
+
+          when (memReadPort.enable && memReadPort.address === memWritePort.address) {
+            // Write conflict!
+            conflictWriteData := io.target.dataWrite
+            conflictWrite := true.B
+            conflictWriteMask := queuedWriteMask
+          }
         } .otherwise {
-          io.target.dataRead := Mux(lastRead, memReadPort.data.asUInt, readDataLatch)
+          io.target.dataRead := Mux(lastRead, memReadData, readDataLatch)
         }
       } .elsewhen (nextBusyCounter === 0.U) {
         when (!queuedWrite) {
