@@ -141,6 +141,8 @@ pub struct Gameboy {
     rom_header: Option<RomHeader>,
     /// Path to the RAM file, if this is an emulated cartridge.
     ram_path: Option<PathBuf>,
+    /// Loaded bootrom path.
+    bootrom_path: Option<&'static str>,
 }
 
 impl Gameboy {
@@ -148,16 +150,25 @@ impl Gameboy {
         Gameboy {
             rom_header: None,
             ram_path: None,
+            bootrom_path: None,
+        }
+    }
+
+    fn get_bootrom_path() -> &'static str {
+        if kvs::keys::GB_SKIP_BOOT_ANIM.get().unwrap() {
+            "/sdcard/system/gameboy.bios-cgb-fast.bin"
+        } else {
+            "/sdcard/system/gameboy.bios-cgb.bin"
         }
     }
 
     fn load_bootrom(&mut self, device: &mut Device) -> Result<(), GameboyError> {
+        let bios_path = Self::get_bootrom_path();
+        if self.bootrom_path == Some(bios_path) {
+            return Ok(());
+        }
+
         log::info!("Loading CGB bootrom");
-        let bios_path = if kvs::keys::GB_SKIP_BOOT_ANIM.get().unwrap() {
-            "/sdcard/system/gameboy.bios-cgb-fast.bin"
-        } else {
-            "/sdcard/system/gameboy.bios-cgb.bin"
-        };
         let mut bios_file = File::open(bios_path)?;
         let mut buf = vec![0u8; 2048].into_boxed_slice();
         bios_file.read(&mut buf)?;
@@ -170,6 +181,7 @@ impl Gameboy {
         };
         device.fpga.spi_write(command, address, &buf)?;
 
+        self.bootrom_path = Some(bios_path);
         Ok(())
     }
 
@@ -180,6 +192,9 @@ impl Gameboy {
 
         // Hold in reset
         device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
+
+        // Ensure bootrom is loaded
+        self.load_bootrom(&mut device)?;
 
         // Switch to physical cartridge.
         device.fpga.write_u32(REG_EMU_CART_CONFIG, 0)?;
@@ -200,6 +215,9 @@ impl Gameboy {
             let mut device = Device::lock();
             device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
             device.imu.disable_accel().unwrap();
+
+            // Ensure bootrom is loaded
+            self.load_bootrom(&mut device)?;
         }
 
         // Load ROM
@@ -360,8 +378,7 @@ impl Bitstream for Gameboy {
     }
 
     fn on_after_program(&mut self) -> Result<(), String> {
-        let mut device = Device::lock();
-        self.load_bootrom(&mut device).map_err(|e| e.to_string())
+        Ok(())
     }
 
     fn set_paused(&mut self, paused: bool) -> Result<(), fpga::Error> {

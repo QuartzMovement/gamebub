@@ -150,6 +150,8 @@ pub struct Gba {
     save_size: u32,
     /// Emulated cartridge config.
     emu_cart_config: Option<EmulatedCartridgeConfig>,
+    /// Loaded bios path
+    bios_path: Option<&'static str>,
 }
 
 impl Gba {
@@ -158,15 +160,24 @@ impl Gba {
             save_path: None,
             save_size: 0,
             emu_cart_config: None,
+            bios_path: None,
+        }
+    }
+
+    fn get_bios_path() -> &'static str {
+        if kvs::keys::GBA_SKIP_BOOT_ANIM.get().unwrap() {
+            "/sdcard/system/gba.bios-fast.bin"
+        } else {
+            "/sdcard/system/gba.bios.bin"
         }
     }
 
     fn load_bios(&mut self, device: &mut Device) -> Result<(), GbaError> {
-        let bios_path = if kvs::keys::GBA_SKIP_BOOT_ANIM.get().unwrap() {
-            "/sdcard/system/gba.bios-fast.bin"
-        } else {
-            "/sdcard/system/gba.bios.bin"
-        };
+        let bios_path = Self::get_bios_path();
+        if self.bios_path == Some(bios_path) {
+            return Ok(());
+        }
+
         let mut bios_file = File::open(bios_path)?;
         let mut buf = vec![0u8; 16 * 1024].into_boxed_slice();
         bios_file.read(&mut buf)?;
@@ -179,6 +190,7 @@ impl Gba {
         };
         device.fpga.spi_write(command, address, &buf)?;
 
+        self.bios_path = Some(bios_path);
         Ok(())
     }
 
@@ -187,6 +199,9 @@ impl Gba {
 
         // Hold in reset
         device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
+
+        // Load bios if needed
+        self.load_bios(&mut device)?;
 
         // Switch to physical cartridge.
         device
@@ -213,6 +228,9 @@ impl Gba {
             device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
             device.imu.disable_gyro().unwrap();
             device.imu.disable_accel().unwrap();
+
+            // Load bios if needed
+            self.load_bios(&mut device)?;
         }
 
         // Load ROM
@@ -424,8 +442,7 @@ impl Bitstream for Gba {
     }
 
     fn on_after_program(&mut self) -> Result<(), String> {
-        let mut device = Device::lock();
-        self.load_bios(&mut device).map_err(|e| e.to_string())
+        Ok(())
     }
 
     fn set_paused(&mut self, paused: bool) -> Result<(), fpga::Error> {
