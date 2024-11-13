@@ -42,7 +42,7 @@ impl Model for SettingsModel {
     type Data = SettingEntry;
 
     fn row_count(&self) -> usize {
-        2
+        5
     }
 
     fn row_data(&self, row: usize) -> Option<Self::Data> {
@@ -70,6 +70,30 @@ impl Model for SettingsModel {
                             sec: dt.second() as i32,
                         }
                     },
+                    ..SettingValue::default()
+                },
+            }),
+            2 => Some(SettingEntry {
+                name: "GB: Skip Boot Animation".into(),
+                r#type: SettingType::Checkbox,
+                value: SettingValue {
+                    bool_value: kvs::keys::GB_SKIP_BOOT_ANIM.get().unwrap(),
+                    ..SettingValue::default()
+                },
+            }),
+            3 => Some(SettingEntry {
+                name: "GBA: Skip Boot Animation".into(),
+                r#type: SettingType::Checkbox,
+                value: SettingValue {
+                    bool_value: kvs::keys::GBA_SKIP_BOOT_ANIM.get().unwrap(),
+                    ..SettingValue::default()
+                },
+            }),
+            4 => Some(SettingEntry {
+                name: "GBA: Enable Game Boy Player".into(),
+                r#type: SettingType::Checkbox,
+                value: SettingValue {
+                    bool_value: kvs::keys::GBA_ENABLE_GBP.get().unwrap(),
                     ..SettingValue::default()
                 },
             }),
@@ -109,6 +133,9 @@ impl SettingsModel {
                 Device::lock().set_datetime(dt);
                 self.datetime.set(dt);
             }
+            2 => kvs::keys::GB_SKIP_BOOT_ANIM.set(&value.bool_value),
+            3 => kvs::keys::GBA_SKIP_BOOT_ANIM.set(&value.bool_value),
+            4 => kvs::keys::GBA_ENABLE_GBP.set(&value.bool_value),
             _ => {
                 log::info!("Unknown setting changed: {} -> {:?}", index, value);
                 return;

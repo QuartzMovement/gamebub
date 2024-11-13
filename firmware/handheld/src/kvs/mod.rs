@@ -58,6 +58,7 @@ pub struct KvsKey<T> {
 
 impl<T: Serialize + DeserializeOwned + Clone> KvsKey<T> {
     const fn new(name: &'static str) -> Self {
+        assert!(name.len() < 16);
         KvsKey::<T> {
             name,
             read_only: false,
@@ -67,6 +68,7 @@ impl<T: Serialize + DeserializeOwned + Clone> KvsKey<T> {
     }
 
     const fn new_with_default(name: &'static str, default: T) -> Self {
+        assert!(name.len() < 16);
         KvsKey::<T> {
             name,
             read_only: false,

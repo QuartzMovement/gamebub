@@ -11,6 +11,7 @@ use thiserror::Error;
 
 use crate::{
     device::{drivers::fpga, Device},
+    kvs,
     util::BackgroundReader,
 };
 use crate::{ui, util::ReaderResult};
@@ -161,7 +162,12 @@ impl Gba {
     }
 
     fn load_bios(&mut self, device: &mut Device) -> Result<(), GbaError> {
-        let mut bios_file = File::open("/sdcard/system/gba.bios.bin")?;
+        let bios_path = if kvs::keys::GBA_SKIP_BOOT_ANIM.get().unwrap() {
+            "/sdcard/system/gba.bios-fast.bin"
+        } else {
+            "/sdcard/system/gba.bios.bin"
+        };
+        let mut bios_file = File::open(bios_path)?;
         let mut buf = vec![0u8; 16 * 1024].into_boxed_slice();
         bios_file.read(&mut buf)?;
 

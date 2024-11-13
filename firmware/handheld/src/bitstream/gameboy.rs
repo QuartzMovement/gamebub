@@ -8,6 +8,7 @@ use thiserror::Error;
 
 use crate::{
     device::{drivers::fpga, Device},
+    kvs,
     util::BackgroundReader,
 };
 use crate::{ui, util::ReaderResult};
@@ -152,9 +153,14 @@ impl Gameboy {
 
     fn load_bootrom(&mut self, device: &mut Device) -> Result<(), GameboyError> {
         log::info!("Loading CGB bootrom");
-        let mut rom_file = File::open("/sdcard/system/gameboy.bios-cgb.bin")?;
+        let bios_path = if kvs::keys::GB_SKIP_BOOT_ANIM.get().unwrap() {
+            "/sdcard/system/gameboy.bios-cgb-fast.bin"
+        } else {
+            "/sdcard/system/gameboy.bios-cgb.bin"
+        };
+        let mut bios_file = File::open(bios_path)?;
         let mut buf = vec![0u8; 2048].into_boxed_slice();
-        rom_file.read(&mut buf)?;
+        bios_file.read(&mut buf)?;
 
         let address = 0xC010_0000;
         let command = fpga::SpiCommand {

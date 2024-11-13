@@ -14,9 +14,20 @@ pub static BRIGHTNESS: KvsKey<f32> = KvsKey::new_with_default("brightness", 0.50
 /// Whether dark mode is enabled.
 pub static DARK_MODE: KvsKey<bool> = KvsKey::new_with_default("dark-mode", false);
 
+/// Whether to skip DMG/CGB boot animation
+pub static GB_SKIP_BOOT_ANIM: KvsKey<bool> = KvsKey::new_with_default("gb-no-anim", false);
+
+/// Whether to skip GBA boot animation.
+pub static GBA_SKIP_BOOT_ANIM: KvsKey<bool> = KvsKey::new_with_default("gba-no-anim", false);
+
+/// Whether to enable Game Boy Player functiona.lity
+pub static GBA_ENABLE_GBP: KvsKey<bool> = KvsKey::new_with_default("gba-enable-gbp", false);
+
 pub fn flush_all() {
     LAST_ROM_PATH.flush();
     VOLUME.flush();
     BRIGHTNESS.flush();
     DARK_MODE.flush();
+    GB_SKIP_BOOT_ANIM.flush();
+    GBA_SKIP_BOOT_ANIM.flush();
 }
