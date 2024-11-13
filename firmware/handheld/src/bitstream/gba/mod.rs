@@ -28,6 +28,7 @@ const PROGRESS_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
 
 const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
 const REG_EMU_CART_ROM_SIZE: u32 = 0xC000_0004;
+const REG_GB_PLAYER: u32 = 0xC000_0008;
 const REG_IMU_GYRO_Z: u32 = 0xC000_0100;
 const REG_IMU_ACCEL_X: u32 = 0xC000_0104;
 const REG_IMU_ACCEL_Y: u32 = 0xC000_0108;
@@ -203,6 +204,11 @@ impl Gba {
         // Load bios if needed
         self.load_bios(&mut device)?;
 
+        device.fpga.write_u32(
+            REG_GB_PLAYER,
+            kvs::keys::GBA_ENABLE_GBP.get().unwrap() as u32,
+        )?;
+
         // Switch to physical cartridge.
         device
             .fpga
@@ -231,6 +237,11 @@ impl Gba {
 
             // Load bios if needed
             self.load_bios(&mut device)?;
+
+            device.fpga.write_u32(
+                REG_GB_PLAYER,
+                kvs::keys::GBA_ENABLE_GBP.get().unwrap() as u32,
+            )?;
         }
 
         // Load ROM
