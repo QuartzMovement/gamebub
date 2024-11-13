@@ -22,6 +22,7 @@ export component SettingsScreen inherits ScreenBase {
 
         VerticalLayout {
             height: 100%;
+            spacing: 2px;
 
             list := SettingsListView {
                 model: entries;
@@ -33,7 +34,7 @@ export component SettingsScreen inherits ScreenBase {
                 }
 
                 Text {
-                    text: "B: Cancel";
+                    text: "B: Back";
                     horizontal-alignment: right;
                 }
             }
