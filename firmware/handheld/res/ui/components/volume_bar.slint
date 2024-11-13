@@ -2,8 +2,12 @@ import { Global, Backend } from "../common.slint";
 
 export component VolumeBar inherits Rectangle {
     in property <int> level;
+    in property <image> icon-0;
+    in property <image> icon-1;
+    in property <image> icon-2;
+    in property <image> icon-3;
 
-    width: 16px;
+    width: 18px;
 
     Rectangle {
         background: lightgray;
@@ -22,5 +26,24 @@ export component VolumeBar inherits Rectangle {
         border-color: black;
         border-width: 1px;
         border-radius: parent.width / 2;
+    }
+
+    function get-icon() -> image {
+        if (level == 0) {
+            icon-0
+        } else if (level < 33) {
+            icon-1
+        } else if (level < 66) {
+            icon-2
+        } else {
+            icon-3
+        }
+    }
+
+    Image {
+        source: get-icon();
+        colorize: black;
+        image-rendering: pixelated;
+        y: parent.width / 2;
     }
 }

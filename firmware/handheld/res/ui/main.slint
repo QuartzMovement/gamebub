@@ -129,6 +129,11 @@ export component MainWindow inherits Window {
         height: 50%;
         visible: Backend.volume-visible;
         level: Backend.volume-level;
+
+        icon-0: @image-url("../icons/volume-0.png");
+        icon-1: @image-url("../icons/volume-1.png");
+        icon-2: @image-url("../icons/volume-2.png");
+        icon-3: @image-url("../icons/volume-3.png");
     }
 
     brightness-bar := VolumeBar {
@@ -137,6 +142,11 @@ export component MainWindow inherits Window {
         height: 50%;
         visible: Backend.brightness-visible;
         level: Backend.brightness-level;
+
+        icon-0: @image-url("../icons/brightness-0.png");
+        icon-1: @image-url("../icons/brightness-1.png");
+        icon-2: @image-url("../icons/brightness-2.png");
+        icon-3: @image-url("../icons/brightness-3.png");
     }
 
     if Global.power-menu-visible: power-menu := PowerMenu {
