@@ -15,7 +15,7 @@ export component VolumeBar inherits Rectangle {
     }
 
     Rectangle {
-        background: gray;
+        background: #333;
         width: 100%;
         height: parent.height * (root.level * 1%);
         y: parent.height - self.height;
@@ -42,8 +42,8 @@ export component VolumeBar inherits Rectangle {
 
     Image {
         source: get-icon();
-        colorize: black;
+        colorize: #aaa;
         image-rendering: pixelated;
-        y: parent.width / 2;
+        y: parent.height - self.height - parent.width / 2;
     }
 }
