@@ -154,7 +154,7 @@ fn dispatch(message: Message) {
 }
 
 /// Get the list of eligible files for the ROM select menu at the given directory
-fn rom_select_get_files(path: &Path) -> std::io::Result<Vec<String>> {
+fn rom_select_get_files(path: &Path) -> std::io::Result<Vec<(String, bool)>> {
     let mut files = path
         .read_dir()?
         .filter_map(|e| {
@@ -178,6 +178,6 @@ fn rom_select_get_files(path: &Path) -> std::io::Result<Vec<String>> {
         let c2 = (f2.1.is_file(), f2.0.as_str());
         c1.cmp(&c2)
     });
-    let files = files.into_iter().map(|f| f.0).collect();
+    let files = files.into_iter().map(|f| (f.0, f.1.is_dir())).collect();
     Ok(files)
 }

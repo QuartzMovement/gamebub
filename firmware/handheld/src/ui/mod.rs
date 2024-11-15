@@ -33,7 +33,7 @@ pub enum Message {
     /// ROM loading progress
     RomLoadingProgress(f32),
     /// ROM select file list
-    RomSelectFiles(Vec<String>),
+    RomSelectFiles(Vec<(String, bool)>),
 }
 
 /// Send a message to the UI thread.

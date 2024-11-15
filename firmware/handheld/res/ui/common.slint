@@ -1,5 +1,6 @@
 import "../fonts/pixelmix.ttf";
 import { SettingEntry, SettingValue, SettingType, SettingDatetime } from "screens/settings/types.slint";
+import { FileListEntry } from "components/file_list.slint";
 
 export enum ScreenId {
     MainMenu,
@@ -40,7 +41,7 @@ export global Backend {
     in property <int> battery-level: 11;
     in property <int> rom-select-initial: 0;
     in-out property <int> rom-select-index: 0;
-    in property <[string]> rom-select-list: [];
+    in property <[FileListEntry]> rom-select-list: [];
     in property <string> rom-select-path: "/fake/path/";
     in property <percent> rom-select-progress: 0%;
     in property <bool> rom-select-is-loading: false;

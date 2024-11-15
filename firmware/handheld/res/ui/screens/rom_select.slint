@@ -1,15 +1,13 @@
 import { Global, ScreenId, Backend } from "../common.slint";
 import { ScreenBase } from "../components/screen.slint";
-import { TextListView } from "../components/list_view.slint";
+import { FileListView } from "../components/file_list.slint";
 
 export component RomSelectScreen inherits ScreenBase {
-    in property <[string]> files;
     private property <bool> is-loading: false;
 
     title: "Load ROM...";
     forward-focus: list;
 
-    files: Backend.rom-select-list;
     i-focus-scope := FocusScope {
         key-pressed(event) => {
             if (Backend.rom-select-is-loading) {
@@ -32,8 +30,8 @@ export component RomSelectScreen inherits ScreenBase {
                 text: Backend.rom-select-path;
             }
 
-            list := TextListView {
-                model: root.files;
+            list := FileListView {
+                model: Backend.rom-select-list;
                 wrap: true;
                 disabled: Backend.rom-select-is-loading;
                 focus-item <=> Backend.rom-select-index;

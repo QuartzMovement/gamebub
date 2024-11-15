@@ -5,6 +5,7 @@ use std::{
 };
 
 use super::super::slint::Backend;
+use super::super::slint::FileIcon;
 use slint::{ComponentHandle, Model, ModelRc, VecModel};
 
 use crate::{device::Device, kvs, worker};
@@ -26,8 +27,8 @@ impl UiState {
             let backend = root.global::<Backend>();
             let list = backend.get_rom_select_list();
             if let Some(data) = list.row_data(index as usize) {
-                let path = state.rom_select_directory.join(data.as_str());
-                state.rom_select_handle_select(path, data.as_str())
+                let path = state.rom_select_directory.join(data.name.as_str());
+                state.rom_select_handle_select(path, data.name.as_str())
             } else {
                 false
             }
@@ -46,16 +47,16 @@ impl UiState {
             let backend = root.global::<Backend>();
             let list = backend.get_rom_select_list();
             if let Some(data) = list.row_data(index as usize) {
-                let path = state.rom_select_directory.join(data.as_str());
+                let path = state.rom_select_directory.join(data.name.as_str());
                 kvs::keys::LAST_ROM_PATH.set(&path);
             }
         });
     }
 
-    pub fn rom_select_update_list(&mut self, mut files: Vec<String>) {
+    pub fn rom_select_update_list(&mut self, mut files: Vec<(String, bool)>) {
         let path = &self.rom_select_directory;
         if path != Path::new(BASE_DIR) {
-            files.insert(0, "..".to_string());
+            files.insert(0, ("..".to_string(), true));
         }
 
         // Determine initial selected file.
@@ -64,15 +65,22 @@ impl UiState {
             .as_ref()
             .and_then(|p| p.file_name())
             .and_then(|f| f.to_str())
-            .and_then(|filename| files.iter().position(|f| f == filename))
+            .and_then(|filename| files.iter().position(|(f, _)| f == filename))
             .unwrap_or(0);
         let files = ModelRc::from(Rc::new(VecModel::from(
-            files.into_iter().map(|s| s.into()).collect::<Vec<_>>(),
+            files
+                .into_iter()
+                .map(|(name, is_dir)| crate::ui::slint::FileListEntry {
+                    name: name.into(),
+                    icon: if is_dir {
+                        FileIcon::Folder
+                    } else {
+                        FileIcon::Blank
+                    },
+                })
+                .collect::<Vec<_>>(),
         )));
 
-        // TODO: something about this causes bad scrolling when you go up a directory with B
-        // and you're scrolled down a bunch already. Maybe the index can't be updated at the same
-        // time as the list?
         let root = self.root.unwrap();
         let backend = root.global::<Backend>();
         backend.set_rom_select_list(files);
