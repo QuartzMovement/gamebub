@@ -89,6 +89,15 @@ export component ListViewBase inherits Rectangle {
             width: root.has-scrollbar ? scroll-bar.x - scrollbar-width - 1px : parent.width - 4px;
             height: parent.height - 4px;
             viewport-height: contents.min-height;
+
+            highlight := Rectangle {
+                x: 0px;
+                y: root.focus-item * root.item-height;
+                width: parent.width;
+                height: root.item-height;
+                background: #bbb;
+            }
+
             contents := VerticalLayout {
                 alignment: start;
                 @children
@@ -136,27 +145,15 @@ export component ListViewBase inherits Rectangle {
 
 component TextListItem {
     in property <string> text;
-    in property <bool> highlighted;
-    in property <int> index;
+    height: i-text.min-height + 2px;
 
-    min-width: i-text.min-width;
-    min-height: i-text.min-height + 2px;
-    vertical-stretch: 0;
-    horizontal-stretch: 1;
-
-    i-background := Rectangle {
-        background: root.highlighted ? #bbb : transparent;
-        width: root.width;
-        i-text := Text {
-            x: 2px;
-            text: root.text;
-            vertical-alignment: center;
-            horizontal-alignment: left;
-            overflow: elide;
-        }
+    i-text := Text {
+        x: 2px;
+        text: root.text;
+        vertical-alignment: center;
+        horizontal-alignment: left;
+        overflow: elide;
     }
-
-    @children
 }
 
 export component TextListView inherits ListViewBase {
@@ -164,9 +161,6 @@ export component TextListView inherits ListViewBase {
     num-items: model.length;
 
     for item[index] in root.model: child-items := TextListItem {
-        index: index;
         text: item;
-        highlighted: index == root.focus-item;
-        height: self.min-height;
     }
 }
