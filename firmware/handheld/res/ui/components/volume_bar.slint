@@ -1,17 +1,23 @@
 import { Global, Backend } from "../common.slint";
 
 export component VolumeBar inherits Rectangle {
+    // Current level, from 0 to 100.
     in property <int> level;
+    // Icon to use when at 0%
     in property <image> icon-0;
+    // Icon to use when < 33%
     in property <image> icon-1;
+    // Icon to use when < 66%
     in property <image> icon-2;
+    // Icon to use when full.
     in property <image> icon-3;
 
     width: 18px;
+    private property <length> round-radius: self.width / 3;
 
     Rectangle {
         background: lightgray;
-        border-radius: parent.width / 2;
+        border-radius: root.round-radius;
     }
 
     Rectangle {
@@ -19,13 +25,28 @@ export component VolumeBar inherits Rectangle {
         width: 100%;
         height: parent.height * (root.level * 1%);
         y: parent.height - self.height;
-        border-radius: parent.width / 2;
+
+        // The goal is to have a rectangle that fills up the outer rounded
+        // rectangle. Slint doesn't currently support clip for rounded rectangles,
+        // so the obvious solution of putting this rectangle inside the border rectangle
+        // doesn't work.
+        //
+        // Instead, we adjust the roundness of the top of the rectangle as we move towards
+        // the top, which sort of simulates this effect. This only works because the
+        // radius is relatively small. 
+        //
+        // The bottom of the rectangle still looks rough at small values though, because the
+        // rounded gets messed up if the rectangle is too small. 
+        border-bottom-left-radius: root.round-radius;
+        border-bottom-right-radius: root.round-radius;
+        border-top-left-radius: max(root.round-radius - self.y, 0);
+        border-top-right-radius: max(root.round-radius - self.y, 0);
     }
 
     Rectangle {
         border-color: black;
         border-width: 1px;
-        border-radius: parent.width / 2;
+        border-radius: root.round-radius;
     }
 
     function get-icon() -> image {
@@ -44,6 +65,6 @@ export component VolumeBar inherits Rectangle {
         source: get-icon();
         colorize: #aaa;
         image-rendering: pixelated;
-        y: parent.height - self.height - parent.width / 2;
+        y: parent.height - self.height - root.round-radius;
     }
 }
