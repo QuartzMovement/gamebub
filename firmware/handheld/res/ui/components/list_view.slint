@@ -96,6 +96,9 @@ export component ListViewBase inherits Rectangle {
                 width: parent.width;
                 height: root.item-height;
                 background: #bbb;
+
+                border-color: black;
+                border-width: root.item-selected ? 1px : 0px;
             }
 
             contents := VerticalLayout {

@@ -5,7 +5,6 @@ import { DatetimePicker } from "datetime.slint";
 
 export component SettingsListViewItem {
     in property <SettingEntry> item;
-    in property <bool> highlighted;
     in property <bool> selected;
     in property <int> index;
 
@@ -22,52 +21,44 @@ export component SettingsListViewItem {
 
     min-width: i-text.min-width;
     min-height: i-text.min-height + 4px;
-    vertical-stretch: 0;
-    horizontal-stretch: 1;
 
-    Rectangle {
+    i-text := Text {
+        x: 2px;
+        text: root.item.name;
+        vertical-alignment: center;
+        horizontal-alignment: left;
+        overflow: elide;
+    }
+
+    // Checkbox
+    if item.type == SettingType.checkbox: Rectangle {
+        background: white;
+        x: parent.width - self.width - 4px;
+        width: self.height;
+        height: parent.height - 2px;
         border-color: black;
-        border-width: root.selected ? 1px : 0px;
-        background: root.highlighted ? #bbb : transparent;
-        width: root.width;
-        i-text := Text {
+        border-width: 1px;
+
+        if item.value.bool-value: Rectangle {
             x: 2px;
-            text: root.item.name;
-            vertical-alignment: center;
-            horizontal-alignment: left;
-            overflow: elide;
+            y: 2px;
+            width: parent.width - 4px;
+            height: parent.height - 4px;
+            background: gray;
         }
-
-        // Checkbox
-        if item.type == SettingType.checkbox: Rectangle {
-            background: white;
-            x: parent.width - self.width - 4px;
-            width: self.height;
-            height: parent.height - 2px;
-            border-color: black;
-            border-width: 1px;
-
-            if item.value.bool-value: Rectangle {
-                x: 2px;
-                y: 2px;
-                width: parent.width - 4px;
-                height: parent.height - 4px;
-                background: gray;
-            }
-        }
-        if item.type == SettingType.subpage: Text {
-            // TODO replace with icon
-            text: "->";
-            x: parent.width - self.width - 4px;
-        }
-        if item.type == SettingType.datetime: DatetimePicker {
-            selected: root.selected;
-            dt: item.value.datetime-value;
-            x: parent.width - self.width - 4px;
-            y: (parent.height - self.height) * 50%;
-            on-changed(delta) => {
-                Backend.setting-changed(index, { datetime-value: delta });
-            }
+    }
+    if item.type == SettingType.subpage: Text {
+        // TODO replace with icon
+        text: "->";
+        x: parent.width - self.width - 4px;
+    }
+    if item.type == SettingType.datetime: DatetimePicker {
+        selected: root.selected;
+        dt: item.value.datetime-value;
+        x: parent.width - self.width - 4px;
+        y: (parent.height - self.height) * 50%;
+        on-changed(delta) => {
+            Backend.setting-changed(index, { datetime-value: delta });
         }
     }
 
@@ -81,9 +72,8 @@ export component SettingsListView inherits ListViewBase {
     for item[index] in root.model: child-items := SettingsListViewItem {
         index: index;
         item: item;
-        highlighted: index == root.focus-item;
         height: self.min-height;
-        selected: self.highlighted && root.item-selected;
+        selected: (index == root.focus-item) && root.item-selected;
 
         if self.selected: FocusScope {
             init => {

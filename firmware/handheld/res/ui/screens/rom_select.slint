@@ -41,6 +41,7 @@ export component RomSelectScreen inherits ScreenBase {
                     self.fix-focus-item();
                 }
                 on-item-selected(i) => {
+                    list.item-selected = false;
                     Backend.rom-select-is-loading = Backend.rom-select-selected(i);
                 }
                 on-item-focused(i) => {
