@@ -23,6 +23,9 @@ pub static GBA_SKIP_BOOT_ANIM: KvsKey<bool> = KvsKey::new_with_default("gba-no-a
 /// Whether to enable Game Boy Player functiona.lity
 pub static GBA_ENABLE_GBP: KvsKey<bool> = KvsKey::new_with_default("gba-enable-gbp", false);
 
+/// Rumble strength level
+pub static RUMBLE_LEVEL: KvsKey<i32> = KvsKey::new_with_default("rumble-level", 0);
+
 pub fn flush_all() {
     LAST_ROM_PATH.flush();
     VOLUME.flush();
@@ -30,4 +33,5 @@ pub fn flush_all() {
     DARK_MODE.flush();
     GB_SKIP_BOOT_ANIM.flush();
     GBA_SKIP_BOOT_ANIM.flush();
+    RUMBLE_LEVEL.flush()
 }

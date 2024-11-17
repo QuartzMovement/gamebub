@@ -2,6 +2,7 @@ export enum SettingType {
     subpage,
     checkbox,
     datetime,
+    list,
 }
 
 export struct SettingDatetime {
@@ -15,11 +16,13 @@ export struct SettingDatetime {
 
 export struct SettingValue {
     bool-value: bool,
+    int-value: int,
     datetime-value: SettingDatetime,
 }
 
 export struct SettingEntry {
     name: string,
     type: SettingType,
+    choices: [string],
     value: SettingValue,
 }

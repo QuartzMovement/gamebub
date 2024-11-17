@@ -57,15 +57,19 @@ export component ListViewBase inherits Rectangle {
     }
 
     protected function focus-up() {
-        root.focus-item = root.focus-item - 1;
-        fix-focus-item();
-        on-item-focused(root.focus-item);
+        if (!root.item-selected) {
+            root.focus-item = root.focus-item - 1;
+            fix-focus-item();
+            on-item-focused(root.focus-item);
+        }
     }
 
     protected function focus-down() {
-        root.focus-item = root.focus-item + 1;
-        fix-focus-item();
-        on-item-focused(root.focus-item);
+        if (!root.item-selected) {
+            root.focus-item = root.focus-item + 1;
+            fix-focus-item();
+            on-item-focused(root.focus-item);
+        }
     }
 
     protected function select-focus-item() {
