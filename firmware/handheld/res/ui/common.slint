@@ -45,6 +45,7 @@ export global Backend {
     in property <string> rom-select-path: "/fake/path/";
     in property <percent> rom-select-progress: 0%;
     in property <bool> rom-select-is-loading: false;
+    in-out property <string> rom-select-error;
     in property <[SettingEntry]> settings: [
         {
             name: "list",

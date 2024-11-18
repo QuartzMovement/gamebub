@@ -134,4 +134,12 @@ impl UiState {
             .set_rom_select_progress(0.0);
         true
     }
+
+    pub fn rom_select_set_error(&mut self, error: String) {
+        let root = self.root.unwrap();
+        let backend = root.global::<Backend>();
+        backend.set_rom_select_is_loading(false);
+        backend.set_rom_select_error(error.into());
+        self.rom_select_update_path();
+    }
 }

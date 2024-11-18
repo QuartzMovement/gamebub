@@ -94,45 +94,36 @@ fn dispatch(message: Message) {
                 Some("gbc") | Some("gb") => bitstream::current().ensure_gameboy().unwrap(),
                 Some("gba") => bitstream::current().ensure_gba().unwrap(),
                 _ => {
-                    log::error!("Unsupported ROM file type");
+                    ui::send(ui::Message::RomSelectError(
+                        "unsupported ROM file type".into(),
+                    ));
                     return;
                 }
             }
 
-            let success = match bitstream::current().deref_mut() {
-                CurrentBitstream::None => false,
-                CurrentBitstream::Gameboy(x) => {
-                    match x.set_emulated_cartridge(path.as_path()) {
-                        Ok(_) => true,
-                        Err(e) => {
-                            // TODO show an error message
-                            log::error!("Error loading ROM: {:?}", e);
-                            false
-                        }
-                    }
-                }
-                CurrentBitstream::Gba(x) => {
-                    match x.set_emulated_cartridge(path.as_path()) {
-                        Ok(_) => true,
-                        Err(e) => {
-                            // TODO show an error message
-                            log::error!("Error loading ROM: {:?}", e);
-                            false
-                        }
-                    }
-                }
+            let result: Result<(), String> = match bitstream::current().deref_mut() {
+                CurrentBitstream::None => Err("no bitstream".into()),
+                CurrentBitstream::Gameboy(x) => x
+                    .set_emulated_cartridge(path.as_path())
+                    .map_err(|e| e.to_string()),
+                CurrentBitstream::Gba(x) => x
+                    .set_emulated_cartridge(path.as_path())
+                    .map_err(|e| e.to_string()),
             };
-            if success {
-                ui::send(ui::Message::EnterGame);
-            } else {
-                // TODO show an error screen
+            match result {
+                Ok(()) => ui::send(ui::Message::EnterGame),
+                Err(err) => ui::send(ui::Message::RomSelectError(err)),
             }
         }
         Message::ListRoms(path) => {
             let files = match rom_select_get_files(&path) {
                 Ok(files) => files,
                 Err(e) => {
-                    log::warn!("Error reading directory: {:?}", e);
+                    log::warn!("Error listing directory: {:?}", e);
+                    ui::send(ui::Message::RomSelectError(format!(
+                        "Error listing directory:\n{}",
+                        e,
+                    )));
                     Vec::new()
                 }
             };

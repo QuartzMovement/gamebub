@@ -4,6 +4,7 @@ import { FileListView } from "../components/file_list.slint";
 
 export component RomSelectScreen inherits ScreenBase {
     private property <bool> is-loading: false;
+    private property <bool> has-error: Backend.rom-select-error != "";
 
     title: "Load ROM...";
     forward-focus: list;
@@ -11,6 +12,11 @@ export component RomSelectScreen inherits ScreenBase {
     i-focus-scope := FocusScope {
         key-pressed(event) => {
             if (Backend.rom-select-is-loading) {
+                accept
+            } else if (has-error) {
+                if (event.text == "a" || event.text == "b") {
+                    Backend.rom-select-error = "";
+                }
                 accept
             } else if event.text == "Home" && !Global.home-consumed {
                 Global.set-screen(ScreenId.MainMenu);
@@ -33,7 +39,7 @@ export component RomSelectScreen inherits ScreenBase {
             list := FileListView {
                 model: Backend.rom-select-list;
                 wrap: true;
-                disabled: Backend.rom-select-is-loading;
+                disabled: Backend.rom-select-is-loading || has-error;
                 focus-item <=> Backend.rom-select-index;
                 init => {
                     self.fix-focus-item();
@@ -85,6 +91,24 @@ export component RomSelectScreen inherits ScreenBase {
                 background: black;
                 width: Backend.rom-select-progress * i-text.min-width;
                 height: 2px;
+            }
+        }
+    }
+
+    if has-error: Rectangle {
+        background: #FFF;
+        border-color: black;
+        border-width: 1px;
+        width: min(self.preferred-width, parent.width - 16px);
+        height: min(self.preferred-height, parent.height - 32px);
+
+        i-error-layout := VerticalLayout {
+            padding: 8px;
+            spacing: 4px;
+            Text {
+                horizontal-alignment: center;
+                text: Backend.rom-select-error;
+                overflow: elide;
             }
         }
     }

@@ -34,6 +34,8 @@ pub enum Message {
     RomLoadingProgress(f32),
     /// ROM select file list
     RomSelectFiles(Vec<(String, bool)>),
+    /// ROM select error
+    RomSelectError(String),
 }
 
 /// Send a message to the UI thread.
@@ -217,6 +219,9 @@ impl UI {
             }
             Message::RomSelectFiles(files) => {
                 self.state.borrow_mut().rom_select_update_list(files);
+            }
+            Message::RomSelectError(error) => {
+                self.state.borrow_mut().rom_select_set_error(error);
             }
             #[allow(unreachable_patterns)]
             _ => {
