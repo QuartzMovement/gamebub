@@ -23,13 +23,12 @@ component FileListItem {
         }
     }
 
-    Image {
+    if (entry.icon != FileIcon.blank): Image {
         x: 1px;
         width: 8px;
         height: 8px;
         source: iconToImage(entry.icon);
         colorize: #333;
-        visible: entry.icon != FileIcon.blank;
     }
 
     i-text := Text {
