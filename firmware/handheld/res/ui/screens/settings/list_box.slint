@@ -14,7 +14,7 @@ export component ListBox {
 
         Image {
             source: Icons.left-caret;
-            visible: selected;
+            visible: selected && index > 0;
             colorize: #333;
         }
 
@@ -35,7 +35,7 @@ export component ListBox {
 
         Image {
             source: Icons.right-caret;
-            visible: selected;
+            visible: selected && index < choices.length - 1;
             colorize: #333;
         }
     }
