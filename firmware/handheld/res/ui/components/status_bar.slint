@@ -1,4 +1,5 @@
 import { Backend } from "../common.slint";
+import { Icons } from "../icons.slint";
 
 export component StatusBar inherits Rectangle {
     in property <string> title;
@@ -9,15 +10,29 @@ export component StatusBar inherits Rectangle {
     height: 14px;
     background: #ccc;
 
-    title-text := Text {
-        text: root.title;
-        horizontal-alignment: left;
-        x: 4px;
-    }
+    HorizontalLayout {
+        spacing: 4px;
+        padding-left: 4px;
+        padding-right: 4px;
+        height: 100%;
 
-    battery-text := Text {
-        text: "\{Backend.battery-level}%";
-        horizontal-alignment: right;
-        x: parent.width - self.width - 4px;
+        // Title text
+        Text {
+            text: root.title;
+            horizontal-stretch: 1;
+            vertical-alignment: center;
+        }
+
+        if Backend.status-is-saving: Image {
+            source: Icons.saving;
+            colorize: #333;
+        }
+
+        // Battery text
+        Text {
+            text: "\{Backend.battery-level}%";
+            horizontal-stretch: 0;
+            vertical-alignment: center;
+        }
     }
 }

@@ -370,6 +370,11 @@ impl Gameboy {
 
         Ok(())
     }
+
+    /// Return whether the current save game would need to be persisted to disk.
+    pub fn needs_save_persist(&self) -> bool {
+        self.ram_path.is_some()
+    }
 }
 
 impl Bitstream for Gameboy {

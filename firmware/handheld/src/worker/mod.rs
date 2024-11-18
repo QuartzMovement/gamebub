@@ -22,6 +22,8 @@ pub enum Message {
 
     /// Run a cartridge
     RunCartridge,
+    /// Persist emulated cartridge save
+    SaveGame,
     /// Run a ROM file
     RunRomFile(PathBuf),
     /// Load ROM select entries
@@ -88,6 +90,15 @@ fn dispatch(message: Message) {
             }
 
             ui::send(ui::Message::EnterGame);
+        }
+        Message::SaveGame => {
+            // TODO handle error more gracefully
+            match bitstream::current().deref_mut() {
+                CurrentBitstream::None => {}
+                CurrentBitstream::Gameboy(x) => x.persist_ram().unwrap(),
+                CurrentBitstream::Gba(x) => x.persist_save().unwrap(),
+            }
+            ui::send(ui::Message::GameSaved);
         }
         Message::RunRomFile(path) => {
             match path.extension().and_then(|e| e.to_str()) {

@@ -30,6 +30,8 @@ pub enum Message {
     Redraw,
     /// Go to the "Game" screen
     EnterGame,
+    /// Game save persisted
+    GameSaved,
     /// ROM loading progress
     RomLoadingProgress(f32),
     /// ROM select file list
@@ -211,6 +213,9 @@ impl UI {
             }
             Message::EnterGame => {
                 self.root.invoke_set_screen(slint::ScreenId::Game);
+            }
+            Message::GameSaved => {
+                self.state.borrow_mut().game_on_saved();
             }
             Message::RomLoadingProgress(progress) => {
                 self.root

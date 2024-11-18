@@ -445,6 +445,11 @@ impl Gba {
 
         Ok(())
     }
+
+    /// Return whether the current save game would need to be persisted to disk.
+    pub fn needs_save_persist(&self) -> bool {
+        self.save_path.is_some()
+    }
 }
 
 impl Bitstream for Gba {
