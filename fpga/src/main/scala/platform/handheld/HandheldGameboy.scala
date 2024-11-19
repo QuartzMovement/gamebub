@@ -147,40 +147,61 @@ class HandheldGameboy extends Module with HandheldModule {
   io.framebufferData.b := DontCare
   io.vblank := gameboy.io.ppu.vblank
 
+  val regDisplayOff = RegInit(true.B)
+  when (regDisplayOff && framebufferY >= 144.U) {
+    io.vblank := true.B
+  }
+
   val prevHblank = RegInit(false.B)
-  val prevLcdEnable = RegInit(false.B)
   when (gameboy.io.clockConfig.enable) {
     prevHblank := gameboy.io.ppu.hblank
-    prevLcdEnable := gameboy.io.ppu.lcdEnable
-    when (!gameboy.io.ppu.lcdEnable) {
-      // Clear the screen (to write) if LCD is disabled.
+
+    when (regDisplayOff) {
+      // Ensure that, when the display is turned off, it remains off until the next
+      // vblank when the LCD is on. This ensures that the entire screen is blanked,
+      // and matches Gameboy behavior.
+      // Additionally, take care to ensure that spurious io.vblank transitions
+      // don't happen (when moving between display on and off),
+      // because this signals the triple buffering system that a frame is complete.
+      io.vblank := false.B
       io.framebufferWriteEnable := true.B
       io.framebufferData.r := 0x1F.U(5.W)
       io.framebufferData.g := 0x1F.U(5.W)
       io.framebufferData.b := 0x1F.U(5.W)
-      when (prevLcdEnable) {
-        framebufferX := 0.U
-        framebufferY := 0.U
-      } .elsewhen (framebufferX < 159.U) {
+
+      when (framebufferX < 159.U) {
         framebufferX := framebufferX + 1.U
       } .elsewhen (framebufferY < 143.U) {
         framebufferX := 0.U
         framebufferY := framebufferY + 1.U
       } .otherwise {
+        io.framebufferWriteEnable := false.B
         io.vblank := true.B
       }
-    } .elsewhen (gameboy.io.ppu.vblank) {
-      framebufferX := 0.U
-      framebufferY := 0.U
-    } .elsewhen (gameboy.io.ppu.hblank && !prevHblank) {
-      framebufferX := 0.U
-      framebufferY := framebufferY + 1.U
-    } .elsewhen (gameboy.io.ppu.valid) {
-      io.framebufferWriteEnable := true.B
-      io.framebufferData.r := gameboy.io.ppu.pixel(4, 0)
-      io.framebufferData.g := gameboy.io.ppu.pixel(9, 5)
-      io.framebufferData.b := gameboy.io.ppu.pixel(14, 10)
-      framebufferX := framebufferX + 1.U
+
+      // Only end blanking after the *next* vblank when the LCD is on
+      when (gameboy.io.ppu.lcdEnable && gameboy.io.ppu.vblank) {
+        regDisplayOff := false.B
+      }
+    } .otherwise {
+      when (!gameboy.io.ppu.lcdEnable) {
+        // Blank for at least a whole frame.
+        regDisplayOff := true.B
+        framebufferX := 0.U
+        framebufferY := 0.U
+      } .elsewhen (gameboy.io.ppu.vblank) {
+        framebufferX := 0.U
+        framebufferY := 0.U
+      } .elsewhen (gameboy.io.ppu.hblank && !prevHblank) {
+        framebufferX := 0.U
+        framebufferY := framebufferY + 1.U
+      } .elsewhen (gameboy.io.ppu.valid) {
+        io.framebufferWriteEnable := true.B
+        io.framebufferData.r := gameboy.io.ppu.pixel(4, 0)
+        io.framebufferData.g := gameboy.io.ppu.pixel(9, 5)
+        io.framebufferData.b := gameboy.io.ppu.pixel(14, 10)
+        framebufferX := framebufferX + 1.U
+      }
     }
   }
 
