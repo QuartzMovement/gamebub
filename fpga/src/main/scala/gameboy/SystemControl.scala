@@ -7,6 +7,8 @@ import chisel3.util._
 class SystemControl(config: Gameboy.Configuration) extends Module {
   val io = IO(new PeripheralAccess {
     val clocker = Input(new Clocker)
+    /** Whether we're acting as a CGB (regardless of mode) */
+    val isCgb = Input(Bool())
 
     /** True if the boot rom is mapped. */
     val bootRomMapped = Output(Bool())
@@ -27,7 +29,7 @@ class SystemControl(config: Gameboy.Configuration) extends Module {
   })
 
   val regBootOff = RegInit(config.skipBootrom.B)
-  val regCgbMode = RegInit(config.model.isCgb.B)
+  val regCgbMode = RegInit(true.B)
   val regVramBank = RegInit(0.U(1.W))
   val regWramBank = RegInit(0.U(3.W))
   val regDoubleSpeed = RegInit(false.B)
@@ -35,10 +37,10 @@ class SystemControl(config: Gameboy.Configuration) extends Module {
   val regPrepareSpeedSwitch = RegInit(false.B)
 
   io.bootRomMapped := !regBootOff
-  if (config.model.isCgb) {
+  when (io.isCgb) {
     // DMG compatibility mode doesn't take effect until leaving the bootrom.
     io.cgbMode := !regBootOff || regCgbMode
-  } else {
+  } .otherwise {
     io.cgbMode := false.B
   }
   io.vramBank := regVramBank
@@ -64,7 +66,7 @@ class SystemControl(config: Gameboy.Configuration) extends Module {
 
       // 0xFF4C - KEY0 (CGB only)
       is (0x4C.U) {
-        if (config.model.isCgb) {
+        when (io.isCgb) {
           when (!regBootOff) {
             regCgbMode := !io.dataWrite(2)
             printf(cf"CGB mode: ${!io.dataWrite(2)}\n")

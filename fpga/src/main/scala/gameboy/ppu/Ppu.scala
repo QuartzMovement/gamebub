@@ -139,6 +139,10 @@ class Ppu(config: Gameboy.Configuration) extends Module {
     val clocker = Input(new Clocker)
     val output = new PpuOutput
     val registers = new PeripheralAccess
+
+    /// Whether this is a CGB (regardless of mode)
+    val isCgb = Input(Bool())
+    /// Whether we're in CGB mode
     val cgbMode = Input(Bool())
 
     // IRQs
@@ -376,7 +380,8 @@ class Ppu(config: Gameboy.Configuration) extends Module {
             objFifo.io.outData.bgPriority
       }
 
-      if (config.model.isCgb) {
+      when (io.isCgb) {
+        // CGB output
         val bgPalette = Wire(UInt(5.W))
         val objPalette = Wire(UInt(5.W))
         when (io.cgbMode) {
@@ -391,7 +396,7 @@ class Ppu(config: Gameboy.Configuration) extends Module {
         val bgColorCgb = Cat(cgbPaletteBg(Cat(bgPalette, 1.U(1.W))), cgbPaletteBg(Cat(bgPalette, 0.U(1.W))))
         val objColorCgb = Cat(cgbPaletteObj(Cat(objPalette, 1.U(1.W))), cgbPaletteObj(Cat(objPalette, 0.U(1.W))))
         io.output.pixel := Mux(objIndex === 0.U || bgPriority, bgColorCgb, objColorCgb)
-      } else {
+      } .otherwise {
         // DMG output. Expand the grayscale to 15-bits.
         // Note that DMG grayscale is inverted -- 00 is white, 11 is black.
         val grayPixel = Mux(objIndex === 0.U || bgPriority, bgColorDmg, objColorDmg)

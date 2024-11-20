@@ -1,9 +1,6 @@
 package gameboy
 
 import chisel3._
-import chisel3.util._
-import gameboy.Gameboy.Model
-import gameboy.util.MemRomTable
 
 class BootRomAccess extends Bundle {
   val read = Output(Bool())
@@ -13,6 +10,8 @@ class BootRomAccess extends Bundle {
 
 class BootRom(config: Gameboy.Configuration) extends Module {
   val io = IO(new Bundle {
+    val isCgb = Input(Bool())
+
     val address = Input(UInt(16.W))
     val valid = Output(Bool())
     val dataRead = Output(UInt(8.W))
@@ -34,7 +33,7 @@ class BootRom(config: Gameboy.Configuration) extends Module {
       io.valid := true.B
     }
 
-    if (config.model.isCgb) {
+    when (io.isCgb) {
       when (io.address >= 0x200.U && io.address < 0x900.U) {
         io.access.address := io.address - 0x100.U
         io.valid := true.B

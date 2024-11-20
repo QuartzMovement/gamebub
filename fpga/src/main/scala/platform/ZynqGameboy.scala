@@ -46,9 +46,9 @@ class ZynqGameboy extends Module {
   val gameboyConfig = Gameboy.Configuration(
     skipBootrom = false,
     optimizeForSimulation = false,
-    model = Gameboy.Model.Cgb,
   )
   val gameboy = Module(new Gameboy(gameboyConfig))
+  gameboy.io.isCgb := true.B
   io.ppu <> gameboy.io.ppu
   io.joypad <> gameboy.io.joypad
   io.apu <> gameboy.io.apu

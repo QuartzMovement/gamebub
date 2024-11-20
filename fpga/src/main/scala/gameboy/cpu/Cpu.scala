@@ -2,7 +2,6 @@ package gameboy.cpu
 
 import chisel3._
 import chisel3.util._
-import gameboy.Gameboy.Model
 import gameboy.{Clocker, Gameboy}
 import gameboy.cpu.Cpu.DebugState
 
@@ -99,14 +98,8 @@ class Cpu(config: Gameboy.Configuration) extends Module {
   // Includes incrementer/decrementer.
   // 14 Registers: BC DE HL FA SP WZ PC
   //               01 23 45 67 89 AB CD
-  val initialRegisterValues = if (config.skipBootrom) {
-    config.model match {
-      case Model.Dmg => Seq(0x00, 0x13, 0x00, 0xD8, 0x01, 0x4D, 0xB0, 0x01, 0xFF, 0xFE, 0x00, 0x00, 0x01, 0x00)
-      case Model.Cgb => Seq(0x00, 0x00, 0xFF, 0x56, 0x00, 0x0D, 0x80, 0x11, 0xFF, 0xFE, 0x00, 0x00, 0x01, 0x00)
-    }
-  } else {
-    Seq.fill(14)(0x00)
-  }
+  // TODO: doesn't work anymore with skipBootrom
+  val initialRegisterValues = Seq.fill(14)(0x00)
   val registers = RegInit(VecInit(initialRegisterValues.map(_.U(8.W))))
   val regR16IndexHi = Wire(UInt(4.W))
   regR16IndexHi := 0.U

@@ -51,6 +51,7 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
   val io = IO(new Bundle {
     // Control signals
     val clockConfig = new ClockConfig
+    val isCgb = Input(new Bool)
 
     /// Boot ROM access
     val bootRom = new BootRomAccess
@@ -75,6 +76,7 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
 
   // Module: System control
   val systemControl = Module(new SystemControl(config))
+  systemControl.io.isCgb := io.isCgb
   systemControl.io.clocker := clockControl.io.clocker
   clockControl.io.doubleSpeed := systemControl.io.doubleSpeed
 
@@ -89,6 +91,7 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
   // Module: PPU
   val ppu = Module(new Ppu(config))
   ppu.io.clocker := clockControl.io.clocker
+  ppu.io.isCgb := io.isCgb
   ppu.io.cgbMode := systemControl.io.cgbMode
   io.ppu := ppu.io.output
   cpu.io.interruptRequest.vblank := ppu.io.vblankIrq
@@ -108,9 +111,9 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
   io.apu := apu.io.output
 
   // Memories
-  val workRamSize = if (config.model.isCgb) { 32 * 1024} else { 8 * 1024 }
+  val workRamSize = 32 * 1024  // 32 KiB in CGB, 8 KiB in DMG
   val workRam = Module(new SinglePortRam(workRamSize)) // DMG: 0xC000 to 0xDFFF
-  val videoRamSize = if (config.model.isCgb) { 16 * 1024} else { 8 * 1024 }
+  val videoRamSize = 16 * 1024  // 16 KiB in CGB, 8 KiB in DMG
   val videoRam = Module(new SinglePortRam(videoRamSize)) // 0x8000 to 0x9FFF
   val oam = Module(new SinglePortRam(160)) // 0xFE00 to 0xFE9F
   val highRam = Module(new HighRam)
@@ -140,6 +143,7 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
 
   // Boot rom
   val bootRom = Module(new BootRom(config))
+  bootRom.io.isCgb := io.isCgb
   bootRom.io.address := cpu.io.memAddress
   bootRom.io.mapped := systemControl.io.bootRomMapped
   io.bootRom <> bootRom.io.access
@@ -151,12 +155,12 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
   vramDma.io.cgbMode := systemControl.io.cgbMode
   vramDma.io.hblank := ppu.io.output.hblank
   clockControl.io.vramDmaActive := vramDma.io.active
-  if (config.model.isCgb) {
+  when (io.isCgb) {
     // VRAM DMA suspends the CPU while it's active.
     cpu.io.clocker.enable := systemControl.io.clocker.enable && !vramDma.io.active
     cpu.io.clocker.phiPulse := systemControl.io.clocker.phiPulse && !vramDma.io.active
     cpu.io.clocker.pulse4Mhz := systemControl.io.clocker.pulse4Mhz && !vramDma.io.active
-  } else {
+  } .otherwise {
     vramDma.io.enabled := false.B
     vramDma.io.address := DontCare
     vramDma.io.dataWrite := DontCare
@@ -184,15 +188,13 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
     oamDmaData := busDataRead
   }
   io.cartridge.deadline := clockControl.io.lastClockCycle
-  if (config.model.isCgb) {
-    when (vramDma.io.active) {
-      busAddress := vramDma.io.addressSource
-      busMemEnable := true.B
-      busMemWrite := false.B
-      busDataWrite := DontCare
-      vramDmaData := busDataRead
-      io.cartridge.deadline := clockControl.io.clocker.counter8Mhz === 3.U
-    }
+  when (io.isCgb && vramDma.io.active) {
+    busAddress := vramDma.io.addressSource
+    busMemEnable := true.B
+    busMemWrite := false.B
+    busDataWrite := DontCare
+    vramDmaData := busDataRead
+    io.cartridge.deadline := clockControl.io.clocker.counter8Mhz === 3.U
   }
   val cpuExternalBusSelect =
     cpu.io.memAddress < 0x8000.U ||
@@ -278,7 +280,8 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
     joypad.io,
     systemControl.io,
     apu.io.reg,
-  ) ++ Option.when(config.model.isCgb)(vramDma.io)
+    vramDma.io,
+  )
   val peripheralSelect = cpu.io.memAddress(15, 8) === 0xFF.U
   for (peripheral <- peripherals) {
     peripheral.address := cpu.io.memAddress(7, 0)
@@ -302,26 +305,10 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
 }
 
 object Gameboy {
-  object Model extends Enumeration {
-    type Model = Value
-    val Dmg = Value
-    val Cgb = Value
-
-    implicit class ModelValue(model: Value) {
-      def isCgb: Boolean = model match {
-        case Cgb => true
-        case _ => false
-      }
-    }
-  }
-  import Gameboy.Model.Model
-
   case class Configuration(
     /** Whether to skip the boot rom */
     skipBootrom: Boolean,
     /** Whether to optimize for simulation, at the cost of potentially breaking synthesis. */
     optimizeForSimulation: Boolean = false,
-    /** The model of Gameboy */
-    model: Model = Model.Dmg,
   )
 }
