@@ -14,6 +14,9 @@ pub static BRIGHTNESS: KvsKey<f32> = KvsKey::new_with_default("brightness", 0.50
 /// Whether dark mode is enabled.
 pub static DARK_MODE: KvsKey<bool> = KvsKey::new_with_default("dark-mode", false);
 
+/// Whether to use DMG mode (instead of CGB mode)
+pub static GB_IS_DMG: KvsKey<bool> = KvsKey::new_with_default("gb-is-dmg", false);
+
 /// Whether to skip DMG/CGB boot animation
 pub static GB_SKIP_BOOT_ANIM: KvsKey<bool> = KvsKey::new_with_default("gb-no-anim", false);
 
@@ -31,6 +34,7 @@ pub fn flush_all() {
     VOLUME.flush();
     BRIGHTNESS.flush();
     DARK_MODE.flush();
+    GB_IS_DMG.flush();
     GB_SKIP_BOOT_ANIM.flush();
     GBA_SKIP_BOOT_ANIM.flush();
     RUMBLE_LEVEL.flush()

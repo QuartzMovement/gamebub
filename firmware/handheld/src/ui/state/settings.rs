@@ -42,7 +42,7 @@ impl Model for SettingsModel {
     type Data = SettingEntry;
 
     fn row_count(&self) -> usize {
-        6
+        7
     }
 
     fn row_data(&self, row: usize) -> Option<Self::Data> {
@@ -85,6 +85,15 @@ impl Model for SettingsModel {
                 choices: ["Off".into(), "Low".into(), "Medium".into(), "High".into()].into(),
             }),
             3 => Some(SettingEntry {
+                name: "GB: Enable DMG mode".into(),
+                r#type: SettingType::Checkbox,
+                value: SettingValue {
+                    bool_value: kvs::keys::GB_IS_DMG.get().unwrap(),
+                    ..SettingValue::default()
+                },
+                ..Default::default()
+            }),
+            4 => Some(SettingEntry {
                 name: "GB: Skip Boot Animation".into(),
                 r#type: SettingType::Checkbox,
                 value: SettingValue {
@@ -93,7 +102,7 @@ impl Model for SettingsModel {
                 },
                 ..Default::default()
             }),
-            4 => Some(SettingEntry {
+            5 => Some(SettingEntry {
                 name: "GBA: Skip Boot Animation".into(),
                 r#type: SettingType::Checkbox,
                 value: SettingValue {
@@ -102,7 +111,7 @@ impl Model for SettingsModel {
                 },
                 ..Default::default()
             }),
-            5 => Some(SettingEntry {
+            6 => Some(SettingEntry {
                 name: "GBA: Enable Game Boy Player".into(),
                 r#type: SettingType::Checkbox,
                 value: SettingValue {
@@ -148,9 +157,10 @@ impl SettingsModel {
                 self.datetime.set(dt);
             }
             2 => kvs::keys::RUMBLE_LEVEL.set(&value.int_value),
-            3 => kvs::keys::GB_SKIP_BOOT_ANIM.set(&value.bool_value),
-            4 => kvs::keys::GBA_SKIP_BOOT_ANIM.set(&value.bool_value),
-            5 => kvs::keys::GBA_ENABLE_GBP.set(&value.bool_value),
+            3 => kvs::keys::GB_IS_DMG.set(&value.bool_value),
+            4 => kvs::keys::GB_SKIP_BOOT_ANIM.set(&value.bool_value),
+            5 => kvs::keys::GBA_SKIP_BOOT_ANIM.set(&value.bool_value),
+            6 => kvs::keys::GBA_ENABLE_GBP.set(&value.bool_value),
             _ => {
                 log::info!("Unknown setting changed: {} -> {:?}", index, value);
                 return;

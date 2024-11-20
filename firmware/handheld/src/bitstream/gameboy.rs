@@ -17,15 +17,16 @@ use super::Bitstream;
 
 const PROGRESS_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
 
-const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
-const REG_EMU_CART_ROM_ADDR: u32 = 0xC000_0004;
-const REG_EMU_CART_ROM_MASK: u32 = 0xC000_0008;
-const REG_EMU_CART_RAM_ADDR: u32 = 0xC000_000C;
-const REG_EMU_CART_RAM_MASK: u32 = 0xC000_0010;
-const REG_RTC_STATE: u32 = 0xC000_0014;
-const REG_RTC_LATCHED: u32 = 0xC000_0018;
-const REG_IMU_ACCEL_X: u32 = 0xC000_001C;
-const REG_IMU_ACCEL_Y: u32 = 0xC000_0020;
+const REG_EMU_CONFIG: u32 = 0xC000_0000;
+const REG_EMU_CART_CONFIG: u32 = 0xC000_0004;
+const REG_EMU_CART_ROM_ADDR: u32 = 0xC000_0008;
+const REG_EMU_CART_ROM_MASK: u32 = 0xC000_000C;
+const REG_EMU_CART_RAM_ADDR: u32 = 0xC000_0010;
+const REG_EMU_CART_RAM_MASK: u32 = 0xC000_0014;
+const REG_RTC_STATE: u32 = 0xC000_0018;
+const REG_RTC_LATCHED: u32 = 0xC000_001C;
+const REG_IMU_ACCEL_X: u32 = 0xC000_0020;
+const REG_IMU_ACCEL_Y: u32 = 0xC000_0024;
 
 #[derive(Debug, Error)]
 pub enum GameboyError {
@@ -155,11 +156,28 @@ impl Gameboy {
     }
 
     fn get_bootrom_path() -> &'static str {
-        if kvs::keys::GB_SKIP_BOOT_ANIM.get().unwrap() {
-            "/sdcard/system/gameboy.bios-cgb-fast.bin"
+        let is_dmg = kvs::keys::GB_IS_DMG.get().unwrap();
+        let skip = kvs::keys::GB_SKIP_BOOT_ANIM.get().unwrap();
+
+        if is_dmg {
+            if skip {
+                "/sdcard/system/gameboy.bios-dmg-fast.bin"
+            } else {
+                "/sdcard/system/gameboy.bios-dmg.bin"
+            }
         } else {
-            "/sdcard/system/gameboy.bios-cgb.bin"
+            if skip {
+                "/sdcard/system/gameboy.bios-cgb-fast.bin"
+            } else {
+                "/sdcard/system/gameboy.bios-cgb.bin"
+            }
         }
+    }
+
+    fn set_config(&mut self, device: &mut Device) -> Result<(), GameboyError> {
+        let config = 0 | (((!kvs::keys::GB_IS_DMG.get().unwrap()) as u32) << 0);
+        device.fpga.write_u32(REG_EMU_CONFIG, config)?;
+        Ok(())
     }
 
     fn load_bootrom(&mut self, device: &mut Device) -> Result<(), GameboyError> {
@@ -193,7 +211,8 @@ impl Gameboy {
         // Hold in reset
         device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
 
-        // Ensure bootrom is loaded
+        // Configure device.
+        self.set_config(&mut device)?;
         self.load_bootrom(&mut device)?;
 
         // Switch to physical cartridge.
@@ -216,7 +235,8 @@ impl Gameboy {
             device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
             device.imu.disable_accel().unwrap();
 
-            // Ensure bootrom is loaded
+            // Configure device
+            self.set_config(&mut device)?;
             self.load_bootrom(&mut device)?;
         }
 

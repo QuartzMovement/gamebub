@@ -6,6 +6,12 @@ import gameboy.Gameboy
 import gameboy.cart.{EmuCartConfig, EmuCartridge, Mbc3RtcAccess, RtcState}
 import lib.mem.{MemoryInterface, MemoryMap, RegisterMap}
 
+object HandheldGameboy {
+  class Config extends Bundle {
+    val isCgb = Bool()
+  }
+}
+
 /**
  * Clocked by the 8.3886 MHz "Gameboy" clock.
  */
@@ -17,6 +23,7 @@ class HandheldGameboy extends Module with HandheldModule {
   def clockSdramHz = clockSystemHz * 4
 
   // Config
+  val configRegSystem = RegInit(0.U.asTypeOf(new HandheldGameboy.Config))
   val configRegEmuCart = RegInit(0.U.asTypeOf(new EmuCartConfig))
   val configRegRomAddress = RegInit(0.U(19.W))
   val configRegRomMask = RegInit(0.U(23.W))
@@ -63,15 +70,16 @@ class HandheldGameboy extends Module with HandheldModule {
       addressWidth = 16,
       dataWidth = 32,
       entries = Seq(
-        0x0000 -> RegisterMap.Entry.rw(configRegEmuCart), // Suppressing mbcType enum cast
-        0x0004 -> RegisterMap.Entry.rw(configRegRomAddress),
-        0x0008 -> RegisterMap.Entry.rw(configRegRomMask),
-        0x000C -> RegisterMap.Entry.rw(configRegRamAddress),
-        0x0010 -> RegisterMap.Entry.rw(configRegRamMask),
-        0x0014 -> makeRtcAccess(latched = false),
-        0x0018 -> makeRtcAccess(latched = true),
-        0x001C -> RegisterMap.Entry.rw(configRegImuAccelX),
-        0x0020 -> RegisterMap.Entry.rw(configRegImuAccelY),
+        0x0000 -> RegisterMap.Entry.rw(configRegSystem),
+        0x0004 -> RegisterMap.Entry.rw(configRegEmuCart), // Suppressing mbcType enum cast
+        0x0008 -> RegisterMap.Entry.rw(configRegRomAddress),
+        0x000C -> RegisterMap.Entry.rw(configRegRomMask),
+        0x0010 -> RegisterMap.Entry.rw(configRegRamAddress),
+        0x0014 -> RegisterMap.Entry.rw(configRegRamMask),
+        0x0018 -> makeRtcAccess(latched = false),
+        0x001C -> makeRtcAccess(latched = true),
+        0x0020 -> RegisterMap.Entry.rw(configRegImuAccelX),
+        0x0024 -> RegisterMap.Entry.rw(configRegImuAccelY),
 
         0x1000 -> RegisterMap.Entry.rw(statRegStalls),
         0x1004 -> RegisterMap.Entry.rw(statRegCycles),
@@ -88,7 +96,7 @@ class HandheldGameboy extends Module with HandheldModule {
   when (io.reset) {
     gameboy.reset := true.B
   }
-  gameboy.io.isCgb := true.B  // Allow configuration from a register
+  gameboy.io.isCgb := configRegSystem.isCgb
 
   // Gameboy clock control
   val waitingForCart = Wire(Bool())
