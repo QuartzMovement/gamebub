@@ -94,7 +94,7 @@ pub struct Device<'a> {
     pin_irq: PinDriver<'a, AnyInputPin, Input>,
 
     /// Sdcard,
-    pub sdcard: Sdcard,
+    pub sdcard: Option<Sdcard>,
 }
 
 impl Device<'_> {
@@ -287,7 +287,8 @@ impl Device<'_> {
             pin_sdio_d2,
             pin_sdio_d3,
             Some(pin_sd_detect),
-        )?;
+        )
+        .ok();
 
         let mut device = Device {
             led,

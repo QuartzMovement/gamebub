@@ -28,31 +28,44 @@ fn main() -> anyhow::Result<()> {
     // Setup workers.
     worker::start();
 
-    // Program FPGA
-    // TODO: if this fails, show an error once the UI is initialized
-    {
-        let mut bitstream = GzDecoder::new(File::open("/sdcard/system/base.bit.gz")?);
-        device.fpga.program(&mut bitstream)?;
+    // Initial programming FPGA
+    fn program_fpga(device: &mut Device) -> anyhow::Result<()> {
+        let bitstream =
+            File::open("/sdcard/system/base.bit.gz").context("Failed to read bitstream")?;
+        let mut bitstream = GzDecoder::new(bitstream);
+        device
+            .fpga
+            .program(&mut bitstream)
+            .context("Failed to program FPGA")?;
         device.lcd.enable_fpga_control()?;
+        Ok(())
     }
+    let fpga_program_result = program_fpga(&mut device);
 
-    // Setup and run UI
+    // Setup UI
     let mut ui = UI::new(&mut device);
     std::mem::drop(device);
+
+    // If there was an error programming the FPGA, show it now.
+    if let Err(error) = fpga_program_result {
+        show_fatal_error_anyhow(error);
+    }
+
+    // Run UI in this thread.
     ui.run();
 }
 
-fn on_fatal_error_anyhow(error: anyhow::Error) {
+fn show_fatal_error_anyhow(error: anyhow::Error) {
     use std::fmt::Write;
 
     let mut message = format!("{}\n", error);
     for e in error.chain().skip(1) {
         let _ = write!(message, "\n{}", e);
     }
-    on_fatal_error(message);
+    show_fatal_error(message);
 }
 
-fn on_fatal_error(error: String) {
+fn show_fatal_error(error: String) {
     Device::lock().lcd.enable_mcu_control().unwrap();
     ui::send(ui::Message::FatalError(error));
     ui::send(ui::Message::Redraw);
