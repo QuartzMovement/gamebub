@@ -19,11 +19,18 @@ pub enum Error {
     SpiError,
 }
 
+#[derive(Debug, Copy, Clone)]
+pub enum RenderSource {
+    Fpga,
+    Mcu,
+}
+
 pub struct ILI9488<PinReset: OutputPin, PinDc: OutputPin, Spi: SpiDevice> {
     pin_reset: PinReset,
     pin_dc: PinDc,
     spi: Spi,
     last_sleep_change: Instant,
+    render_source: RenderSource,
 }
 
 impl<PinReset, PinDc, Spi> ILI9488<PinReset, PinDc, Spi>
@@ -38,6 +45,7 @@ where
             pin_dc,
             spi,
             last_sleep_change: Instant::now(),
+            render_source: RenderSource::Mcu,
         }
     }
 
@@ -161,6 +169,7 @@ where
         // Display Inversion Control: setup column inversion
         self.write_cmd(0xB4, &[0x0])?;
 
+        self.render_source = RenderSource::Fpga;
         Ok(())
     }
 
@@ -172,7 +181,37 @@ where
         // Display Inversion Control: 2-dot (from vendor)
         self.write_cmd(0xB4, &[0x02])?;
 
+        // MADCTL (Memory access control)
+        // BGR, rotate
+        self.write_cmd(0x36, &[0xE8])?;
+
+        self.render_source = RenderSource::Mcu;
         Ok(())
+    }
+
+    /// Set LCD graphics memory read/write position
+    pub fn set_gram_pos(&mut self, x0: u16, x1: u16, y0: u16, y1: u16) -> Result<(), Error> {
+        // Column address set
+        self.write_cmd(
+            0x2A,
+            &[(x0 >> 8) as u8, x0 as u8, (x1 >> 8) as u8, x1 as u8],
+        )?;
+        // Page address set
+        self.write_cmd(
+            0x2B,
+            &[(y0 >> 8) as u8, y0 as u8, (y1 >> 8) as u8, y1 as u8],
+        )?;
+        Ok(())
+    }
+
+    /// Write to the LCD graphics memory
+    pub fn write_gram(&mut self, data: &[u8]) -> Result<(), Error> {
+        // Begin memory write
+        self.write_cmd(0x2C, data)
+    }
+
+    pub fn get_render_source(&self) -> RenderSource {
+        self.render_source
     }
 
     // TODO: read_cmd

@@ -13,6 +13,7 @@ use ::slint::{
     PhysicalSize, Timer,
 };
 
+use crate::device::drivers::lcd::RenderSource;
 use crate::device::{Device, DisplayMode};
 
 use self::{slint::Argb1555, slint::MinimalSoftwareWindow, state::UiState};
@@ -50,12 +51,13 @@ pub fn send(message: Message) {
 
 static SENDER: OnceLock<mpsc::Sender<Message>> = OnceLock::new();
 
-struct LineRenderer<'a, 'b, 'c> {
+/// Line renderer that renders to the FPGA
+struct FpgaLineRenderer<'a, 'b, 'c> {
     device: &'a mut Device<'b>,
     line_buffer: &'c mut [Argb1555],
 }
 
-impl<'a, 'b, 'c> LineBufferProvider for &mut LineRenderer<'a, 'b, 'c> {
+impl<'a, 'b, 'c> LineBufferProvider for &mut FpgaLineRenderer<'a, 'b, 'c> {
     type TargetPixel = Argb1555;
 
     fn process_line(
@@ -76,9 +78,53 @@ impl<'a, 'b, 'c> LineBufferProvider for &mut LineRenderer<'a, 'b, 'c> {
     }
 }
 
+/// Line renderer that renders directly to the LCD
+struct DirectLineRenderer<'a, 'b, 'c> {
+    device: &'a mut Device<'b>,
+    line_buffer: &'c mut [Argb1555],
+    lcd_buffer: &'c mut [u8],
+}
+
+impl<'a, 'b, 'c> LineBufferProvider for &mut DirectLineRenderer<'a, 'b, 'c> {
+    type TargetPixel = Argb1555;
+
+    fn process_line(
+        &mut self,
+        line: usize,
+        range: core::ops::Range<usize>,
+        render_fn: impl FnOnce(&mut [Self::TargetPixel]),
+    ) {
+        let buffer = &mut self.line_buffer[range.clone()];
+        render_fn(buffer);
+
+        // Duplicate everything 2x in both directions
+        // and convert from ARGB1555 to RGB888
+        let mut lcd_index = 0;
+        for x in buffer {
+            for _ in 0..2 {
+                self.lcd_buffer[lcd_index + 0] = x.red();
+                self.lcd_buffer[lcd_index + 1] = x.green();
+                self.lcd_buffer[lcd_index + 2] = x.blue();
+                lcd_index += 3;
+            }
+        }
+        let lcd_data = &self.lcd_buffer[0..((range.end - range.start) * 3 * 2)];
+        for i in 0..2 {
+            let _ = self.device.lcd.set_gram_pos(
+                (range.start * 2) as u16,
+                (range.end * 2) as u16,
+                ((line * 2) + i) as u16,
+                ((line * 2) + i + 1) as u16,
+            );
+            let _ = self.device.lcd.write_gram(lcd_data);
+        }
+    }
+}
+
 #[allow(unused)]
 pub struct UI {
     framebuffer: Vec<Argb1555>,
+    lcd_line_buffer: Vec<u8>,
     window: Rc<MinimalSoftwareWindow>,
     message_queue: Receiver<Message>,
     root: slint::MainWindow,
@@ -92,6 +138,7 @@ impl UI {
         SENDER.set(sender).expect("UI already initialized");
 
         let framebuffer = vec![Argb1555::from_rgb(0, 0, 0); DISPLAY_WIDTH];
+        let lcd_line_buffer = vec![0u8; DISPLAY_WIDTH * 3 * 2];
 
         let window = MinimalSoftwareWindow::new(RepaintBufferType::ReusedBuffer);
         ::slint::platform::set_platform(Box::new(slint::HandheldPlatform {
@@ -107,6 +154,7 @@ impl UI {
 
         let ui = UI {
             framebuffer,
+            lcd_line_buffer,
             window,
             message_queue: receiver,
             state: UiState::new(&root, device),
@@ -137,25 +185,41 @@ impl UI {
             // Render UI if needed.
             self.window.draw_if_needed(|renderer| {
                 let mut device = Device::lock();
+
                 let render_start = Instant::now();
-                let mut line_buffer = LineRenderer {
-                    device: &mut device,
-                    line_buffer: &mut self.framebuffer,
+                let render_source = device.lcd.get_render_source();
+                let device = match render_source {
+                    RenderSource::Fpga => {
+                        let mut line_renderer = FpgaLineRenderer {
+                            device: &mut device,
+                            line_buffer: &mut self.framebuffer,
+                        };
+                        renderer.render_by_line(&mut line_renderer);
+
+                        // TODO: only need to do this when switching overlays
+                        let _ = line_renderer
+                            .device
+                            .fpga
+                            .set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
+
+                        line_renderer.device
+                    }
+                    RenderSource::Mcu => {
+                        let mut line_renderer = DirectLineRenderer {
+                            device: &mut device,
+                            line_buffer: &mut self.framebuffer,
+                            lcd_buffer: &mut self.lcd_line_buffer,
+                        };
+                        renderer.render_by_line(&mut line_renderer);
+                        line_renderer.device
+                    }
                 };
-                renderer.render_by_line(&mut line_buffer);
                 let render_duration = render_start.elapsed();
 
                 log::info!("Render + display {}ms", render_duration.as_millis() as u32,);
 
-                // TODO: only need to do this when switching overlays
-                let _ = line_buffer
-                    .device
-                    .fpga
-                    .set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
-
                 if first_render {
                     first_render = false;
-                    let device = line_buffer.device;
                     let display_mode = if device.read_hdmi_detect().unwrap() {
                         DisplayMode::External
                     } else {

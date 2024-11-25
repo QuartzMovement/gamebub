@@ -107,17 +107,17 @@ impl Argb1555 {
     const B_MASK: u16 = 0b0000_0000_0001_1111;
 
     /// Return the red component in the range 0..=255
-    fn red(self) -> u8 {
+    pub fn red(self) -> u8 {
         ((self.0 & Self::R_MASK) >> 7) as u8
     }
 
     /// Return the green component in the range 0..=255
-    fn green(self) -> u8 {
+    pub fn green(self) -> u8 {
         ((self.0 & Self::G_MASK) >> 2) as u8
     }
 
     /// Return the blue component in the range 0..=255
-    fn blue(self) -> u8 {
+    pub fn blue(self) -> u8 {
         ((self.0 & Self::B_MASK) << 3) as u8
     }
 }
