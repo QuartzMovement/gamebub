@@ -23,6 +23,7 @@ fn main() -> anyhow::Result<()> {
     log::info!("Initializing device");
     Device::init()?;
     let mut device = Device::lock();
+    let is_sdcard_mounted = device.sdcard.is_some();
     device.set_brightness(kvs::keys::BRIGHTNESS.get().unwrap());
 
     // Setup workers.
@@ -47,7 +48,9 @@ fn main() -> anyhow::Result<()> {
     std::mem::drop(device);
 
     // If there was an error programming the FPGA, show it now.
-    if let Err(error) = fpga_program_result {
+    if !is_sdcard_mounted {
+        show_fatal_error("Error mounting SD card".into());
+    } else if let Err(error) = fpga_program_result {
         show_fatal_error_anyhow(error);
     }
 
