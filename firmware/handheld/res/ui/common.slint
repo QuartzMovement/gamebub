@@ -8,6 +8,7 @@ export enum ScreenId {
     Game,
     Settings,
     Tools,
+    Error,
 }
 
 export global Palette { }
@@ -39,8 +40,10 @@ export global Backend {
     in property <int> brightness-increment: 5;
 
     in property <bool> status-is-saving: false;
-
     in property <int> battery-level: 11;
+
+    in property <string> error-text: "";
+
     in property <int> rom-select-initial: 0;
     in-out property <int> rom-select-index: 0;
     in property <[FileListEntry]> rom-select-list: [];
@@ -48,6 +51,7 @@ export global Backend {
     in property <percent> rom-select-progress: 0%;
     in property <bool> rom-select-is-loading: false;
     in-out property <string> rom-select-error;
+
     in property <[SettingEntry]> settings: [
         {
             name: "list",

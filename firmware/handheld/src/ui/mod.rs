@@ -39,6 +39,8 @@ pub enum Message {
     RomSelectFiles(Vec<(String, bool)>),
     /// ROM select error
     RomSelectError(String),
+    /// Enter the error screen, and show the given error
+    FatalError(String),
 }
 
 /// Send a message to the UI thread.
@@ -291,6 +293,12 @@ impl UI {
             }
             Message::RomSelectError(error) => {
                 self.state.borrow_mut().rom_select_set_error(error);
+            }
+            Message::FatalError(error) => {
+                self.root
+                    .global::<slint::Backend>()
+                    .set_error_text(error.into());
+                self.root.invoke_set_screen(slint::ScreenId::Error);
             }
             #[allow(unreachable_patterns)]
             _ => {

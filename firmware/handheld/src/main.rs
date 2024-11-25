@@ -1,5 +1,6 @@
 use std::fs::File;
 
+use anyhow::Context;
 use flate2::read::GzDecoder;
 
 use device::Device;
@@ -28,6 +29,7 @@ fn main() -> anyhow::Result<()> {
     worker::start();
 
     // Program FPGA
+    // TODO: if this fails, show an error once the UI is initialized
     {
         let mut bitstream = GzDecoder::new(File::open("/sdcard/system/base.bit.gz")?);
         device.fpga.program(&mut bitstream)?;
@@ -38,4 +40,20 @@ fn main() -> anyhow::Result<()> {
     let mut ui = UI::new(&mut device);
     std::mem::drop(device);
     ui.run();
+}
+
+fn on_fatal_error_anyhow(error: anyhow::Error) {
+    use std::fmt::Write;
+
+    let mut message = format!("{}\n", error);
+    for e in error.chain().skip(1) {
+        let _ = write!(message, "\n{}", e);
+    }
+    on_fatal_error(message);
+}
+
+fn on_fatal_error(error: String) {
+    Device::lock().lcd.enable_mcu_control().unwrap();
+    ui::send(ui::Message::FatalError(error));
+    ui::send(ui::Message::Redraw);
 }

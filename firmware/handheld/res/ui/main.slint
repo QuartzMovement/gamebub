@@ -6,6 +6,7 @@ import { MainMenuScreen } from "screens/main_menu.slint";
 import { GameScreen } from "screens/game.slint";
 import { SettingsScreen } from "screens/settings/settings.slint";
 import { ToolsScreen } from "screens/tools/tools.slint";
+import { ErrorScreen } from "screens/error.slint";
 import { Global, ScreenId, Backend } from "common.slint";
 import { PowerMenu } from "components/power_menu.slint";
 
@@ -80,6 +81,13 @@ export component MainWindow inherits Window {
                 }
 
                 if (Global.current-screen == ScreenId.Tools): ToolsScreen {
+                    init => {
+                        self.focus();
+                        root.screen-title = self.title;
+                    }
+                }
+
+                if (Global.current-screen == ScreenId.Error): ErrorScreen {
                     init => {
                         self.focus();
                         root.screen-title = self.title;
