@@ -33,6 +33,7 @@ component FileListItem {
 
     i-text := Text {
         x: 12px;
+        width: parent.width - self.x;
         text: entry.name;
         vertical-alignment: center;
         horizontal-alignment: left;
