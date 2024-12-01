@@ -209,6 +209,7 @@ where
         // map 0 -> -127, 255 -> 0
         // range = 127
         let value = ((((volume as i32) * 127) / 255) - 127) as u8;
+        self.set_mute(volume == 0)?;
         self.write_reg(0, 0x41, value)?;
         self.write_reg(0, 0x42, value)?;
         Ok(())
