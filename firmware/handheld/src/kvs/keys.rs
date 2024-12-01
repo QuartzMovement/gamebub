@@ -37,5 +37,6 @@ pub fn flush_all() {
     GB_IS_DMG.flush();
     GB_SKIP_BOOT_ANIM.flush();
     GBA_SKIP_BOOT_ANIM.flush();
+    GBA_ENABLE_GBP.flush();
     RUMBLE_LEVEL.flush()
 }
