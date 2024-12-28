@@ -125,7 +125,7 @@ export component MainWindow inherits Window {
                 Global.home-pressed = false;
             }
             if (event.text == "Power" || event.text == "p") {
-                Global.power-menu-visible = true;
+                power-menu.show();
             }
             accept
         }
@@ -155,10 +155,11 @@ export component MainWindow inherits Window {
         icon-3: @image-url("../icons/brightness-3.png");
     }
 
-    if Global.power-menu-visible: power-menu := PowerMenu {
-        init => {
-            Backend.push-focus();
-            self.focus();
-        }
+    power-menu := PowerMenu {
+        // PowerMenu is a PopupWindow and appears conditionally
+        x: 0;
+        y: 0;
+        width: root.width;
+        height: root.height;
     }
 }

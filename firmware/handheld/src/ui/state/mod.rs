@@ -1,6 +1,5 @@
 use std::{cell::RefCell, path::Path, path::PathBuf, rc::Rc, time::Duration};
 
-use slint::private_unstable_api::re_exports as slint_re_exports;
 use slint::{ComponentHandle, Global, Timer, TimerMode, Weak};
 
 use crate::device::Device;
@@ -18,7 +17,6 @@ mod tools;
 
 pub struct UiState {
     root: Weak<MainWindow>,
-    focus_stack: Vec<slint_re_exports::ItemWeak>,
 
     rom_select_directory: PathBuf,
     settings_model: Rc<settings::SettingsModel>,
@@ -35,7 +33,6 @@ impl UiState {
             .unwrap_or_else(|| Path::new(rom_select::BASE_DIR).to_path_buf());
         let state: UiState = UiState {
             root: root.as_weak(),
-            focus_stack: Vec::new(),
             settings_model: Rc::new(settings::SettingsModel::new(device)),
             rom_select_directory,
         };
@@ -122,29 +119,6 @@ impl UiState {
 
         backend.on_reboot(|| {
             Device::lock().reboot();
-        });
-
-        // Focus stack: allowing dialogs to push and pop focus.
-        // Uses private, unstable APIs.
-        let state_ = state.clone();
-        backend.on_push_focus(move || {
-            let mut state = state_.borrow_mut();
-            let root = state.root.unwrap();
-            let window_inner = slint_re_exports::WindowInner::from_pub(root.window());
-            let item = window_inner.focus_item.borrow();
-            state.focus_stack.push(item.clone());
-        });
-        let state_ = state.clone();
-        backend.on_pop_focus(move || {
-            let mut state = state_.borrow_mut();
-            let root = state.root.unwrap();
-            let window_inner = slint_re_exports::WindowInner::from_pub(root.window());
-            while let Some(item) = state.focus_stack.pop() {
-                if let Some(item) = item.upgrade() {
-                    window_inner.set_focus_item(&item, true);
-                    break;
-                }
-            }
         });
 
         // Utility function: add datetime with delta

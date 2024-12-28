@@ -21,7 +21,6 @@ export global Global {
     out property <ScreenId> current-screen: MainMenu;
     in-out property <bool> ui-transparent: false;
     in-out property <bool> ui-status-bar: true;
-    in-out property <bool> power-menu-visible: false;
 
     public function set-screen(screen: ScreenId) {
         current-screen = screen;
@@ -87,9 +86,6 @@ export global Backend {
     callback tools-end-usb-drive();
 
     callback screen-enter(ScreenId);
-
-    callback push-focus();
-    callback pop-focus();
 
     callback datetime-add(SettingDatetime, SettingDatetime) -> SettingDatetime;
 }

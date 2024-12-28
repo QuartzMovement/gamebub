@@ -2,8 +2,13 @@
 import { Button } from "../components/button.slint";
 import { Global, Backend } from "../common.slint";
 
-export component PowerMenu inherits Rectangle {
-    forward-focus: btn-close;
+export component PowerMenu inherits PopupWindow {
+    close-policy: no-auto-close;
+
+    init => {
+        // forward-focus doesn't work with PopupWindow
+        btn-close.focus();
+    }
 
     Rectangle {
         width: 100%;
@@ -16,9 +21,10 @@ export component PowerMenu inherits Rectangle {
         background: #FFF;
         border-color: black;
         border-width: 1px;
+        x: (root.width - self.width) / 2;
+        y: (root.height - self.height) / 2;
         width: i-layout.min-width + 20px;
         height: i-layout.min-height;
-
         i-layout := VerticalLayout {
             padding: 8px;
             spacing: 4px;
@@ -55,8 +61,7 @@ export component PowerMenu inherits Rectangle {
                     accept
                 }
                 on-pressed => {
-                    Backend.pop-focus();
-                    Global.power-menu-visible = false;
+                    root.close();
                 }
             }
         }
