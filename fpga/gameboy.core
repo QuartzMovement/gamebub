@@ -33,7 +33,7 @@ filesets:
 
   handheld:
     files:
-      - verilog/handheld/rev_a.xdc : {file_type : xdc}
+      - verilog/handheld/rev_1.xdc : {file_type : xdc}
       - verilog/handheld/top.sv : {file_type : systemVerilogSource}
       - verilog/handheld/clk_wiz_spi_clk_wiz.v : {file_type : verilogSource}
 
