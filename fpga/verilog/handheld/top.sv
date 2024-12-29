@@ -31,6 +31,9 @@ module top_handheld (
     output wire        lcd_vsync,
     output wire        lcd_data_en,
     output wire [17:0] lcd_db,
+`ifdef BOARD_REV_2
+    input wire         lcd_te,
+`endif
 
     inout  wire [7:0]  cart_bank0,
     inout  wire [7:0]  cart_bank1,
@@ -80,6 +83,14 @@ module top_handheld (
 
     inout  wire [3:0]  pmod,
     output wire        vibrate_en,
+`ifdef BOARD_REV_2
+    output wire        vibrate_brake,
+`endif
+
+`ifdef BOARD_REV_2
+    inout  wire        usb_sbu_1,
+    inout  wire        usb_sbu_2,
+`endif
 
     output wire        hdmi_clk_p,
     output wire        hdmi_clk_n,

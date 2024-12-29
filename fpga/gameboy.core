@@ -33,9 +33,16 @@ filesets:
 
   handheld:
     files:
-      - verilog/handheld/rev_1.xdc : {file_type : xdc}
       - verilog/handheld/top.sv : {file_type : systemVerilogSource}
       - verilog/handheld/clk_wiz_spi_clk_wiz.v : {file_type : verilogSource}
+
+  handheld_rev_1:
+    files:
+      - verilog/handheld/rev_1.xdc : {file_type : xdc}
+
+  handheld_rev_2:
+    files:
+      - verilog/handheld/rev_2.xdc : {file_type : xdc}
 
   handheld_clk_gameboy:
     files:
@@ -76,6 +83,15 @@ filesets:
       - sim/gba/simulator.cpp
     file_type: cppSource
 
+parameters:
+  BOARD_REV_1:
+    datatype: bool
+    paramtype: vlogdefine
+
+  BOARD_REV_2:
+    datatype: bool
+    paramtype: vlogdefine
+
 generate:
   gameboy:
     generator: chisel
@@ -99,24 +115,15 @@ generate:
         files:
           - build/generated/ZynqGameboy.sv: { file_type: systemVerilogSource }
 
-  handheld_gameboy:
+  handheld:
     generator: chisel
     parameters:
       buildtool: sbt
       outputdir: build/generated
       main_class: "platform.handheld.HandheldTop"
-      extraargs: "platform.handheld.HandheldGameboy"
-      output:
-        files:
-          - build/generated/HandheldTop.sv: { file_type: systemVerilogSource }
-
-  handheld_gba:
-    generator: chisel
-    parameters:
-      buildtool: sbt
-      outputdir: build/generated
-      main_class: "platform.handheld.HandheldTop"
-      extraargs: "platform.handheld.HandheldGba"
+      extraargs: >
+        module_gba ? (platform.handheld.HandheldGba)
+        module_gameboy ? (platform.handheld.HandheldGameboy)
       output:
         files:
           - build/generated/HandheldTop.sv: { file_type: systemVerilogSource }
@@ -162,41 +169,43 @@ targets:
         part: xc7z020clg400-1
     toplevel: top_pynq_cartridge_access
 
-  handheld_gameboy:
+  _handheld: &handheld
     default_tool: vivado
-    filesets: [base, handheld, handheld_clk_gameboy, hdmi]
-    generate: [handheld_gameboy]
+    filesets:
+      - "base"
+      - "hdmi"
+      - "handheld"
+      - "module_gba ? (handheld_clk_gba)"
+      - "module_gameboy ? (handheld_clk_gameboy)"
+    generate: [handheld]
+    toplevel: top_handheld
     tools:
       vivado:
         part: xc7a100tcsg324-2
-    toplevel: top_handheld
 
-  handheld_gba:
-    default_tool: vivado
-    filesets: [base, handheld, handheld_clk_gba, hdmi]
-    generate: [handheld_gba]
-    tools:
-      vivado:
-        part: xc7a100tcsg324-2
-    toplevel: top_handheld
+  handheld_rev1:
+    <<: *handheld
+    filesets_append: [handheld_rev_1]
+    parameters: [BOARD_REV_1=true]
 
-  sim_gameboy:
+  handheld_rev2:
+    <<: *handheld
+    filesets_append: [handheld_rev_2]
+    parameters: [BOARD_REV_2=true]
+
+  sim:
     default_tool: verilator
-    filesets: [base, sim_base, sim_gameboy]
-    generate: [sim_gameboy]
-    toplevel: SimGameboy
-    tools:
-      verilator:
-        verilator_options: [
-            "-CFLAGS \"`pkg-config sdl2 --cflags`\"",
-            "-LDFLAGS \"`pkg-config sdl2 --libs`\"",
-        ]
-
-  sim_gba:
-    default_tool: verilator
-    filesets: [base, sim_base, sim_gba]
-    generate: [sim_gba]
-    toplevel: SimGba
+    filesets:
+      - "base"
+      - "sim_base"
+      - "module_gameboy ? (sim_gameboy)"
+      - "module_gba ? (sim_gba)"
+    generate:
+      - "module_gameboy ? (sim_gameboy)"
+      - "module_gba ? (sim_gba)"
+    toplevel:
+      - "module_gameboy ? (SimGameboy)"
+      - "module_gba ? (SimGba)"
     tools:
       verilator:
         verilator_options: [
