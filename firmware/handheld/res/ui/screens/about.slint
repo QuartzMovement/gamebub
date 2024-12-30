@@ -1,0 +1,30 @@
+import { Global, ScreenId, Backend } from "../common.slint";
+import { ScreenBase } from "../components/screen.slint";
+import { ScrollView } from "../components/scroll_view.slint";
+
+export component AboutScreen inherits ScreenBase {
+    title: "About";
+    forward-focus: i-view;
+
+    i-focus-scope := FocusScope {
+        i-view := ScrollView {
+            VerticalLayout {
+                Text {
+                    text: "Game Bub\nby Eli Lipsitz";
+                }
+            }
+        }
+
+        key-pressed(event) => {
+            if event.text == "Home" && !Global.home-consumed {
+                Global.set-screen(ScreenId.MainMenu);
+                accept
+            } else if (event.text == "b") {
+                Global.set-screen(ScreenId.MainMenu);
+                accept
+            } else {
+                reject
+            }
+        }
+    }
+}
