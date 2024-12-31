@@ -12,5 +12,5 @@ partition_table = "partitions.csv"
 bootloader = "esp32s3-qio-bootloader.bin"
 
 [flash]
-size = "16MB"
+size = "8MB"
 frequency = "80MHz"
