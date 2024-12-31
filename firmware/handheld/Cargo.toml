@@ -19,6 +19,7 @@ opt-level = "z"
 
 [features]
 default = ["std", "embassy", "esp-idf-svc/native"]
+rev1 = []  # Build for handheld revision 1
 
 pio = ["esp-idf-svc/pio"]
 std = [
@@ -58,6 +59,7 @@ postcard = { version = "1.0.8", default-features = false, features = [
 embedded-svc = "0.28.0"
 smallvec = { version = "1.13.2", features = ["write"] }
 time = "0.3.34"
+cfg-if = "1.0"
 
 [build-dependencies]
 embuild = "0.32.0"
