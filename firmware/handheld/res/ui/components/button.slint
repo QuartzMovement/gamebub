@@ -4,6 +4,7 @@ export component Button inherits Rectangle {
     callback on-left() -> EventResult;
     callback on-right() -> EventResult;
     callback on-pressed();
+    callback on-focused();
 
     in-out property text <=> txt.text;
 
@@ -20,6 +21,11 @@ export component Button inherits Rectangle {
     }
 
     focus := FocusScope {
+        focus-changed-event => {
+            if (self.has-focus) {
+                on-focused();
+            }
+        }
         key-pressed(event) => {
             if (event.repeat) {
                 reject

@@ -2,9 +2,37 @@ import { Global, ScreenId, Backend } from "../common.slint";
 import { ScreenBase } from "../components/screen.slint";
 import { Button } from "../components/button.slint";
 
+enum ButtonId {
+    Cart,
+    Rom,
+    Settings,
+    Tools,
+    About,
+}
+
+global MainMenu {
+    in-out property <ButtonId> last-focus: Cart;
+}
+
 export component MainMenuScreen inherits ScreenBase {
-    forward-focus: btn-cart;
+    forward-focus: i-focus-scope;
     i-focus-scope := FocusScope {
+        focus-changed-event => {
+            if (self.has-focus) {
+                if (MainMenu.last-focus == ButtonId.Cart) {
+                    btn-cart.focus();
+                } else if (MainMenu.last-focus == ButtonId.Rom) {
+                    btn-rom.focus();
+                } else if (MainMenu.last-focus == ButtonId.Settings) {
+                    btn-settings.focus();
+                } else if (MainMenu.last-focus == ButtonId.Tools) {
+                    btn-tools.focus();
+                } else if (MainMenu.last-focus == ButtonId.About) {
+                    btn-about.focus();
+                }
+            }
+        }
+
         VerticalLayout {
             alignment: space-around;
             height: 100%;
@@ -37,6 +65,7 @@ export component MainMenuScreen inherits ScreenBase {
                             accept
                         }
                         on-pressed => {
+                            MainMenu.last-focus = ButtonId.Cart;
                             Backend.main-menu-run-cartridge();
                         }
                     }
@@ -54,6 +83,7 @@ export component MainMenuScreen inherits ScreenBase {
                             accept
                         }
                         on-pressed => {
+                            MainMenu.last-focus = ButtonId.Rom;
                             Global.set-screen(ScreenId.RomSelect);
                             Backend.main-menu-load-rom();
                         }
@@ -75,6 +105,7 @@ export component MainMenuScreen inherits ScreenBase {
                             accept
                         }
                         on-pressed => {
+                            MainMenu.last-focus = ButtonId.Settings;
                             Global.set-screen(ScreenId.Settings);
                         }
                     }
@@ -95,6 +126,7 @@ export component MainMenuScreen inherits ScreenBase {
                             accept
                         }
                         on-pressed => {
+                            MainMenu.last-focus = ButtonId.Tools;
                             Global.set-screen(ScreenId.Tools);
                         }
                     }
@@ -111,6 +143,7 @@ export component MainMenuScreen inherits ScreenBase {
                             accept
                         }
                         on-pressed => {
+                            MainMenu.last-focus = ButtonId.About;
                             Global.set-screen(ScreenId.About);
                         }
                     }
