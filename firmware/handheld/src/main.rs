@@ -19,8 +19,12 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     kvs::Kvs::init()?;
+    log::info!(
+        "Initializing device: revision {:?}",
+        kvs::keys::DEVICE_REVISION.get()
+    );
+    log::info!("Serial: {:?}", kvs::keys::DEVICE_SERIAL.get());
 
-    log::info!("Initializing device");
     Device::init()?;
     let mut device = Device::lock();
     let is_sdcard_mounted = device.sdcard.is_some();

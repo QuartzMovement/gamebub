@@ -14,14 +14,19 @@ static NAMESPACE: &'static str = "gb";
 ///  * use a macro when defining keys to ensure they're all in flush_all
 pub struct Kvs {
     nvs_main: EspNvs<NvsCustom>,
+    nvs_ro: EspNvs<NvsCustom>,
 }
 
 impl Kvs {
     pub fn init() -> Result<(), anyhow::Error> {
         let nvs_main = EspNvs::new(EspNvsPartition::<NvsCustom>::take("nvs")?, NAMESPACE, true)?;
-        // TODO: support nvs_ro, when there's a way to pre-flash it with data
+        let nvs_ro = EspNvs::new(
+            EspNvsPartition::<NvsCustom>::take("nvs_ro")?,
+            NAMESPACE,
+            false,
+        )?;
 
-        let kvs = Kvs { nvs_main };
+        let kvs = Kvs { nvs_main, nvs_ro };
         KVS.set(Mutex::new(kvs))
             .map_err(|_| ())
             .expect("KVS already initialized");
@@ -35,7 +40,7 @@ impl Kvs {
 
     fn nvs(&mut self, read_only: bool) -> &mut EspNvs<NvsCustom> {
         if read_only {
-            unimplemented!("nvs_ro is not yet implemented");
+            &mut self.nvs_ro
         } else {
             &mut self.nvs_main
         }
@@ -73,6 +78,16 @@ impl<T: Serialize + DeserializeOwned + Clone> KvsKey<T> {
             name,
             read_only: false,
             default: Some(default),
+            cache: RwLock::new(None),
+        }
+    }
+
+    const fn new_ro(name: &'static str) -> Self {
+        assert!(name.len() < 16);
+        KvsKey::<T> {
+            name,
+            read_only: true,
+            default: None,
             cache: RwLock::new(None),
         }
     }
