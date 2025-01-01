@@ -19,12 +19,28 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::log::EspLogger::initialize_default();
 
     kvs::Kvs::init()?;
-    log::info!(
-        "Initializing device: revision {:?}",
-        kvs::keys::DEVICE_REVISION.get()
-    );
+    log::info!("Device revision {:?}", kvs::keys::DEVICE_REVISION.get());
     log::info!("Serial: {:?}", kvs::keys::DEVICE_SERIAL.get());
 
+    // Check that the firmware is compatible with the listed revision.
+    cfg_if::cfg_if! {
+        if #[cfg(feature = "rev1")] {
+            let required_revision = 1;
+        } else if #[cfg(feature = "rev2")] {
+            let required_revision = 2;
+        } else {
+            compile_error!("No board revision selected");
+        }
+    };
+    if kvs::keys::DEVICE_REVISION.get() != Some(required_revision) {
+        anyhow::bail!(
+            "Incompatible firmware revision: device={:?} firmware={}",
+            kvs::keys::DEVICE_REVISION.get(),
+            required_revision
+        );
+    }
+
+    // Proceed to initialize device.
     Device::init()?;
     let mut device = Device::lock();
     let is_sdcard_mounted = device.sdcard.is_some();

@@ -142,8 +142,6 @@ impl Device<'_> {
                 let pin_sdio_d3 = peripherals.pins.gpio47.downgrade();
                 let pin_sd_detect = peripherals.pins.gpio37.downgrade_input();
                 let pin_dac_reset = peripherals.pins.gpio40.downgrade_output();
-            } else {
-                compile_error!("No board revision selected");
             }
         }
 
