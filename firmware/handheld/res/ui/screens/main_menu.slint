@@ -61,7 +61,12 @@ export component MainMenuScreen inherits ScreenBase {
                             accept
                         }
                         on-down => {
-                            btn-settings.focus();
+                            if (MainMenu.last-focus == ButtonId.Tools) {
+                                btn-tools.focus();
+                            } else {
+                                btn-settings.focus();
+                            }
+                            MainMenu.last-focus = ButtonId.Cart;
                             accept
                         }
                         on-pressed => {
@@ -79,7 +84,12 @@ export component MainMenuScreen inherits ScreenBase {
                             accept
                         }
                         on-down => {
-                            btn-about.focus();
+                            if (MainMenu.last-focus == ButtonId.Tools) {
+                                btn-tools.focus();
+                            } else {
+                                btn-about.focus();
+                            }
+                            MainMenu.last-focus = ButtonId.Rom;
                             accept
                         }
                         on-pressed => {
@@ -98,6 +108,7 @@ export component MainMenuScreen inherits ScreenBase {
                         width: (parent.width - 8px) / 3;
                         on-up => {
                             btn-cart.focus();
+                            MainMenu.last-focus = ButtonId.Settings;
                             accept
                         }
                         on-right => {
@@ -114,7 +125,12 @@ export component MainMenuScreen inherits ScreenBase {
                         text: "Tools";
                         width: (parent.width - 8px) / 3;
                         on-up => {
-                            btn-rom.focus();
+                            if (MainMenu.last-focus == ButtonId.Rom) {
+                                btn-rom.focus();
+                            } else {
+                                btn-cart.focus();
+                            }
+                            MainMenu.last-focus = ButtonId.Tools;
                             accept
                         }
                         on-left => {
@@ -136,6 +152,7 @@ export component MainMenuScreen inherits ScreenBase {
                         width: (parent.width - 8px) / 3;
                         on-up => {
                             btn-rom.focus();
+                            MainMenu.last-focus = ButtonId.About;
                             accept
                         }
                         on-left => {
