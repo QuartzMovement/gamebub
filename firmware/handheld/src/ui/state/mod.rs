@@ -57,6 +57,8 @@ impl UiState {
         self.update_battery_level(battery_level);
         backend.set_volume_level(((kvs::keys::VOLUME.get().unwrap() as i32) * 100) / 255);
         backend.set_brightness_level((kvs::keys::BRIGHTNESS.get().unwrap() * 100.0) as i32);
+        backend.set_device_revision(kvs::keys::DEVICE_REVISION.get().unwrap() as i32);
+        backend.set_device_serial(kvs::keys::DEVICE_SERIAL.get().unwrap_or_default().into());
 
         self.setup_main_menu(&state, device);
         self.setup_game(&state, device);

@@ -6,11 +6,38 @@ export component AboutScreen inherits ScreenBase {
     title: "About";
     forward-focus: i-view;
 
-    i-focus-scope := FocusScope {
-        i-view := ScrollView {
-            VerticalLayout {
+    FocusScope {
+        VerticalLayout {
+            height: 100%;
+            spacing: 2px;
+
+            i-view := ScrollView {
+                VerticalLayout {
+                    spacing: 8px;
+                    padding: 2px;
+                    alignment: start;
+
+                    Text {
+                        horizontal-alignment: center;
+                        text: "Game Bub";
+                    }
+
+                    Text {
+                        horizontal-alignment: center;
+                        text: "by Eli Lipsitz\ngithub.com/elipsitz/gamebub";
+                    }
+
+                    Text {
+                        horizontal-alignment: center;
+                        text: "Revision: \{Backend.device-revision}\nSerial: \{Backend.device-serial}";
+                    }
+                }
+            }
+
+            HorizontalLayout {
                 Text {
-                    text: "Game Bub\nby Eli Lipsitz";
+                    text: "B: Back";
+                    horizontal-alignment: right;
                 }
             }
         }
