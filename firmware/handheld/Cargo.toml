@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Eli Lipsitz <eli.lipsitz@gmail.com>"]
 edition = "2021"
 resolver = "2"
-rust-version = "1.71"
+rust-version = "1.82"
 
 [[bin]]
 name = "handheld"
@@ -40,7 +40,7 @@ embassy = [
 
 [dependencies]
 log = { version = "0.4", default-features = false }
-esp-idf-svc = { version = "0.49.1", default-features = false }
+esp-idf-svc = { version = "0.50.0", default-features = false }
 anyhow = "1.0.79"
 embedded-hal = "1.0.0"
 embedded-hal-bus = "0.1.0"
@@ -63,12 +63,9 @@ time = "0.3.34"
 cfg-if = "1.0"
 
 [build-dependencies]
-embuild = "0.32.0"
+embuild = "0.33.0"
 slint-build = "~1.9.1"
 
 [[package.metadata.esp-idf-sys.extra_components]]
 remote_component = { name = "espressif/esp_tinyusb", version = "^1.4.4" }
 bindings_header = "bindings_esp_tinyusb.h"
-
-[patch.crates-io]
-esp-idf-hal = { git = "https://github.com/esp-rs/esp-idf-hal.git", rev = "97c01ef814" }

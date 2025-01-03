@@ -25,6 +25,7 @@ pub struct RtcState {
 
 impl RtcState {
     pub const STATUS_24H: u8 = 0x40;
+    #[allow(unused)]
     pub const STATUS_12H: u8 = 0x0;
 
     pub fn from_offset_date_time(dt: OffsetDateTime) -> Self {
