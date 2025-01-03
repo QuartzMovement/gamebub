@@ -21,9 +21,11 @@
 
 ## Building
 
-Interested in purchasing a Game Bub kit to build your own? There are no immediate plans to offer kits, but if you're interested, [fill out this form](https://forms.gle/m1FFUqpCde7x5u5AA).
+Building a Game Bub handheld requires manufacturing PCBs, 3D printing the shell and buttons, and assembling components from a variety of sources. For information on manufacturing and assembling your own, see [docs/building.md](docs/building.md).
 
-For information on manufacturing and assembling your own, see [docs/building.md](docs/building.md).
+Are you instead interested in purchasing a complete Game Bub kit? There are no immediate plans to offer kits, but if you're interested, [fill out this form](https://forms.gle/m1FFUqpCde7x5u5AA).
+
+For other inquiries, contact me directly at eli@lipsitz.net.
 
 ## Architecture
 
