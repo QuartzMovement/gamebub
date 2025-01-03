@@ -66,7 +66,7 @@ where
 
     /// Get the charge or discharge rate of the battery, in %/hour.
     pub fn get_battery_charge_rate(&mut self) -> Result<f32, Error> {
-        let raw = self.read_reg(REG_CRATE)?;
+        let raw = self.read_reg(REG_CRATE)? as i16;
         Ok((raw as f32) * 0.208)
     }
 
