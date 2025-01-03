@@ -12,6 +12,14 @@ export enum ScreenId {
     About,
 }
 
+export struct BatteryInfo {
+    vbus_pgood: bool,
+    is_charging: bool,
+    voltage: float,
+    level: float,
+    charge_rate: float,
+}
+
 export global Palette { }
 
 export global Global {
@@ -88,6 +96,7 @@ export global Backend {
     callback setting-changed(int, SettingValue);
     callback tools-start-usb-drive();
     callback tools-end-usb-drive();
+    callback tools-get-battery-info() -> BatteryInfo;
 
     callback screen-enter(ScreenId);
 

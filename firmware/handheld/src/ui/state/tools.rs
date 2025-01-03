@@ -1,6 +1,6 @@
 use std::{cell::RefCell, rc::Rc};
 
-use super::super::slint::Backend;
+use super::super::slint::{Backend, BatteryInfo};
 use slint::ComponentHandle;
 
 use crate::device::Device;
@@ -20,5 +20,19 @@ impl UiState {
             crate::device::drivers::usb::teardown_tinyusb().expect("USB teardown failed");
             Device::lock().reboot();
         });
+
+        backend.on_tools_get_battery_info(move || {
+            let mut device = Device::lock();
+            BatteryInfo {
+                charge_rate: device
+                    .fuel_gauge
+                    .get_battery_charge_rate()
+                    .unwrap_or(f32::NAN),
+                is_charging: device.get_battery_is_charging(),
+                level: device.fuel_gauge.get_battery_level().unwrap_or(f32::NAN),
+                vbus_pgood: device.get_vbus_pgood(),
+                voltage: device.fuel_gauge.get_battery_voltage().unwrap_or(f32::NAN),
+            }
+        })
     }
 }

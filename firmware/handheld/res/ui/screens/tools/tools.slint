@@ -1,9 +1,9 @@
-import { Global, ScreenId, Backend } from "../../common.slint";
+import { Global, ScreenId, Backend, BatteryInfo } from "../../common.slint";
 import { ScreenBase } from "../../components/screen.slint";
 import { TextListView } from "../../components/list_view.slint";
 
 export component ToolsScreen inherits ScreenBase {
-    in property <[string]> tools: ["Mount SD Card over USB"];
+    in property <[string]> tools: ["Mount SD Card over USB", "Debug battery info"];
     private property <int> selected-tool: -1;
 
     title: "Tools";
@@ -12,7 +12,10 @@ export component ToolsScreen inherits ScreenBase {
     i-focus-scope := FocusScope {
         key-pressed(event) => {
             if (event.text == "b") {
-                Global.set-screen(ScreenId.MainMenu);
+                if selected-tool == -1 {
+                    Global.set-screen(ScreenId.MainMenu);
+                }
+                selected-tool = -1;
                 accept
             } else {
                 reject
@@ -48,6 +51,7 @@ export component ToolsScreen inherits ScreenBase {
             }
         }
 
+        // Mount SD card over USB
         if selected-tool == 0: FocusScope {
             init => {
                 self.focus();
@@ -70,6 +74,45 @@ export component ToolsScreen inherits ScreenBase {
                 Text {
                     horizontal-alignment: center;
                     text: "Press START to reboot";
+                }
+            }
+        }
+
+        // Debug battery info
+        if selected-tool == 1: FocusScope {
+            private property <BatteryInfo> info;
+            init => {
+                self.focus();
+            }
+
+            VerticalLayout {
+                alignment: center;
+                spacing: 16px;
+                Text {
+                    horizontal-alignment: center;
+                    text: "Battery Info";
+                }
+
+                Text {
+                    horizontal-alignment: center;
+                    text: ("Charging: \{info.is-charging ? "yes" : "no"}\n" + //
+                    "VBUS good: \{info.vbus-pgood ? "yes" : "no"}\n" + //
+                    "Voltage: \{round(info.voltage * 100) / 100} V\n" + //
+                    "Charge Level: \{round(info.level * 10) / 10}%\n" + //
+                    "Charge Rate: \{round(info.charge-rate * 100) / 100} %/hr" //
+                );
+                }
+
+                Text {
+                    horizontal-alignment: center;
+                    text: "B: Back";
+                }
+
+                Timer {
+                    interval: 2s;
+                    triggered => {
+                        info = Backend.tools-get-battery-info();
+                    }
                 }
             }
         }

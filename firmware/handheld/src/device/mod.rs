@@ -92,6 +92,8 @@ pub struct Device<'a> {
     button_vol_down: PinDriver<'a, AnyInputPin, Input>,
     button_power: PinDriver<'a, AnyIOPin, InputOutput>,
     pin_irq: PinDriver<'a, AnyInputPin, Input>,
+    pin_vbus_pgood: PinDriver<'a, AnyInputPin, Input>,
+    pin_batt_chg: PinDriver<'a, AnyInputPin, Input>,
 
     /// Sdcard,
     pub sdcard: Option<Sdcard>,
@@ -112,9 +114,7 @@ impl Device<'_> {
                 let pin_vol_up = peripherals.pins.gpio4.downgrade_input();
                 let pin_vol_down = peripherals.pins.gpio5.downgrade_input();
                 let pin_power_switch = peripherals.pins.gpio1.downgrade();
-                #[allow(unused)]
                 let pin_vbus_pgood = peripherals.pins.gpio41.downgrade_input();
-                #[allow(unused)]
                 let pin_batt_chg = peripherals.pins.gpio42.downgrade_input();
                 let pin_lcd_backlight = peripherals.pins.gpio6.downgrade_output();
                 let pin_lcd_reset = peripherals.pins.gpio7.downgrade_output();
@@ -128,9 +128,7 @@ impl Device<'_> {
                 let pin_spi_clk = peripherals.pins.gpio12.downgrade_output();
                 let pin_spi_d0 = peripherals.pins.gpio11.downgrade();
                 let pin_spi_d1 = peripherals.pins.gpio13.downgrade();
-                #[allow(unused)]
                 let pin_spi_d2 = peripherals.pins.gpio14.downgrade();
-                #[allow(unused)]
                 let pin_spi_d3 = peripherals.pins.gpio9.downgrade();
                 let pin_i2c_scl = peripherals.pins.gpio39.downgrade();
                 let pin_i2c_sda = peripherals.pins.gpio38.downgrade();
@@ -219,6 +217,8 @@ impl Device<'_> {
         // Setup battery fuel gauge
         let mut fuel_gauge = drivers::fuel_gauge::MAX17048::new(MutexI2C::new(&i2c));
         let _ = fuel_gauge.set_alert_soc_change(true); // fuel gauge won't work without a battery
+        let pin_vbus_pgood = PinDriver::input(pin_vbus_pgood)?;
+        let pin_batt_chg = PinDriver::input(pin_batt_chg)?;
 
         // Setup IMU
         let mut imu = drivers::imu::LSM6DS3TRC::new(MutexI2C::new(&i2c));
@@ -311,6 +311,8 @@ impl Device<'_> {
             button_vol_up,
             button_vol_down,
             pin_irq,
+            pin_batt_chg,
+            pin_vbus_pgood,
             rtc,
             imu,
             sdcard,
@@ -469,5 +471,13 @@ impl Device<'_> {
 
     pub fn get_display_mode(&self) -> DisplayMode {
         self.display_mode
+    }
+
+    pub fn get_battery_is_charging(&self) -> bool {
+        self.pin_batt_chg.is_high()
+    }
+
+    pub fn get_vbus_pgood(&self) -> bool {
+        self.pin_vbus_pgood.is_low() // Active low
     }
 }
