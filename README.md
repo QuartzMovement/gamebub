@@ -4,16 +4,15 @@
 
 **Game Bub** is an open-source FPGA retro emulation handheld, with support for Game Boy, Game Boy Color, and Game Boy Advance games.
 
----
+Check out the [announcement blog post](https://eli.lipsitz.net/posts/introducing-gamebub/) for an in-depth look at the development process!
 
-<!-- TODO: link to announcement blog post -->
+---
 
 <!-- TODO: insert a picture -->
 
 ## Features
-* Physical Game Boy / Color / Advance cartridge support
-* Can load and play ROMs from a microSD card (emulated cartridge)
-* Built-in support for common cartridge peripherals (rumble, real-time clock, accelerometer, gyroscope)
+* Play physical Game Boy / Color / Advance cartridges
+* Load and play ROM files from a microSD card (with built-in support for rumble, clock, accelerometer, gyroscope)
 * Multiplayer link cable functionality
 * Custom, from-scratch Game Boy and Game Boy Advance FPGA cores with great game compatibility
 * Video output to TV or monitor via custom dock
