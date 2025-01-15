@@ -365,15 +365,6 @@ module top_handheld (
     assign sdram_dq = inner_sdram_dq_dir ? inner_sdram_dq_out : 16'hzzzz;
 
     // HDMI TMDS output
-`ifdef BOARD_REV_1
-    `define HDMI_INVERT_D0
-`endif
-`ifdef BOARD_REV_2
-    `define HDMI_INVERT_D0
-    `define HDMI_INVERT_D1
-    `define HDMI_INVERT_D2
-    `define HDMI_INVERT_CLK
-`endif
     // TODO: see if the OBUFTDS can be used: T must be connected to OSERDESE2 output
     logic hdmi_tmds_clock;
     logic [2:0] hdmi_tmds_data;
@@ -398,13 +389,19 @@ module top_handheld (
         .cy(hdmi_cy)
     );
 `ifdef BOARD_REV_1
-`define HDMI_INVERT_D0
+    defparam hdmi.INVERT_D0 = 1;
+
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds0      (.I(hdmi_tmds_data[0]), .O(hdmi_data_n[0]), .OB(hdmi_data_p[0]));
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds1      (.I(hdmi_tmds_data[1]), .O(hdmi_data_p[1]), .OB(hdmi_data_n[1]));
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds2      (.I(hdmi_tmds_data[2]), .O(hdmi_data_p[2]), .OB(hdmi_data_n[2]));
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds_clock (.I(hdmi_tmds_clock  ), .O(hdmi_clk_p    ), .OB(hdmi_clk_n    ));
 `endif
 `ifdef BOARD_REV_2
+    defparam hdmi.INVERT_D0 = 1;
+    defparam hdmi.INVERT_D1 = 1;
+    defparam hdmi.INVERT_D2 = 1;
+    defparam hdmi.INVERT_CLK = 1;
+
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds0      (.I(hdmi_tmds_data[0]), .O(hdmi_data_n[0]), .OB(hdmi_data_p[0]));
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds1      (.I(hdmi_tmds_data[1]), .O(hdmi_data_n[1]), .OB(hdmi_data_p[1]));
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds2      (.I(hdmi_tmds_data[2]), .O(hdmi_data_n[2]), .OB(hdmi_data_p[2]));
