@@ -24,6 +24,7 @@ static DATABASE: &[(&'static [u8; 4], EmulatedCartridgeConfig)] = &[
     (b"KHPJ", config!(EepromAuto, has_accel)), // Korokoro Puzzle - Happy Panecchu!
     (b"FSME", config!(Eeprom512)),          // Classic NES: Super Mario Bros.
     (b"2ATE", config!(Sram, has_rumble)),   // Apotris
+    (b"2GBP", config!(Sram, has_rumble)),   // Goodboy Galaxy
 ];
 
 pub fn lookup(key: &[u8; 4]) -> Option<EmulatedCartridgeConfig> {
