@@ -1,4 +1,4 @@
-package platform
+package platform.sim
 
 import chisel3._
 import _root_.circt.stage.ChiselStage

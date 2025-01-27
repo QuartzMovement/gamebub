@@ -1,4 +1,4 @@
-package platform
+package platform.pynq
 
 import axi.{AxiLiteSignals, AxiLiteTarget, SimpleCache}
 import chisel3._

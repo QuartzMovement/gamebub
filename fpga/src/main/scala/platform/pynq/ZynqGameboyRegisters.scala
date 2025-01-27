@@ -1,4 +1,4 @@
-package platform
+package platform.pynq
 
 import chisel3._
 

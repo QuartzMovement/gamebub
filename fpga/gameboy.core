@@ -110,7 +110,7 @@ generate:
     parameters:
       buildtool: sbt
       outputdir: build/generated
-      main_class: "platform.ZynqGameboy"
+      main_class: "platform.pynq.ZynqGameboy"
       extraargs: ""
       output:
         files:
@@ -134,7 +134,7 @@ generate:
     parameters:
       buildtool: sbt
       outputdir: build/generated
-      main_class: "platform.SimGameboy"
+      main_class: "platform.sim.SimGameboy"
       extraargs: ""
       output:
         files:
