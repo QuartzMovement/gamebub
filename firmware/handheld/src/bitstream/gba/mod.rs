@@ -169,9 +169,9 @@ impl Gba {
 
     fn get_bios_path() -> &'static str {
         if kvs::keys::GBA_SKIP_BOOT_ANIM.get().unwrap() {
-            "/sdcard/system/gba.bios-fast.bin"
+            "gba.bios-fast.bin"
         } else {
-            "/sdcard/system/gba.bios.bin"
+            "gba.bios.bin"
         }
     }
 
@@ -181,7 +181,7 @@ impl Gba {
             return Ok(());
         }
 
-        let mut bios_file = File::open(bios_path)?;
+        let mut bios_file = crate::util::open_system_file(bios_path)?;
         let mut buf = vec![0u8; 16 * 1024].into_boxed_slice();
         bios_file.read(&mut buf)?;
 

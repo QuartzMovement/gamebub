@@ -163,15 +163,15 @@ impl Gameboy {
 
         if is_dmg {
             if skip {
-                "/sdcard/system/gameboy.bios-dmg-fast.bin"
+                "gameboy.bios-dmg-fast.bin"
             } else {
-                "/sdcard/system/gameboy.bios-dmg.bin"
+                "gameboy.bios-dmg.bin"
             }
         } else {
             if skip {
-                "/sdcard/system/gameboy.bios-cgb-fast.bin"
+                "gameboy.bios-cgb-fast.bin"
             } else {
-                "/sdcard/system/gameboy.bios-cgb.bin"
+                "gameboy.bios-cgb.bin"
             }
         }
     }
@@ -189,7 +189,7 @@ impl Gameboy {
         }
 
         log::info!("Loading CGB bootrom");
-        let mut bios_file = File::open(bios_path)?;
+        let mut bios_file = crate::util::open_system_file(bios_path)?;
         let mut buf = vec![0u8; 2048].into_boxed_slice();
         bios_file.read(&mut buf)?;
 

@@ -1,5 +1,3 @@
-use std::fs::File;
-
 use anyhow::Context;
 use flate2::read::GzDecoder;
 
@@ -52,7 +50,7 @@ fn main() -> anyhow::Result<()> {
     // Initial programming FPGA
     fn program_fpga(device: &mut Device) -> anyhow::Result<()> {
         let bitstream =
-            File::open("/sdcard/system/base.bit.gz").context("Failed to read bitstream")?;
+            util::open_system_file("base.bit.gz").context("Failed to read bitstream")?;
         let mut bitstream = GzDecoder::new(bitstream);
         device
             .fpga
