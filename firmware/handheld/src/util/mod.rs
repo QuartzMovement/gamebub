@@ -15,6 +15,7 @@ pub fn open_system_file(relative_path: &str) -> std::io::Result<File> {
     ];
     for root in roots {
         let path = Path::new(root).join(relative_path);
+        log::info!("path: {}", path.display());
         match File::open(&path) {
             Ok(f) => return Ok(f),
             Err(e) if e.kind() == ErrorKind::NotFound => continue,

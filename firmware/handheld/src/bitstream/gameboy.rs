@@ -407,7 +407,7 @@ impl Gameboy {
 
 impl Bitstream for Gameboy {
     fn get_bitstream_path(&self) -> &'static str {
-        return "/sdcard/system/gameboy.bit.gz";
+        return "gameboy.bit.gz";
     }
 
     fn on_after_program(&mut self) -> Result<(), String> {

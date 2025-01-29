@@ -1,7 +1,4 @@
-use std::{
-    fs::File,
-    sync::{Mutex, MutexGuard},
-};
+use std::sync::{Mutex, MutexGuard};
 
 use crate::device::{drivers::fpga, Device};
 use crate::ui;
@@ -40,7 +37,7 @@ pub fn current() -> MutexGuard<'static, CurrentBitstream> {
 fn program_fpga(path: &str) {
     log::info!("Loading bitstream {}", path);
     let mut device = Device::lock();
-    let file = File::open(path).unwrap();
+    let file = crate::util::open_system_file(path).unwrap();
     let mut bitstream = GzDecoder::new(file);
     device.fpga.program(&mut bitstream).unwrap();
     let display_mode = device.get_display_mode();

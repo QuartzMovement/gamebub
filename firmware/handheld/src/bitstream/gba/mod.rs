@@ -460,7 +460,7 @@ impl Gba {
 
 impl Bitstream for Gba {
     fn get_bitstream_path(&self) -> &'static str {
-        return "/sdcard/system/gba.bit.gz";
+        return "gba.bit.gz";
     }
 
     fn on_after_program(&mut self) -> Result<(), String> {
