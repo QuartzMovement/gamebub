@@ -50,7 +50,7 @@ fn main() -> anyhow::Result<()> {
     // Initial programming FPGA
     fn program_fpga(device: &mut Device) -> anyhow::Result<()> {
         let bitstream =
-            util::open_system_file("base.bit.gz").context("Failed to read bitstream")?;
+            util::open_system_file("boot.bit.gz").context("Failed to read bitstream")?;
         let mut bitstream = GzDecoder::new(bitstream);
         device
             .fpga

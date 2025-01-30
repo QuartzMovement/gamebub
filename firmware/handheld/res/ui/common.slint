@@ -28,7 +28,8 @@ export global Global {
     // Whether the current pressing of Home was used for a shortcut key combo.
     in-out property <bool> home-consumed;
     out property <ScreenId> current-screen: MainMenu;
-    in-out property <bool> ui-transparent: false;
+    // Whether the UI is transparent. Start true for the boot animation.
+    in-out property <bool> ui-transparent: true;
     in-out property <bool> ui-status-bar: true;
 
     public function set-screen(screen: ScreenId) {

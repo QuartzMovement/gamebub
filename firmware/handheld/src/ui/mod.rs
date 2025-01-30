@@ -6,6 +6,7 @@ use ::slint::platform::WindowAdapter;
 use ::slint::{ComponentHandle, WindowSize};
 pub use buttons::{Button, ButtonEvent, ButtonMap};
 use std::sync::{mpsc, OnceLock};
+use std::time::Duration;
 use std::{cell::RefCell, rc::Rc, sync::mpsc::Receiver, time::Instant};
 
 use ::slint::{
@@ -132,10 +133,22 @@ pub struct UI {
     root: slint::MainWindow,
     state: Rc<RefCell<UiState>>,
     button_event_detector: buttons::ButtonEventDetector,
+    boot_animation_end: Instant,
 }
 
 impl UI {
     pub fn new(device: &mut Device) -> Self {
+        // Start the boot animation.
+        device.fpga.write_u32(0xC000_0004, 36).unwrap(); // Set logo y
+        let display_mode = if device.read_hdmi_detect().unwrap() {
+            DisplayMode::External
+        } else {
+            DisplayMode::Internal
+        };
+        device.change_display_mode(display_mode).unwrap();
+        device.fpga.write_u32(0xC000_0000, 1).unwrap(); // Start animation (no loop)
+        let boot_animation_end = Instant::now() + Duration::from_secs(1);
+
         let (sender, receiver) = mpsc::channel::<Message>();
         SENDER.set(sender).expect("UI already initialized");
 
@@ -162,6 +175,7 @@ impl UI {
             state: UiState::new(&root, device),
             root,
             button_event_detector: buttons::ButtonEventDetector::new(),
+            boot_animation_end,
         };
         ui
     }
@@ -170,7 +184,6 @@ impl UI {
         // Set this thread (UI) to higher priority than background threads.
         unsafe { esp_idf_svc::sys::vTaskPrioritySet(std::ptr::null_mut(), 10) };
 
-        let mut first_render = true;
         let mut pending_message = None;
         loop {
             // Process messages.
@@ -198,12 +211,6 @@ impl UI {
                         };
                         renderer.render_by_line(&mut line_renderer);
 
-                        // TODO: only need to do this when switching overlays
-                        let _ = line_renderer
-                            .device
-                            .fpga
-                            .set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
-
                         line_renderer.device
                     }
                     RenderSource::Mcu => {
@@ -217,18 +224,23 @@ impl UI {
                     }
                 };
                 let render_duration = render_start.elapsed();
-
                 log::info!("Render + display {}ms", render_duration.as_millis() as u32,);
 
-                if first_render {
-                    first_render = false;
-                    let display_mode = if device.read_hdmi_detect().unwrap() {
-                        DisplayMode::External
-                    } else {
-                        DisplayMode::Internal
-                    };
-                    device.change_display_mode(display_mode).unwrap();
+                // Wait for the boot animation to complete.
+                let boot_animation_sleep = self
+                    .boot_animation_end
+                    .saturating_duration_since(Instant::now());
+                if !boot_animation_sleep.is_zero() {
+                    log::info!(
+                        "Waiting for boot animation: {}ms",
+                        boot_animation_sleep.as_millis() as u32
+                    );
+                    std::thread::sleep(boot_animation_sleep);
                 }
+                // XXX: only need to do this when switching overlays
+                let _ = device
+                    .fpga
+                    .set_overlay_bounds(0x0, 0xFF, 0x0, 0x0, 0xFF, 0x0);
 
                 // If we changed the repaint buffer type to force a redraw, change it back.
                 if renderer.repaint_buffer_type() == RepaintBufferType::NewBuffer {

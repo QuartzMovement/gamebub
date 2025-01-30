@@ -123,6 +123,7 @@ generate:
       outputdir: build/generated
       main_class: "platform.handheld.HandheldTop"
       extraargs: >
+        module_boot ? (platform.handheld.HandheldBoot)
         module_gba ? (platform.handheld.HandheldGba)
         module_gameboy ? (platform.handheld.HandheldGameboy)
       output:
@@ -178,6 +179,7 @@ targets:
       - "handheld"
       - "module_gba ? (handheld_clk_gba)"
       - "module_gameboy ? (handheld_clk_gameboy)"
+      - "module_boot ? (handheld_clk_gameboy)"
     generate: [handheld]
     toplevel: top_handheld
     tools:
