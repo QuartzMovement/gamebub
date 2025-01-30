@@ -347,7 +347,14 @@ module top_handheld (
     assign pmod[2] = inner_pmod_dir[2] ? inner_pmod_out[2] : 1'bz;
     assign pmod[3] = inner_pmod_dir[3] ? inner_pmod_out[3] : 1'bz;
 
+`ifdef BOARD_REV_1
+    // Rev 1: FPGA irq directly connected to open-drain MCU_INT
     assign mcu_irq_n = inner_mcu_irq ? 1'b0 : 1'bz;
+`endif
+`ifdef BOARD_REV_2
+    // Rev 2: FPGA irq connected to nFET, active-high
+    assign mcu_irq_n = inner_mcu_irq;
+`endif
     assign inner_mcu_spi_data_in = mcu_spi_d;
     assign mcu_spi_d[0] = inner_mcu_spi_data_dir[0] ? inner_mcu_spi_data_out[0] : 1'bz;
     assign mcu_spi_d[1] = inner_mcu_spi_data_dir[1] ? inner_mcu_spi_data_out[1] : 1'bz;
