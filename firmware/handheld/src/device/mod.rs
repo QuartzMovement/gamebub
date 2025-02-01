@@ -524,6 +524,9 @@ impl Device<'_> {
 
         if new_mode == DisplayMode::Internal {
             self.lcd.exit_sleep()?;
+
+            // Let LCD stabilize and refresh before turning on backlight. Measured empirically.
+            std::thread::sleep(Duration::from_millis(200));
             self.lcd_backlight
                 .set_duty_cycle(self.lcd_backlight_duty)
                 .unwrap();
