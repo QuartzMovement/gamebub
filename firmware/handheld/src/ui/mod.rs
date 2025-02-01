@@ -226,17 +226,6 @@ impl UI {
                 let render_duration = render_start.elapsed();
                 log::info!("Render + display {}ms", render_duration.as_millis() as u32,);
 
-                // Wait for the boot animation to complete.
-                let boot_animation_sleep = self
-                    .boot_animation_end
-                    .saturating_duration_since(Instant::now());
-                if !boot_animation_sleep.is_zero() {
-                    log::info!(
-                        "Waiting for boot animation: {}ms",
-                        boot_animation_sleep.as_millis() as u32
-                    );
-                    std::thread::sleep(boot_animation_sleep);
-                }
                 // XXX: only need to do this when switching overlays
                 let _ = device
                     .fpga
