@@ -66,6 +66,13 @@ where
         Ok(())
     }
 
+    /// Hold the device in reset.
+    ///
+    /// Must call `reset()` later to release reset.
+    pub fn reset_hold(&mut self) -> Result<(), Error> {
+        self.pin_reset.set_low().map_err(|_| Error::PinError)
+    }
+
     /// Sets up the DAC with both channels muted, and speakers and headphones
     /// both disabled.
     ///

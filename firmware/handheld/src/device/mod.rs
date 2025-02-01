@@ -415,10 +415,7 @@ impl Device<'_> {
     /// Gracefully turn the device off.
     pub fn power_off(&mut self) -> ! {
         log::info!("Powering off");
-        let _ = self.change_display_mode(DisplayMode::None);
-        let _ = self.dac.reset();
-        let _ = self.set_fpga_power(false);
-        kvs::keys::flush_all();
+        self.prepare_for_power_off();
 
         // Hold down the power button until the device shuts off.
         let _ = self.button_power.set_low();
@@ -430,12 +427,20 @@ impl Device<'_> {
     /// Gracefully soft reset.
     pub fn reboot(&mut self) -> ! {
         log::info!("Rebooting");
+        self.prepare_for_power_off();
+        esp_idf_svc::hal::reset::restart();
+    }
+
+    /// Prepare for power-off or reset, by powering down peripherals and saving state.
+    ///
+    /// The device must go through a [soft] reset to function correctly after this.
+    fn prepare_for_power_off(&mut self) {
         let _ = self.change_display_mode(DisplayMode::None);
-        let _ = self.dac.reset();
+        // Hold DAC in reset, otherwise it interferes with I2C if rebooting.
+        let _ = self.dac.reset_hold();
+        // TODO: high-Z SPI, other FPGA-power-domain pins.
         let _ = self.set_fpga_power(false);
         kvs::keys::flush_all();
-
-        esp_idf_svc::hal::reset::restart();
     }
 
     /// Set the LCD brightness. The input is a float in the range [0.0, 1.0].
