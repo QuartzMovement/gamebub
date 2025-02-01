@@ -23,8 +23,7 @@ mod input;
 mod interrupt;
 
 /// Time it may take for FPGA power rails to stabilize after enable.
-/// TODO: actually measure this
-const FPGA_POWER_DELAY: Duration = Duration::from_millis(100);
+const FPGA_POWER_DELAY: Duration = Duration::from_millis(5);
 
 static DEVICE: OnceLock<Mutex<Device>> = OnceLock::new();
 
@@ -397,7 +396,7 @@ impl Device<'_> {
 
     /// Enable or disable FPGA power.
     ///
-    /// Note that it may take around 100ms to stabilize.
+    /// Note that it may take around 5ms to stabilize.
     pub fn set_fpga_power(&mut self, enable: bool) -> Result<(), anyhow::Error> {
         // TODO: maybe return a Future that completes after it's stable?
         self.fpga_power.set_level(enable.into())?;
