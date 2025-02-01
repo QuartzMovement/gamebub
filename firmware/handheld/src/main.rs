@@ -15,6 +15,7 @@ mod worker;
 fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
+    esp_idf_svc::log::set_target_level("gpio", log::LevelFilter::Warn).unwrap();
 
     kvs::Kvs::init()?;
     log::info!("Device revision {:?}", kvs::keys::DEVICE_REVISION.get());
