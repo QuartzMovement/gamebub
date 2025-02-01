@@ -9,7 +9,7 @@ partition_table = "partitions.csv"
 # flashing speed benefits of QIO, but we do get the runtime speed
 # benefits.
 # flash.mode = "qio"
-bootloader = "esp32s3-qio-bootloader.bin"
+bootloader = "esp32s3-qio-bootloader-fast.bin"
 
 [flash]
 size = "8MB"
