@@ -300,7 +300,8 @@ impl Device<'_> {
 
         // Setup FPGA (without programming)
         let fpga_done = PinDriver::input(pin_fpga_done)?;
-        let fpga_program_b = PinDriver::output_od(pin_fpga_program_b)?;
+        let mut fpga_program_b = PinDriver::output_od(pin_fpga_program_b)?;
+        fpga_program_b.set_high()?; // Initializing pin sets this to low -- release it to high-z immediately.
         let fpga_init_b = PinDriver::input(pin_fpga_init_b)?;
 
         let spi_rates = [40.MHz(), 20.MHz(), 16.MHz(), 10.MHz()];

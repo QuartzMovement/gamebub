@@ -1,6 +1,9 @@
 #![allow(dead_code)]
 
-use std::{io::Read, time::Duration};
+use std::{
+    io::Read,
+    time::{Duration, Instant},
+};
 
 use embedded_hal::{
     digital::{InputPin, OutputPin},
@@ -91,6 +94,17 @@ where
 
     /// Program the FPGA with a new bitstream.
     pub fn program(&mut self, bitstream: &mut dyn Read) -> Result<(), Error> {
+        // After power-on-reset, INIT_B will be low for 10ms to 35ms (T_POR),
+        // configuration can only start after this.
+        // Poll INIT_B until it goes high.
+        let start_time = Instant::now();
+        while self.pin_init_b.is_low().map_err(|_| Error::PinError)? {
+            if start_time.elapsed() > Duration::from_millis(35) {
+                return Err(Error::ProgramError);
+            }
+            std::thread::sleep(Duration::from_millis(5));
+        }
+
         // Pull PROGRAM_B low, hold it for at least 250ns.
         self.pin_program_b.set_low().map_err(|_| Error::PinError)?;
         std::thread::sleep(Duration::from_millis(1));
