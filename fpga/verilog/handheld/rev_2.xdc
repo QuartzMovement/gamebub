@@ -143,10 +143,10 @@ set_property -dict { PACKAGE_PIN J3     IOSTANDARD LVCMOS33 } [get_ports { mcu_i
 # USB-C / HDMI
 ########################################
 # Note: D0, D1, D2, CLK +/- are swapped (should be negated)
-set_property -dict { PACKAGE_PIN A16    IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_p     }];
-set_property -dict { PACKAGE_PIN A15    IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_n     }];
-set_property -dict { PACKAGE_PIN C17    IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[0] }];
-set_property -dict { PACKAGE_PIN C16    IOSTANDARD TMDS_33  } [get_ports { hdmi_data_n[0] }];
+set_property -dict { PACKAGE_PIN C17    IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_p     }];
+set_property -dict { PACKAGE_PIN C16    IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_n     }];
+set_property -dict { PACKAGE_PIN A16    IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[0] }];
+set_property -dict { PACKAGE_PIN A15    IOSTANDARD TMDS_33  } [get_ports { hdmi_data_n[0] }];
 set_property -dict { PACKAGE_PIN B17    IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[1] }];
 set_property -dict { PACKAGE_PIN B16    IOSTANDARD TMDS_33  } [get_ports { hdmi_data_n[1] }];
 set_property -dict { PACKAGE_PIN A18    IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[2] }];
