@@ -15,6 +15,7 @@ Check out the [announcement blog post](https://eli.lipsitz.net/posts/introducing
 * Load and play ROM files from a microSD card (with built-in support for rumble, clock, accelerometer, gyroscope)
 * Multiplayer link cable functionality
 * Custom, from-scratch Game Boy and Game Boy Advance FPGA cores with great game compatibility
+* 15+ hour battery life 
 * Video output to TV or monitor via custom dock
 * Extensible hardware, designed for future improvements
 
