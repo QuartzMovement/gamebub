@@ -42,7 +42,11 @@ The shell consists of two pieces: the front and rear. Both have a wall thickness
 
 FDM (filament) printing is almost certainly not suitable: this should be printed with a high-precision technology such as SLA (photosensitive resin).
 
-Additionally, the L and R shoulder buttons, and the three side buttons are custom and need to be printed as well.
+Additionally, all of the buttons are custom and need to be printed as well:
+* 4x Large front buttons (A, B, X, and Y)
+* D-pad
+* 3x Small front buttons (Start, Select, Home)
+* 3x Side buttons
 
 ## 4. Assembling the whole device
 
@@ -52,8 +56,7 @@ Additionally, the L and R shoulder buttons, and the three side buttons are custo
 * 2x Speakers (CMS-160903-18S-X8)
 * 9x M2.5x4mm heat-set inserts
 * CA glue to glue the inserts
-* A set of Nintendo DSi button membranes
-* A set of Nintendo DSi buttons
+* A set of Nintendo DSi button membranes (ABXY and D-pad)
 * M2.5 screws:
     * 5x 5mm (three PCB screws, 2 top screws)
     * 4x 14mm (middle and bottom screws)
@@ -67,11 +70,11 @@ Additionally, the L and R shoulder buttons, and the three side buttons are custo
 Before assembling, consider testing that the PCB works properly.
 
 1. Attach the LCD cover glass to the front shell with adhesive glue or tape
-2. Attach the LCD module to the cover glass (with the LCD side facing outwards)
-3. Place the front shell face down on a surface
+2. Place the front shell face down on a surface
+3. Carefully align and press the LCD module onto the cover glass (ensure flex is facing the correct direction)
 4. Glue all 9 heat-set inserts into place, and let the glue harden
 5. Insert the speakers into the shell
-6. Place the face buttons into the shell, followed by the membranes
+6. Place the face buttons into the shell, followed by the D-pad and ABXY membranes
 7. Open the LCD flex connector on the PCB
 8. Carefully set the PCB face down onto the shell, putting the LCD module flex into place on the PCB connector, and close it.
 9. Ensure the PCB is aligned well onto the front shell
@@ -89,11 +92,11 @@ Before assembling, consider testing that the PCB works properly.
 2. Install JDK 8 or later, and [Scala Build Tool (`sbt`)](https://www.scala-sbt.org/download.html)
 3. Install [FuseSoC](https://github.com/olofk/fusesoc).
 
-From the `/fpga` directory, use FuseSoC to build the Game Boy and GBA bitstreams:
+From the `/fpga` directory, use FuseSoC to build the bitstreams:
 
 ```sh
+$ fusesoc --cores-root . --work-root=build/boot --target=handheld_rev2 --flag=boot elipsitz:gameboy:gameboy
 $ fusesoc --cores-root . --work-root=build/gameboy --target=handheld_rev2 --flag=gameboy elipsitz:gameboy:gameboy
-
 $ fusesoc --cores-root . --work-root=build/gba --target=handheld_rev2 --flag=gba elipsitz:gameboy:gameboy
 ```
 
@@ -105,7 +108,7 @@ Format a good quality microSD card with FAT32, then create the following directo
 
 ```
 system/
-  base.bit.gz
+  boot.bit.gz
   gameboy.bit.gz
   gameboy.bios-dmg.bin
   gameboy.bios-cgb.bin
@@ -114,8 +117,9 @@ system/
 roms/
 ```
 
-* `base.bit.gz` and `gameboy.bit.gz` should be gzip'd copies of the `gameboy` bitstream built previously. 
-* `gba.bit.gz` should be a gzip'd copy of the `gba` bitstream
+* `boot.bit.gz` should be a gzip'd copy of the `boot` bitstream built previously.
+* `gameboy.bit.gz` should be a gzip'd copy of the `gameboy` bitstream.
+* `gba.bit.gz` should be a gzip'd copy of the `gba` bitstream.
 * `gameboy.bios-dmg.bin` and `gameboy.bios-cgb.bin` should be the bootrom files for the original Game Boy and Game Boy Color, or open-source alternatives (e.g. from [SameBoy](https://github.com/LIJI32/SameBoy)).
 * `gba.bios.bin` should be the Game Boy Advance bootrom. Either the official one, extracted from a GBA (best compatibility), or a free alternative ([e.g. this one](https://github.com/Cult-of-GBA/BIOS)).
 * `roms/` should be a directory containing ROM files (if desired), with `.gb`, `.gbc`, and `.gba` extensions. This directory can be further organized into more directories.
