@@ -35,5 +35,13 @@ The Game Bub handheld consists of a Xilinx XC7A100T FPGA to do the main emulatio
 ### Directory Structure
 
 * `pcb`: PCB design files for Handheld, Dock, and others
+* `3d`: STLs for 3D printed shell and buttons
 * `fpga`: FPGA source code (HDL), written in [Chisel](https://github.com/chipsalliance/chisel)
 * `firmware/handheld`: Microcontroller firmware
+
+## License
+
+Unless otherwise specified:
+* FPGA source code (in `fpga/`) and firmware (in `firmware/`) is licensed under GPLv3 (`GPL-3.0-only`).
+* 3D STL files (in `3d/`) is licensed under Creative Commons Attribution / Share-Alike 4.0 (`CC-BY-SA-4.0`)
+* PCB schematic and layout files (in `pcb/`) are licensed under Creative Commons Attribution / Share-Alike 4.0 (`CC-BY-SA-4.0`)
