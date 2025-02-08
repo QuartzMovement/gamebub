@@ -6,7 +6,6 @@
 /fpga/.bsp
 /fpga/out
 /fpga/build
-/fpga/fusesoc_libraries
 /fpga/sim/main
 /fpga/sim/obj_pc
 /fpga/test/sim_build
