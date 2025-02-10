@@ -1,14 +1,9 @@
-<p align="center">
-    <img src="./docs/assets/logo.svg" width="300px"> 
-</p>
+[![Game Bub trailer](./docs/assets/video-poster.jpg)](https://www.youtube.com/watch?v=_WQGJFFGHmE)
 
 **Game Bub** is an open-source FPGA retro emulation handheld, with support for Game Boy, Game Boy Color, and Game Boy Advance games.
 
 Check out the [announcement blog post](https://eli.lipsitz.net/posts/introducing-gamebub/) for an in-depth look at the development process!
 
----
-
-<!-- TODO: insert a picture -->
 
 ## Features
 * Play physical Game Boy / Color / Advance cartridges
