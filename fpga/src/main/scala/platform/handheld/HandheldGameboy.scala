@@ -3,7 +3,7 @@ package platform.handheld
 import chisel3._
 import chisel3.util._
 import gameboy.Gameboy
-import gameboy.cart.{EmuCartConfig, EmuCartridge, Mbc3RtcAccess, RtcState}
+import gameboy.cart.emu.{EmuCartConfig, EmuCartridge, Mbc3RtcAccess, RtcState}
 import lib.mem.{MemoryInterface, MemoryMap, RegisterMap}
 
 object HandheldGameboy {

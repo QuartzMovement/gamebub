@@ -3,7 +3,7 @@ package platform.sim
 import chisel3._
 import _root_.circt.stage.ChiselStage
 import gameboy.apu.ApuOutput
-import gameboy.cart.{EmuCartConfig, EmuCartridge, EmuCartridgeDataAccess, EmuMbc}
+import gameboy.cart.emu.{EmuCartConfig, EmuCartridge, EmuCartridgeDataAccess, EmuMbc}
 import gameboy.{ClockConfig, Gameboy, JoypadState}
 import gameboy.ppu.PpuOutput
 

@@ -1,4 +1,4 @@
-package gameboy.cart
+package gameboy.cart.emu
 
 import chisel3._
 
