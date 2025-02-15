@@ -18,12 +18,21 @@ class Mbc7ImuState extends Bundle {
 }
 
 class Mbc7DirectRamAccess extends Bundle {
+  /// High when an access should happen.
+  /// Will be held high as long as the access hasn't completed.
+  /// A new access starts only when this is high *and* valid is low
+  /// (that is, the completing cycle does not allow a new access to start)
   val enable = Output(Bool())
+  /// High if this access is a write
   val write = Output(Bool())
+  /// Address of the access
   val address = Output(UInt(10.W))
+  /// Data to be written, if a write
   val dataWrite = Output(UInt(8.W))
+  /// Data read, only valid when "valid" is 1.
   val dataRead = Input(UInt(8.W))
-  val valid = Input(Bool())
+  /// Done signal, high for one cycle when the current access is completed.
+  val done = Input(Bool())
 }
 
 class Mbc7 extends Module {
@@ -74,12 +83,12 @@ class Mbc7 extends Module {
 
   // RAM region accesses (EEPROM and IMU)
   val dataRead = WireDefault(0xFF.U(8.W))
-  when (io.memEnable && !io.selectRom && ramEnable && ramEnable2) {
+  when (!io.selectRom && ramEnable && ramEnable2) {
     val index = io.memAddress(7, 4)
     switch (index) {
       is (0.U) {
         // Erase accelerometer latch
-        when (io.memWrite && io.memDataWrite === 0x55.U) {
+        when (io.memEnable && io.memWrite && io.memDataWrite === 0x55.U) {
           accelErased := true.B
           accelX := 0x8000.U
           accelY := 0x8000.U
@@ -87,7 +96,7 @@ class Mbc7 extends Module {
       }
       is (1.U) {
         // Latch accelerometer
-        when (io.memWrite && io.memDataWrite === 0xAA.U && accelErased) {
+        when (io.memEnable && io.memWrite && io.memDataWrite === 0xAA.U && accelErased) {
           accelErased := false.B
           accelX := io.imu.x
           accelY := io.imu.y
@@ -103,7 +112,7 @@ class Mbc7 extends Module {
         dataRead := Cat(
           eepromCs, eepromClk, 0.U(4.W), eepromDataIn, eepromDataOut
         )
-        when (io.memWrite) {
+        when (io.memEnable && io.memWrite) {
           eepromDataIn := io.memDataWrite(1)
           eepromClk := io.memDataWrite(6)
           eepromCs := io.memDataWrite(7)
@@ -169,6 +178,8 @@ class Mbc7Eeprom extends Module {
   val address = Reg(UInt(8.W)) // Byte oriented address
   val data = Reg(UInt(16.W))
 
+  // Whether we're waiting to read a byte from directRam.
+  val regReadBusy = RegInit(false.B)
 
   io.dataOut := 1.U
   io.directRam.enable := false.B
@@ -247,22 +258,36 @@ class Mbc7Eeprom extends Module {
     }
     is (State.doRead) {
       io.dataOut := data(7)
+
+      when (regReadBusy) {
+        io.directRam.enable := true.B
+        io.directRam.write := false.B
+
+        when (io.directRam.done) {
+          regReadBusy := false.B
+          // Increment the address for the next byte
+          address := address + 1.U
+          // Latch data
+          data := io.directRam.dataRead
+        }
+      }
+
       when (clockPosEdge) {
         data := data << 1
         counter := counter - 1.U
+
         when (counter === 0.U) {
-          // Read the next word.
-          //
-          // If clockPosEdge is 1, we should always be able to read,
-          // assuming SRAM is asynchronous.
-          // TODO -- handle if io.directRam.valid isn't true?
+          // Read the next byte.
+          assert(!regReadBusy)
           io.directRam.enable := true.B
           io.directRam.write := false.B
-          data := io.directRam.dataRead
-          address := address + 1.U
+          regReadBusy := true.B
           counter := 7.U
+          // XXX: this should stall while we're waiting for the read to complete,
+          // because we start clocking out the data immediately after.
         }
       }
+
       when (!io.cs) {
         state := State.init
       }
@@ -287,6 +312,7 @@ class Mbc7Eeprom extends Module {
       io.dataOut := 0.U
 
       when (counter < 2.U) {
+        // Two bus cycles of byte writes for the 16-bit word.
         io.directRam.enable := true.B
         io.directRam.write := true.B
         io.directRam.dataWrite := Mux(
@@ -294,7 +320,7 @@ class Mbc7Eeprom extends Module {
           data(7, 0),
           data(15, 8),
         )
-        when (io.directRam.valid) {
+        when (io.directRam.done) {
           counter := counter + 1.U
           address := address + 1.U
         }
@@ -316,7 +342,7 @@ class Mbc7Eeprom extends Module {
           data(7, 0),
           data(15, 8),
         )
-        when(io.directRam.valid) {
+        when(io.directRam.done) {
           counter := counter + 1.U
           address := address + 1.U
         }
@@ -345,7 +371,7 @@ class Mbc7Eeprom extends Module {
         io.directRam.enable := true.B
         io.directRam.write := true.B
         io.directRam.dataWrite := 0xFF.U(8.W)
-        when (io.directRam.valid) {
+        when (io.directRam.done) {
           counter := counter + 1.U
           address := address + 1.U
         }
@@ -363,7 +389,7 @@ class Mbc7Eeprom extends Module {
         io.directRam.enable := true.B
         io.directRam.write := true.B
         io.directRam.dataWrite := 0xFF.U(8.W)
-        when (io.directRam.valid) {
+        when (io.directRam.done) {
           counter := counter + 1.U
           address := address + 1.U
         }

@@ -104,6 +104,6 @@ class EmuMbc(clockRate: Int) extends Module {
     io.directRam.address := DontCare
     io.directRam.dataWrite := DontCare
     mbc7.io.directRam.dataRead := DontCare
-    mbc7.io.directRam.valid := false.B
+    mbc7.io.directRam.done := false.B
   }
 }

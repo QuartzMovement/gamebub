@@ -114,21 +114,29 @@ class EmuCartridge(clockRate: Int) extends Module {
     }
   }
 
-  // Only let the MBC directly access RAM if the
-  // game isn't also accessing it
-  // TODO: this (and MBC7) is almost certainly broken right now.
+  // Direct RAM access: allowing MBC7 to directly access RAM, so that it can
+  // emulate EEPROM.
+  val regDirectAccessBusy = RegInit(false.B)
   mbcDirectRamAccess := mbc.io.directRam.enable
   mbc.io.directRam.dataRead := io.dataAccess.dataRead
-  mbc.io.directRam.valid := false.B
-  when (mbc.io.directRam.enable && !regBusy && (io.tCycle === 1.U || io.tCycle === 3.U)) {
-    // Only activate when io.tCycle is 1 or 3, to ensure there's a time when dataAccess.enable
-    // is false, because HandheldGameboy/SimGameboy only initiates an access on a rising edge.
+  mbc.io.directRam.done := false.B
+  // Only pass a request on when the regular ROM access isn't ongoing.
+  when (mbc.io.directRam.enable && !regBusy && !regDirectAccessBusy && !io.cartridge.reqStart) {
     io.dataAccess.enable := true.B
     io.dataAccess.write := mbc.io.directRam.write
     io.dataAccess.selectRom := false.B
     io.dataAccess.address := mbc.io.directRam.address
     io.dataAccess.dataWrite := mbc.io.directRam.dataWrite
-    mbc.io.directRam.valid := io.dataAccess.valid
+    regDirectAccessBusy := true.B
+    // Always stall during a direct access for simplicity.
+    io.stall := true.B
+  }
+  when (regDirectAccessBusy) {
+    io.stall := true.B
+    when (io.dataAccess.valid) {
+      regDirectAccessBusy := false.B
+      mbc.io.directRam.done := true.B
+    }
   }
 }
 
