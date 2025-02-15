@@ -14,7 +14,9 @@ Building a Game Bub unit is a fairly involved process:
 
 Fab the PCB (in `/pcb/handheld_rev2`) using your manufacturer of choice. The board was initially designed to be fabricated and assembled by JLCPCB.
 
-The board has 6 layers, and rectangular dimensions of 90.1 mm by 135 mm. Due to the fine pitch (0.8mm) BGA FPGA package, the smallest vias are 0.4/0.25mm, with a minimum track width of 0.1mm. 
+The board has 6 layers, and rectangular dimensions of 90.1 mm by 135 mm. Due to the fine pitch (0.8mm) BGA FPGA package, the smallest vias are 0.4/0.25mm, with a minimum track width of 0.1mm. The board must have an ENIG finish, as HASL is too uneven for fine-pitch BGA components. 
+
+The board should have a thickness of 1.6mm -- this isn't essential, but the enclosure was designed for this thickness. Only the JLCPCB default 6-layer `JLC06161H-3313` stackup has been tested, but other stackups are likely to work too.
 
 ## 2. Assembling the PCB
 
