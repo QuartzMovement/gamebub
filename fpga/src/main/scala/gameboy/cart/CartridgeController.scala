@@ -1,7 +1,7 @@
 package gameboy.cart
 
 import chisel3._
-
+import chisel3.util._
 import gameboy.Clocker
 import gameboy.cart.CartridgeController.BusRequester
 
@@ -37,19 +37,64 @@ class CartridgeController extends Module {
   })
 
   // Physical interface
-  // Old and incorrect comment:
-  // This t-cycle logic works with HDMA too, even though it's 2x faster,
-  // because HDMA always reads, never writes
-  val doWrite = io.busWrite && (io.clocker.tCycle === 1.U || io.clocker.tCycle === 2.U)
-  io.cartridge.phi := false.B  // TODO
-  io.cartridge.nWR := ~doWrite
-  io.cartridge.nRD := doWrite
-  io.cartridge.nCS := io.busIsRom
+  val regAddressOut = RegInit(0.U(16.W))
+  val regDataOut = RegInit(0.U(8.W))
+  val reg_nRD = RegInit(false.B)
+  val reg_nWR = RegInit(true.B)
+  val reg_nCS = RegInit(true.B)
+  val reg_phi = RegInit(true.B)
+
+  io.cartridge.phi := reg_phi
+  io.cartridge.nWR := reg_nWR
+  io.cartridge.nRD := reg_nRD
+  io.cartridge.nCS := reg_nCS
   io.cartridge.resetOut := true.B  // TODO
-  io.cartridge.address := io.busAddress
-  io.cartridge.dataOut := io.busDataWrite
+  io.cartridge.address := regAddressOut
+  io.cartridge.dataOut := regDataOut
   io.busDataRead := io.cartridge.dataIn
-  io.cartridge.dataDir := doWrite // Output if writing
+  io.cartridge.dataDir := ~reg_nWR // Output if writing
+
+  // TODO: some signals actually start immediately in tCycle=0,
+  // which means that the memory access needs to be available at the very end of a phi
+  // cycle, rather than at the beginning of the next one.
+  when (io.clocker.enable) {
+    switch (io.clocker.tCycle) {
+      is (0.U) {
+        when (io.busEnable) {
+          regAddressOut := io.busAddress
+          regDataOut := io.busDataWrite
+
+          reg_nRD := io.busWrite
+          reg_nWR := ~io.busWrite
+          reg_nCS := io.busIsRom
+        } .otherwise {
+          // idle, or 0xFE00-0xFFFF
+          regAddressOut := 0xFFFF.U(16.W)
+          reg_nRD := 0.U
+          reg_nWR := 1.U
+          reg_nCS := 1.U
+        }
+      }
+      is (1.U) {
+        // TODO: phi should be stopped when in STOP (~15ms during a speed transition)
+        reg_phi := 0.U
+      }
+      is (2.U) {
+        reg_nWR := 1.U  // nWR only stays low for 2 cycles (well, 1.5)
+      }
+      is (3.U) {
+        reg_phi := 1.U
+        reg_nCS := 1.U  // nCS always starts high
+        reg_nRD := 0.U  // nRD always starts low
+      }
+    }
+  }
+  // VRAM DMA transfers at 2 MHz, even in single-speed mode.
+  // This ensures that the address on the bus updates mid t-cycle
+  val vramDmaCycle0 = io.busRequester === BusRequester.vramDma && io.clocker.counter8Mhz === 0.U
+  when (io.busEnable && io.clocker.pulse8Mhz && vramDmaCycle0) {
+    regAddressOut := io.busAddress
+  }
 
 
   // Non-physical interface
@@ -68,7 +113,7 @@ class CartridgeController extends Module {
   when (io.clocker.enable && regActive && deadline) {
     regActive := false.B
   }
-  when (io.busEnable && io.clocker.tCycle === 0.U) {
+  when (io.busEnable && (io.clocker.tCycle === 0.U || vramDmaCycle0)) {
     regActive := true.B
 
     when (!regActive && !reset.asBool) {

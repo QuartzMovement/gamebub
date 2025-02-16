@@ -13,6 +13,9 @@ class Clocker extends Bundle {
   /// 4 MHz pulse (regardless of double-speed mode). Used by PPU and APU
   val pulse4Mhz = Bool()
 
+  /// 8 MHz pulse. Guaranteed to work only when in double-speed mode or if VRAM dma active.
+  val pulse8Mhz = Bool()
+
   /// T-cycle counter
   val tCycle = UInt(2.W)
 
@@ -76,6 +79,7 @@ class ClockControl extends Module {
   io.clocker.phiPulse := io.clocker.enable && (io.clocker.tCycle === 3.U)
   io.clocker.pulseVramDma := io.clocker.enable && (counter(1, 0) === 3.U)
   io.clocker.counter8Mhz := counter(1, 0)
+  io.clocker.pulse8Mhz := io.clockConfig.enable
 
   // Should be true when the tCycle from the next counter wrap would go from 3 -> 0
   io.lastClockCycle := (io.clocker.tCycle === 3.U) && (Mux(io.doubleSpeed, nextCounter(1, 0), nextCounter(2, 1)) === 0.U)
