@@ -2,7 +2,7 @@
 
 The first version of this project was intended to be run on a Pynq-Z2 development board. Read the full writeup [here](https://eli.lipsitz.net/posts/fpga-gameboy-emulator/).
 
-This document preserves the original instructions. 
+This document preserves the original instructions. **Please note, however, that the active branch of this repo no longer contains the Pynq/Zynq related code.** Check out the [`pynq-release` tag](https://github.com/elipsitz/gamebub/tree/pynq-release) for that code.
 
 Currently, only the Pynq-Z2 is supported, although the core of the emulator should be able to be used on any FPGA with sufficient resources.
 
@@ -86,7 +86,7 @@ The other parts are relatively small, so I don't recommend hand soldering the bo
 
 ### Getting Xbox controller to work on Pynq-Z2
 
-This needs the `xpad` and `joydev` drivers. Pynq Linux isn't built with them. If you're running Pynq Linux with kernel `5.15.19-xilinx-v2022.1`, prebuilt kernel modules can be found in the `extra` directory in the repository. Otherwise, to build loadable kernel modules from scratch:
+This needs the `xpad` and `joydev` drivers. Pynq Linux isn't built with them. If you're running Pynq Linux with kernel `5.15.19-xilinx-v2022.1`, prebuilt kernel modules can be found in the [`pynq-release` release on GitHub](https://github.com/elipsitz/gamebub/releases/tag/pynq-release). Otherwise, to build loadable kernel modules from scratch:
 
 On the Pynq-Z2, go to `/lib/modules/5.15.19-xilinx-v2022.1/build`.
 
