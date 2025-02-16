@@ -3,29 +3,10 @@ package gameboy
 import chisel3._
 import chisel3.util._
 import gameboy.apu.{Apu, ApuOutput}
+import gameboy.cart.{CartridgeController, CartridgeInterface}
 import gameboy.cpu.Cpu
 import gameboy.ppu.{Ppu, PpuOutput}
 import gameboy.util.SinglePortRam
-
-class CartridgeIo extends Bundle {
-  /** Cartridge address selection */
-  val address = Output(UInt(16.W))
-  /** Whether a memory access is being performed */
-  val enable = Output(Bool())
-  /**
-   * Whether the cartridge access started previously must complete by the next clock rise.
-   * If the access isn't ready, the Gameboy should be stalled until it is.
-   */
-  val deadline = Output(Bool())
-  /** Whether the memory access is a write */
-  val write = Output(Bool())
-  /** Chip select (high for ROM, low for RAM) */
-  val chipSelect = Output(Bool())
-  /** Data in (reading) */
-  val dataRead = Input(UInt(8.W))
-  /** Data out (writing) */
-  val dataWrite = Output(UInt(8.W))
-}
 
 class JoypadState extends Bundle {
   val start = Bool()
@@ -57,7 +38,7 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
     val bootRom = new BootRomAccess
 
     // Regular I/O signals
-    val cartridge = new CartridgeIo()
+    val cartridge = new CartridgeInterface()
     val ppu = new PpuOutput()
     val joypad = Input(new JoypadState)
     val apu = new ApuOutput
@@ -167,8 +148,14 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
     vramDma.io.write := DontCare
   }
 
+  // Module: Cartridge controller
   // External bus read/write logic
   // TODO: on CGB wram and cartridge are on separate busses.
+  val cart = Module(new CartridgeController)
+  io.cartridge <> cart.io.cartridge
+  cart.io.clocker := systemControl.io.clocker
+  cart.io.busRequester := CartridgeController.BusRequester.cpu
+  cart.io.lastClockCycle := clockControl.io.lastClockCycle
   val busAddress = WireDefault(cpu.io.memAddress)
   val busDataWrite = WireDefault(cpu.io.memDataOut)
   val busMemEnable = WireDefault(cpu.io.memEnable)
@@ -177,35 +164,33 @@ class Gameboy(config: Gameboy.Configuration) extends Module {
   val cartRamSelect = busAddress >= 0xA000.U && busAddress < 0xC000.U
   val workRamSelect = busAddress >= 0xC000.U && busAddress < 0xFE00.U
   val busDataRead = Mux1H(Seq(
-    (cartRomSelect || cartRamSelect, io.cartridge.dataRead),
+    (cartRomSelect || cartRamSelect, cart.io.busDataRead),
     (workRamSelect, workRam.io.dataRead),
   ))
   when (oamDma.io.active && oamDmaSelectExternal) {
+    cart.io.busRequester := CartridgeController.BusRequester.oamDma
     busAddress := oamDma.io.dmaAddress
     busMemEnable := true.B
     busMemWrite := false.B
     busDataWrite := DontCare
     oamDmaData := busDataRead
   }
-  io.cartridge.deadline := clockControl.io.lastClockCycle
   when (io.isCgb && vramDma.io.active) {
+    cart.io.busRequester := CartridgeController.BusRequester.vramDma
     busAddress := vramDma.io.addressSource
     busMemEnable := true.B
     busMemWrite := false.B
     busDataWrite := DontCare
     vramDmaData := busDataRead
-    io.cartridge.deadline := clockControl.io.clocker.counter8Mhz === 3.U
   }
   val cpuExternalBusSelect =
     cpu.io.memAddress < 0x8000.U ||
     (cpu.io.memAddress >= 0xA000.U && cpu.io.memAddress < 0xFE00.U)
-
-  // Cartridge access signals
-  io.cartridge.enable := busMemEnable && (cartRomSelect || cartRamSelect)
-  io.cartridge.write := busMemWrite
-  io.cartridge.chipSelect := cartRomSelect
-  io.cartridge.dataWrite := busDataWrite
-  io.cartridge.address := busAddress
+  cart.io.busEnable := busMemEnable && (cartRomSelect || cartRamSelect)
+  cart.io.busWrite := busMemWrite
+  cart.io.busIsRom := cartRomSelect
+  cart.io.busDataWrite := busDataWrite
+  cart.io.busAddress := busAddress
 
   // Work ram
   workRam.io.address := Cat(Mux(busAddress(12), systemControl.io.wramBank, 0.U), busAddress(11, 0))

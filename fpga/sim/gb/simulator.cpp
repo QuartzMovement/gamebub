@@ -70,8 +70,6 @@ void Simulator::set_joypad_state(JoypadState state)
 
 void Simulator::simulate_cycles(uint64_t num_cycles)
 {
-    bool prevAccessEnable = false;
-
     for (uint64_t i = 0; i < num_cycles * 2; i++) {
         top->io_clockConfig_provide8Mhz = top->io_clockConfig_need8Mhz;
         if (!top->io_clockConfig_provide8Mhz) {
@@ -79,7 +77,7 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
         }
 
         // Handle memory.
-        if (top->io_dataAccess_enable && !prevAccessEnable) {
+        if (top->io_dataAccess_enable) {
             std::vector<uint8_t>& mem = top->io_dataAccess_selectRom ? cart->rom : cart->ram;
 
             if (top->io_dataAccess_write) {
@@ -89,7 +87,6 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
             }
             top->io_dataAccess_valid = true;
         }
-        prevAccessEnable = top->io_dataAccess_enable;
 
         this->stepFramebuffer();
         this->stepAudio();

@@ -2,7 +2,7 @@ package gameboy.cart.emu
 
 import chisel3._
 import chisel3.util._
-import gameboy.CartridgeIo
+import gameboy.cart.CartridgeInterface
 
 object MbcType extends ChiselEnum {
   val None = Value
@@ -30,9 +30,6 @@ class EmuCartConfig extends Bundle {
  * An emulated cartridge.
  *
  * Provides the regular Gameboy cartridge interface.
- *   Assumes: (with some assumptions --
- *     At the first rising edge after tCycle 0 all of the memory access signals are ready
- *     The memory access signals don't change until after tCycle 3
  *
  * Gets the actual data through something with the EmuCartridgeDataAccess interface.
  */
@@ -43,11 +40,12 @@ class EmuCartridge(clockRate: Int) extends Module {
     /** Underlying data access interface */
     val dataAccess = new EmuCartridgeDataAccess()
     /** Emulated gameboy cartridge interface */
-    val cartridgeIo = Flipped(new CartridgeIo())
+    val cartridge = Flipped(new CartridgeInterface())
     /** Gameboy t-cycle */
     val tCycle = Input(UInt(2.W))
-    /** Whether we're waiting on the results of a data access */
-    val waitingForAccess = Output(Bool())
+    /** Whether the previous memory request has not completed by the time the GB needs it. */
+    val stall = Output(Bool())
+
 
     /** Direct access to MBC3 RTC registers */
     val rtcAccess = new Mbc3RtcAccess
@@ -57,69 +55,72 @@ class EmuCartridge(clockRate: Int) extends Module {
     val imu = Input(new Mbc7ImuState)
   })
 
-  // True if we're accessing ROM (rather than RAM)
-  val selectRom = io.cartridgeIo.chipSelect
-  // Whether there's an outstanding data access
-  val waitingForAccess = RegInit(false.B)
-  val accessEnable = Wire(Bool())
-
-  when (io.dataAccess.enable && !RegNext(io.dataAccess.enable) && !io.dataAccess.valid) {
-    waitingForAccess := true.B
-  }
-  when(waitingForAccess && io.dataAccess.valid) {
-    waitingForAccess := false.B
-  }
-
   val mbcDirectRamAccess = Wire(Bool())
-  io.waitingForAccess := waitingForAccess && !io.dataAccess.valid
-  io.dataAccess.enable := accessEnable && (io.tCycle > 0.U)
 
   val mbc = Module(new EmuMbc(clockRate))
   mbc.io.config := io.config
-  mbc.io.mbc.memEnable := io.cartridgeIo.enable
-  mbc.io.mbc.memWrite := io.cartridgeIo.write && io.tCycle === 3.U
-  mbc.io.mbc.memAddress := io.cartridgeIo.address
-  mbc.io.mbc.memDataWrite := io.cartridgeIo.dataWrite
-  mbc.io.mbc.selectRom := selectRom
+  mbc.io.mbc.memEnable := io.cartridge.reqStart
+  mbc.io.mbc.memWrite := io.cartridge.reqWrite
+  mbc.io.mbc.memAddress := io.cartridge.reqAddress
+  mbc.io.mbc.memDataWrite := io.cartridge.reqDataWrite
+  mbc.io.mbc.selectRom := io.cartridge.reqRom
   io.rtcAccess <> mbc.io.rtcAccess
   io.rumble := mbc.io.rumble
   mbc.io.imu := io.imu
 
-  // We cannot write to ROM
-  io.dataAccess.write := io.cartridgeIo.write && !selectRom
-  io.dataAccess.selectRom := selectRom
-  io.dataAccess.dataWrite := io.cartridgeIo.dataWrite
-  when (selectRom) {
-    accessEnable := io.cartridgeIo.enable
-    io.dataAccess.write := false.B // We cannot write to ROM
+  io.cartridge.resetIn := true.B  // Inactive
+  io.dataAccess.enable := false.B
+  io.dataAccess.write := io.cartridge.reqWrite
+  io.dataAccess.selectRom := io.cartridge.reqRom
+  io.cartridge.dataIn := io.dataAccess.dataRead
+  io.dataAccess.dataWrite := io.cartridge.reqDataWrite
+
+  io.stall := false.B
+  val regBusy = RegInit(false.B)
+  when (io.dataAccess.valid) {
+    regBusy := false.B
+  } .elsewhen (io.cartridge.reqEnd && regBusy) {
+    io.stall := true.B
+  }
+  when (io.cartridge.reqStart) {
+    regBusy := true.B
+    io.dataAccess.enable := true.B
+  }
+
+  when (io.cartridge.reqRom) {
     io.dataAccess.address := Cat(
-      Mux(io.cartridgeIo.address(14), mbc.io.mbc.bankRom2, mbc.io.mbc.bankRom1),
-      io.cartridgeIo.address(13, 0),
+      Mux(io.cartridge.reqAddress(14), mbc.io.mbc.bankRom2, mbc.io.mbc.bankRom1),
+      io.cartridge.reqAddress(13, 0),
     )
-    io.cartridgeIo.dataRead := io.dataAccess.dataRead
+
+    // Cannot write to ROM.
+    io.dataAccess.write := false.B
   } .otherwise {
-    // Only do data access if RAM isn't mapped to the MBC registers, and if we actually have RAM
+    io.dataAccess.address := Cat(mbc.io.mbc.bankRam, io.cartridge.reqAddress(12, 0))
+
     // Don't do data access if we're accessing RAM and RAM is being mapped to the MBC
     //   OR if we're accessing RAM but there's no actual RAM
-    accessEnable := io.cartridgeIo.enable && !mbc.io.mbc.ramReadMbc && io.config.hasRam
-    io.dataAccess.write := io.cartridgeIo.write
-    io.dataAccess.address := Cat(mbc.io.mbc.bankRam, io.cartridgeIo.address(12, 0))
+    when (mbc.io.mbc.ramReadMbc || !io.config.hasRam) {
+      // Don't make an internal access, and don't stay in the "busy" state.
+      io.dataAccess.enable := false.B
+      regBusy := false.B
+    }
+
     when (mbc.io.mbc.ramReadMbc) {
-      io.cartridgeIo.dataRead := mbc.io.mbc.memDataRead
+      io.cartridge.dataIn := mbc.io.mbc.memDataRead
     } .elsewhen (io.config.mbcType === MbcType.Mbc2) {
       // Special case for MBC2: only bottom 4 bits are valid
-      io.cartridgeIo.dataRead := Cat(0xF.U(4.W), io.dataAccess.dataRead(3, 0))
-    } .otherwise {
-      io.cartridgeIo.dataRead := io.dataAccess.dataRead
+      io.cartridge.dataIn := Cat(0xF.U(4.W), io.dataAccess.dataRead(3, 0))
     }
   }
 
   // Only let the MBC directly access RAM if the
   // game isn't also accessing it
+  // TODO: this (and MBC7) is almost certainly broken right now.
   mbcDirectRamAccess := mbc.io.directRam.enable
   mbc.io.directRam.dataRead := io.dataAccess.dataRead
   mbc.io.directRam.valid := false.B
-  when (mbc.io.directRam.enable && !accessEnable && (io.tCycle === 1.U || io.tCycle === 3.U)) {
+  when (mbc.io.directRam.enable && !regBusy && (io.tCycle === 1.U || io.tCycle === 3.U)) {
     // Only activate when io.tCycle is 1 or 3, to ensure there's a time when dataAccess.enable
     // is false, because HandheldGameboy/SimGameboy only initiates an access on a rising edge.
     io.dataAccess.enable := true.B
@@ -136,12 +137,19 @@ class EmuCartridge(clockRate: Int) extends Module {
  * Max RAM: 128 KiB (17 bits)
  */
 class EmuCartridgeDataAccess extends Bundle {
+  /// Pulsed high when an access should start.
+  /// All output signals are only valid when enable is high.
   val enable = Output(Bool())
+  /// Whether this access is a write. Only valid when `enable`
   val write = Output(Bool())
+  /// 1 for ROM select, 0 for RAM. Only valid when `enable`
   val selectRom = Output(Bool())
+  /// Access address. Only valid when `enable`
   val address = Output(UInt(23.W))
+  /// Data write. Only valid when `enable` and `write`.
   val dataWrite = Output(UInt(8.W))
+  /// Data read. Must stay valid until the next access begins.
   val dataRead = Input(UInt(8.W))
-  /** Whether the last access has completed */
+  /// Pulsed high when the previous access has completed.
   val valid = Input(Bool())
 }
