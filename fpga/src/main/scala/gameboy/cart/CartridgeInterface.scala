@@ -19,8 +19,8 @@ class CartridgeInterface extends Bundle {
   val dataOut = Output(UInt(8.W))
   val dataDir = Output(Bool())  // 1 for output, 0 for input
   /// Reset (bidirectional open-drain active-low)
-  val resetIn = Input(Bool())
-  val resetOut = Output(Bool())
+  val nResetIn = Input(Bool())
+  val nResetOut = Output(Bool())
   /// Not used: analog audio input
 
   /// Non-physical signals to improve timing of emulated cartridge.

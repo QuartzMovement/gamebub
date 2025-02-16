@@ -344,8 +344,8 @@ class HandheldGameboy extends Module with HandheldModule {
     // Pin 30: nRST
     // TODO: open-drain bidirectional
     io.cartridge.pin30Dir := true.B
-    io.cartridge.pin30Out := gameboy.io.cartridge.resetOut
-    gameboy.io.cartridge.resetIn := io.cartridge.pin30In
+    io.cartridge.pin30Out := gameboy.io.cartridge.nResetOut
+    gameboy.io.cartridge.nResetIn := io.cartridge.pin30In
 
     // Pin 31: VIN
     io.cartridge.pin31Dir := false.B
