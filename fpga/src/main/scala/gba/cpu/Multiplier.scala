@@ -59,9 +59,12 @@ class Multiplier extends Module {
     }
   }
 
+  val zeroLo = output(31, 0) === 0.U
+  val zeroHi = output(63, 32) === 0.U
+
   io.done := counter === 0.U
   io.outLo := output(31, 0)
   io.outHi := output(63, 32)
-  io.outFlagZ := output === 0.U
+  io.outFlagZ := Mux(io.long, zeroLo && zeroHi, zeroLo)
   io.outFlagN := Mux(io.long, output(63), output(31))
 }
