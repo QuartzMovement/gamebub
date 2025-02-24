@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 import lib.mem.sdram.{BurstSdramController, Signals => SdramSignals}
-import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, PipelineInterfaceBridge, RegisterMap}
+import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryBurstCdc, RegisterMap}
 import lib.video.{ColorARGB, HdmiTransmitter}
 import platform.handheld
 import xilinx.{XpmCdcHandshake, XpmCdcSingle, XpmCdcSyncRst}
@@ -360,15 +360,15 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   }
   io.sdram <> sdram.io.signals
 
-  withClock(io.sdramClock) {
-    val cdc = Module(new MemoryCdc(addressWidth = 25, dataWidth = 32))
-    cdc.io.slowClock := clock
-    cdc.io.initiator <> sdramArbiter.io.target
+  // Bridge to convert simple to pipelined interface
+  val sdramBridge = Module(new PipelineInterfaceBridge(addressWidth = 25, dataWidth = 32))
+  sdramBridge.io.source <> sdramArbiter.io.target
 
-    // Bridge to convert simple to pipelined interface
-    val bridge = Module(new PipelineInterfaceBridge(addressWidth = 25, dataWidth = 32))
-    bridge.io.source <> cdc.io.target
-    bridge.io.dest <> sdram.io.mem
+  withClock (io.sdramClock) {
+    val cdc = Module(new PipelineMemoryBurstCdc(addressWidth = 25, dataWidth = 32, addressBurstIncrement = 4))
+    cdc.io.slowClock := clock
+    cdc.io.initiator <> sdramBridge.io.dest
+    cdc.io.target <> sdram.io.mem
   }
 
   //////////////////////////////////
