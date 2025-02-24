@@ -194,6 +194,8 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
   nextState := regState
   nextCommand := Command.nop
 
+  val regPending = RegInit(false.B)
+
   switch (regState) {
     is (State.init) {
       // 1. Initial pause (200 microseconds). Hold DKM and CKE high.
@@ -218,11 +220,18 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
       }
     }
     is (State.idle) {
+      io.mem.ready := true.B
+
       when (doRefresh) {
         nextState := State.refresh
         nextCommand := Command.refresh
+
+        when (io.mem.enable) {
+          regPending := true.B
+          regAccessAddress := io.mem.address.asTypeOf(regAccessAddress)
+          regAccessWrite := io.mem.isWrite
+        }
       } .otherwise {
-        io.mem.ready := true.B
         when (io.mem.enable) {
           nextState := State.active
           nextCommand := Command.active
@@ -260,9 +269,23 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
       }
     }
     is (State.refresh) {
+      io.mem.ready := !regPending
+
+      when (io.mem.enable) {
+        regPending := true.B
+        regAccessAddress := io.mem.address.asTypeOf(regAccessAddress)
+        regAccessWrite := io.mem.isWrite
+      }
+
       when (refreshDone) {
         nextState := State.idle
         // TODO: see about avoiding extra clock cycle before going to refresh or active
+
+        when (regPending || io.mem.enable) {
+          nextState := State.active
+          nextCommand := Command.active
+          regPending := false.B
+        }
       }
     }
   }
