@@ -3,9 +3,10 @@ package platform.handheld
 import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
-import lib.mem.sdram.{SdramController, Signals => SdramSignals}
-import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, RegisterMap}
+import lib.mem.sdram.{BurstSdramController, Signals => SdramSignals}
+import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, PipelineInterfaceBridge, RegisterMap}
 import lib.video.{ColorARGB, HdmiTransmitter}
+import platform.handheld
 import xilinx.{XpmCdcHandshake, XpmCdcSingle, XpmCdcSyncRst}
 
 object HandheldTop extends App {
@@ -167,7 +168,7 @@ class HandheldInterrupts extends Bundle {
  */
 class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val module = Module(genT)
-  val sdramConfig = SdramController.Config(
+  val sdramConfig = BurstSdramController.Config(
     clockFrequency = module.clockSdramHz,
     burstLength = 2,
     timeRsc = (2 * 1_000_000_000) / module.clockSdramHz, /* 2 clocks */
@@ -355,7 +356,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   sdramArbiter.io.initiator(0) <> sdramSpiInterface
 
   val sdram = withClock(io.sdramClock) {
-    Module(new SdramController(sdramConfig))
+    Module(new BurstSdramController(sdramConfig))
   }
   io.sdram <> sdram.io.signals
 
@@ -363,7 +364,11 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val cdc = Module(new MemoryCdc(addressWidth = 25, dataWidth = 32))
     cdc.io.slowClock := clock
     cdc.io.initiator <> sdramArbiter.io.target
-    cdc.io.target <> sdram.io.mem
+
+    // Bridge to convert simple to pipelined interface
+    val bridge = Module(new PipelineInterfaceBridge(addressWidth = 25, dataWidth = 32))
+    bridge.io.source <> cdc.io.target
+    bridge.io.dest <> sdram.io.mem
   }
 
   //////////////////////////////////
