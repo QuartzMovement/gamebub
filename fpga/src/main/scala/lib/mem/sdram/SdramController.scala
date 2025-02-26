@@ -6,33 +6,6 @@ import lib.mem.MemoryInterface
 import lib.mem.sdram.SdramController.{Address, Command, State}
 
 object SdramController {
-  class Signals(config: SdramController.Config) extends Bundle {
-    // clk is not included.
-
-    /** Clock Enable */
-    val cke = Output(Bool())
-    /** Chip Select (active-low) */
-    val cs = Output(Bool())
-    /** Row Address Strobe (active-low) */
-    val ras = Output(Bool())
-    /** Column Address Strobe (active-low) */
-    val cas = Output(Bool())
-    /** Write Enable (active-low) */
-    val we = Output(Bool())
-    /** Data Mask (byte) */
-    val dqm = Output(UInt(config.dataWidthBytes.W))
-    /** Bank Select */
-    val bank = Output(UInt(config.bankWidth.W))
-    /** Address */
-    val address = Output(UInt(config.addressWidth.W))
-    /** Data Input */
-    val dataIn = Input(UInt(config.dataWidth.W))
-    /** Data Output */
-    val dataOut = Output(UInt(config.dataWidth.W))
-    /** Data Direction: true for output. */
-    val dataDir = Output(Bool())
-  }
-
   case class Config(
     /** Real clock frequency (Hz) */
     clockFrequency: Int,
@@ -164,7 +137,11 @@ object SdramController {
 class SdramController(config: SdramController.Config) extends Module {
   val io = IO(new Bundle {
     /** Signals to the SDRAM chip. */
-    val signals = new SdramController.Signals(config)
+    val signals = new Signals(
+      addressWidth = config.addressWidth,
+      dataWidth = config.dataWidth,
+      bankWidth = config.bankWidth
+    )
 
     /** Standard memory interface to consumers. */
     val mem = new MemoryInterface(

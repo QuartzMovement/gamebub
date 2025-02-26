@@ -3,7 +3,7 @@ package platform.handheld
 import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
-import lib.mem.sdram.SdramController
+import lib.mem.sdram.{SdramController, Signals => SdramSignals}
 import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, RegisterMap}
 import lib.video.{ColorARGB, HdmiTransmitter}
 import xilinx.{XpmCdcHandshake, XpmCdcSingle, XpmCdcSyncRst}
@@ -223,7 +223,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
     // SDRAM
     val sdramClock = Input(Clock())
-    val sdram = new SdramController.Signals(sdramConfig)
+    val sdram = new SdramSignals(addressWidth = 13, dataWidth = 16, bankWidth = 2)
   })
 
   val statNumDuplicatedFrames = Wire(UInt(24.W))
