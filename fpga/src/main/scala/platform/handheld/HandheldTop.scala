@@ -3,6 +3,7 @@ package platform.handheld
 import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
+import lib.mem.sdram.SdramController
 import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, RegisterMap}
 import lib.video.{ColorARGB, HdmiTransmitter}
 import xilinx.{XpmCdcHandshake, XpmCdcSingle, XpmCdcSyncRst}

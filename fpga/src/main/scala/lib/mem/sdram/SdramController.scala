@@ -1,9 +1,9 @@
-package platform.handheld
+package lib.mem.sdram
 
 import chisel3._
 import chisel3.util._
 import lib.mem.MemoryInterface
-import platform.handheld.SdramController.{Address, Command, State}
+import lib.mem.sdram.SdramController.{Address, Command, State}
 
 object SdramController {
   class Signals(config: SdramController.Config) extends Bundle {
