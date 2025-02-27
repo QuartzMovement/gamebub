@@ -77,7 +77,7 @@ object BurstSdramController {
     /** Cycles to wait during a read. */
     val readDuration = casLatency + burstLength
 
-    /** Maximum number of clock cycles between auto-refresh commands. */
+    /** Number of clock cycles between auto-refresh commands. */
     val refreshInterval = ((timeRef / (1 << rowWidth)) / clockPeriod).floor.toInt
 
     /** Width of the command duration counter (overestimate) */
@@ -156,7 +156,6 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
 
   private val regState = RegNext(nextState, State.init)
   private val regCommand = RegNext(nextCommand, Command.nop)
-  val regRefreshCounter = RegInit(config.initRefreshCount.U)
   /** Address of the current access. */
   private val regAccessAddress = Reg(new Address(config))
   /** Whether the current access is a write. */
@@ -170,12 +169,19 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
   } .otherwise {
     regDelayCounter := regDelayCounter + 1.U
   }
+
+  // Refresh deficit handling
+  // Number of refreshes we need to do.
+  val regRefreshDeficit = Reg(UInt(13.W))
   val (_, refreshOverflow) = Counter(0 until config.refreshInterval)
-  when (refreshOverflow) {
-    regRefreshCounter := regRefreshCounter + 1.U
-  } .elsewhen (nextState === State.refresh && regState =/= State.refresh) {
-    regRefreshCounter := regRefreshCounter - 1.U
+  when (refreshOverflow && nextCommand =/= Command.refresh) {
+    regRefreshDeficit := regRefreshDeficit + 1.U
   }
+  when (!refreshOverflow && nextCommand === Command.refresh) {
+    regRefreshDeficit := regRefreshDeficit - 1.U
+  }
+  val doRefresh = regRefreshDeficit > 0.U
+  val doRefreshUrgent = regRefreshDeficit >= 4096.U
 
   // Request intake handling
   val canAcceptRequest = WireDefault(false.B)
@@ -197,8 +203,6 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
   val activeDone = regDelayCounter === (config.activeDuration - 1).U
   val writeDone = regDelayCounter === (config.writeDuration - 1).U
   val readDone = regDelayCounter === (config.readDuration - 1).U
-
-  val doRefresh = regRefreshCounter > 0.U
 
   when (regState === State.read || regState === State.write) {
     regData := io.signals.dataIn +: regData.init
@@ -223,7 +227,7 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
       } .elsewhen (regDelayCounter === counterStartMode.U) {
         nextState := State.mode
         nextCommand := Command.mode
-        regRefreshCounter := config.initRefreshCount.U
+        regRefreshDeficit := config.initRefreshCount.U
       }
     }
     is (State.mode) {
@@ -236,7 +240,8 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
     is (State.idle) {
       canAcceptRequest := true.B
 
-      when (doRefresh) {
+      // Do refreshes if the deficit is high, or there is no request pending.
+      when (doRefreshUrgent || (doRefresh && !doRequest)) {
         nextState := State.refresh
         nextCommand := Command.refresh
       } .elsewhen (doRequest) {
@@ -281,9 +286,12 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
         when (doRequest) {
           nextState := State.active
           nextCommand := Command.active
+        } .elsewhen (doRefresh) {
+          nextCommand := Command.refresh
+          regDelayCounter := 0.U
         } .otherwise {
           nextState := State.idle
-          // TODO: see about avoiding extra clock cycle before going to refresh or active
+          // TODO: see about avoiding extra clock cycle before going to active
         }
       }
     }
