@@ -177,6 +177,20 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
     regRefreshCounter := regRefreshCounter - 1.U
   }
 
+  // Request intake handling
+  val canAcceptRequest = WireDefault(false.B)
+  val regRequestPending = RegInit(false.B)
+  val doRequest = WireDefault(regRequestPending)
+  when (io.mem.ready && io.mem.enable) {
+    regAccessAddress := io.mem.address.asTypeOf(regAccessAddress)
+    regAccessWrite := io.mem.isWrite
+    regRequestPending := true.B
+    doRequest := true.B
+  }
+  when (nextState === State.active) {
+    regRequestPending := false.B
+  }
+
   val initPause = WireDefault(false.B)
   val modeDone = regDelayCounter === (config.modeDuration - 1).U
   val refreshDone = regDelayCounter === (config.refreshDuration - 1).U
@@ -190,14 +204,12 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
     regData := io.signals.dataIn +: regData.init
   }
 
-  io.mem.ready := false.B
   nextState := regState
   nextCommand := Command.nop
 
-  val regPending = RegInit(false.B)
-
   switch (regState) {
     is (State.init) {
+      canAcceptRequest := true.B
       // 1. Initial pause (200 microseconds). Hold DKM and CKE high.
       // 2. Precharge all banks (keep A10 high)
       // 3. Set mode register
@@ -215,30 +227,24 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
       }
     }
     is (State.mode) {
+      canAcceptRequest := true.B
+
       when (modeDone) {
         nextState := State.idle
       }
     }
     is (State.idle) {
-      io.mem.ready := true.B
+      canAcceptRequest := true.B
 
       when (doRefresh) {
         nextState := State.refresh
         nextCommand := Command.refresh
+      } .elsewhen (doRequest) {
+        nextState := State.active
+        nextCommand := Command.active
 
-        when (io.mem.enable) {
-          regPending := true.B
-          regAccessAddress := io.mem.address.asTypeOf(regAccessAddress)
-          regAccessWrite := io.mem.isWrite
-        }
-      } .otherwise {
-        when (io.mem.enable) {
-          nextState := State.active
-          nextCommand := Command.active
-
-          regAccessAddress := io.mem.address.asTypeOf(regAccessAddress)
-          regAccessWrite := io.mem.isWrite
-        }
+        regAccessAddress := io.mem.address.asTypeOf(regAccessAddress)
+        regAccessWrite := io.mem.isWrite
       }
     }
     is (State.active) {
@@ -269,22 +275,15 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
       }
     }
     is (State.refresh) {
-      io.mem.ready := !regPending
-
-      when (io.mem.enable) {
-        regPending := true.B
-        regAccessAddress := io.mem.address.asTypeOf(regAccessAddress)
-        regAccessWrite := io.mem.isWrite
-      }
+      canAcceptRequest := true.B
 
       when (refreshDone) {
-        nextState := State.idle
-        // TODO: see about avoiding extra clock cycle before going to refresh or active
-
-        when (regPending || io.mem.enable) {
+        when (doRequest) {
           nextState := State.active
           nextCommand := Command.active
-          regPending := false.B
+        } .otherwise {
+          nextState := State.idle
+          // TODO: see about avoiding extra clock cycle before going to refresh or active
         }
       }
     }
@@ -308,4 +307,5 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
   io.signals.dataDir := regState === State.write
 
   io.mem.dataRead := regData.asUInt
+  io.mem.ready := canAcceptRequest && !regRequestPending
 }
