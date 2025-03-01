@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import gba.cart.CartridgeInterface
 import lib.log.Logger
-import lib.mem.MemoryInterface
+import lib.mem.{MemoryInterface, PipelineMemoryInterface}
 
 object EmulatedCartridge {
   object BackupType extends ChiselEnum {
@@ -60,8 +60,7 @@ class EmulatedCartridge extends Module {
     val rtcDataWrite = Input(Bool())
 
     /// External ROM memory interface, assumed synchronous.
-    /// Must keep read data on the bus until the next request.
-    val rom = Flipped(new MemoryInterface(addressWidth = 24, dataWidth = 16))
+    val rom = Flipped(new PipelineMemoryInterface(addressWidth = 24, dataWidth = 16))
     /// External backup (RAM) memory interface, assumed synchronous.
     /// Must keep read data on the bus until the next request.
     val backup = Flipped(new MemoryInterface(addressWidth = 17, dataWidth = 8))
@@ -72,20 +71,6 @@ class EmulatedCartridge extends Module {
     val vibrate = Output(Bool())
   })
   val logger = Logger("cart.emu")
-
-  io.rom.address := DontCare
-  io.rom.enable := false.B
-  io.rom.write := false.B
-  io.rom.dataWrite := DontCare
-  io.rom.writeStrobe := DontCare
-  io.backup.address := DontCare
-  io.backup.enable := false.B
-  io.backup.write := DontCare
-  io.backup.dataWrite := DontCare
-  io.backup.writeStrobe := 1.U
-  io.interface.IRQ := false.B
-  io.interface.ADLoIn := io.rom.dataRead
-  io.interface.AHiIn := DontCare
 
   // Whether we're waiting on data to come back for the ROM or backup.
   val memWaiting = WireDefault(false.B)
@@ -99,11 +84,26 @@ class EmulatedCartridge extends Module {
 
   val romBusy = RegInit(false.B)
   val romAddress = Reg(UInt(24.W))
+  val romReadData = Reg(UInt(16.W))
   val ramStart = WireDefault(false.B)
   // Whether the cartridge controller has aborted the current request.
   // Once the data comes back, ignore it, and start the next request.
   val romAbort = RegInit(false.B)
   val romAbortNextAddress = Reg(UInt(24.W))
+
+  io.rom.address := DontCare
+  io.rom.enable := false.B
+  io.rom.isWrite := false.B
+  io.rom.dataWrite := DontCare
+  io.rom.writeStrobe := DontCare
+  io.backup.address := DontCare
+  io.backup.enable := false.B
+  io.backup.write := DontCare
+  io.backup.dataWrite := DontCare
+  io.backup.writeStrobe := 1.U
+  io.interface.IRQ := false.B
+  io.interface.ADLoIn := romReadData
+  io.interface.AHiIn := DontCare
 
   when (io.interface.reqStart) {
     when (romBusy) {
@@ -116,6 +116,7 @@ class EmulatedCartridge extends Module {
         logger.debug(cf"ROM request start: addr=0x${io.rom.address << 1}%x | busy=${romBusy}")
         io.rom.enable := true.B
         io.rom.address := io.interface.reqAddress
+        assert(io.rom.ready)
         romBusy := true.B
         romAddress := io.interface.reqAddress
       }
@@ -125,18 +126,19 @@ class EmulatedCartridge extends Module {
     }
   }
   when (romBusy) {
-    io.rom.enable := true.B
-    io.rom.address := romAddress
-    when (io.rom.done) {
+    when (io.rom.ready) {
+      romReadData := io.rom.dataRead
+      io.interface.ADLoIn := io.rom.dataRead
+
       when (romAbort) {
         // Ignore this and start the new request next cycle.
+        // TODO: with pipeline interface, can start it *this* cycle.
         logger.debug(cf"ROM request done (ABORTED)")
         memWaiting := true.B
       } .otherwise {
         logger.debug(cf"ROM request done: data=0x${io.rom.dataRead}%x")
       }
       romBusy := false.B
-      // TODO: io.rom.enable := false.B ?
     } .otherwise {
       memWaiting := true.B
     }

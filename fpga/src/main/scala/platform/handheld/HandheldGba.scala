@@ -86,12 +86,10 @@ class HandheldGba extends Module with HandheldModule {
   val sdramCache = Module(new DirectReadCache(addressWidth = 23, dataWidth = 32, numEntries = 4096))
   io.sdram <> sdramCache.io.out
   io.sdram.address := sdramCache.io.out.address << 2
-  val sdramBridge = Module(new PipelineInterfaceBridge(addressWidth = 23, dataWidth = 32))
-  sdramBridge.io.dest <> sdramCache.io.in
-  val sdramPort = sdramBridge.io.source
+  val sdramPort = sdramCache.io.in
   sdramPort.enable := false.B
   sdramPort.address := DontCare
-  sdramPort.write := false.B
+  sdramPort.isWrite := false.B
   sdramPort.writeStrobe := DontCare
   sdramPort.dataWrite := DontCare
 
@@ -140,29 +138,15 @@ class HandheldGba extends Module with HandheldModule {
   rtcDataOut := emuCart.io.rtcDataOut
 
   // Convert 16-bit addresses to 32-bit byte addresses
-  // Also dealing with enable = true when done = true
-  // Note however that EmulatedCartridge will never do that, because
-  // reqEnd goes high, then the next cycle reqStart can go high again
-  val emuCartBusy = RegInit(false.B)
-  val emuCartAddr = Reg(UInt(24.W))
-  val emuCartData = Reg(UInt(16.W))
-  emuCart.io.rom.done := sdramPort.done
-  emuCart.io.rom.dataRead := emuCartData
-  when (emuCartBusy) {
-    sdramPort.enable := true.B
-    sdramPort.address := emuCartAddr >> 1
-    when (sdramPort.done) {
-      emuCartBusy := false.B
-      val data = sdramPort.dataRead.asTypeOf(Vec(2, UInt(16.W)))(emuCartAddr(0))
-      emuCartData := data
-      emuCart.io.rom.dataRead := data
-    }
-  } .elsewhen (emuCart.io.rom.enable) {
-    sdramPort.enable := true.B
-    sdramPort.address := emuCart.io.rom.address >> 1
-    emuCartAddr := emuCart.io.rom.address
-    emuCartBusy := true.B
+  emuCart.io.rom <> sdramPort
+  val emuCartRomAddr = Reg(UInt(1.W)) // Low bit only
+  sdramPort.address := emuCart.io.rom.address >> 1
+  when (emuCart.io.rom.enable) {
+    assert(sdramPort.ready)
+    emuCartRomAddr := emuCart.io.rom.address(0)
   }
+  emuCart.io.rom.dataRead := sdramPort.dataRead.asTypeOf(Vec(2, UInt(16.W)))(emuCartRomAddr(0))
+
   // Emulated cartridge SRAM: convert 8-bit accesses to 16-bit. Starts at 0 bytes into SRAM (takes 128KiB / 512 KiB).
   val regEmuCartSramByte = RegEnable(emuCart.io.backup.address(0), emuCart.io.backup.enable)
   sramEmuCart.enable := emuCart.io.backup.enable

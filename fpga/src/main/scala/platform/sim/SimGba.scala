@@ -8,7 +8,7 @@ import gba.apu.ApuOutput
 import gba.cart.emu.{EmulatedCartridge, VerificationEmulatedCartridge}
 import gba.ppu.PpuOutput
 import lib.log.Log
-import lib.mem.MemoryInterface
+import lib.mem.{MemoryInterface, PipelineMemoryInterface}
 
 object SimGba extends App {
   Log.setDefaultLevel(Log.Level.Warning)
@@ -36,7 +36,7 @@ class SimGba extends Module {
     val configGBPlayer = Input(Bool())
 
     val emuCartConfig = Input(new EmulatedCartridge.Config)
-    val emuCartRom = Flipped(new MemoryInterface(addressWidth = 24, dataWidth = 16))
+    val emuCartRom = Flipped(new PipelineMemoryInterface(addressWidth = 24, dataWidth = 16))
     val emuCartRomSize = Input(UInt(25.W))
     val emuCartBackup = Flipped(new MemoryInterface(addressWidth = 17, dataWidth = 8))
     val emuCartStall = Output(Bool())

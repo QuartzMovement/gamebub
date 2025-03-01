@@ -48,6 +48,8 @@ void Simulator::reset()
     top->io_emuCartConfig_hasGpio = cartridge.config_has_gpio;
     top->io_emuCartRomSize = cartridge.rom_size - 1;
 
+    top->io_emuCartRom_ready = 1;
+
     top->reset = 1;
     simulate_cycles(1);
     top->reset = 0;
@@ -92,10 +94,7 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
             // Only works on little endian system
             auto rom_words = reinterpret_cast<uint16_t*>(cartridge.rom.data());
             top->io_emuCartRom_dataRead = rom_words[cart_address & 0xFFFFFF];
-            top->io_emuCartRom_done = 1;
 //            fprintf(stderr, "[%llu] rom read addr=0x%x data=0x%x\n", this->cycles, cart_address << 1, top->io_emuCartRom_dataRead);
-        } else {
-            top->io_emuCartRom_done = 0;
         }
 
         if (top->io_emuCartBackup_enable) {
