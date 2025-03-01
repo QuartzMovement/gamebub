@@ -131,26 +131,31 @@ class EmulatedCartridge extends Module {
       io.interface.ADLoIn := io.rom.dataRead
 
       when (romAbort) {
-        // Ignore this and start the new request next cycle.
-        // TODO: with pipeline interface, can start it *this* cycle.
-        logger.debug(cf"ROM request done (ABORTED)")
+        // Ignore this data and start the new request.
+        logger.debug(cf"ROM request done (ABORTED), start next addr=0x${romAbortNextAddress << 1}%x")
+        io.rom.enable := true.B
+        io.rom.address := romAbortNextAddress
+        romAddress := romAbortNextAddress
+        romAbort := false.B
         memWaiting := true.B
+      } .elsewhen (io.interface.reqStart) {
+        // Aborted *this* cycle, rather than a previous one.
+        logger.debug(cf"ROM request done (ABORTED 2)")
+        io.rom.enable := true.B
+        io.rom.address := io.interface.reqAddress
+        romAddress := io.interface.reqAddress
+        romAbort := false.B
+        // memWaiting would normally be true, but it would cause a cycle
+        // (stalled -> global enable -> reqStart -> ...memWaiting --> stalled)
+        // not a problem though, because we're definitely not stalled on the first cycle of the request.
+        // memWaiting := true.B
       } .otherwise {
         logger.debug(cf"ROM request done: data=0x${io.rom.dataRead}%x")
+        romBusy := false.B
       }
-      romBusy := false.B
     } .otherwise {
       memWaiting := true.B
     }
-  }
-  when (romAbort && !romBusy) {
-    logger.debug(cf"ROM request start (after abort): addr=0x${romAbortNextAddress << 1}%x")
-    io.rom.enable := true.B
-    io.rom.address := romAbortNextAddress
-    romBusy := true.B
-    romAddress := romAbortNextAddress
-    romAbort := false.B
-    memWaiting := true.B
   }
 
   // Backups
