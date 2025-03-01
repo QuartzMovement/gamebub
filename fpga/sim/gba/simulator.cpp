@@ -29,6 +29,13 @@ Simulator::Simulator(std::filesystem::path rom_path, std::filesystem::path bios_
         bios.data(),
         16 * 1024
     );
+
+    // Note assumes little-endian
+    memcpy(
+      &this->top->rootp->SimGba__DOT__cartRom_ext__DOT__Memory,
+      cartridge.rom.data(),
+      cartridge.rom.size()
+    );
 }
 
 Simulator::~Simulator()
@@ -47,8 +54,6 @@ void Simulator::reset()
     top->io_emuCartConfig_backupAutodetect = cartridge.config_backup_autodetect;
     top->io_emuCartConfig_hasGpio = cartridge.config_has_gpio;
     top->io_emuCartRomSize = cartridge.rom_size - 1;
-
-    top->io_emuCartRom_ready = 1;
 
     top->reset = 1;
     simulate_cycles(1);
@@ -88,14 +93,6 @@ void Simulator::simulate_cycles(uint64_t num_cycles)
         top->io_enable = !top->io_emuCartStall;
         top->clock = 1;
         top->eval();
-
-        if (top->io_emuCartRom_enable) {
-            int cart_address = top->io_emuCartRom_address;
-            // Only works on little endian system
-            auto rom_words = reinterpret_cast<uint16_t*>(cartridge.rom.data());
-            top->io_emuCartRom_dataRead = rom_words[cart_address & 0xFFFFFF];
-//            fprintf(stderr, "[%llu] rom read addr=0x%x data=0x%x\n", this->cycles, cart_address << 1, top->io_emuCartRom_dataRead);
-        }
 
         if (top->io_emuCartBackup_enable) {
             int backup_address = top->io_emuCartBackup_address;

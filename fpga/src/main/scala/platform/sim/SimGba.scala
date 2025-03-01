@@ -36,7 +36,6 @@ class SimGba extends Module {
     val configGBPlayer = Input(Bool())
 
     val emuCartConfig = Input(new EmulatedCartridge.Config)
-    val emuCartRom = Flipped(new PipelineMemoryInterface(addressWidth = 24, dataWidth = 16))
     val emuCartRomSize = Input(UInt(25.W))
     val emuCartBackup = Flipped(new MemoryInterface(addressWidth = 17, dataWidth = 8))
     val emuCartStall = Output(Bool())
@@ -84,8 +83,39 @@ class SimGba extends Module {
   emuCart.io.rtcDataSelect := DontCare
   io.emuCartStall := emuCart.io.stall
   gba.io.cartridge <> emuCart.io.interface
-  io.emuCartRom <> emuCart.io.rom
   io.emuCartBackup <> emuCart.io.backup
+
+  // Cartridge ROM, to be filled in by verilator simulation
+  val cartRom = {
+    val rom = SyncReadMem(32 * 1024 * 1024 / 2, UInt(16.W))
+    // dontTouch: hack to ensure Chisel doesn't optimize the mem out
+    val temp = dontTouch(WireDefault(false.B))
+    when (temp) {
+      rom.write(0.U, 0.U)
+    }
+    rom
+  }
+  // Simulate ROM access
+  val romBusy = RegInit(false.B)
+  val romBusyAddress = Reg(UInt(24.W))
+  val romCounter = Reg(UInt(4.W))
+  val romAccessWaitCycles = 1 // minimum 1
+  emuCart.io.rom.ready := true.B
+  when (romBusy) {
+    emuCart.io.rom.ready := false.B
+    romCounter := romCounter - 1.U
+    when (romCounter === 0.U) {
+      romBusy := false.B
+      emuCart.io.rom.ready := true.B
+    }
+  }
+  when (emuCart.io.rom.enable && emuCart.io.rom.ready) {
+    romCounter := romAccessWaitCycles.U
+    romBusy := true.B
+    romBusyAddress := emuCart.io.rom.address
+  }
+  emuCart.io.rom.dataRead := cartRom.read(romBusyAddress, romBusy && romCounter === 1.U)
+
 
   // Link
   gba.io.link.in.si := false.B
