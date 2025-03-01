@@ -2,12 +2,12 @@ package lib.mem.cache
 
 import chisel3._
 import chisel3.util._
-import lib.mem.MemoryInterface
+import lib.mem.{MemoryInterface, PipelineMemoryInterface}
 import lib.mem.cache.DirectReadCache._
 
 object DirectReadCache {
   object State extends ChiselEnum {
-    val init, idle, waitCache, waitMem, doneMem = Value
+    val init, idle, waitCache, waitMem = Value
   }
 
   class Entry(tagWidth: Int, dataWidth: Int) extends Bundle {
@@ -21,12 +21,12 @@ object DirectReadCache {
 /*
  * A simple, direct-mapped, read-only cache.
  *
- * Writes are passed through, but not cached.
+ * TODO: implement writes: should be passed through, but not cached
  */
 class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extends Module {
   val io = IO(new Bundle {
-    val in = new MemoryInterface(addressWidth, dataWidth)
-    val out = Flipped(new MemoryInterface(addressWidth, dataWidth))
+    val in = new PipelineMemoryInterface(addressWidth, dataWidth)
+    val out = Flipped(new PipelineMemoryInterface(addressWidth, dataWidth))
   })
   assert(isPow2(numEntries))
   val indexWidth = log2Ceil(numEntries)
@@ -43,19 +43,18 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
   cachePort.isWrite := DontCare
   cachePort.writeData := DontCare
 
-  /*
-   * TODO: this regAddress shouldn't actually be needed:
-   *  it's just to avoid a combinatorial loop in HandheldGba.
-   */
+  /// Whether a request is pending (received in State.init).
+  val regRequestPending = RegInit(false.B)
+
   val regAddress = Reg(UInt(addressWidth.W))
-  val regDataRead = Reg(UInt(dataWidth.W))
-  io.in.done := false.B
+  val regIsWrite = Reg(Bool())
+  io.in.ready := !regRequestPending
   io.in.dataRead := DontCare
   io.out.enable := false.B
-  io.out.address := regAddress
-  io.out.write := io.in.write
-  io.out.dataWrite := io.in.dataWrite
-  io.out.writeStrobe := io.in.writeStrobe
+  io.out.address := DontCare
+  io.out.isWrite := false.B
+  io.out.writeStrobe := DontCare
+  io.out.dataWrite := DontCare
 
   private def getIndex(address: UInt): UInt = address(indexWidth - 1, 0)
   private def getTag(address: UInt): UInt = address(addressWidth - 1, indexWidth)
@@ -75,34 +74,37 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
     }
 
     is (State.idle) {
-      when (io.in.enable) {
-        // Check the cache for the data.
-        // TODO: invalidate on writes
-        cachePort.enable := true.B
-        cachePort.isWrite := false.B
-        cachePort.address := getIndex(io.in.address)
-        state := State.waitCache
-        regAddress := io.in.address
+      when (regRequestPending) {
+        // Got a request during init that we need to handle. Don't bother checking cache, it's not there.
+        io.out.enable := true.B
+        io.out.address := regAddress
+        state := State.waitMem
+        regRequestPending := false.B
       }
     }
 
     is (State.waitCache) {
+      io.in.ready := false.B
       val entry = cachePort.readData.asTypeOf(entryType)
       when (entry.valid && entry.tag === getTag(regAddress)) {
         // Cache hit!
-        io.in.done := true.B
+        io.in.ready := true.B
         io.in.dataRead := entry.data
+        // TODO: handle request that can start now
         state := State.idle
       } .otherwise {
         // Cache miss, begin the read of main memory.
         io.out.enable := true.B
+        io.out.address := regAddress
+        // Note: assumes that io.out.enable is true, as it should be, because we have no request pending.
         state := State.waitMem
       }
     }
 
     is (State.waitMem) {
-      io.out.enable := true.B
-      when (io.out.done) {
+      io.in.ready := false.B
+
+      when (io.out.ready) {
         // Insert into cache.
         cachePort.enable := true.B
         cachePort.isWrite := true.B
@@ -113,20 +115,27 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
         wire.tag := getTag(regAddress)
         cachePort.writeData := wire.asUInt
 
-        // We don't set io.in.done = true and return the data this cycle, because the 'done' signal might be
-        // coming from a faster clock domain. If we forward it directly here, then the downstream consumer
-        // will only have a *fast* clock period to do all logic.
-        // Instead, register it and pass it forward next cycle.
-        // TODO this should almost certainly be happening at a layer above this
-        regDataRead := io.out.dataRead
-        state := State.doneMem
+        // Pass data onwards
+        io.in.ready := true.B
+        io.in.dataRead := io.out.dataRead
+        state := State.idle
       }
     }
+  }
 
-    is (State.doneMem) {
-      io.in.done := true.B
-      io.in.dataRead := regDataRead
-      state := State.idle
+  when (io.in.ready && io.in.enable) {
+    regAddress := io.in.address
+
+    when (state === State.init) {
+      // Save the request for when we're ready.
+      regRequestPending := true.B
+    } .otherwise {
+      // Check the cache for the data.
+      // TODO: invalidate on writes (when supported)
+      cachePort.enable := true.B
+      cachePort.isWrite := false.B
+      cachePort.address := getIndex(io.in.address)
+      state := State.waitCache
     }
   }
 }

@@ -83,12 +83,12 @@ class HandheldGba extends Module with HandheldModule {
   io.vibrate := false.B
 
   // SDRAM interface and port
-  val sdramBridge = Module(new PipelineInterfaceBridge(addressWidth = 25, dataWidth = 32))
-  sdramBridge.io.dest <> io.sdram
   val sdramCache = Module(new DirectReadCache(addressWidth = 23, dataWidth = 32, numEntries = 4096))
-  sdramBridge.io.source <> sdramCache.io.out
-  sdramBridge.io.source.address := sdramCache.io.out.address << 2
-  val sdramPort = sdramCache.io.in
+  io.sdram <> sdramCache.io.out
+  io.sdram.address := sdramCache.io.out.address << 2
+  val sdramBridge = Module(new PipelineInterfaceBridge(addressWidth = 23, dataWidth = 32))
+  sdramBridge.io.dest <> sdramCache.io.in
+  val sdramPort = sdramBridge.io.source
   sdramPort.enable := false.B
   sdramPort.address := DontCare
   sdramPort.write := false.B
