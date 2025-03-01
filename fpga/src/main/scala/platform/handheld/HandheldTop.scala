@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 import lib.mem.sdram.{BurstSdramController, Signals => SdramSignals}
-import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryBurstCdc, RegisterMap}
+import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryArbiter, PipelineMemoryBurstCdc, RegisterMap}
 import lib.video.{ColorARGB, HdmiTransmitter}
 import platform.handheld
 import xilinx.{XpmCdcHandshake, XpmCdcSingle, XpmCdcSyncRst}
@@ -352,22 +352,23 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   sramArbiter.io.initiator(0).address := sramSpiInterface.address >> 1  // SPI is byte addressed
 
   // SDRAM
-  val sdramArbiter = Module(new MemoryArbiter(addressWidth = 25, dataWidth = 32, n = 2))
-  sdramArbiter.io.initiator(0) <> sdramSpiInterface
+  val sdramArbiter = Module(new PipelineMemoryArbiter(addressWidth = 25, dataWidth = 32, n = 2))
+
+  {
+    val bridge = Module(new PipelineInterfaceBridge(addressWidth = 25, dataWidth = 32))
+    bridge.io.source <> sdramSpiInterface
+    bridge.io.dest <> sdramArbiter.io.initiator(0)
+  }
 
   val sdram = withClock(io.sdramClock) {
     Module(new BurstSdramController(sdramConfig))
   }
   io.sdram <> sdram.io.signals
 
-  // Bridge to convert simple to pipelined interface
-  val sdramBridge = Module(new PipelineInterfaceBridge(addressWidth = 25, dataWidth = 32))
-  sdramBridge.io.source <> sdramArbiter.io.target
-
   withClock (io.sdramClock) {
     val cdc = Module(new PipelineMemoryBurstCdc(addressWidth = 25, dataWidth = 32, addressBurstIncrement = 4))
     cdc.io.slowClock := clock
-    cdc.io.initiator <> sdramBridge.io.dest
+    cdc.io.initiator <> sdramArbiter.io.target
     cdc.io.target <> sdram.io.mem
   }
 
@@ -657,5 +658,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
   // Memories
   sramArbiter.io.initiator(1) <> module.io.sram
-  sdramArbiter.io.initiator(1) <> module.io.sdram
+
+  {
+    val bridge = Module(new PipelineInterfaceBridge(addressWidth = 25, dataWidth = 32))
+    bridge.io.source <> module.io.sdram
+    bridge.io.dest <> sdramArbiter.io.initiator(1)
+  }
 }
