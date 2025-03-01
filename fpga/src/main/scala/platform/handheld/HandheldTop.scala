@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 import lib.mem.sdram.{BurstSdramController, Signals => SdramSignals}
-import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryArbiter, PipelineMemoryBurstCdc, RegisterMap}
+import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryArbiter, PipelineMemoryBurstCdc, PipelineMemoryInterface, RegisterMap}
 import lib.video.{ColorARGB, HdmiTransmitter}
 import platform.handheld
 import xilinx.{XpmCdcHandshake, XpmCdcSingle, XpmCdcSyncRst}
@@ -66,7 +66,7 @@ class HandheldIo extends Bundle {
 
   // Memory interfaces
   val sram = Flipped(new MemoryInterface(addressWidth = 18, dataWidth = 16))
-  val sdram = Flipped(new MemoryInterface(addressWidth = 25, dataWidth = 32))
+  val sdram = Flipped(new PipelineMemoryInterface(addressWidth = 25, dataWidth = 32))
 }
 
 trait HandheldModule {
@@ -658,10 +658,5 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
   // Memories
   sramArbiter.io.initiator(1) <> module.io.sram
-
-  {
-    val bridge = Module(new PipelineInterfaceBridge(addressWidth = 25, dataWidth = 32))
-    bridge.io.source <> module.io.sdram
-    bridge.io.dest <> sdramArbiter.io.initiator(1)
-  }
+  sdramArbiter.io.initiator(1) <> module.io.sdram
 }

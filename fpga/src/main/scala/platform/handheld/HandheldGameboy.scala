@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import gameboy.Gameboy
 import gameboy.cart.emu.{EmuCartConfig, EmuCartridge, Mbc3RtcAccess, RtcState}
-import lib.mem.{MemoryInterface, MemoryMap, RegisterMap}
+import lib.mem.{MemoryInterface, MemoryMap, PipelineInterfaceBridge, RegisterMap}
 
 object HandheldGameboy {
   class Config extends Bundle {
@@ -223,11 +223,14 @@ class HandheldGameboy extends Module with HandheldModule {
   emuCart.io.imu.x := configRegImuAccelX
   emuCart.io.imu.y := configRegImuAccelY
 
-  io.sdram.enable := false.B
-  io.sdram.write := false.B
-  io.sdram.address := DontCare
-  io.sdram.dataWrite := DontCare
-  io.sdram.writeStrobe := DontCare
+  val sdramBridge = Module(new PipelineInterfaceBridge(addressWidth = 25, dataWidth = 32))
+  sdramBridge.io.dest <> io.sdram
+  val sdram = sdramBridge.io.source
+  sdram.enable := false.B
+  sdram.write := false.B
+  sdram.address := DontCare
+  sdram.dataWrite := DontCare
+  sdram.writeStrobe := DontCare
   io.sram.enable := false.B
   io.sram.write := false.B
   io.sram.address := DontCare
@@ -266,14 +269,14 @@ class HandheldGameboy extends Module with HandheldModule {
         // Don't handle ROM writes.
         emuCart.io.dataAccess.valid := true.B
       } .otherwise {
-        io.sdram.enable := true.B
-        io.sdram.write := false.B
-        io.sdram.address := configRegRomAddress + (Cat(emuCartAddress(22, 2), "b00".U(2.W)) & configRegRomMask)
-        emuCart.io.dataAccess.dataRead := io.sdram.dataRead
+        sdram.enable := true.B
+        sdram.write := false.B
+        sdram.address := configRegRomAddress + (Cat(emuCartAddress(22, 2), "b00".U(2.W)) & configRegRomMask)
+        emuCart.io.dataAccess.dataRead := sdram.dataRead
           .asTypeOf(Vec(4, UInt(8.W)))(
             emuCartAddress(1, 0)
           )
-        emuCart.io.dataAccess.valid := io.sdram.done
+        emuCart.io.dataAccess.valid := sdram.done
       }
     } .otherwise {
       io.sram.enable := true.B

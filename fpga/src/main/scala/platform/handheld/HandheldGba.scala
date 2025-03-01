@@ -5,7 +5,7 @@ import chisel3.util._
 import gba.GBA
 import gba.cart.emu.EmulatedCartridge
 import lib.mem.cache.DirectReadCache
-import lib.mem.{MemoryArbiter, MemoryInterface, MemoryMap, RegisterMap}
+import lib.mem.{MemoryArbiter, MemoryInterface, MemoryMap, PipelineInterfaceBridge, RegisterMap}
 
 /**
  * Clocked by a 16777216 Hz clock.
@@ -83,9 +83,11 @@ class HandheldGba extends Module with HandheldModule {
   io.vibrate := false.B
 
   // SDRAM interface and port
+  val sdramBridge = Module(new PipelineInterfaceBridge(addressWidth = 25, dataWidth = 32))
+  sdramBridge.io.dest <> io.sdram
   val sdramCache = Module(new DirectReadCache(addressWidth = 23, dataWidth = 32, numEntries = 4096))
-  io.sdram <> sdramCache.io.out
-  io.sdram.address := sdramCache.io.out.address << 2
+  sdramBridge.io.source <> sdramCache.io.out
+  sdramBridge.io.source.address := sdramCache.io.out.address << 2
   val sdramPort = sdramCache.io.in
   sdramPort.enable := false.B
   sdramPort.address := DontCare
