@@ -82,14 +82,18 @@ class EmulatedCartridge extends Module {
   val readNegedge = !io.interface.nRD && RegNext(io.interface.nRD)
   val writeNegedge = !io.interface.nWR && RegNext(io.interface.nWR)
 
-  val romBusy = RegInit(false.B)
-  val romAddress = Reg(UInt(24.W))
-  val romReadData = Reg(UInt(16.W))
+  /// Whether a cartridge access is in progress
+  val regCartActive = RegInit(false.B)
+  /// Whether the ROM memory interface is busy.
+  val regMemRomBusy = RegInit(false.B)
+  /// Whether there's a pending (non-submitted) ROM request
+  val regMemRomPending = RegInit(false.B)
+  /// Address of the pending ROM request
+  val regMemRomPendingAddress = Reg(UInt(24.W))
+  /// Last data read from ROM memory interface
+  val regMemRomReadData = Reg(UInt(16.W))
+  /// Whether a ram request is starting this cycle.
   val ramStart = WireDefault(false.B)
-  // Whether the cartridge controller has aborted the current request.
-  // Once the data comes back, ignore it, and start the next request.
-  val romAbort = RegInit(false.B)
-  val romAbortNextAddress = Reg(UInt(24.W))
 
   io.rom.address := DontCare
   io.rom.enable := false.B
@@ -102,59 +106,63 @@ class EmulatedCartridge extends Module {
   io.backup.dataWrite := DontCare
   io.backup.writeStrobe := 1.U
   io.interface.IRQ := false.B
-  io.interface.ADLoIn := romReadData
+  io.interface.ADLoIn := regMemRomReadData
   io.interface.AHiIn := DontCare
 
+  when (regMemRomBusy) {
+    when (io.rom.ready) {
+      logger.debug(cf"ROM mem request done: data=0x${io.rom.dataRead}%x")
+      regMemRomBusy := false.B
+      regMemRomReadData := io.rom.dataRead
+      io.interface.ADLoIn := io.rom.dataRead
+    }
+  }
+  when (regMemRomPending) {
+    io.rom.enable := true.B
+    io.rom.address := regMemRomPendingAddress
+    when (io.rom.ready) {
+      logger.debug(cf"Submitted pending ROM request addr=0x${regMemRomPendingAddress << 1}%x")
+      regMemRomPending := false.B
+      regMemRomBusy := true.B
+    }
+  }
+
+  when (io.interface.reqEnd) {
+    // If still busy, stall if:
+    //   the memory request is not ready, OR
+    //   there's a pending memory request that interrupted the one that's completing now
+    when (regMemRomBusy && (!io.rom.ready || regMemRomPending)) {
+      io.stall := true.B
+    } .otherwise {
+      regCartActive := false.B
+    }
+  }
+  // TODO: only start if emulator is enabled this cycle
   when (io.interface.reqStart) {
-    when (romBusy) {
-      logger.info(cf"Rom request aborted, new addr=0x${io.interface.reqAddress << 1}%x")
-      romAbort := true.B
-      romAbortNextAddress := io.interface.reqAddress
-    } .elsewhen (io.interface.reqRom) {
+    regCartActive := true.B
+
+    when (io.interface.reqRom) {
+      logger.debug(cf"ROM request start: addr=0x${io.rom.address << 1}%x peri=${romPeripheralSelected}")
       when (!romPeripheralSelected) {
         // TODO handle out-of-bounds ROM request
-        logger.debug(cf"ROM request start: addr=0x${io.rom.address << 1}%x | busy=${romBusy}")
         io.rom.enable := true.B
         io.rom.address := io.interface.reqAddress
-        assert(io.rom.ready)
-        romBusy := true.B
-        romAddress := io.interface.reqAddress
+        regMemRomBusy := true.B
+
+        when (!io.rom.ready) {
+          logger.debug(cf" --> pending the ROM mem request")
+          // Can't submit right now (probably due to aborted request).
+          regMemRomPending := true.B
+          regMemRomPendingAddress := io.interface.reqAddress
+        }
       }
     } .otherwise {
       logger.debug(cf"RAM request start: addr=0x${io.interface.reqAddress(15, 0)}%x")
       ramStart := true.B
     }
-  }
-  when (romBusy) {
-    when (io.rom.ready) {
-      romReadData := io.rom.dataRead
-      io.interface.ADLoIn := io.rom.dataRead
 
-      when (romAbort) {
-        // Ignore this data and start the new request.
-        logger.debug(cf"ROM request done (ABORTED), start next addr=0x${romAbortNextAddress << 1}%x")
-        io.rom.enable := true.B
-        io.rom.address := romAbortNextAddress
-        romAddress := romAbortNextAddress
-        romAbort := false.B
-        memWaiting := true.B
-      } .elsewhen (io.interface.reqStart) {
-        // Aborted *this* cycle, rather than a previous one.
-        logger.debug(cf"ROM request done (ABORTED 2)")
-        io.rom.enable := true.B
-        io.rom.address := io.interface.reqAddress
-        romAddress := io.interface.reqAddress
-        romAbort := false.B
-        // memWaiting would normally be true, but it would cause a cycle
-        // (stalled -> global enable -> reqStart -> ...memWaiting --> stalled)
-        // not a problem though, because we're definitely not stalled on the first cycle of the request.
-        // memWaiting := true.B
-      } .otherwise {
-        logger.debug(cf"ROM request done: data=0x${io.rom.dataRead}%x")
-        romBusy := false.B
-      }
-    } .otherwise {
-      memWaiting := true.B
+    when (regCartActive && !io.interface.reqEnd) {
+      logger.debug(cf" --> interrupted previous request")
     }
   }
 
