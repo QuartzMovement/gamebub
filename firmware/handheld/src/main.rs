@@ -6,6 +6,7 @@ use device::Device;
 use crate::ui::UI;
 
 mod bitstream;
+mod cli;
 mod device;
 mod kvs;
 pub mod ui;
@@ -47,6 +48,7 @@ fn main() -> anyhow::Result<()> {
 
     // Setup workers.
     worker::start();
+    cli::start();
 
     // Initial programming FPGA
     fn program_fpga(device: &mut Device) -> anyhow::Result<()> {
