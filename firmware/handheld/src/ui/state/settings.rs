@@ -187,7 +187,7 @@ pub fn settings_datetime_add(source: SettingDatetime, delta: SettingDatetime) ->
         dt = dt.replace_hour(((dt.hour() as i32) + delta.hour).rem_euclid(24) as u8)?;
         dt = dt.replace_minute(((dt.minute() as i32) + delta.min).rem_euclid(60) as u8)?;
         dt = dt.replace_second(((dt.second() as i32) + delta.sec).rem_euclid(60) as u8)?;
-        let day_max = time::util::days_in_year_month(dt.year(), dt.month()) as i32;
+        let day_max = time::util::days_in_month(dt.month(), dt.year()) as i32;
         if delta.day == 0 {
             // If we aren't changing the day, clamp it to the maximum days in the month.
             dt = dt.replace_day(source.day.min(day_max) as u8)?;
