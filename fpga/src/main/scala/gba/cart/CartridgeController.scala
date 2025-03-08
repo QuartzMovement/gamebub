@@ -148,6 +148,8 @@ class CartridgeController extends Module {
   val currentIsWrite = Reg(Bool())
   val waitCounter = Reg(UInt(3.W))
   val romAddressAtPageEnd = currentAddress(15, 0).andR  // All 1s, highest address at page end
+  val doLatchReadData = Reg(Bool())
+
 
   // New requests (not burst continuations) can be accepted when idle or at the end of a burst.
   // We can do back-to-back ROM requests (and RAM requests), as long as nCS has been raised high.
@@ -244,7 +246,6 @@ class CartridgeController extends Module {
       io.cartridge.AHiOut := currentAddress(23, 16)
       io.cartridge.AHiDir := true.B
 
-      io.cartridge.reqEnd := waitCounter === 0.U
       when (io.enable) {
         waitCounter := waitCounter - 1.U
         when (waitCounter === 0.U) {
@@ -252,6 +253,7 @@ class CartridgeController extends Module {
           regReadData := io.cartridge.ADLoIn
           reg_nRD := 1.U
           reg_nWR := 1.U
+          doLatchReadData := true.B
 
           when (!romRequestNextSequential || romAddressAtPageEnd) {
             // The request is definitely not being continued with a burst, put nCS back high
@@ -261,6 +263,15 @@ class CartridgeController extends Module {
       }
     }
     is (State.RomStage2) {
+      when (io.cartridge.isEmulated && doLatchReadData) {
+        io.busTargetRom.dataRead := io.cartridge.ADLoIn
+        io.cartridge.reqEnd := true.B
+
+        when (io.enable) {
+          regReadData := io.cartridge.ADLoIn
+          doLatchReadData := false.B
+        }
+      }
       isRequestDone := true.B
 
       when (reg_nCS === 1.U) {

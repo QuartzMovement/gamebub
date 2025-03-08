@@ -185,6 +185,7 @@ class HandheldGba extends Module with HandheldModule {
   } .otherwise {
     doStall := gba.io.ewramStall
 
+    gba.io.cartridge.isEmulated := false.B
     io.cartridgeEnabled := true.B
     io.cartridge.bank0Dir := gba.io.cartridge.AHiDir
     io.cartridge.bank0Out := gba.io.cartridge.AHiOut

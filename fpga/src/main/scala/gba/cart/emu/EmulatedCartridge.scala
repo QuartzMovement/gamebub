@@ -107,6 +107,7 @@ class EmulatedCartridge extends Module {
   io.interface.IRQ := false.B
   io.interface.ADLoIn := regMemRomReadData
   io.interface.AHiIn := DontCare
+  io.interface.isEmulated := true.B
   io.stall := false.B
 
   when (regMemRomBusy) {

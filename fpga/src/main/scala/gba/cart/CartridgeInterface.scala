@@ -40,4 +40,7 @@ class CartridgeInterface extends Bundle {
   /// Whether the current read request will be sampled at the next clock cycle.
   /// If this is high, and the read data is not yet valid, the whole system should be disabled until it is ready.
   val reqEnd = Output(Bool())
+  /// Set to true if this is an emulated cartridge: read data will be sampled
+  /// one cycle later allowing for improved timing.
+  val isEmulated = Input(Bool())
 }
