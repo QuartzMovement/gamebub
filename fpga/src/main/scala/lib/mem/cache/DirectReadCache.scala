@@ -33,15 +33,17 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
   val tagWidth = addressWidth - indexWidth
 
   val entryType = new Entry(tagWidth, dataWidth)
-  val cache = SRAM(numEntries, UInt(entryType.getWidth.W), numReadPorts = 0, numWritePorts = 0, numReadwritePorts = 1)
+  val cache = SRAM(numEntries, UInt(entryType.getWidth.W), numReadPorts = 1, numWritePorts = 1, numReadwritePorts = 0)
   val state = RegInit(State.init)
   val initIndex = RegInit(0.U(indexWidth.W))
 
-  val cachePort = cache.readwritePorts(0)
-  cachePort.enable := false.B
-  cachePort.address := DontCare
-  cachePort.isWrite := DontCare
-  cachePort.writeData := DontCare
+  val cacheReadPort = cache.readPorts(0)
+  cacheReadPort.enable := false.B
+  cacheReadPort.address := DontCare
+  val cacheWritePort = cache.writePorts(0)
+  cacheWritePort.enable := false.B
+  cacheWritePort.address := DontCare
+  cacheWritePort.data := DontCare
 
   /// Whether a request is pending (received in State.init).
   val regRequestPending = RegInit(false.B)
@@ -63,10 +65,9 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
     // Initialization: upon reset, iterate through the cache and invalidate each entry.
     is (State.init) {
       val nextInitIndex = initIndex + 1.U
-      cachePort.enable := true.B
-      cachePort.isWrite := true.B
-      cachePort.address := initIndex
-      cachePort.writeData := 0.U
+      cacheWritePort.enable := true.B
+      cacheWritePort.address := initIndex
+      cacheWritePort.data := 0.U
       initIndex := nextInitIndex
       when (nextInitIndex === 0.U) {
         state := State.idle
@@ -85,12 +86,11 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
 
     is (State.waitCache) {
       io.in.ready := false.B
-      val entry = cachePort.readData.asTypeOf(entryType)
+      val entry = cacheReadPort.data.asTypeOf(entryType)
       when (entry.valid && entry.tag === getTag(regAddress)) {
         // Cache hit!
         io.in.ready := true.B
         io.in.dataRead := entry.data
-        // TODO: handle request that can start now
         state := State.idle
       } .otherwise {
         // Cache miss, begin the read of main memory.
@@ -106,14 +106,13 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
 
       when (io.out.ready) {
         // Insert into cache.
-        cachePort.enable := true.B
-        cachePort.isWrite := true.B
-        cachePort.address := getIndex(regAddress)
+        cacheWritePort.enable := true.B
+        cacheWritePort.address := getIndex(regAddress)
         val wire = Wire(entryType)
         wire.valid := true.B
         wire.data := io.out.dataRead
         wire.tag := getTag(regAddress)
-        cachePort.writeData := wire.asUInt
+        cacheWritePort.data := wire.asUInt
 
         // Pass data onwards
         io.in.ready := true.B
@@ -132,9 +131,8 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
     } .otherwise {
       // Check the cache for the data.
       // TODO: invalidate on writes (when supported)
-      cachePort.enable := true.B
-      cachePort.isWrite := false.B
-      cachePort.address := getIndex(io.in.address)
+      cacheReadPort.enable := true.B
+      cacheReadPort.address := getIndex(io.in.address)
       state := State.waitCache
     }
   }
