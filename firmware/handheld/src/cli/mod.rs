@@ -40,6 +40,7 @@ fn cli_thread() -> ! {
         let result = match command {
             "get_hwinfo" => handle_get_hwinfo(args),
             "fpga_read" => handle_fpga_read(args),
+            "fpga_write" => handle_fpga_write(args),
             _ => Err("unknown command".to_string()),
         };
         if let Err(error) = result {
@@ -97,5 +98,37 @@ fn handle_fpga_read<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), S
         .map_err(|_| "read error".to_string())?;
     let output = BASE64_STANDARD.encode(buffer);
     println!("<ok,{}", output);
+    Ok(())
+}
+
+/// `>fpga_write,<addr>,<word size>,<max clock MHz>,<base64 data>`: returns `<ok`
+fn handle_fpga_write<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), String> {
+    const MAX_WRITE_LENGTH: u32 = 1024;
+    let address = get_arg_u32(args.next())?;
+    let word_size = get_arg_u32(args.next())?;
+    let max_clock = MegaHertz(get_arg_u32(args.next())?).into();
+    let data = args.next().ok_or("missing data")?;
+    if data.len() > ((MAX_WRITE_LENGTH * 4) / 3) as usize {
+        return Err("length too large".to_string());
+    }
+    let word_size = match word_size {
+        8 => FpgaSpiWordSize::Bits8,
+        16 => FpgaSpiWordSize::Bits16,
+        32 => FpgaSpiWordSize::Bits32,
+        64 => FpgaSpiWordSize::Bits64,
+        _ => return Err("invalid word size".to_string()),
+    };
+
+    let data = BASE64_STANDARD.decode(data).map_err(|_| "invalid base64")?;
+    let command = SpiCommand {
+        word_size,
+        byte_swap: true,
+        increment_address: true,
+    };
+    Device::lock()
+        .fpga
+        .spi_write(Some(max_clock), command, address, &data)
+        .map_err(|_| "write error".to_string())?;
+    println!("<ok");
     Ok(())
 }
