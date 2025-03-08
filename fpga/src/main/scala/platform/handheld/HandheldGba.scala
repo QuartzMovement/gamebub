@@ -83,10 +83,7 @@ class HandheldGba extends Module with HandheldModule {
   io.vibrate := false.B
 
   // SDRAM interface and port
-  val sdramCache = Module(new DirectReadCache(addressWidth = 23, dataWidth = 32, numEntries = 4096))
-  io.sdram <> sdramCache.io.out
-  io.sdram.address := sdramCache.io.out.address << 2
-  val sdramPort = sdramCache.io.in
+  val sdramPort = io.sdram
   sdramPort.enable := false.B
   sdramPort.address := DontCare
   sdramPort.isWrite := false.B
@@ -124,7 +121,6 @@ class HandheldGba extends Module with HandheldModule {
   val emuCart = Module(new EmulatedCartridge)
   when (io.reset) {
     emuCart.reset := true.B
-    sdramCache.reset := true.B
   }
   emuCart.io.interfaceEnable := gba.io.enable
   emuCart.io.config := configRegEmuCart
@@ -141,7 +137,7 @@ class HandheldGba extends Module with HandheldModule {
   // Convert 16-bit addresses to 32-bit byte addresses
   emuCart.io.rom <> sdramPort
   val emuCartRomAddr = Reg(UInt(1.W)) // Low bit only
-  sdramPort.address := emuCart.io.rom.address >> 1
+  sdramPort.address := emuCart.io.rom.address(23, 1) << 2
   when (emuCart.io.rom.enable) {
     assert(sdramPort.ready)
     emuCartRomAddr := emuCart.io.rom.address(0)
