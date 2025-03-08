@@ -126,6 +126,7 @@ class HandheldGba extends Module with HandheldModule {
     emuCart.reset := true.B
     sdramCache.reset := true.B
   }
+  emuCart.io.interfaceEnable := gba.io.enable
   emuCart.io.config := configRegEmuCart
   emuCart.io.romSize := configRegRomSize
   emuCart.io.imuGyroZ := configRegImuGyroZ

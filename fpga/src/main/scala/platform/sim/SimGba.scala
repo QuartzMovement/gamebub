@@ -84,6 +84,7 @@ class SimGba extends Module {
   io.emuCartStall := emuCart.io.stall
   gba.io.cartridge <> emuCart.io.interface
   io.emuCartBackup <> emuCart.io.backup
+  emuCart.io.interfaceEnable := gba.io.enable
 
   // Cartridge ROM, to be filled in by verilator simulation
   val cartRom = {

@@ -44,6 +44,8 @@ class EmulatedCartridge extends Module {
   val io = IO(new Bundle {
     val config = Input(new EmulatedCartridge.Config)
     val interface = Flipped(new CartridgeInterface)
+    /// Whether the cartridge interface (underlying emulator) is enabled this cycle.
+    val interfaceEnable = Input(Bool())
     /// Size of the ROM, minus one
     val romSize = Input(UInt(25.W))
     /// Current gyroscope Z sample
@@ -72,9 +74,6 @@ class EmulatedCartridge extends Module {
   })
   val logger = Logger("cart.emu")
 
-  // Whether we're waiting on data to come back for the ROM or backup.
-  val memWaiting = WireDefault(false.B)
-  io.stall := memWaiting && io.interface.reqEnd
   // True if a non-ROM peripheral in the ROM chip-select (EEPROM or GPIO) is selected (based on address).
   val romPeripheralSelected = WireDefault(false.B)
   // Whether ROM nCS fell this cycle
@@ -108,6 +107,7 @@ class EmulatedCartridge extends Module {
   io.interface.IRQ := false.B
   io.interface.ADLoIn := regMemRomReadData
   io.interface.AHiIn := DontCare
+  io.stall := false.B
 
   when (regMemRomBusy) {
     when (io.rom.ready) {
@@ -137,8 +137,7 @@ class EmulatedCartridge extends Module {
       regCartActive := false.B
     }
   }
-  // TODO: only start if emulator is enabled this cycle
-  when (io.interface.reqStart) {
+  when (io.interface.reqStart && io.interfaceEnable) {
     regCartActive := true.B
 
     when (io.interface.reqRom) {
