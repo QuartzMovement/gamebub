@@ -7,7 +7,7 @@ import lib.mem.cache.DirectReadCache._
 
 object DirectReadCache {
   object State extends ChiselEnum {
-    val init, idle, waitCache, waitMem = Value
+    val init, idle, waitCache, waitMem, forwardMem = Value
   }
 
   class Entry(tagWidth: Int, dataWidth: Int) extends Bundle {
@@ -50,6 +50,7 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
 
   val regAddress = Reg(UInt(addressWidth.W))
   val regIsWrite = Reg(Bool())
+  val regLastDataRead = Reg(UInt(dataWidth.W))
   io.in.ready := !regRequestPending
   io.in.dataRead := DontCare
   io.out.enable := false.B
@@ -113,12 +114,19 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
         wire.data := io.out.dataRead
         wire.tag := getTag(regAddress)
         cacheWritePort.data := wire.asUInt
+        regLastDataRead := io.out.dataRead
 
         // Pass data onwards
         io.in.ready := true.B
         io.in.dataRead := io.out.dataRead
         state := State.idle
       }
+    }
+
+    is (State.forwardMem) {
+      io.in.ready := true.B
+      io.in.dataRead := regLastDataRead
+      state := State.idle
     }
   }
 
@@ -128,6 +136,13 @@ class DirectReadCache(addressWidth: Int, dataWidth: Int, numEntries: Int) extend
     when (state === State.init) {
       // Save the request for when we're ready.
       regRequestPending := true.B
+    } .elsewhen (state === State.waitMem &&
+        getIndex(regAddress) === getIndex(io.in.address) &&
+        getTag(regAddress) === getTag(io.in.address)) {
+      // The cache write completing this cycle matches this request, forward the data.
+      // This is required because generally in a block RAM (e.g. on Xilinx Series 7),
+      // a read will return the old data being written.
+      state := State.forwardMem
     } .otherwise {
       // Check the cache for the data.
       // TODO: invalidate on writes (when supported)
