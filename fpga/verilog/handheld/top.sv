@@ -110,8 +110,12 @@ module top_handheld (
     logic clk_spi;
     logic clk_spi_locked;
     logic clk_spi_power_down;
-
     assign sdram_clk = clk_sdram;
+
+    // TODO: clock gate clk_spi when clk_spi_power_down is high
+    always @(posedge clk_spi) begin
+        clk_spi_locked <= ~clk_spi_power_down;
+    end
 
     // Manually construct IBUF for 50Mhz input clock to share between multiple clocking wizards.
     wire clk_in_50mhz;
@@ -127,13 +131,7 @@ module top_handheld (
         .clk_out_sdram(clk_sdram),
         .clk_out_dpi(clk_dpi),
         .clk_out_hdmi(clk_hdmi),
-        .clk_out_hdmi_x5(clk_hdmi_x5)
-    );
-    clk_wiz_spi_clk_wiz clk_wiz_spi(
-        .reset(pll_reset),
-        .locked(clk_spi_locked),
-        .power_down(clk_spi_power_down),
-        .clk_in_50mhz(clk_in_50mhz),
+        .clk_out_hdmi_x5(clk_hdmi_x5),
         .clk_out_spi(clk_spi)
     );
 

@@ -322,13 +322,12 @@ impl Device<'_> {
                 // and never used at the same time (either read *or* write are used at any time).
                 // There doesn't appear to be any other way to use multiple clock speeds.
                 let cs_pin = unsafe { pin_fpga_spi_cs.clone_unchecked() };
-                let mut spi = SpiSoftCsDeviceDriver::new(
+                let spi = SpiSoftCsDeviceDriver::new(
                     SpiSharedDeviceDriver::new(fpga_spi_driver, &config).unwrap(),
                     cs_pin,
                     gpio::Level::High,
                 )
                 .unwrap();
-                spi.cs_pre_delay_us(100); // FPGA spi requires >35uS or so to stabilize after nCS.
                 (spi, Hertz::from(rate))
             })
             .collect::<Vec<_>>();

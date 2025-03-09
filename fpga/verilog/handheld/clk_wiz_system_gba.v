@@ -58,6 +58,7 @@
 // clk_out_dpi__12.36294______0.000______50.0______409.351____391.866
 // clk_out_hdmi__26.84524______0.000______50.0______362.864____391.866
 // clk_out_hdmi_x5__134.22619______0.000______50.0______279.670____391.866
+// clk_out_spi__187.91674______0.000______50.0______??____??
 //
 //----------------------------------------------------------------------------
 // Input Clock   Freq (MHz)    Input Jitter (UI)
@@ -75,6 +76,7 @@ module clk_wiz_system_clk_wiz
   output        clk_out_dpi,
   output        clk_out_hdmi,
   output        clk_out_hdmi_x5,
+  output        clk_out_spi,
   // Status and control signals
   input         reset,
   output        locked,
@@ -101,7 +103,7 @@ wire clk_in2_clk_wiz_system;
   wire        clk_out_dpi_clk_wiz_system;
   wire        clk_out_hdmi_clk_wiz_system;
   wire        clk_out_hdmi_x5_clk_wiz_system;
-  wire        clk_out6_clk_wiz_system;
+  wire        clk_out_spi_clk_wiz_system;
   wire        clk_out7_clk_wiz_system;
 
   wire [15:0] do_unused;
@@ -114,7 +116,6 @@ wire clk_in2_clk_wiz_system;
    wire clkout1b_unused;
    wire clkout2b_unused;
    wire clkout3b_unused;
-  wire        clkout5_unused;
   wire        clkout6_unused;
   wire        clkfbstopped_unused;
   wire        clkinstopped_unused;
@@ -149,6 +150,10 @@ wire clk_in2_clk_wiz_system;
     .CLKOUT4_PHASE        (0.000),
     .CLKOUT4_DUTY_CYCLE   (0.500),
     .CLKOUT4_USE_FINE_PS  ("FALSE"),
+    .CLKOUT5_DIVIDE       (5),
+    .CLKOUT5_PHASE        (0.000),
+    .CLKOUT5_DUTY_CYCLE   (0.500),
+    .CLKOUT5_USE_FINE_PS  ("FALSE"),
     .CLKIN1_PERIOD        (20.000))
   mmcm_adv_inst
     // Output clocks
@@ -164,7 +169,7 @@ wire clk_in2_clk_wiz_system;
     .CLKOUT3             (clk_out_hdmi_clk_wiz_system),
     .CLKOUT3B            (clkout3b_unused),
     .CLKOUT4             (clk_out_hdmi_x5_clk_wiz_system),
-    .CLKOUT5             (clkout5_unused),
+    .CLKOUT5             (clk_out_spi_clk_wiz_system),
     .CLKOUT6             (clkout6_unused),
      // Input clock control
     .CLKFBIN             (clkfbout_clk_wiz_system),
@@ -225,6 +230,8 @@ wire clk_in2_clk_wiz_system;
    (.O   (clk_out_hdmi_x5),
     .I   (clk_out_hdmi_x5_clk_wiz_system));
 
-
+  BUFG clkout6_buf
+   (.O   (clk_out_spi),
+    .I   (clk_out_spi_clk_wiz_system));
 
 endmodule
