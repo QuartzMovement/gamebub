@@ -215,5 +215,11 @@ class EmbeddedLogicAnalyzer[T <: Bundle](gen: T, depth: Int = 1024, signalClock:
       "b1".U(1.W) -> logReadInterface,
     ))
 
-  // TODO: output metadata (ujson? https://www.lihaoyi.com/post/HowtoworkwithJSONinScala.html)
+  // Output metadata
+  val metadata = ujson.Obj(
+    "signals" -> entries.map(e =>
+      ujson.Obj("name" -> e.name, "offset" -> e.offset, "width" -> e.width)
+    )
+  )
+  println(ujson.write(metadata))
 }

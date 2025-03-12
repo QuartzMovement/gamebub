@@ -2,6 +2,7 @@ import base64
 from serial import Serial
 import sys
 import time
+import json
 
 REG_SAMPLE_WIDTH = 0x0
 REG_SAMPLE_DEPTH = 0x4
@@ -11,10 +12,22 @@ REG_FORCE_TRIGGER = 0x14
 SIGNAL_BASE = 0x40_0000
 LOG_BASE = 0x80_0000
 
+class Signal:
+    name: str
+    offset: int
+    width: int
+
 class EmbeddedLogicAnalyzer:
-    def __init__(self, serial: Serial, base_address: int) -> None:
+    def __init__(self, serial: Serial, base_address: int, metadata) -> None:
         self.serial = serial
         self.base_address = base_address
+        
+        self.signals = []
+        for raw in metadata["signals"]:
+            signal = Signal()
+            signal.name = raw["name"]
+            signal.offset = raw["offset"]
+            signal.width = raw["width"]
 
     def run_command(self, command: str) -> str:
         self.serial.write(b">" + command.encode() + b"\n")
@@ -57,7 +70,8 @@ def main(args: list[str]) -> None:
     serial_path = args[1]
     serial = Serial(serial_path)
 
-    ela = EmbeddedLogicAnalyzer(serial, 0x3000_0000)
+    metadata = {"signals":[{"name":".bundleVal.anotherUInt","offset":0,"width":6},{"name":".uintVal","offset":6,"width":16},{"name":".boolVal","offset":22,"width":1}]}
+    ela = EmbeddedLogicAnalyzer(serial, 0x3000_0000, metadata)
     print(ela.run_command("get_hwinfo"))
 
     sample_width = ela.read_register(REG_SAMPLE_WIDTH)
@@ -106,6 +120,11 @@ def main(args: list[str]) -> None:
         x = (log_start + i) % sample_depth
         data = full_log[(x * 4):(x * 4 + 4)]
         value = int.from_bytes(data, "little")
+
+        values = [
+            ((value >> s.offset) & ((1 << s.width) - 1))
+            for s in ela.signals
+        ]
 
         val1 = (value >> 0) & 0b111111
         val2 = (value >> 6) & 0b1111111111111111

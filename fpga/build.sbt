@@ -12,7 +12,8 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       "org.chipsalliance" %% "chisel" % chiselVersion,
       "edu.berkeley.cs" %% "chiseltest" % "6.0.0",
-      "com.github.tototoshi" %% "scala-csv" % "1.3.10"
+      "com.github.tototoshi" %% "scala-csv" % "1.3.10",
+      "com.lihaoyi" %% "upickle" % "3.1.0",
     ),
     scalacOptions ++= Seq(
       "-language:reflectiveCalls",
