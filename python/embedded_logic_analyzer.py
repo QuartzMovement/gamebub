@@ -3,6 +3,13 @@ from serial import Serial
 import sys
 import time
 
+REG_SAMPLE_WIDTH = 0x0
+REG_SAMPLE_DEPTH = 0x4
+REG_LOG_INFO = 0x8
+REG_ARM = 0x10
+REG_FORCE_TRIGGER = 0x14
+SIGNAL_BASE = 0x40_0000
+LOG_BASE = 0x80_0000
 
 class EmbeddedLogicAnalyzer:
     def __init__(self, serial: Serial, base_address: int) -> None:
@@ -53,37 +60,58 @@ def main(args: list[str]) -> None:
     ela = EmbeddedLogicAnalyzer(serial, 0x3000_0000)
     print(ela.run_command("get_hwinfo"))
 
-
-    ela.write_register(0xC, 1) # arm
-
-    for x in range(0, 20, 4):
-        data = ela.read_register(x)
-        print(f"{hex(x)}: {hex(data)} == {data}")
-
-    print("=====")
-    ela.write_register(0x10, 1) # force trigger
-
-    for x in range(0, 20, 4):
-        data = ela.read_register(x)
-        print(f"{hex(x)}: {hex(data)} == {data}")
+    sample_width = ela.read_register(REG_SAMPLE_WIDTH)
+    sample_depth = ela.read_register(REG_SAMPLE_DEPTH)
 
 
+    # signal 0 match 12345 (level)
+    ela.write_register(SIGNAL_BASE + (1 * 0x10) + 0x4, 12345) #match0 = 12345
+    ela.write_register(SIGNAL_BASE + (1 * 0x10) + 0x0, 0b11)  #enable trigger, match0 only
+    # OR signal 1 match 14 (level)
+    ela.write_register(SIGNAL_BASE + (0 * 0x10) + 0x4, 14)    #match0 = 14
+    ela.write_register(SIGNAL_BASE + (0 * 0x10) + 0x0, 0b11)  #enable trigger, match0 only
+    # OR signal 2 falling edge (prev 0, prev prev 1)
+    ela.write_register(SIGNAL_BASE + (2 * 0x10) + 0x8, 1)
+    ela.write_register(SIGNAL_BASE + (2 * 0x10) + 0x4, 0)
+    ela.write_register(SIGNAL_BASE + (2 * 0x10) + 0x0, 0b111)
+    ela.write_register(REG_ARM, 1)
 
-    log_base = 0x80_0000
+    for i in range(0, 2):
+        log_info = ela.read_register(REG_LOG_INFO)
+        log_write_index = log_info & 0xFFFFFF
+        log_write_wrapped = (log_info >> 24) & 1
+        log_is_recording = (log_info >> 25) & 1
+        print("log write index: ", log_write_index)
+        print("log write wrapped: ", log_write_wrapped)
+        print("log is recording: ", log_is_recording)
+        print("====")
+        time.sleep(0.5)
+
+        # if i == 5:
+            # ela.write_register(REG_FORCE_TRIGGER, 1)
+
+
     start_time = time.time()
     # can read in chunks of 1024 bytes
     full_log = bytearray()
     for i in range(0, 2048 * 4, 1024):
-        full_log += ela.fpga_read(ela.base_address + log_base + i, 1024)
+        full_log += ela.fpga_read(ela.base_address + LOG_BASE + i, 1024)
     duration = time.time() - start_time
     print("log: ", duration)
-    for x in range(0, 2048):
+
+    log_length = sample_depth if log_write_wrapped else (log_write_index - 1)
+    log_start = log_write_index if log_write_wrapped else 0
+
+    for i in range(log_length):
+        x = (log_start + i) % sample_depth
         data = full_log[(x * 4):(x * 4 + 4)]
         value = int.from_bytes(data, "little")
-        print(hex(value))
-    # for x in range(0, 2048):
-        # value = ela.read_register(log_base + x)
-        # print(hex(value))
+
+        val1 = (value >> 0) & 0b111111
+        val2 = (value >> 6) & 0b1111111111111111
+        val3 = (value >> 22) & 1
+
+        print(i - log_length + 1, ":", val1, val2, val3)
 
 
 if __name__ == '__main__':
