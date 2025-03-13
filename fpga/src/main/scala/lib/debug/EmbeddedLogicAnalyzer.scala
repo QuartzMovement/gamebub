@@ -50,23 +50,29 @@ object EmbeddedLogicAnalyzer {
   }
 }
 
-class EmbeddedLogicAnalyzer[T <: Bundle](gen: T, depth: Int = 1024, signalClock: Option[Clock] = None) extends Module  {
+class EmbeddedLogicAnalyzer[T <: Bundle](gen: T, depth: Int = 1024, hasSignalClock: Boolean = false) extends Module  {
   val io = IO(new Bundle {
     val interface = new MemoryInterface(addressWidth = 24, dataWidth = 32)
 
+    /// Clock used to latch signal values.
+    val signalClock = Input(Clock())
+
     /// Input signals (and trigger values)
+    /// Used from the 'signalClock' domain.
     val signals = Input(gen)
 
     /// Whether the signals should be sampled at this clock cycle
     /// Tie to true if no subsampling should occur.
+    /// Used from the 'signalClock' domain.
     val sample = Input(Bool())
+
   })
   if (!isPow2(depth)) {
     throw new IllegalArgumentException(s"depth must be a power of two")
   }
 
   val width = gen.getWidth
-  val clockSignal = signalClock.getOrElse(clock)
+  val clockSignal = io.signalClock
 
   private val entries = EmbeddedLogicAnalyzer.getEntries(io.signals)
   for (entry <- entries) {
