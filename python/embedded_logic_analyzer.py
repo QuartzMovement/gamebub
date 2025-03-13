@@ -156,6 +156,8 @@ class EmbeddedLogicAnalyzer:
         sample_depth = self.read_register(REG_SAMPLE_DEPTH)
         num_post_trigger = self.read_register(REG_POST_TRIGGER_SAMPLES)
         words_per_sample = int(math.ceil(sample_width / 32))
+        # Stride (words per sample) rounded up to nearest power of two
+        words_per_sample = 2 ** int(math.ceil(math.log2(words_per_sample)))
 
         # Read log in chunks of 1024 bytes
         full_log = bytearray()
@@ -191,7 +193,7 @@ def pad_int(value: int, max_value: int) -> str:
     return str(value).rjust(width + 1, " ")
 
 def pad_hex(value: int, max_value: int) -> str:
-    width = int(math.floor(math.log(max_value) / math.log(16))) + 1
+    width = int(math.floor(math.log(max_value, 16))) + 1
     return f"{value:#0{width + 2}x}"
 
 def main() -> None:
