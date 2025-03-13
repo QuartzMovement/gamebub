@@ -2,11 +2,14 @@ import base64
 from serial import Serial
 import sys
 import time
+import math
 import json
+from typing import Optional
 
 REG_SAMPLE_WIDTH = 0x0
 REG_SAMPLE_DEPTH = 0x4
 REG_LOG_INFO = 0x8
+REG_POST_TRIGGER_SAMPLES = 0xC
 REG_ARM = 0x10
 REG_FORCE_TRIGGER = 0x14
 SIGNAL_BASE = 0x40_0000
@@ -16,6 +19,11 @@ class Signal:
     name: str
     offset: int
     width: int
+
+class Log:
+    signals: list[Signal]
+    trigger_index: int
+    samples: list[tuple[int]]
 
 class EmbeddedLogicAnalyzer:
     def __init__(self, serial: Serial, base_address: int, metadata) -> None:
@@ -28,6 +36,7 @@ class EmbeddedLogicAnalyzer:
             signal.name = raw["name"]
             signal.offset = raw["offset"]
             signal.width = raw["width"]
+            self.signals.append(signal)
 
     def run_command(self, command: str) -> str:
         self.serial.write(b">" + command.encode() + b"\n")
@@ -65,6 +74,89 @@ class EmbeddedLogicAnalyzer:
         data = value.to_bytes(4, byteorder="little")
         self.fpga_write(self.base_address + address, data)
 
+    def set_signal_trigger(self, signal: int, match0: Optional[int] = None, match1: Optional[int] = None):
+        """
+        Enable triggering on a specific signal.
+
+        match0 represents the matcher for the most recent value of the signal,
+        and match1 represents the matcher for the second most recent value of the signal.
+
+        For example, to match a 1-bit signal on a rising edge, set match0 to 1 and match1 to 0.
+        """
+        register_base = SIGNAL_BASE + (signal * 0x10)
+        flags = 0b1 # Trigger
+        if match0 is not None:
+            flags |= 0b10
+            self.write_register(register_base + 0x4, match0)
+        if match1 is not None:
+            flags |= 0b100
+            self.write_register(register_base + 0x8, match1)
+        self.write_register(register_base + 0x0, flags)
+
+    def unset_signal_trigger(self, signal: int) -> None:
+        """Disable triggering on a specific signal."""
+        register = SIGNAL_BASE + (signal * 0x10)
+        self.write_register(register, 0)
+
+    def arm(self) -> None:
+        """Arm the logic analyzer, starting the recording."""
+        self.write_register(REG_ARM, 1)
+
+    def force_trigger(self) -> None:
+        """Immediately force a trigger, if the logic analyzer is armed."""
+        self.write_register(REG_FORCE_TRIGGER, 1)
+
+    def set_post_trigger_samples(self, count: int) -> None:
+        """Set the number of samples to be collected after the trigger."""
+        self.write_register(REG_POST_TRIGGER_SAMPLES, count)
+
+    def get_is_triggered(self):
+        log_info = self.read_register(REG_LOG_INFO)
+        return bool((log_info >> 26) & 1)
+
+    def read_log(self) -> Optional[Log]:
+        """Reads the sample log, or returns None if the log is currently being recorded."""
+        log_info = self.read_register(REG_LOG_INFO)
+        log_write_index = log_info & 0xFFFFFF
+        log_write_wrapped = (log_info >> 24) & 1
+        log_is_recording = (log_info >> 25) & 1
+        if log_is_recording == 1:
+            return None
+
+        sample_width = self.read_register(REG_SAMPLE_WIDTH)
+        sample_depth = self.read_register(REG_SAMPLE_DEPTH)
+        num_post_trigger = self.read_register(REG_POST_TRIGGER_SAMPLES)
+        words_per_sample = int(math.ceil(sample_width / 32))
+
+        # Read log in chunks of 1024 bytes
+        full_log = bytearray()
+        for i in range(0, sample_depth * words_per_sample * 4, 1024):
+            full_log += self.fpga_read(self.base_address + LOG_BASE + i, 1024)
+
+        log_length = sample_depth if log_write_wrapped else log_write_index
+        log_start = log_write_index if log_write_wrapped else 0
+
+        log = Log()
+        log.signals = self.signals
+        log.samples = []
+        log.trigger_index = (log_length - 1) - num_post_trigger
+
+        for i in range(log_length):
+            offset = ((log_start + i) % sample_depth) * words_per_sample
+            sample = 0
+            for word_index in range(words_per_sample):
+                byte_index = (offset + word_index) * 4
+                word = int.from_bytes(full_log[byte_index : (byte_index + 4)], "little")
+                sample |= word << (32 * word_index)
+
+            values = [
+                ((sample >> s.offset) & ((1 << s.width) - 1))
+                for s in self.signals
+            ]
+            log.samples.append(tuple(values))
+
+        return log
+
 
 def main(args: list[str]) -> None:
     serial_path = args[1]
@@ -74,63 +166,32 @@ def main(args: list[str]) -> None:
     ela = EmbeddedLogicAnalyzer(serial, 0x3000_0000, metadata)
     print(ela.run_command("get_hwinfo"))
 
-    sample_width = ela.read_register(REG_SAMPLE_WIDTH)
-    sample_depth = ela.read_register(REG_SAMPLE_DEPTH)
+    for i in range(len(ela.signals)):
+        ela.unset_signal_trigger(i)
 
+    # ela.set_signal_trigger(0, match0 = 5)
+    ela.set_signal_trigger(1, match0 = 12345)
+    ela.set_post_trigger_samples(10)
+    ela.arm()
 
-    # signal 0 match 12345 (level)
-    ela.write_register(SIGNAL_BASE + (1 * 0x10) + 0x4, 12345) #match0 = 12345
-    ela.write_register(SIGNAL_BASE + (1 * 0x10) + 0x0, 0b11)  #enable trigger, match0 only
-    # OR signal 1 match 14 (level)
-    ela.write_register(SIGNAL_BASE + (0 * 0x10) + 0x4, 14)    #match0 = 14
-    ela.write_register(SIGNAL_BASE + (0 * 0x10) + 0x0, 0b11)  #enable trigger, match0 only
-    # OR signal 2 falling edge (prev 0, prev prev 1)
-    ela.write_register(SIGNAL_BASE + (2 * 0x10) + 0x8, 1)
-    ela.write_register(SIGNAL_BASE + (2 * 0x10) + 0x4, 0)
-    ela.write_register(SIGNAL_BASE + (2 * 0x10) + 0x0, 0b111)
-    ela.write_register(REG_ARM, 1)
+    try:
+        print("Waiting for trigger", end="")
+        while not ela.get_is_triggered():
+            print(".", end="", flush=True)
+            time.sleep(0.2)
+        print()
 
-    for i in range(0, 2):
-        log_info = ela.read_register(REG_LOG_INFO)
-        log_write_index = log_info & 0xFFFFFF
-        log_write_wrapped = (log_info >> 24) & 1
-        log_is_recording = (log_info >> 25) & 1
-        print("log write index: ", log_write_index)
-        print("log write wrapped: ", log_write_wrapped)
-        print("log is recording: ", log_is_recording)
-        print("====")
-        time.sleep(0.5)
+        log = ela.read_log()
+        if log is None:
+            print("Waiting for recording to finish...")
+            while log is None:
+                time.sleep(0.2)
+                log = ela.read_log()
+    except KeyboardInterrupt:
+        return
 
-        # if i == 5:
-            # ela.write_register(REG_FORCE_TRIGGER, 1)
-
-
-    start_time = time.time()
-    # can read in chunks of 1024 bytes
-    full_log = bytearray()
-    for i in range(0, 2048 * 4, 1024):
-        full_log += ela.fpga_read(ela.base_address + LOG_BASE + i, 1024)
-    duration = time.time() - start_time
-    print("log: ", duration)
-
-    log_length = sample_depth if log_write_wrapped else (log_write_index - 1)
-    log_start = log_write_index if log_write_wrapped else 0
-
-    for i in range(log_length):
-        x = (log_start + i) % sample_depth
-        data = full_log[(x * 4):(x * 4 + 4)]
-        value = int.from_bytes(data, "little")
-
-        values = [
-            ((value >> s.offset) & ((1 << s.width) - 1))
-            for s in ela.signals
-        ]
-
-        val1 = (value >> 0) & 0b111111
-        val2 = (value >> 6) & 0b1111111111111111
-        val3 = (value >> 22) & 1
-
-        print(i - log_length + 1, ":", val1, val2, val3)
+    for i, sample in enumerate(log.samples):
+        print(sample, "<-- TRIGGER" if (log.trigger_index == i) else "")
 
 
 if __name__ == '__main__':

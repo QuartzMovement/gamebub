@@ -6,6 +6,8 @@ import lib.debug.EmbeddedLogicAnalyzer.SignalConfigRegister
 import lib.mem.{MemoryInterface, MemoryMap, RegisterMap}
 import xilinx.{XpmCdcHandshake, XpmCdcPulse, XpmCdcSingle}
 
+import java.io.{BufferedOutputStream, File, FileOutputStream}
+
 object EmbeddedLogicAnalyzer {
   private case class Entry(name: String, offset: Int, width: Int)
 
@@ -73,6 +75,7 @@ class EmbeddedLogicAnalyzer[T <: Bundle](gen: T, depth: Int = 1024, signalClock:
   // Written by inner signal domain
   val log = SRAM(depth, UInt(width.W), readPortClocks = Seq(clock), writePortClocks = Seq(clockSignal), readwritePortClocks = Seq())
   val isRecording = Wire(Bool())
+  val isTriggered = Wire(Bool())
   val writeIndex = Wire(UInt(24.W))
   val writeWrapped = Wire(Bool())
 
@@ -92,12 +95,14 @@ class EmbeddedLogicAnalyzer[T <: Bundle](gen: T, depth: Int = 1024, signalClock:
     val doForceTrigger = XpmCdcPulse(clock, forceTriggerPulse)
     val numPostTriggerSamples = XpmCdcHandshake.continuous(clock, regPostTriggerSamples)
 
+    val doSample = WireDefault(regRecording)
+
     // Record into the log
     val logPort = log.writePorts(0)
-    logPort.enable := regRecording
+    logPort.enable := doSample
     logPort.address := regWriteIndex
     logPort.data := io.signals.asUInt
-    when (regRecording) {
+    when (doSample) {
       val nextWriteIndex = regWriteIndex + 1.U
       regWriteIndex := nextWriteIndex
       when (nextWriteIndex === 0.U) {
@@ -127,6 +132,7 @@ class EmbeddedLogicAnalyzer[T <: Bundle](gen: T, depth: Int = 1024, signalClock:
       regSamplesLeft := numPostTriggerSamples
       when (numPostTriggerSamples === 0.U) {
         regRecording := false.B
+        doSample := false.B
       }
     }
     when (regTriggered && regRecording) {
@@ -134,6 +140,7 @@ class EmbeddedLogicAnalyzer[T <: Bundle](gen: T, depth: Int = 1024, signalClock:
       regSamplesLeft := nextTriggerSamples
       when (nextTriggerSamples === 0.U) {
         regRecording := false.B
+        doSample := false.B
       }
     }
 
@@ -146,6 +153,7 @@ class EmbeddedLogicAnalyzer[T <: Bundle](gen: T, depth: Int = 1024, signalClock:
     }
 
     isRecording := withClock (clock) { XpmCdcSingle(clockSignal, regRecording) }
+    isTriggered := withClock (clock) { XpmCdcSingle(clockSignal, regTriggered) }
     writeIndex := withClock (clock) { XpmCdcHandshake.continuous(clockSignal, regWriteIndex) }
     writeWrapped := withClock (clock) { XpmCdcHandshake.continuous(clockSignal, regWriteWrapped) }
   }
@@ -161,7 +169,7 @@ class EmbeddedLogicAnalyzer[T <: Bundle](gen: T, depth: Int = 1024, signalClock:
       // Sample depth
       0x4 -> RegisterMap.Entry.r(depth.U),
       // Log info
-      0x8 -> RegisterMap.Entry.r(Cat(isRecording, writeWrapped, writeIndex)),
+      0x8 -> RegisterMap.Entry.r(Cat(isTriggered, isRecording, writeWrapped, writeIndex)),
       // Number of samples post-trigger to collect
       0xC -> RegisterMap.Entry.rw(regPostTriggerSamples),
       // Arm
@@ -215,11 +223,16 @@ class EmbeddedLogicAnalyzer[T <: Bundle](gen: T, depth: Int = 1024, signalClock:
       "b1".U(1.W) -> logReadInterface,
     ))
 
-  // Output metadata
-  val metadata = ujson.Obj(
-    "signals" -> entries.map(e =>
-      ujson.Obj("name" -> e.name, "offset" -> e.offset, "width" -> e.width)
+  writeMetadata(new File("ela-metadata.json"))
+
+  def writeMetadata(file: File): Unit = {
+    val metadata = ujson.Obj(
+      "signals" -> entries.map(e =>
+        ujson.Obj("name" -> e.name, "offset" -> e.offset, "width" -> e.width)
+      )
     )
-  )
-  println(ujson.write(metadata))
+    val output = new BufferedOutputStream(new FileOutputStream(file))
+    ujson.writeToOutputStream(metadata, output, indent = 2)
+    output.close();
+  }
 }
