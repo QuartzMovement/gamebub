@@ -158,6 +158,13 @@ class EmbeddedLogicAnalyzer:
 
         return log
 
+def pad_int(value: int, max_value: int) -> str:
+    width = int(math.floor(math.log10(max_value))) + 1
+    return str(value).rjust(width + 1, " ")
+
+def pad_hex(value: int, max_value: int) -> str:
+    width = int(math.floor(math.log(max_value) / math.log(16))) + 1
+    return f"{value:#0{width + 2}x}"
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="EmbeddedLogicAnalyzer")
@@ -168,9 +175,12 @@ def main() -> None:
 
     serial = Serial(args.serial)
     metadata = json.load(open(args.metadata))
-
     ela = EmbeddedLogicAnalyzer(serial, args.address, metadata)
-    print(ela.run_command("get_hwinfo"))
+
+    print("=== Signals ===")
+    for signal in ela.signals:
+        print(signal.name)
+    print()
 
     for i in range(len(ela.signals)):
         ela.unset_signal_trigger(i)
@@ -196,8 +206,19 @@ def main() -> None:
     except KeyboardInterrupt:
         return
 
+    print()
     for i, sample in enumerate(log.samples):
-        print(sample, "<-- TRIGGER" if (log.trigger_index == i) else "")
+        print(pad_int(i, len(log.samples)), ": ", end="")
+        for value, signal in zip(sample, log.signals):
+            if signal.width == 1:
+                # special case 1-bit signals
+                print(" ", value, end="")
+            else:
+                max_value = (1 << signal.width) - 1
+                print(" ", pad_hex(value, max_value), end="")
+        if i == log.trigger_index:
+            print("  <-- TRIGGER", end="")
+        print()
 
 
 if __name__ == '__main__':
