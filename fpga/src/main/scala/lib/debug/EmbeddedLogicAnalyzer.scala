@@ -52,7 +52,13 @@ object EmbeddedLogicAnalyzer {
 class EmbeddedLogicAnalyzer[T <: Bundle](gen: T, depth: Int = 1024, signalClock: Option[Clock] = None) extends Module  {
   val io = IO(new Bundle {
     val interface = new MemoryInterface(addressWidth = 24, dataWidth = 32)
+
+    /// Input signals (and trigger values)
     val signals = Input(gen)
+
+    /// Whether the signals should be sampled at this clock cycle
+    /// Tie to true if no subsampling should occur.
+    val sample = Input(Bool())
   })
   if (!isPow2(depth)) {
     throw new IllegalArgumentException(s"depth must be a power of two")
@@ -95,7 +101,7 @@ class EmbeddedLogicAnalyzer[T <: Bundle](gen: T, depth: Int = 1024, signalClock:
     val doForceTrigger = XpmCdcPulse(clock, forceTriggerPulse)
     val numPostTriggerSamples = XpmCdcHandshake.continuous(clock, regPostTriggerSamples)
 
-    val doSample = WireDefault(regRecording)
+    val doSample = WireDefault(regRecording && io.sample)
 
     // Record into the log
     val logPort = log.writePorts(0)

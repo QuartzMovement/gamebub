@@ -6,6 +6,7 @@ import time
 import math
 import json
 from typing import Optional
+from vcd import VCDWriter # pyvcd
 
 REG_SAMPLE_WIDTH = 0x0
 REG_SAMPLE_DEPTH = 0x4
@@ -25,6 +26,32 @@ class Log:
     signals: list[Signal]
     trigger_index: int
     samples: list[tuple[int]]
+
+    def write_vcd(self, f) -> None:
+        vcd = VCDWriter(f, version="EmbeddedLogicAnalyzer")
+        variables = [
+            vcd.register_var(scope="ELA", name=s.name, var_type="wire", size=s.width)
+            for s in self.signals
+        ]
+        for ts, sample in enumerate(self.samples):
+            for i, value in enumerate(sample):
+                vcd.change(variables[i], ts, value)
+        vcd.close()
+
+
+    def print(self) -> None:
+        for i, sample in enumerate(self.samples):
+            print(pad_int(i, len(self.samples)), ": ", end="")
+            for value, signal in zip(sample, self.signals):
+                if signal.width == 1:
+                    # special case 1-bit signals
+                    print(" ", value, end="")
+                else:
+                    max_value = (1 << signal.width) - 1
+                    print(" ", pad_hex(value, max_value), end="")
+            if i == self.trigger_index:
+                print("  <-- TRIGGER", end="")
+            print()
 
 class EmbeddedLogicAnalyzer:
     def __init__(self, serial: Serial, base_address: int, metadata) -> None:
@@ -171,6 +198,7 @@ def main() -> None:
     parser.add_argument("--serial", required=True, help="Path to serial device")
     parser.add_argument("--metadata", required=True, help="Path to ELA metadata JSON file")
     parser.add_argument("--address", type=lambda x: int(x, 0), help="Base address of ELA", default="0x3000_0000")
+    parser.add_argument("--output", help="Path to output VCD file")
     args = parser.parse_args()
 
     serial = Serial(args.serial)
@@ -203,23 +231,15 @@ def main() -> None:
             while log is None:
                 time.sleep(0.2)
                 log = ela.read_log()
+        print()
     except KeyboardInterrupt:
         return
 
-    print()
-    for i, sample in enumerate(log.samples):
-        print(pad_int(i, len(log.samples)), ": ", end="")
-        for value, signal in zip(sample, log.signals):
-            if signal.width == 1:
-                # special case 1-bit signals
-                print(" ", value, end="")
-            else:
-                max_value = (1 << signal.width) - 1
-                print(" ", pad_hex(value, max_value), end="")
-        if i == log.trigger_index:
-            print("  <-- TRIGGER", end="")
-        print()
-
+    if args.output:
+        with open(args.output, "w") as f:
+            log.write_vcd(f)
+    else:
+        log.print()
 
 if __name__ == '__main__':
     main()
