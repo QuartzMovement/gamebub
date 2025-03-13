@@ -1,3 +1,4 @@
+import argparse
 import base64
 from serial import Serial
 import sys
@@ -158,12 +159,17 @@ class EmbeddedLogicAnalyzer:
         return log
 
 
-def main(args: list[str]) -> None:
-    serial_path = args[1]
-    serial = Serial(serial_path)
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="EmbeddedLogicAnalyzer")
+    parser.add_argument("--serial", required=True, help="Path to serial device")
+    parser.add_argument("--metadata", required=True, help="Path to ELA metadata JSON file")
+    parser.add_argument("--address", type=lambda x: int(x, 0), help="Base address of ELA", default="0x3000_0000")
+    args = parser.parse_args()
 
-    metadata = {"signals":[{"name":".bundleVal.anotherUInt","offset":0,"width":6},{"name":".uintVal","offset":6,"width":16},{"name":".boolVal","offset":22,"width":1}]}
-    ela = EmbeddedLogicAnalyzer(serial, 0x3000_0000, metadata)
+    serial = Serial(args.serial)
+    metadata = json.load(open(args.metadata))
+
+    ela = EmbeddedLogicAnalyzer(serial, args.address, metadata)
     print(ela.run_command("get_hwinfo"))
 
     for i in range(len(ela.signals)):
@@ -195,4 +201,4 @@ def main(args: list[str]) -> None:
 
 
 if __name__ == '__main__':
-    main(sys.argv)
+    main()
