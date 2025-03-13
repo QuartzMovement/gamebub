@@ -19,7 +19,8 @@ object EmbeddedLogicAnalyzer {
           val (name, data) = entry
           val prevOffset = off
           off += data.getWidth
-          getEntries(data, s"$prefix.$name", prevOffset)
+          val key = if (prefix.nonEmpty) s"$prefix.$name" else name
+          getEntries(data, key, prevOffset)
         }).toSeq
       }
       case v: Vec[_] => {

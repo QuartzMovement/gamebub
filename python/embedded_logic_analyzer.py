@@ -5,6 +5,7 @@ import sys
 import time
 import math
 import json
+import re
 from typing import Optional
 from vcd import VCDWriter # pyvcd
 
@@ -199,24 +200,57 @@ def main() -> None:
     parser.add_argument("--metadata", required=True, help="Path to ELA metadata JSON file")
     parser.add_argument("--address", type=lambda x: int(x, 0), help="Base address of ELA", default="0x3000_0000")
     parser.add_argument("--output", help="Path to output VCD file")
+    parser.add_argument("--post", type=int, help="Number of post-trigger samples to collect", default=0)
+    parser.add_argument("triggers", nargs="*", help="List of triggers: <signal>=<match0>[,<match1>]")
     args = parser.parse_args()
 
-    serial = Serial(args.serial)
     metadata = json.load(open(args.metadata))
-    ela = EmbeddedLogicAnalyzer(serial, args.address, metadata)
-
+    signal_names = [s["name"] for s in metadata["signals"]]
     print("=== Signals ===")
-    for signal in ela.signals:
-        print(signal.name)
+    for signal in signal_names:
+        print(signal)
     print()
 
+    # Parse trigger specifiers
+    triggers = []
+    for spec in args.triggers:
+        match = re.match(r"([^=]+)=(0x[a-fA-F0-9]+|[0-9]+)(?:,(0x[a-fA-F0-9]+|[0-9]+))?", spec)
+        if not match:
+            print(f"Error: invalid trigger specifier \"{spec}\"")
+            return
+        signal, match0, match1 = match.groups()
+        if match1:
+            # Makes more sense to specify them in the order you see them.
+            match0, match1 = match1, match0
+        if match0:
+            match0 = int(match0, 0)
+        if match1:
+            match1 = int(match1, 0)
+
+        signal_index = None
+        try:
+            signal_index = signal_names.index(signal)
+        except ValueError:
+            print(f"Error: unknown signal \"{signal}\"")
+            return
+        
+        triggers.append((signal_index, match0, match1))
+
+    # Instantiate EmbeddedLogicAnalyzer
+    serial = Serial(args.serial)
+    ela = EmbeddedLogicAnalyzer(serial, args.address, metadata)
+
+    # Configure and arm
     for i in range(len(ela.signals)):
         ela.unset_signal_trigger(i)
-
-    # ela.set_signal_trigger(0, match0 = 5)
-    ela.set_signal_trigger(1, match0 = 12345)
-    ela.set_post_trigger_samples(10)
+    for (signal, match0, match1) in triggers:
+        ela.set_signal_trigger(signal, match0, match1)
+    ela.set_post_trigger_samples(args.post)
     ela.arm()
+
+    if len(triggers) == 0:
+        print("No triggers specified, forcing trigger")
+        ela.force_trigger()
 
     try:
         print("Waiting for trigger", end="")
