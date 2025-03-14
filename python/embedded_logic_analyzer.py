@@ -22,6 +22,7 @@ class Signal:
     name: str
     offset: int
     width: int
+    variants: dict[int, str]
 
 class Log:
     signals: list[Signal]
@@ -30,12 +31,25 @@ class Log:
 
     def write_vcd(self, f) -> None:
         vcd = VCDWriter(f, version="EmbeddedLogicAnalyzer")
-        variables = [
-            vcd.register_var(scope="ELA", name=s.name, var_type="wire", size=s.width)
-            for s in self.signals
-        ]
+        variables = []
+        for signal in self.signals:
+            var_type = "string" if signal.variants else "wire"
+            variables.append(vcd.register_var(
+                scope="ELA",
+                name=signal.name,
+                var_type=var_type,
+                size=signal.width
+            ))
         for ts, sample in enumerate(self.samples):
-            for i, value in enumerate(sample):
+            for i, raw_value in enumerate(sample):
+                signal = self.signals[i]
+                if signal.variants:
+                    if raw_value in signal.variants:
+                        value = signal.variants[raw_value]
+                    else:
+                        value = f"({raw_value})"
+                else:
+                    value = raw_value
                 vcd.change(variables[i], ts, value)
         vcd.close()
 
@@ -44,7 +58,14 @@ class Log:
         for i, sample in enumerate(self.samples):
             print(pad_int(i, len(self.samples)), ": ", end="")
             for value, signal in zip(sample, self.signals):
-                if signal.width == 1:
+                if signal.variants:
+                    # special case: enum with named variants
+                    max_width = max(len(x) for x in signal.variants.values())
+                    if value in signal.variants:
+                        print(" ", signal.variants[value].rjust(max_width, " "), end="")
+                    else:
+                        print(f" ({hex(value)})", end="")
+                elif signal.width == 1:
                     # special case 1-bit signals
                     print(" ", value, end="")
                 else:
@@ -65,6 +86,7 @@ class EmbeddedLogicAnalyzer:
             signal.name = raw["name"]
             signal.offset = raw["offset"]
             signal.width = raw["width"]
+            signal.variants = {x[0]: x[1] for x in raw["variants"]}
             self.signals.append(signal)
 
     def run_command(self, command: str) -> str:

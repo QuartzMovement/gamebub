@@ -9,7 +9,7 @@ import xilinx.{XpmCdcHandshake, XpmCdcPulse, XpmCdcSingle}
 import java.io.{BufferedOutputStream, File, FileOutputStream}
 
 object EmbeddedLogicAnalyzer {
-  private case class Entry(name: String, offset: Int, width: Int)
+  private case class Entry(name: String, offset: Int, width: Int, variants: Seq[(Int, String)] = Seq())
 
   private def getEntries(element: Data, prefix: String = "", offset: Int = 0): Seq[Entry] = {
     element match {
@@ -28,6 +28,15 @@ object EmbeddedLogicAnalyzer {
           val (data, i) = entry
           getEntries(data, s"$prefix.$i", offset + (i * data.getWidth))
         })
+      }
+      case e: EnumType => {
+        // Hack to get the outer ChiselEnum so that we can list all variants.
+        // Is there a better way to do this?
+        val enum = e.getClass.getField("$outer").get(e).asInstanceOf[ChiselEnum]
+        val variants = enum.all.zip(enum.allNames).map(variant => {
+          (variant._1.litValue.toInt, variant._2)
+        })
+        Seq(Entry(prefix, offset, element.getWidth, variants))
       }
       case _ => Seq(Entry(prefix, offset, element.getWidth))
     }
@@ -241,7 +250,12 @@ class EmbeddedLogicAnalyzer[T <: Bundle](gen: T, depth: Int = 1024, hasSignalClo
   def writeMetadata(file: File): Unit = {
     val metadata = ujson.Obj(
       "signals" -> entries.map(e =>
-        ujson.Obj("name" -> e.name, "offset" -> e.offset, "width" -> e.width)
+        ujson.Obj(
+          "name" -> e.name,
+          "offset" -> e.offset,
+          "width" -> e.width,
+          "variants" -> e.variants.map(v => ujson.Arr(v._1, v._2)),
+        )
       )
     )
     val output = new BufferedOutputStream(new FileOutputStream(file))
