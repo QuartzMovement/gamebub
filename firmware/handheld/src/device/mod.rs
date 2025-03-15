@@ -359,7 +359,9 @@ impl Device<'_> {
         .ok();
 
         // Setup usb serial jtag
-        let usb_serial_config = esp_idf_svc::hal::usb_serial::config::Config::new();
+        let usb_serial_config = esp_idf_svc::hal::usb_serial::config::Config::new()
+            .rx_buffer_size(2048)
+            .tx_buffer_size(2048);
         let usb_serial_jtag = UsbSerialDriver::new(
             peripherals.usb_serial,
             peripherals.pins.gpio19,

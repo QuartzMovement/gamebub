@@ -108,7 +108,7 @@ fn handle_fpga_write<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), 
     let word_size = get_arg_u32(args.next())?;
     let max_clock = MegaHertz(get_arg_u32(args.next())?).into();
     let data = args.next().ok_or("missing data")?;
-    if data.len() > ((MAX_WRITE_LENGTH * 4) / 3) as usize {
+    if data.len() > (((MAX_WRITE_LENGTH * 4) / 3) + 4) as usize {
         return Err("length too large".to_string());
     }
     let word_size = match word_size {
