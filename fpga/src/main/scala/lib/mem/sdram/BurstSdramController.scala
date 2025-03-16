@@ -71,11 +71,21 @@ object BurstSdramController {
     /** Cycles to wait during row activation. */
     val activeDuration = (timeRcd / clockPeriod).ceil.toInt
 
+    /** Cycles to wait before precharge during write. */
+    val writePrechargeTime = burstLength + ((timeWr / clockPeriod).ceil.toInt - 1)
+
     /** Cycles to wait during a write. */
-    val writeDuration = burstLength + ((timeWr + timeRp) / clockPeriod).ceil.toInt
+    val writeDuration = writePrechargeTime + prechargeDuration
 
     /** Cycles to wait during a read. */
     val readDuration = casLatency + burstLength
+
+    /**
+     * Cycles to wait before clock suspend during read.
+     * 1 cycle because regCke is only set next cycle,
+     * another cycle because CKE takes effect one cycle after that.
+     */
+    val readClockSuspendTime = readDuration - 2
 
     /** Number of clock cycles between auto-refresh commands. */
     val refreshInterval = ((timeRef / (1 << rowWidth)) / clockPeriod).floor.toInt
@@ -95,8 +105,8 @@ object BurstSdramController {
       casLatency.U(3.W),
       // Burst type. 0: Sequential, 1: Interleaved
       0.U(1.W),
-      // Burst length (words)
-      log2Ceil(burstLength).U(3.W),
+      // Burst length (words) -- 0b111: full page
+      "b111".U(3.W),
     )
     assert(mode.getWidth <= addressWidth)
   }
@@ -122,6 +132,11 @@ object BurstSdramController {
     val active = Value
     val write = Value
     val read = Value
+    /// End of a burst, waiting for something to happen.
+    val readSuspend = Value
+    /// Burst ended, precharge
+    val precharge = Value
+    val refreshSuspend = Value
     val refresh = Value
     // TODO: support self-refresh mode?
   }
@@ -162,6 +177,10 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
   val regAccessWrite = Reg(Bool())
   /** Data for the access. */
   val regData = Reg(Vec(config.burstLength, UInt(config.dataWidth.W)))
+  /** Clock enable (takes effect next cycle) */
+  val regClockEnable = RegInit(true.B)
+  /** DQM */
+  val regDqm = RegInit("b11".U(2.W))
 
   val regDelayCounter = RegInit(0.U(config.waitCounterWidth.W))
   when (nextState =/= regState) {
@@ -248,13 +267,12 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
         nextState := State.active
         nextCommand := Command.active
 
-        regAccessAddress := io.mem.address.asTypeOf(regAccessAddress)
-        regAccessWrite := io.mem.isWrite
       }
     }
     is (State.active) {
       // TODO ensure we wait tRC between actives and refreshes
       when (activeDone) {
+        regDqm := 0.U // Prepare for read and write.
         when (regAccessWrite) {
           nextState := State.write
           nextCommand := Command.write
@@ -266,18 +284,98 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
       }
     }
     is (State.write) {
+      when (regDelayCounter === (config.writePrechargeTime - 1).U) {
+        nextCommand := Command.precharge
+      }
+
+      // After writing burstLength words, raise DQM to avoid overwriting the next
+      // data during the precharge.
+      when (regDelayCounter === (config.burstLength - 1).U) {
+        regDqm := "b11".U(2.W)
+      }
+
       when (writeDone) {
         nextState := State.idle
-        // TODO: ready could be high now
         // TODO: see about avoiding extra clock cycle before going to refresh or active
       }
     }
     is (State.read) {
-      when (readDone) {
-        nextState := State.idle
-        // Note: ready can't be high until the next cycle
-        // TODO: see about avoiding extra clock cycle before going to refresh or active
+      // Whether this access represents the last word of the column.
+      val isLastWord = (regAccessAddress.column + config.burstLength.U) === 0.U
+
+      // Precharge after the last word of the column
+      when (isLastWord && regDelayCounter === config.burstLength.U) {
+        nextCommand := Command.precharge
+        // TODO: make sure tRP has passed from precharge to next activate.
+        // Should be fine because we wait CAS *plus* another cycle because we go to idle first.
       }
+
+      // Prepare to enter read suspend state: disable clock
+      when (!isLastWord && regDelayCounter === config.readClockSuspendTime.U) {
+        regClockEnable := false.B
+      }
+
+      when (readDone) {
+        when (isLastWord) {
+          // This was the last word of the column, and we already precharged.
+          nextState := State.idle
+        } .otherwise {
+          // Keep the bank active, but suspend the burst.
+          // Clock was already suspended.
+          nextState := State.readSuspend
+          // Prepare access address for the next sequential read.
+          regAccessAddress.column := regAccessAddress.column + config.burstLength.U
+        }
+      }
+    }
+    is (State.readSuspend) {
+      // Guarantees "ready" is high for at least one cycle to give back the read data.
+      canAcceptRequest := true.B
+
+      when (doRequest) {
+        val nextAddress = io.mem.address.asTypeOf(regAccessAddress)
+        when (!io.mem.isWrite && regAccessAddress === nextAddress) {
+          // This is a read request for the next word, continue doing the read.
+          // Note that the next word is already on the bus.
+          regRequestPending := false.B // Don't keep the request pending
+          nextState := State.read
+          regClockEnable := true.B
+          // CAS already done, so start after that. DQ already has the next word.
+          // Actually start one later, because CKE latency
+          regDelayCounter := (config.casLatency - 1).U
+        } .otherwise {
+          // This ends the burst, precharge.
+          // First: for next cycle, raise clock enable
+          regClockEnable := true.B
+          // Then, the cycle after that, do precharge
+          nextState := State.precharge
+        }
+      } .elsewhen (regRefreshDeficit > 4.U) {
+        // We should refresh, but we have to precharge first.
+        regClockEnable := true.B
+        nextState := State.precharge
+      }
+    }
+    is (State.precharge) {
+      canAcceptRequest := true.B
+
+      // Precharge command not sent previously because clockEnable was 0, so
+      // send it now.
+      when (regDelayCounter === 0.U) {
+        nextCommand := Command.precharge
+      }
+      when (regDelayCounter === (config.prechargeDuration - 1).U) {
+        // Have to wait the right amount of time for row to be precharged before activate.
+        // We don't send precharge command until cycle 0 of this state, so add a cycle...
+        // ... but next state is idle, so there's one more cycle before activate (and it cancels out).
+        nextState := State.idle
+      }
+    }
+    is (State.refreshSuspend) {
+      canAcceptRequest := true.B
+
+      nextState := State.refresh
+      nextCommand := Command.refresh
     }
     is (State.refresh) {
       canAcceptRequest := true.B
@@ -297,19 +395,20 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
     }
   }
 
-  io.signals.cke := 1.U
+  io.signals.cke := regClockEnable
   io.signals.cs := regCommand.asUInt(3)
   io.signals.ras := regCommand.asUInt(2)
   io.signals.cas := regCommand.asUInt(1)
   io.signals.we := regCommand.asUInt(0)
-  io.signals.dqm := Mux(initPause, "b11".U(2.W), "b00".U(2.W)) // TODO: support byte write strobe
+  io.signals.dqm := regDqm // TODO: support byte write strobe
   io.signals.bank := Mux(regState === State.mode, 0.U, regAccessAddress.bank)
   io.signals.address := MuxLookup(regState.asUInt, 0.U)(Seq(
     State.init.asUInt -> "b10000000000".U, // Keep A10 high to precharge all banks.
     State.mode.asUInt -> config.mode,
     State.active.asUInt -> regAccessAddress.row,
-    State.read.asUInt -> (regAccessAddress.column | "b10000000000".U),
-    State.write.asUInt -> (regAccessAddress.column | "b10000000000".U),
+    State.read.asUInt -> regAccessAddress.column, // No auto-precharge
+    State.write.asUInt -> regAccessAddress.column, // No auto-precharge
+    State.precharge.asUInt -> "b10000000000".U, // Precharge all banks
   ))
   io.signals.dataOut := regData.last
   io.signals.dataDir := regState === State.write
