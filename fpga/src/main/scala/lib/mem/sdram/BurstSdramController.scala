@@ -343,6 +343,15 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
           // CAS already done, so start after that. DQ already has the next word.
           // Actually start one later, because CKE latency
           regDelayCounter := (config.casLatency - 1).U
+        } .elsewhen (!io.mem.isWrite && (regAccessAddress.bank === nextAddress.bank) && (regAccessAddress.row === nextAddress.row)) {
+          // Read request for same column.
+          regRequestPending := false.B // Don't keep the request pending
+          regClockEnable := true.B
+          // Go to active, one cycle before next Read command (for clock enable)
+          // TODO: have a general "do a command in one cycle after clock enable"
+          // because this only works when activeDuration is > 1
+          nextState := State.active
+          regDelayCounter := (config.activeDuration - 1).U
         } .otherwise {
           // This ends the burst, precharge.
           // First: for next cycle, raise clock enable
