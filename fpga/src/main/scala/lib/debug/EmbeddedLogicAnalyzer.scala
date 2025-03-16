@@ -32,8 +32,8 @@ object EmbeddedLogicAnalyzer {
       case e: EnumType => {
         // Hack to get the outer ChiselEnum so that we can list all variants.
         // Is there a better way to do this?
-        val enum = e.getClass.getField("$outer").get(e).asInstanceOf[ChiselEnum]
-        val variants = enum.all.zip(enum.allNames).map(variant => {
+        val chiselEnum = e.getClass.getField("$outer").get(e).asInstanceOf[ChiselEnum]
+        val variants = chiselEnum.all.zip(chiselEnum.allNames).map(variant => {
           (variant._1.litValue.toInt, variant._2)
         })
         Seq(Entry(prefix, offset, element.getWidth, variants))
