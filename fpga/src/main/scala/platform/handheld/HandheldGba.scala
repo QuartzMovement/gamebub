@@ -5,7 +5,62 @@ import chisel3.util._
 import gba.GBA
 import gba.cart.emu.EmulatedCartridge
 import lib.mem.cache.DirectReadCache
-import lib.mem.{MemoryArbiter, MemoryInterface, MemoryMap, PipelineInterfaceBridge, RegisterMap}
+import lib.mem.{MemoryArbiter, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryInterface, RegisterMap}
+
+
+object HandheldGba {
+  /// Single-entry cache that accounts for the fact that sequential 16-bit accesses
+  /// (from emulated cartridge) turn into repeated 32-bit SDRAM accesses.
+  /// This cache returns the last read if it's in the same 32-bit word.
+  private class MiniCache(addressWidth: Int, dataWidth: Int) extends Module {
+    val io = IO(new Bundle {
+      val in = new PipelineMemoryInterface(addressWidth, dataWidth)
+      val out = Flipped(new PipelineMemoryInterface(addressWidth, dataWidth))
+    })
+
+    io.out.enable := false.B
+    io.out.isWrite := false.B
+    io.out.address := io.in.address
+    io.out.writeStrobe := DontCare
+    io.out.dataWrite := DontCare
+
+    val regBusy = RegInit(false.B)
+    val regBusyLocal = Reg(Bool())
+    val regLastAddress = Reg(UInt(addressWidth.W))
+    val regLastData = Reg(UInt(dataWidth.W))
+
+    when (regBusy) {
+      when (regBusyLocal) {
+        io.in.dataRead := regLastData
+        io.in.ready := true.B
+        regBusy := false.B
+      } .otherwise {
+        io.in.ready := io.out.ready
+        io.in.dataRead := io.out.dataRead
+
+        when (io.out.ready) {
+          regLastData := io.out.dataRead
+          regBusy := false.B
+        }
+      }
+    } .otherwise {
+      io.in.dataRead := DontCare
+      io.in.ready := true.B
+    }
+
+    when (io.in.ready && io.in.enable) {
+      regBusy := true.B
+      when (regLastAddress === io.in.address) {
+        regBusyLocal := true.B
+      } .otherwise {
+        regBusyLocal := false.B
+        io.out.enable := true.B
+        regLastAddress := io.out.address
+      }
+    }
+  }
+}
+
 
 /**
  * Clocked by a 16777216 Hz clock.
@@ -83,13 +138,15 @@ class HandheldGba extends Module with HandheldModule {
   io.vibrate := false.B
 
   // SDRAM interface and port
-  val sdramPort = io.sdram
+  private val cache = Module(new HandheldGba.MiniCache(addressWidth = 25, dataWidth = 32))
+  io.sdram <> cache.io.out
+  val sdramPort = cache.io.in
   sdramPort.enable := false.B
   sdramPort.address := DontCare
   sdramPort.isWrite := false.B
   sdramPort.writeStrobe := DontCare
   sdramPort.dataWrite := DontCare
-
+  
   // SRAM arbiter (shared between EWRAM and emucart)
   val sramArbiter = Module(new MemoryArbiter(addressWidth = 18, dataWidth = 16, n = 2))
   io.sram <> sramArbiter.io.target
