@@ -154,12 +154,19 @@ class HandheldGameboy extends Module with HandheldModule {
   io.framebufferData.b := DontCare
   io.vblank := gameboy.io.ppu.vblank
 
+  val prevHblank = RegInit(false.B)
   val regDisplayOff = RegInit(true.B)
-  when (regDisplayOff && framebufferY >= 144.U) {
-    io.vblank := true.B
+  when (regDisplayOff) {
+    // Ensure that spurious io.vblank transitions
+    // don't happen (when moving between display on and off, or when clock is
+    // enabled and disabled),  because this signals the triple buffering
+    // system that a frame is complete.
+    io.vblank := false.B
+    when (framebufferX >= 159.U && framebufferY >= 143.U) {
+      io.vblank := true.B
+    }
   }
 
-  val prevHblank = RegInit(false.B)
   when (gameboy.io.clockConfig.enable) {
     prevHblank := gameboy.io.ppu.hblank
 
@@ -167,10 +174,6 @@ class HandheldGameboy extends Module with HandheldModule {
       // Ensure that, when the display is turned off, it remains off until the next
       // vblank when the LCD is on. This ensures that the entire screen is blanked,
       // and matches Gameboy behavior.
-      // Additionally, take care to ensure that spurious io.vblank transitions
-      // don't happen (when moving between display on and off),
-      // because this signals the triple buffering system that a frame is complete.
-      io.vblank := false.B
       io.framebufferWriteEnable := true.B
       io.framebufferData.r := 0x1F.U(5.W)
       io.framebufferData.g := 0x1F.U(5.W)
@@ -183,7 +186,6 @@ class HandheldGameboy extends Module with HandheldModule {
         framebufferY := framebufferY + 1.U
       } .otherwise {
         io.framebufferWriteEnable := false.B
-        io.vblank := true.B
       }
 
       // Only end blanking after the *next* vblank when the LCD is on
