@@ -21,8 +21,8 @@ object BurstSdramController {
     /** Column address width */
     columnWidth: Int = 9,
 
-    /** The burst length in words. May be 1, 2, 4, or 8. */
-    burstLength: Int = 2,
+    /** How many physical words go into a logical word. */
+    accessLength: Int = 2,
     /** CAS latency (2 or 3) */
     casLatency: Int = 2,
 
@@ -43,6 +43,14 @@ object BurstSdramController {
 
     /** Initialization refresh cycle count. */
     initRefreshCount: Int = 8,
+
+    /**
+     * Whether to optimize for linear burst accesses.
+     *
+     * Keeps reads open in a clock suspended state, which increases latency of
+     * random accesses.
+     */
+    enableBurst: Boolean = true,
   ) {
     /** The physical data bus width (in bytes). */
     val dataWidthBytes: Int = dataWidth / 8
@@ -50,8 +58,8 @@ object BurstSdramController {
     /** The logical address width. */
     val logicalAddressWidth: Int = new Address(this).getWidth
 
-    /** The logical data width, considering burst length. */
-    val logicalDataWidth: Int = dataWidth * burstLength
+    /** The logical data width, considering word size length. */
+    val logicalDataWidth: Int = dataWidth * accessLength
 
     /** Clock cycle time in nanoseconds */
     val clockPeriod: Double = 1000000000 / clockFrequency
@@ -72,13 +80,13 @@ object BurstSdramController {
     val activeDuration = (timeRcd / clockPeriod).ceil.toInt
 
     /** Cycles to wait before precharge during write. */
-    val writePrechargeTime = burstLength + ((timeWr / clockPeriod).ceil.toInt - 1)
+    val writePrechargeTime = accessLength + ((timeWr / clockPeriod).ceil.toInt - 1)
 
     /** Cycles to wait during a write. */
     val writeDuration = writePrechargeTime + prechargeDuration
 
     /** Cycles to wait during a read. */
-    val readDuration = casLatency + burstLength
+    val readDuration = casLatency + accessLength
 
     /**
      * Cycles to wait before clock suspend during read.
@@ -176,7 +184,7 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
   /** Whether the current access is a write. */
   val regAccessWrite = Reg(Bool())
   /** Data for the access. */
-  val regData = Reg(Vec(config.burstLength, UInt(config.dataWidth.W)))
+  val regData = Reg(Vec(config.accessLength, UInt(config.dataWidth.W)))
   /** Clock enable (takes effect next cycle) */
   val regClockEnable = RegInit(true.B)
   /** DQM */
@@ -288,9 +296,9 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
         nextCommand := Command.precharge
       }
 
-      // After writing burstLength words, raise DQM to avoid overwriting the next
+      // After writing wordSize words, raise DQM to avoid overwriting the next
       // data during the precharge.
-      when (regDelayCounter === (config.burstLength - 1).U) {
+      when (regDelayCounter === (config.accessLength - 1).U) {
         regDqm := "b11".U(2.W)
       }
 
@@ -301,10 +309,10 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
     }
     is (State.read) {
       // Whether this access represents the last word of the column.
-      val isLastWord = (regAccessAddress.column + config.burstLength.U) === 0.U
+      val isLastWord = ((regAccessAddress.column + config.accessLength.U) === 0.U) || (!config.enableBurst.B)
 
       // Precharge after the last word of the column
-      when (isLastWord && regDelayCounter === config.burstLength.U) {
+      when (isLastWord && regDelayCounter === config.accessLength.U) {
         nextCommand := Command.precharge
         // TODO: make sure tRP has passed from precharge to next activate.
         // Should be fine because we wait CAS *plus* another cycle because we go to idle first.
@@ -324,7 +332,7 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
           // Clock was already suspended.
           nextState := State.readSuspend
           // Prepare access address for the next sequential read.
-          regAccessAddress.column := regAccessAddress.column + config.burstLength.U
+          regAccessAddress.column := regAccessAddress.column + config.accessLength.U
         }
       }
     }
@@ -398,7 +406,6 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
           regDelayCounter := 0.U
         } .otherwise {
           nextState := State.idle
-          // TODO: see about avoiding extra clock cycle before going to active
         }
       }
     }

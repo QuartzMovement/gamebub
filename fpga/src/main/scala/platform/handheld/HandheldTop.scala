@@ -76,6 +76,9 @@ trait HandheldModule {
   def framebufferH: Int
   def clockSystemHz: Int
   def clockSdramHz: Int
+
+  /// Whether SDRAM controller is optimized for linear bursts
+  def sdramBurst: Boolean = true
 }
 
 /** Buttons on the handheld. All are active-high. */
@@ -170,9 +173,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val module = Module(genT)
   val sdramConfig = BurstSdramController.Config(
     clockFrequency = module.clockSdramHz,
-    burstLength = 2,
+    accessLength = 2,
     timeRsc = (2 * 1_000_000_000) / module.clockSdramHz, /* 2 clocks */
     timeWr = (2 * 1_000_000_000) / module.clockSdramHz, /* 2 clocks */
+    enableBurst = module.sdramBurst,
   )
   val io = IO(new Bundle {
     /** Audio/video clock: 12.288 MHz when HDMI disabled, 27.027 MHz when HDMI enabled */
@@ -366,7 +370,12 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.sdram <> sdram.io.signals
 
   withClock (io.sdramClock) {
-    val cdc = Module(new PipelineMemoryBurstCdc(addressWidth = 25, dataWidth = 32, addressBurstIncrement = 4))
+    val cdc = Module(new PipelineMemoryBurstCdc(
+      addressWidth = 25,
+      dataWidth = 32,
+      addressBurstIncrement = 4,
+      enablePrefetch = module.sdramBurst,
+    ))
     cdc.io.slowClock := clock
     cdc.io.initiator <> sdramArbiter.io.target
     cdc.io.target <> sdram.io.mem

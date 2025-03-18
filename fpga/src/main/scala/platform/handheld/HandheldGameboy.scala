@@ -21,6 +21,7 @@ class HandheldGameboy extends Module with HandheldModule {
   def framebufferH = 144
   def clockSystemHz = 8 * 1024 * 1024
   def clockSdramHz = clockSystemHz * 4
+  override def sdramBurst = false
 
   // Config
   val configRegSystem = RegInit(0.U.asTypeOf(new HandheldGameboy.Config))

@@ -18,7 +18,13 @@ import lib.log.Logger
  *
  * Note: doesn't use or propagate write byte strobe
  */
-class PipelineMemoryBurstCdc(addressWidth: Int, dataWidth: Int, addressBurstIncrement: Int = 1) extends Module {
+class PipelineMemoryBurstCdc(
+  addressWidth: Int,
+  dataWidth: Int,
+  addressBurstIncrement: Int = 1,
+  /// Set to false to disable read prefetch (helps for highly random accesses)
+  enablePrefetch: Boolean = true,
+) extends Module {
   val io = IO(new Bundle {
     val slowClock = Input(Clock())
     val initiator = new PipelineMemoryInterface(addressWidth, dataWidth)
@@ -261,7 +267,7 @@ class PipelineMemoryBurstCdc(addressWidth: Int, dataWidth: Int, addressBurstIncr
       logger.info("fast: request complete!")
       regBusy := false.B
       // We could continue the burst here (if needed) but it's simpler to wait until the next slowTick.
-      regReadBurst := !regBusyWrite
+      regReadBurst := !regBusyWrite && enablePrefetch.B
 
       regSkidComplete := true.B
       regSkidDataRead := io.target.dataRead
