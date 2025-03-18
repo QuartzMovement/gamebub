@@ -367,8 +367,9 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
           // Then, the cycle after that, do precharge
           nextState := State.precharge
         }
-      } .elsewhen (regRefreshDeficit > 4.U) {
-        // We should refresh, but we have to precharge first.
+      } .elsewhen (regDelayCounter > 32.U || regRefreshDeficit > 4096.U) {
+        // After having spent too long without a request (or if we really need to refresh),
+        // precharge the row and move to idle (allowing us to pay down the refresh deficit).
         regClockEnable := true.B
         nextState := State.precharge
       }
