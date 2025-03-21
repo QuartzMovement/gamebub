@@ -222,44 +222,13 @@ class PipelineMemoryBurstCdc(
   val regReadBurst = RegInit(false.B)
 
   val slowTick = sync =/= RegNext(sync)
+
   when (slowTick) {
     logger.debug("=========== slow tick")
-    regSkidComplete := false.B  // Slow has seen the completion signal
 
-    when (!regBusy) {
-      // We're not busy! What do we do?
-
-      // Check if there's a valid request waiting for us.
-      val gotRequest = !requestFifo.io.read.empty
-
-      when (gotRequest) {
-        // There is a request, so handle it.
-        logger.info(cf"fast: got request: addr=0x${requestFifo.io.read.data.address}%x isWrite=${requestFifo.io.read.data.isWrite}")
-        regBusy := true.B
-        regBusyAddress := requestFifo.io.read.data.address
-        regBusyWrite := requestFifo.io.read.data.isWrite
-        regBusyPrefetch := false.B
-
-        io.target.enable := true.B
-        io.target.address := requestFifo.io.read.data.address
-        io.target.isWrite := requestFifo.io.read.data.isWrite
-      } .elsewhen (regReadBurst) {
-        // Continue the read burst
-        when (responseCanAccept) {
-          // There is space in response fifo next cycle.
-          val nextAddress = regBusyAddress + addressBurstIncrement.U
-          logger.info(cf"fast: continue read burst: addr=0x${nextAddress}%x")
-          regBusy := true.B
-          regBusyAddress := nextAddress
-          regBusyWrite := false.B
-          regBusyPrefetch := true.B
-
-          io.target.enable := true.B
-          io.target.address := nextAddress
-          io.target.isWrite := false.B
-        }
-      }
-    }
+    // Slow has seen the completion signal.
+    // Do this before it's set to true below (when an access completes).
+    regSkidComplete := false.B
   }
 
   when (regBusy) {
@@ -281,6 +250,49 @@ class PipelineMemoryBurstCdc(
       skidIsPrefetch := regBusyPrefetch
     } .otherwise {
       logger.info(cf"fast: busy (write=${regBusyWrite})")
+    }
+  }
+
+  when (slowTick) {
+    val canStartAccess = !regBusy || (io.target.ready && regBusyPrefetch)
+    when (canStartAccess) {
+      // We could start a new request! Should we?
+
+      // Check if there's a valid request waiting for us.
+      val haveNewRequest = WireDefault(!requestFifo.io.read.empty)
+      when (regBusy && requestFifo.io.read.data.address === regBusyAddress) {
+        // We're completing this request right now, so don't start it again.
+        haveNewRequest := false.B
+      }
+
+      when (haveNewRequest) {
+        // There is a request, so handle it.
+        logger.info(cf"fast: got request: addr=0x${requestFifo.io.read.data.address}%x isWrite=${requestFifo.io.read.data.isWrite}")
+        regBusy := true.B
+        regBusyAddress := requestFifo.io.read.data.address
+        regBusyWrite := requestFifo.io.read.data.isWrite
+        regBusyPrefetch := false.B
+
+        io.target.enable := true.B
+        io.target.address := requestFifo.io.read.data.address
+        io.target.isWrite := requestFifo.io.read.data.isWrite
+      } .elsewhen (regReadBurst) {
+        // Continue the read burst.
+
+        when (responseCanAccept) {
+          // There is space in response fifo next cycle.
+          val nextAddress = regBusyAddress + addressBurstIncrement.U
+          logger.info(cf"fast: continue read burst: addr=0x${nextAddress}%x")
+          regBusy := true.B
+          regBusyAddress := nextAddress
+          regBusyWrite := false.B
+          regBusyPrefetch := true.B
+
+          io.target.enable := true.B
+          io.target.address := nextAddress
+          io.target.isWrite := false.B
+        }
+      }
     }
   }
 
