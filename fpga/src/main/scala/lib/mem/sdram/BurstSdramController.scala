@@ -268,7 +268,10 @@ class BurstSdramController(config: BurstSdramController.Config) extends Module {
       canAcceptRequest := true.B
 
       // Do refreshes if the deficit is high, or there is no request pending.
-      when (doRefreshUrgent || (doRefresh && !doRequest)) {
+      // Unless the refresh is urgent, wait until we've been in the idle state for 8 cycles.
+      // Empirically chosen value: after this amount of time, we're likely going to be in idle
+      // for a while. 
+      when (doRefreshUrgent || (doRefresh && !doRequest && regDelayCounter >= 8.U)) {
         nextState := State.refresh
         nextCommand := Command.refresh
       } .elsewhen (doRequest) {
