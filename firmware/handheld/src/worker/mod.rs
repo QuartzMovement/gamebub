@@ -17,8 +17,8 @@ pub enum Message {
     FuelGaugeAlert(fuel_gauge::Alert),
     /// The headphone state has changed
     HeadphoneState(bool),
-    /// The HDMI hot plug detect state has changed
-    HdmiDetectState(bool),
+    /// The docked state has changed
+    DockState(bool),
 
     /// Run a cartridge
     RunCartridge,
@@ -140,13 +140,14 @@ fn dispatch(message: Message) {
             };
             ui::send(ui::Message::RomSelectFiles(files))
         }
-        Message::HdmiDetectState(hdmi_detected) => {
-            let mode = if hdmi_detected {
+        Message::DockState(docked) => {
+            let mode = if docked {
                 DisplayMode::External
             } else {
                 DisplayMode::Internal
             };
             let mut device = Device::lock();
+            device.docked = docked;
             device.change_display_mode(mode).unwrap();
         }
         _ => {

@@ -8,7 +8,7 @@ use crate::{
         drivers::fpga::{FpgaSpiWordSize, SpiCommand},
         Device,
     },
-    kvs,
+    kvs, worker,
 };
 
 /// Start the CLI thread. Called once during system init.
@@ -41,6 +41,7 @@ fn cli_thread() -> ! {
             "get_hwinfo" => handle_get_hwinfo(args),
             "fpga_read" => handle_fpga_read(args),
             "fpga_write" => handle_fpga_write(args),
+            "dock_begin" => handle_dock_begin(args),
             _ => Err("unknown command".to_string()),
         };
         if let Err(error) = result {
@@ -129,6 +130,13 @@ fn handle_fpga_write<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), 
         .fpga
         .spi_write(Some(max_clock), command, address, &data)
         .map_err(|_| "write error".to_string())?;
+    println!("<ok");
+    Ok(())
+}
+
+/// `>dock_begin`: returns `<ok`
+fn handle_dock_begin<'a>(_args: impl Iterator<Item = &'a str>) -> Result<(), String> {
+    worker::send(worker::Message::DockState(true));
     println!("<ok");
     Ok(())
 }

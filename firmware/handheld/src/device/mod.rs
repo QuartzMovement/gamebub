@@ -102,6 +102,9 @@ pub struct Device<'a> {
     /// USB Serial JTAG
     #[allow(unused)]
     usb_serial_jtag: BlockingStdIo<'a, UsbSerialDriver<'a>>,
+
+    /// Dock state
+    pub docked: bool,
 }
 
 impl Device<'_> {
@@ -394,6 +397,7 @@ impl Device<'_> {
             imu,
             sdcard,
             usb_serial_jtag,
+            docked: false,
         };
         device.init_datetime();
         DEVICE

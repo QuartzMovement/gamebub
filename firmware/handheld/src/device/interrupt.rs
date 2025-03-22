@@ -19,6 +19,7 @@ const FLAG_HOME: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(2) };
 const FLAG_POWER: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(4) };
 const FLAG_VOL_UP: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(8) };
 const FLAG_VOL_DOWN: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(16) };
+const FLAG_VBUS_PGOOD: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(32) };
 
 fn setup_gpio_interrupt(
     pin: &mut PinDriver<'_, impl Pin, impl InputMode>,
@@ -87,9 +88,19 @@ impl Device<'_> {
                         FLAG_MCU_IRQ,
                     )
                     .unwrap();
+                    setup_gpio_interrupt(
+                        &mut device.pin_vbus_pgood,
+                        InterruptType::AnyEdge,
+                        notification.notifier(),
+                        FLAG_VBUS_PGOOD,
+                    )
+                    .unwrap();
                 }
 
+                #[allow(unused)]
                 let mut prev_hdmi_detected: Option<bool> = None;
+                #[allow(unused)]
+                let mut prev_vbus_pgood: Option<bool> = None;
 
                 loop {
                     let flags = match notification.wait(esp_idf_svc::hal::delay::BLOCK) {
@@ -111,15 +122,33 @@ impl Device<'_> {
                     if (flags & FLAG_VOL_DOWN.get()) != 0 {
                         let _ = device.button_vol_down.enable_interrupt();
                     }
+                    if (flags & FLAG_VBUS_PGOOD.get()) != 0 {
+                        let _ = device.pin_vbus_pgood.enable_interrupt();
+                    }
 
                     let io_expander = device.io_expander.get_pins().unwrap();
                     let buttons = device.read_button_state(io_expander).unwrap();
                     ui::send(ui::Message::Button(buttons));
 
-                    let hdmi_detected = device.parse_hdmi_detect(io_expander).unwrap();
-                    if prev_hdmi_detected != Some(hdmi_detected) {
-                        prev_hdmi_detected = Some(hdmi_detected);
-                        worker::send(worker::Message::HdmiDetectState(hdmi_detected));
+                    // Handle dock monitoring
+                    cfg_if::cfg_if! {
+                        if #[cfg(feature = "rev1")] {
+                            // Docking is based on HDMI hot plug
+                            let hdmi_detected = device.parse_hdmi_detect(io_expander).unwrap();
+                            if prev_hdmi_detected != Some(hdmi_detected) {
+                                prev_hdmi_detected = Some(hdmi_detected);
+                                worker::send(worker::Message::DockState(hdmi_detected));
+                            }
+                        } else if #[cfg(feature = "rev2")] {
+                            // On VBUS pgood falling, force undock
+                            let vbus_pgood = device.get_vbus_pgood();
+                            if prev_vbus_pgood != Some(vbus_pgood) {
+                                prev_vbus_pgood = Some(vbus_pgood);
+                                if !vbus_pgood {
+                                    worker::send(worker::Message::DockState(false));
+                                }
+                            }
+                        }
                     }
 
                     if (flags & FLAG_MCU_IRQ.get()) != 0 {

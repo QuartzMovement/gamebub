@@ -140,7 +140,7 @@ impl UI {
     pub fn new(device: &mut Device) -> Self {
         // Start the boot animation.
         device.fpga.write_u32(0xC000_0004, 36).unwrap(); // Set logo y
-        let display_mode = if device.read_hdmi_detect().unwrap() {
+        let display_mode = if device.docked {
             DisplayMode::External
         } else {
             DisplayMode::Internal
