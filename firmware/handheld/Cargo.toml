@@ -68,5 +68,8 @@ embuild = "0.33.0"
 slint-build = "~1.9.1"
 
 [[package.metadata.esp-idf-sys.extra_components]]
-remote_component = { name = "espressif/esp_tinyusb", version = "^1.4.4" }
+remote_component = { name = "espressif/esp_tinyusb", version = "^1.7.2" }
 bindings_header = "bindings_esp_tinyusb.h"
+
+[[package.metadata.esp-idf-sys.extra_components]]
+remote_component = { name = "espressif/tinyusb", version = "^0.18.0" }
