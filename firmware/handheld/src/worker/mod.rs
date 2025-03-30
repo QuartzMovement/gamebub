@@ -32,7 +32,10 @@ pub enum Message {
 
 /// Send a message to the worker threads.
 pub fn send(message: Message) {
-    SENDER.get().unwrap().send(message).unwrap();
+    match SENDER.get() {
+        Some(sender) => sender.send(message).unwrap(),
+        None => log::error!("Dropping worker message {:?}", message),
+    }
 }
 
 /// Start the worker threadpool. Called once during system init. Panics if called twice.
