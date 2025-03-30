@@ -63,6 +63,9 @@ pub fn mount_sdcard(
         dma_aligned_buffer: std::ptr::null_mut(),
         pwr_ctrl_handle: std::ptr::null_mut(),
         get_dma_info: Some(esp_idf_sys::sdmmc_host_get_dma_info),
+        current_limit: esp_idf_sys::sdmmc_current_limit_t_SDMMC_CURRENT_LIMIT_200MA,
+        driver_strength: esp_idf_sys::sdmmc_driver_strength_t_SDMMC_DRIVER_STRENGTH_B,
+        is_slot_set_to_uhs1: Some(esp_idf_sys::sdmmc_host_is_slot_set_to_uhs1),
     };
 
     let slot_config = esp_idf_sys::sdmmc_slot_config_t {
