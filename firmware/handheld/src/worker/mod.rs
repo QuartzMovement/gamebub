@@ -32,6 +32,12 @@ pub enum Message {
 
     /// Internal input state changed
     InputState(input::InputState),
+    /// Gamepad connected
+    GamepadConnected(input::GamepadId),
+    /// Gamepad disconnected
+    GamepadDisconnected(input::GamepadId),
+    /// Gamepad input event
+    GamepadInput(input::GamepadId, input::InputState),
 }
 
 /// Send a message to the worker threads.
@@ -148,6 +154,9 @@ fn dispatch(message: Message) {
             ui::send(ui::Message::RomSelectFiles(files))
         }
         Message::DockState(docked) => {
+            if !docked {
+                InputManager::lock().remove_all_gamepads();
+            }
             let mode = if docked {
                 DisplayMode::External
             } else {
@@ -158,6 +167,9 @@ fn dispatch(message: Message) {
             device.change_display_mode(mode).unwrap();
         }
         Message::InputState(state) => InputManager::lock().update_state(state),
+        Message::GamepadConnected(id) => InputManager::lock().add_gamepad(id),
+        Message::GamepadDisconnected(id) => InputManager::lock().remove_gamepad(id),
+        Message::GamepadInput(id, state) => InputManager::lock().update_gamepad(id, state),
         _ => {
             log::warn!("Unhandled message: {:?}", message);
         }

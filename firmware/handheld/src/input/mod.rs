@@ -2,6 +2,16 @@ use std::sync::{LazyLock, Mutex, MutexGuard};
 
 use crate::ui;
 
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub struct GamepadId(pub u32);
+
+struct Gamepad {
+    /// ID of the gamepad
+    pub id: GamepadId,
+    /// Current input state.
+    pub state: InputState,
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct InputState {
     pub btn_a: bool,
@@ -38,6 +48,44 @@ pub struct InputState {
     pub axis_rz: i16,
 }
 
+impl InputState {
+    fn merge_axis(a: &mut i16, b: i16) {
+        if b.unsigned_abs() > a.unsigned_abs() {
+            *a = b;
+        }
+    }
+
+    fn merge(&mut self, other: &InputState) {
+        self.btn_a |= other.btn_a;
+        self.btn_b |= other.btn_b;
+        self.btn_x |= other.btn_x;
+        self.btn_y |= other.btn_y;
+        self.btn_up |= other.btn_up;
+        self.btn_down |= other.btn_down;
+        self.btn_right |= other.btn_right;
+        self.btn_left |= other.btn_left;
+        self.btn_system |= other.btn_system;
+        self.btn_select |= other.btn_select;
+        self.btn_start |= other.btn_start;
+        self.btn_capture |= other.btn_capture;
+        self.btn_vol_up |= other.btn_vol_up;
+        self.btn_vol_down |= other.btn_vol_down;
+        self.btn_power |= other.btn_power;
+        self.btn_l1 |= other.btn_l1;
+        self.btn_r1 |= other.btn_r1;
+        self.btn_l2 |= other.btn_l2;
+        self.btn_r2 |= other.btn_r2;
+        self.btn_l3 |= other.btn_l3;
+        self.btn_r3 |= other.btn_r3;
+        Self::merge_axis(&mut self.axis_lx, other.axis_lx);
+        Self::merge_axis(&mut self.axis_ly, other.axis_ly);
+        Self::merge_axis(&mut self.axis_lz, other.axis_lz);
+        Self::merge_axis(&mut self.axis_rx, other.axis_rx);
+        Self::merge_axis(&mut self.axis_ry, other.axis_ry);
+        Self::merge_axis(&mut self.axis_rz, other.axis_rz);
+    }
+}
+
 static INPUT_MANAGER: LazyLock<Mutex<InputManager>> =
     LazyLock::new(|| Mutex::new(InputManager::default()));
 
@@ -45,6 +93,9 @@ static INPUT_MANAGER: LazyLock<Mutex<InputManager>> =
 pub struct InputManager {
     /// The state of the internal buttons.
     internal_state: InputState,
+
+    /// External gamepads
+    gamepads: Vec<Gamepad>,
 }
 
 impl InputManager {
@@ -59,11 +110,56 @@ impl InputManager {
         self.send_event();
     }
 
+    fn find_gamepad(&mut self, id: GamepadId) -> Option<&mut Gamepad> {
+        self.gamepads.iter_mut().find(|g| g.id == id)
+    }
+
+    pub fn add_gamepad(&mut self, id: GamepadId) {
+        match self.find_gamepad(id) {
+            Some(_) => log::warn!("Ignoring duplicate gamepad"),
+            None => log::info!("Adding gamepad id={}", id.0),
+        }
+        self.gamepads.push(Gamepad {
+            id,
+            state: InputState::default(),
+        });
+    }
+
+    pub fn remove_gamepad(&mut self, id: GamepadId) {
+        let index = match self.gamepads.iter().position(|g| g.id == id) {
+            Some(index) => index,
+            None => {
+                log::warn!("Not removing unknown gamepad");
+                return;
+            }
+        };
+        log::info!("Removing gamepad id={}", id.0);
+        self.gamepads.remove(index);
+        self.send_event();
+    }
+
+    pub fn remove_all_gamepads(&mut self) {
+        log::info!("Removing all gamepads");
+        self.gamepads.clear();
+        self.send_event();
+    }
+
+    pub fn update_gamepad(&mut self, id: GamepadId, state: InputState) {
+        if let Some(gamepad) = self.find_gamepad(id) {
+            gamepad.state = state;
+            self.send_event();
+        }
+    }
+
     /// Send an input event to the UI thread, if needed.
     ///
     /// Also update the FPGA, if needed?
     fn send_event(&self) {
-        let state = &self.internal_state;
+        // TODO: handle button remapping before merge
+        let mut state = self.internal_state.clone();
+        for gamepad in &self.gamepads {
+            state.merge(&gamepad.state);
+        }
 
         use ui::buttons::Button;
         let buttons = enum_map::enum_map! {
