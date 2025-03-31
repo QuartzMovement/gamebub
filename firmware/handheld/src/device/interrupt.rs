@@ -9,7 +9,6 @@ use esp_idf_svc::{
 };
 
 use crate::device::drivers::fpga;
-use crate::ui;
 use crate::worker;
 
 use super::Device;
@@ -127,8 +126,8 @@ impl Device<'_> {
                     }
 
                     let io_expander = device.io_expander.get_pins().unwrap();
-                    let buttons = device.read_button_state(io_expander).unwrap();
-                    ui::send(ui::Message::Button(buttons));
+                    let input_state = device.get_input_state(io_expander).unwrap();
+                    worker::send(worker::Message::InputState(input_state));
 
                     // Handle dock monitoring
                     cfg_if::cfg_if! {

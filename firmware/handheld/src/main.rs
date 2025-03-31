@@ -8,6 +8,7 @@ use crate::ui::UI;
 mod bitstream;
 mod cli;
 mod device;
+mod input;
 mod kvs;
 pub mod ui;
 mod util;

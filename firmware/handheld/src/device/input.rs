@@ -1,28 +1,27 @@
 use super::Device;
-use crate::ui::buttons::{Button, ButtonMap};
-use enum_map::enum_map;
+use crate::input::InputState;
 
 impl Device<'_> {
-    /// Get the current state of the buttons.
-    pub fn read_button_state(&mut self, io_expander: [bool; 16]) -> Result<ButtonMap, ()> {
-        Ok(enum_map! {
-         Button::A => !io_expander[3],
-         Button::B => !io_expander[4],
-         Button::X => !io_expander[1],
-         Button::Y => !io_expander[2],
-         Button::Up => !io_expander[10],
-         Button::Down => !io_expander[13],
-         Button::Left => !io_expander[12],
-         Button::Right => !io_expander[11],
-         Button::Start => !io_expander[15],
-         Button::Select => !io_expander[14],
-         Button::L => !io_expander[9],
-         Button::R => !io_expander[0],
-         Button::Home => self.button_home.is_low(),
-         Button::VolUp => self.button_vol_up.is_low(),
-         Button::VolDown => self.button_vol_down.is_low(),
-         Button::Power => self.button_power.is_low(),
-        })
+    /// Get the current state of the internal buttons.
+    pub fn get_input_state(&mut self, io_expander: [bool; 16]) -> Result<InputState, ()> {
+        let mut state = InputState::default();
+        state.btn_a = !io_expander[3];
+        state.btn_b = !io_expander[4];
+        state.btn_x = !io_expander[1];
+        state.btn_y = !io_expander[2];
+        state.btn_up = !io_expander[10];
+        state.btn_down = !io_expander[13];
+        state.btn_left = !io_expander[12];
+        state.btn_right = !io_expander[11];
+        state.btn_start = !io_expander[15];
+        state.btn_select = !io_expander[14];
+        state.btn_l1 = !io_expander[9];
+        state.btn_r1 = !io_expander[0];
+        state.btn_system = self.button_home.is_low();
+        state.btn_vol_up = self.button_vol_up.is_low();
+        state.btn_vol_down = self.button_vol_down.is_low();
+        state.btn_power = self.button_power.is_low();
+        Ok(state)
     }
 
     /// Get whether an HDMI cable is plugged in based on IO expander state

@@ -7,7 +7,8 @@ use std::sync::{mpsc, OnceLock};
 use crate::bitstream::CurrentBitstream;
 use crate::device::DisplayMode;
 use crate::device::{drivers::fuel_gauge, Device};
-use crate::{bitstream, ui};
+use crate::input::InputManager;
+use crate::{bitstream, input, ui};
 
 #[derive(Debug)]
 pub enum Message {
@@ -28,6 +29,9 @@ pub enum Message {
     RunRomFile(PathBuf),
     /// Load ROM select entries
     ListRoms(PathBuf),
+
+    /// Internal input state changed
+    InputState(input::InputState),
 }
 
 /// Send a message to the worker threads.
@@ -153,6 +157,7 @@ fn dispatch(message: Message) {
             device.docked = docked;
             device.change_display_mode(mode).unwrap();
         }
+        Message::InputState(state) => InputManager::lock().update_state(state),
         _ => {
             log::warn!("Unhandled message: {:?}", message);
         }
