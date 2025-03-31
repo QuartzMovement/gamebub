@@ -8,6 +8,7 @@ use crate::{
         drivers::fpga::{FpgaSpiWordSize, SpiCommand},
         Device,
     },
+    input::{GamepadId, InputState},
     kvs, worker,
 };
 
@@ -42,6 +43,9 @@ fn cli_thread() -> ! {
             "fpga_read" => handle_fpga_read(args),
             "fpga_write" => handle_fpga_write(args),
             "dock_begin" => handle_dock_begin(args),
+            "gamepad_connect" => handle_gamepad_connect(args),
+            "gamepad_disconnect" => handle_gamepad_disconnect(args),
+            "gamepad_data" => handle_gamepad_data(args),
             _ => Err("unknown command".to_string()),
         };
         if let Err(error) = result {
@@ -137,6 +141,71 @@ fn handle_fpga_write<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), 
 /// `>dock_begin`: returns `<ok`
 fn handle_dock_begin<'a>(_args: impl Iterator<Item = &'a str>) -> Result<(), String> {
     worker::send(worker::Message::DockState(true));
+    println!("<ok");
+    Ok(())
+}
+
+/// `>gamepad_connect,<slot>`: returns `<ok`
+fn handle_gamepad_connect<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), String> {
+    // TODO: handle identifying information
+    let slot = get_arg_u32(args.next())?;
+    worker::send(worker::Message::GamepadConnected(GamepadId(slot)));
+    println!("<ok");
+    Ok(())
+}
+
+/// `>gamepad_disconnect,<slot>`: returns `<ok`
+fn handle_gamepad_disconnect<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), String> {
+    let slot = get_arg_u32(args.next())?;
+    worker::send(worker::Message::GamepadDisconnected(GamepadId(slot)));
+    println!("<ok");
+    Ok(())
+}
+
+/// `>gamepad_data,<slot>,<data>`: returns `<ok`
+fn handle_gamepad_data<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), String> {
+    let slot = get_arg_u32(args.next())?;
+    let data_hex = args.next().ok_or("missing data")?;
+
+    // Data is 128 bits: should be a 32 character string
+    if data_hex.len() != 32 {
+        return Err("data len".to_string());
+    }
+    let mut data = [0u8; 16];
+    hex::decode_to_slice(data_hex, &mut data).map_err(|_| "invalid hex".to_string())?;
+
+    // (A B X Y) (Up Down Right Left) (System Select Start Capture(?)) (L1 R1 L2 R2 L3 R3)
+    let data = InputState {
+        // XXX: A/B swapped!
+        btn_a: (data[0] & 0x2) != 0,
+        btn_b: (data[0] & 0x1) != 0,
+        btn_x: (data[0] & 0x4) != 0,
+        btn_y: (data[0] & 0x8) != 0,
+        btn_up: (data[0] & 0x10) != 0,
+        btn_down: (data[0] & 0x20) != 0,
+        btn_right: (data[0] & 0x40) != 0,
+        btn_left: (data[0] & 0x80) != 0,
+        btn_system: (data[1] & 0x1) != 0,
+        btn_select: (data[1] & 0x2) != 0,
+        btn_start: (data[1] & 0x4) != 0,
+        btn_capture: (data[1] & 0x8) != 0,
+        btn_power: false,
+        btn_vol_up: false,
+        btn_vol_down: false,
+        btn_l1: (data[1] & 0x10) != 0,
+        btn_r1: (data[1] & 0x20) != 0,
+        btn_l2: (data[1] & 0x40) != 0,
+        btn_r2: (data[1] & 0x80) != 0,
+        btn_l3: (data[2] & 0x1) != 0,
+        btn_r3: (data[2] & 0x2) != 0,
+        axis_lx: i16::from_le_bytes(data[4..6].try_into().unwrap()),
+        axis_ly: i16::from_le_bytes(data[6..8].try_into().unwrap()),
+        axis_lz: i16::from_le_bytes(data[8..10].try_into().unwrap()),
+        axis_rx: i16::from_le_bytes(data[10..12].try_into().unwrap()),
+        axis_ry: i16::from_le_bytes(data[12..14].try_into().unwrap()),
+        axis_rz: i16::from_le_bytes(data[14..16].try_into().unwrap()),
+    };
+    worker::send(worker::Message::GamepadInput(GamepadId(slot), data));
     println!("<ok");
     Ok(())
 }
