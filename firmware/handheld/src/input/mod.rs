@@ -159,6 +159,20 @@ impl InputManager {
         let mut state = self.internal_state.clone();
         for gamepad in &self.gamepads {
             state.merge(&gamepad.state);
+
+            // Temporary: map left analog stick to DPAD
+            if gamepad.state.axis_lx <= -16384 {
+                state.btn_left = true;
+            }
+            if gamepad.state.axis_lx >= 16384 {
+                state.btn_right = true;
+            }
+            if gamepad.state.axis_ly <= -16384 {
+                state.btn_up = true;
+            }
+            if gamepad.state.axis_ly >= 16384 {
+                state.btn_down = true;
+            }
         }
 
         use ui::buttons::Button;
