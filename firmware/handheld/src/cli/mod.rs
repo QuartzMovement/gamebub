@@ -138,10 +138,14 @@ fn handle_fpga_write<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), 
     Ok(())
 }
 
-/// `>dock_begin`: returns `<ok`
-fn handle_dock_begin<'a>(_args: impl Iterator<Item = &'a str>) -> Result<(), String> {
+/// `>dock_begin,<serial>,<hw version>,<sw version>`: returns `<ok`
+fn handle_dock_begin<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), String> {
+    let dock_serial = args.next().ok_or("missing serial")?;
+    let dock_hw_version = args.next().ok_or("missing hw version")?;
+    let dock_sw_version = args.next().ok_or("missing sw version")?;
     worker::send(worker::Message::DockState(true));
     println!("<ok");
+    log::info!("Dock serial={dock_serial} hw={dock_hw_version} sw={dock_sw_version}");
     Ok(())
 }
 
