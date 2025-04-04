@@ -154,9 +154,9 @@ fn dispatch(message: Message) {
             ui::send(ui::Message::RomSelectFiles(files))
         }
         Message::DockState(docked) => {
-            if !docked {
-                InputManager::lock().remove_all_gamepads();
-            }
+            // Either we undocked (so remove all gamepads), or we just docked and we should ensure a clean state.
+            InputManager::lock().remove_all_gamepads();
+
             let mode = if docked {
                 DisplayMode::External
             } else {
