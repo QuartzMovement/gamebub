@@ -149,12 +149,14 @@ fn handle_dock_begin<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), 
     Ok(())
 }
 
-/// `>gamepad_connect,<slot>`: returns `<ok`
+/// `>gamepad_connect,<slot>,<model name>,<unique id>`: returns `<ok`
 fn handle_gamepad_connect<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), String> {
-    // TODO: handle identifying information
     let slot = get_arg_u32(args.next())?;
+    let gamepad_model = args.next().ok_or("missing model name")?;
+    let gamepad_id = args.next().ok_or("missing unique id")?;
     worker::send(worker::Message::GamepadConnected(GamepadId(slot)));
     println!("<ok");
+    log::info!("Gamepad model='{gamepad_model}' id={gamepad_id}");
     Ok(())
 }
 
