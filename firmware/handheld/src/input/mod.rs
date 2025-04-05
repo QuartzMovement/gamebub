@@ -1,6 +1,6 @@
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
-use crate::ui;
+use crate::ui::{self, ButtonMap};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
 pub struct GamepadId(pub u32);
@@ -96,6 +96,9 @@ pub struct InputManager {
 
     /// External gamepads
     gamepads: Vec<Gamepad>,
+
+    /// Last button map sent to UI
+    last_button_map: ButtonMap,
 }
 
 impl InputManager {
@@ -154,7 +157,7 @@ impl InputManager {
     /// Send an input event to the UI thread, if needed.
     ///
     /// Also update the FPGA, if needed?
-    fn send_event(&self) {
+    fn send_event(&mut self) {
         // TODO: handle button remapping before merge
         let mut state = self.internal_state.clone();
         for gamepad in &self.gamepads {
@@ -194,7 +197,11 @@ impl InputManager {
             Button::VolDown => state.btn_vol_down,
             Button::Power => state.btn_power,
         };
-        ui::send(ui::Message::Button(buttons));
+
+        if self.last_button_map != buttons {
+            ui::send(ui::Message::Button(buttons));
+        }
+        self.last_button_map = buttons;
         // TODO: update FPGA if using controller?
     }
 }
