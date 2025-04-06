@@ -126,6 +126,12 @@ where
         let wait_time = SLEEP_CHANGE_DELAY.saturating_sub(self.last_sleep_change.elapsed());
         std::thread::sleep(wait_time);
 
+        // Display off
+        self.write_cmd(0x28, &[])?;
+
+        // Disable use of DOTCLK (avoids temporary flickering after undocking)
+        self.write_cmd(0xB6, &[0x02, 0x02])?;
+
         // Sleep in
         self.write_cmd(0x10, &[])?;
         self.last_sleep_change = Instant::now();
@@ -143,6 +149,11 @@ where
 
         // Must wait 5ms before sending commands after sleep out.
         std::thread::sleep(Duration::from_millis(5));
+
+        // Re-enable use of DOTCLK
+        if matches!(self.render_source, RenderSource::Fpga) {
+            self.write_cmd(0xB6, &[0xB2, 0x62])?;
+        }
 
         // Display on
         self.write_cmd(0x29, &[])?;
