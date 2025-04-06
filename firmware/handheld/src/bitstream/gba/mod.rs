@@ -182,6 +182,10 @@ impl Gba {
         }
 
         let mut bios_file = crate::util::open_system_file(bios_path)?;
+        let file_len = bios_file.metadata()?.len();
+        if file_len != 16 * 1024 {
+            log::warn!("Bios unexpected length: {}", file_len);
+        }
         let mut buf = vec![0u8; 16 * 1024].into_boxed_slice();
         bios_file.read(&mut buf)?;
 

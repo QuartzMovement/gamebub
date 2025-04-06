@@ -1,7 +1,7 @@
 use esp_idf_svc::hal::units::Hertz;
 use std::{
     fs::File,
-    io::{Read, Seek, Write},
+    io::{Read, Seek, SeekFrom, Write},
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
@@ -40,6 +40,8 @@ pub enum GameboyError {
     IoError(#[from] std::io::Error),
     #[error("FPGA error")]
     FpgaError(#[from] crate::device::drivers::fpga::Error),
+    #[error("Invalid bootrom")]
+    InvalidBootrom,
 }
 
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
@@ -193,7 +195,20 @@ impl Gameboy {
         log::info!("Loading CGB bootrom");
         let mut bios_file = crate::util::open_system_file(bios_path)?;
         let mut buf = vec![0u8; 2048].into_boxed_slice();
-        bios_file.read(&mut buf)?;
+
+        let file_len = bios_file.metadata()?.len();
+        if file_len == 2048 || file_len == 256 {
+            bios_file.read(&mut buf)?;
+        } else if file_len == (2048 + 256) {
+            // Assume this is a bootrom with 256 bytes of padding at offset 256.
+            log::warn!("Removing CGB bootrom padding");
+            bios_file.read(&mut buf[0..256])?;
+            bios_file.seek(SeekFrom::Current(256))?;
+            bios_file.read(&mut buf[256..])?;
+        } else {
+            log::error!("Bootrom invalid length: {}", file_len);
+            return Err(GameboyError::InvalidBootrom);
+        }
 
         let address = 0xC010_0000;
         let command = fpga::SpiCommand {
