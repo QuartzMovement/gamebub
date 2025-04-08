@@ -348,6 +348,9 @@ impl Device<'_> {
             fpga_program_spi,
         );
 
+        // Mount system_data to /system
+        drivers::fs::mount_system_data()?;
+
         // Mount sdcard to /sdcard
         let sdcard = drivers::sdcard::mount_sdcard(
             "/sdcard",

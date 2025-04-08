@@ -12,6 +12,7 @@ pub fn open_system_file(relative_path: &str) -> std::io::Result<File> {
         #[cfg(feature = "rev2")]
         "/sdcard/system_rev2/",
         "/sdcard/system/",
+        "/system/",
     ];
     for root in roots {
         let path = Path::new(root).join(relative_path);

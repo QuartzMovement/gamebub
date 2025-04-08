@@ -1,5 +1,6 @@
 pub mod dac;
 pub mod fpga;
+pub mod fs;
 pub mod fuel_gauge;
 pub mod imu;
 pub mod io_expander;
