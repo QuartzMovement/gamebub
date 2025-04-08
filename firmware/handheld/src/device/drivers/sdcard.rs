@@ -40,7 +40,10 @@ pub fn mount_sdcard(
     pin_cd: Option<AnyInputPin>,
 ) -> Result<Sdcard, EspError> {
     let host_config = esp_idf_sys::sdmmc_host_t {
-        flags: SDMMC_HOST_FLAG_1BIT | SDMMC_HOST_FLAG_4BIT | SDMMC_HOST_FLAG_DDR,
+        flags: SDMMC_HOST_FLAG_1BIT
+            | SDMMC_HOST_FLAG_4BIT
+            | SDMMC_HOST_FLAG_DDR
+            | SDMMC_HOST_FLAG_DEINIT_ARG,
         slot: 1,
         max_freq_khz: esp_idf_sys::SDMMC_FREQ_HIGHSPEED as c_int,
         io_voltage: 3.3,
@@ -56,7 +59,7 @@ pub fn mount_sdcard(
         command_timeout_ms: 0,
         get_real_freq: Some(esp_idf_sys::sdmmc_host_get_real_freq),
         __bindgen_anon_1: esp_idf_sys::sdmmc_host_t__bindgen_ty_1 {
-            deinit: Some(esp_idf_sys::sdmmc_host_deinit),
+            deinit_p: Some(esp_idf_sys::sdmmc_host_deinit_slot),
         },
         input_delay_phase: esp_idf_sys::sdmmc_delay_phase_t_SDMMC_DELAY_PHASE_0,
         set_input_delay: Some(esp_idf_sys::sdmmc_host_set_input_delay),
