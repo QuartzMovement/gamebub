@@ -89,6 +89,11 @@ class EmbeddedLogicAnalyzer:
             signal.variants = {x[0]: x[1] for x in raw["variants"]}
             self.signals.append(signal)
 
+        # Discard whatever's in the buffer first
+        self.serial.timeout = 0.1
+        data = self.serial.read(4096)
+        self.serial.timeout = None
+
     def run_command(self, command: str) -> str:
         self.serial.write(b">" + command.encode() + b"\n")
         while True:
