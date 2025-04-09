@@ -9,7 +9,7 @@ use crate::{
         Device,
     },
     input::{GamepadId, InputState},
-    kvs, worker,
+    kvs, ui, worker,
 };
 
 /// Start the CLI thread. Called once during system init.
@@ -154,7 +154,7 @@ fn handle_gamepad_connect<'a>(mut args: impl Iterator<Item = &'a str>) -> Result
     let slot = get_arg_u32(args.next())?;
     let gamepad_model = args.next().ok_or("missing model name")?;
     let gamepad_id = args.next().ok_or("missing unique id")?;
-    worker::send(worker::Message::GamepadConnected(GamepadId(slot)));
+    ui::send(ui::Message::GamepadConnected(GamepadId(slot)));
     println!("<ok");
     log::info!("Gamepad model='{gamepad_model}' id={gamepad_id}");
     Ok(())
@@ -163,7 +163,7 @@ fn handle_gamepad_connect<'a>(mut args: impl Iterator<Item = &'a str>) -> Result
 /// `>gamepad_disconnect,<slot>`: returns `<ok`
 fn handle_gamepad_disconnect<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), String> {
     let slot = get_arg_u32(args.next())?;
-    worker::send(worker::Message::GamepadDisconnected(GamepadId(slot)));
+    ui::send(ui::Message::GamepadDisconnected(GamepadId(slot)));
     println!("<ok");
     Ok(())
 }
@@ -211,7 +211,7 @@ fn handle_gamepad_data<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<()
         axis_ry: i16::from_le_bytes(data[12..14].try_into().unwrap()),
         axis_rz: i16::from_le_bytes(data[14..16].try_into().unwrap()),
     };
-    worker::send(worker::Message::GamepadInput(GamepadId(slot), data));
+    ui::send(ui::Message::GamepadInput(GamepadId(slot), data));
     println!("<ok");
     Ok(())
 }

@@ -8,8 +8,8 @@ use esp_idf_svc::{
     sys::EspError,
 };
 
-use crate::device::drivers::fpga;
 use crate::worker;
+use crate::{device::drivers::fpga, ui};
 
 use super::Device;
 
@@ -127,7 +127,7 @@ impl Device<'_> {
 
                     let io_expander = device.io_expander.get_pins().unwrap();
                     let input_state = device.get_input_state(io_expander).unwrap();
-                    worker::send(worker::Message::InputState(input_state));
+                    ui::send(ui::Message::InputState(input_state));
 
                     // Handle dock monitoring
                     cfg_if::cfg_if! {

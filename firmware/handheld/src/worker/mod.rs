@@ -8,7 +8,7 @@ use crate::bitstream::CurrentBitstream;
 use crate::device::DisplayMode;
 use crate::device::{drivers::fuel_gauge, Device};
 use crate::input::InputManager;
-use crate::{bitstream, input, ui};
+use crate::{bitstream, ui};
 
 #[derive(Debug)]
 pub enum Message {
@@ -29,15 +29,6 @@ pub enum Message {
     RunRomFile(PathBuf),
     /// Load ROM select entries
     ListRoms(PathBuf),
-
-    /// Internal input state changed
-    InputState(input::InputState),
-    /// Gamepad connected
-    GamepadConnected(input::GamepadId),
-    /// Gamepad disconnected
-    GamepadDisconnected(input::GamepadId),
-    /// Gamepad input event
-    GamepadInput(input::GamepadId, input::InputState),
 }
 
 /// Send a message to the worker threads.
@@ -166,10 +157,6 @@ fn dispatch(message: Message) {
             device.docked = docked;
             device.change_display_mode(mode).unwrap();
         }
-        Message::InputState(state) => InputManager::lock().update_state(state),
-        Message::GamepadConnected(id) => InputManager::lock().add_gamepad(id),
-        Message::GamepadDisconnected(id) => InputManager::lock().remove_gamepad(id),
-        Message::GamepadInput(id, state) => InputManager::lock().update_gamepad(id, state),
         _ => {
             log::warn!("Unhandled message: {:?}", message);
         }

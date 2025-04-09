@@ -16,6 +16,7 @@ use ::slint::{
 
 use crate::device::drivers::lcd::RenderSource;
 use crate::device::{Device, DisplayMode};
+use crate::input::{self, InputManager};
 
 use self::{slint::Argb1555, slint::MinimalSoftwareWindow, state::UiState};
 
@@ -25,6 +26,7 @@ const DISPLAY_HEIGHT: usize = 160;
 #[derive(Debug)]
 pub enum Message {
     /// The state of the buttons have changed.
+    /// TODO: combine this with InputState/Gamepad handling
     Button(ButtonMap),
     /// Battery status has changed.
     BatteryStatus { level: f32 },
@@ -42,6 +44,15 @@ pub enum Message {
     RomSelectError(String),
     /// Enter the error screen, and show the given error
     FatalError(String),
+
+    /// Internal input state changed
+    InputState(input::InputState),
+    /// Gamepad connected
+    GamepadConnected(input::GamepadId),
+    /// Gamepad disconnected
+    GamepadDisconnected(input::GamepadId),
+    /// Gamepad input event
+    GamepadInput(input::GamepadId, input::InputState),
 }
 
 /// Send a message to the UI thread.
@@ -301,6 +312,10 @@ impl UI {
                     .set_error_text(error.into());
                 self.root.invoke_set_screen(slint::ScreenId::Error);
             }
+            Message::InputState(state) => InputManager::lock().update_state(state),
+            Message::GamepadConnected(id) => InputManager::lock().add_gamepad(id),
+            Message::GamepadDisconnected(id) => InputManager::lock().remove_gamepad(id),
+            Message::GamepadInput(id, state) => InputManager::lock().update_gamepad(id, state),
             #[allow(unreachable_patterns)]
             _ => {
                 log::warn!("Unhandled message: {:?}", message);
