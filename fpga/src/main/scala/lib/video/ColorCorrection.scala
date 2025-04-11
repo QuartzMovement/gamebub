@@ -14,10 +14,13 @@ class ColorCorrection(
   inputDepth: Int = 5,
   /// Per-channel output depth
   outputDepth: Int = 6,
+
   /// Internal representation color depth
   internalDepth: Int = 10,
   /// Internal matrix depth
   matrixDepth: Int = 10,
+  /// Internal output table depth
+  outputTableDepth: Int = 6,
 
 ) extends Module {
   val io = IO(new Bundle {
@@ -26,56 +29,24 @@ class ColorCorrection(
 
     val in = Input(ColorARGB(0, inputDepth, inputDepth, inputDepth))
     val out = Output(ColorARGB(0, outputDepth, outputDepth, outputDepth))
+
+    val matrixR = Input(Vec(3, SInt((matrixDepth + 2).W)))
+    val matrixG = Input(Vec(3, SInt((matrixDepth + 2).W)))
+    val matrixB = Input(Vec(3, SInt((matrixDepth + 2).W)))
+    val inputTable = Input(Vec(1 << inputDepth, SInt((internalDepth + 1).W)))
+    val outputTable = Input(Vec(1 << outputTableDepth, UInt(outputDepth.W)))
   })
   val logger = Logger("color")
 
-  // Correction formula and coefficients credit: hunterk and Pokefan531
-  val targetGamma = 2.2
-  val displayGamma = 2.2
-  val luminance = 0.91
-  val rowR = Seq( 0.905 ,  0.195 , -0.1 )
-  val rowG = Seq( 0.1   ,  0.65  ,  0.25)
-  val rowB = Seq( 0.1575,  0.1425,  0.7 )
-
-  // Input table (to linear)
-  val inputTable = VecInit(
-    (0 until (1 << inputDepth)).map(i => {
-        // Normalized 0.0 to 1.0
-        val normal = i.toDouble / ((1 << inputDepth) - 1).toDouble
-        val linear = scala.math.pow(normal, targetGamma)
-        val screen = linear * luminance
-        // Convert back to float: clamp(floor(f * X), 0, X - 1)
-        val integer = (screen * (1 << internalDepth).toDouble).floor.min((1 << internalDepth) - 1).max(0).toInt
-        integer.S((internalDepth + 1).W)
-      }
-    )
-  )
-
-  // Transformation matrix
-  val matrixR = VecInit(rowR.map(x => (x * (1 << matrixDepth)).toInt.S((matrixDepth + 2).W)))
-  val matrixG = VecInit(rowG.map(x => (x * (1 << matrixDepth)).toInt.S((matrixDepth + 2).W)))
-  val matrixB = VecInit(rowB.map(x => (x * (1 << matrixDepth)).toInt.S((matrixDepth + 2).W)))
-
-  // Output table (to non-linear)
-  val outputTableDepth = 6
-  val outputTable = VecInit(
-    (0 until (1 << outputTableDepth)).map(i => {
-      val normal = i.toDouble / ((1 << outputTableDepth) - 1).toDouble
-      val nonlinear = scala.math.pow(normal, 1.0 / displayGamma)
-      val integer = (nonlinear * (1 << outputDepth).toDouble).floor.min((1 << outputDepth) - 1).max(0).toInt
-      integer.U(outputDepth.W)
-    })
-  )
-
   // Convert to linear space
-  val inputR = RegNext(inputTable(io.in.r))
-  val inputG = RegNext(inputTable(io.in.g))
-  val inputB = RegNext(inputTable(io.in.b))
+  val inputR = RegNext(io.inputTable(io.in.r))
+  val inputG = RegNext(io.inputTable(io.in.g))
+  val inputB = RegNext(io.inputTable(io.in.b))
 
   // Do matrix multiplication
-  val sumR = (inputR * matrixR(0)) + (inputG * matrixR(1)) + (inputB * matrixR(2))
-  val sumG = (inputR * matrixG(0)) + (inputG * matrixG(1)) + (inputB * matrixG(2))
-  val sumB = (inputR * matrixB(0)) + (inputG * matrixB(1)) + (inputB * matrixB(2))
+  val sumR = (inputR * io.matrixR(0)) + (inputG * io.matrixR(1)) + (inputB * io.matrixR(2))
+  val sumG = (inputR * io.matrixG(0)) + (inputG * io.matrixG(1)) + (inputB * io.matrixG(2))
+  val sumB = (inputR * io.matrixB(0)) + (inputG * io.matrixB(1)) + (inputB * io.matrixB(2))
 
   // And divide (fixed point)
   val correctR = RegNext(sumR >> matrixDepth).asSInt
@@ -88,9 +59,9 @@ class ColorCorrection(
   val indexB = clamp(correctB, 0.S, ((1 << internalDepth) - 1).S).asUInt >> (internalDepth - outputTableDepth)
 
   io.out.a := DontCare
-  io.out.r := RegNext(outputTable(indexR.asUInt))
-  io.out.g := RegNext(outputTable(indexG.asUInt))
-  io.out.b := RegNext(outputTable(indexB.asUInt))
+  io.out.r := RegNext(io.outputTable(indexR.asUInt))
+  io.out.g := RegNext(io.outputTable(indexG.asUInt))
+  io.out.b := RegNext(io.outputTable(indexB.asUInt))
 
   // Original input colors, delayed for the same number of cycles (if corrections are disabled)
   val delayInput = RegNext(RegNext(RegNext(io.in)))

@@ -4,7 +4,7 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 import lib.mem.sdram.{BurstSdramController, Signals => SdramSignals}
-import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryArbiter, PipelineMemoryBurstCdc, PipelineMemoryInterface, RegisterMap}
+import lib.mem.{HandshakeMemoryCdc, MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryArbiter, PipelineMemoryBurstCdc, PipelineMemoryInterface, RegisterMap}
 import lib.video.{ColorARGB, ColorCorrection, HdmiTransmitter}
 import platform.handheld
 import xilinx.{XpmCdcHandshake, XpmCdcSingle, XpmCdcSyncRst}
@@ -320,6 +320,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val moduleMcuInterface = Wire(new MemoryInterface(addressWidth = 30, dataWidth = 32))
   val overlayInterface = Wire(new MemoryInterface(addressWidth = 18, dataWidth = 16))
   val framebufferInterface = Wire(new MemoryInterface(addressWidth = 18, dataWidth = 16))
+  val colorCorrectInterface = Wire(new MemoryInterface(addressWidth = 9, dataWidth = 16))
   spi.io.mem <> MemoryMap(
     addressWidth = 32,
     dataWidth = 32,
@@ -327,6 +328,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       "b0000".U(4.W) -> registerMap,
       "b0001".U(4.W) -> sramSpiInterface,
       "b0010".U(4.W) -> sdramSpiInterface,
+      "b001100".U(6.W) -> colorCorrectInterface,
       "b001110".U(6.W) -> overlayInterface,
       "b001111".U(6.W) -> framebufferInterface,
       "b11".U(2.W) -> moduleMcuInterface,
@@ -443,6 +445,40 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     colorCorrector.io.enable := XpmCdcSingle(clock, colorCorrectionRegister.enableColorCorrections)
     colorCorrector.io.in := framebufferRead
     val framebufferColor = colorCorrector.io.out
+
+    {
+      val cdc = Module(new HandshakeMemoryCdc(addressWidth = 9, dataWidth = 16))
+      cdc.io.sourceClock := clock
+      cdc.io.initiator <> colorCorrectInterface
+      val mem = cdc.io.target
+      mem.done := true.B
+      mem.dataRead := DontCare
+      val matrix = RegInit(VecInit(Seq(1, 0, 0, 0, 1, 0, 0, 0, 1).map(x => (x << 10).S(12.W))))
+      val inputTable = RegInit(VecInit((0 until 32).map(i => {
+        val normal = i.toDouble / 31.0
+        (normal * 1024).floor.min(1023).toInt.S(11.W)
+      })))
+      val outputTable = RegInit(VecInit((0 until 64).map(i => {
+        val normal = i.toDouble / 63.0
+        (normal * 64).floor.min(63).toInt.U(6.W)
+      })))
+      when (mem.enable && mem.write) {
+        when (mem.address(8, 7) === 0.U) {
+          matrix(mem.address(4, 1)) := mem.dataWrite.asSInt
+        }
+        when (mem.address(8, 7) === 1.U) {
+          inputTable(mem.address(5, 1)) := mem.dataWrite.asSInt
+        }
+        when (mem.address(8, 7) === 2.U) {
+          outputTable(mem.address(6, 1)) := mem.dataWrite
+        }
+      }
+      colorCorrector.io.matrixR := VecInit(matrix(0), matrix(1), matrix(2))
+      colorCorrector.io.matrixG := VecInit(matrix(3), matrix(4), matrix(5))
+      colorCorrector.io.matrixB := VecInit(matrix(6), matrix(7), matrix(8))
+      colorCorrector.io.inputTable := inputTable
+      colorCorrector.io.outputTable := outputTable
+    }
 
     // Similar for overlay framebuffer.
     val overlayXControl = XpmCdcHandshake.continuous(clock, overlayXControlRegister)
