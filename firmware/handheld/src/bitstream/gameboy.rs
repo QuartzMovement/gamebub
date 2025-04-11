@@ -14,7 +14,7 @@ use crate::{
 };
 use crate::{ui, util::ReaderResult};
 
-use super::Bitstream;
+use super::{util::color_correction, Bitstream};
 
 const SYSTEM_CLOCK_RATE: Hertz = Hertz(8 * 1024 * 1024);
 const PROGRESS_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
@@ -183,6 +183,7 @@ impl Gameboy {
     fn set_config(&mut self, device: &mut Device) -> Result<(), GameboyError> {
         let config = 0 | (((!kvs::keys::GB_IS_DMG.get().unwrap()) as u32) << 0);
         device.fpga.write_u32(REG_EMU_CONFIG, config)?;
+        color_correction::presets::GBC_GBA.configure(device)?;
         Ok(())
     }
 

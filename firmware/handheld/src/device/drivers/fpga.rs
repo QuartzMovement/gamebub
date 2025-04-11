@@ -23,10 +23,13 @@ pub const REG_DISPLAY: u32 = 0x0000_0008;
 pub const REG_IRQ_ENABLE: u32 = 0x0000_000C;
 pub const REG_IRQ_STATUS: u32 = 0x0000_0010;
 pub const REG_STATUS: u32 = 0x0000_0014;
+pub const REG_COLOR_CORRECT_ENABLE: u32 = 0x0000_0018;
 pub const REG_OVERLAY_XCTRL: u32 = 0x0000_0100;
 pub const REG_OVERLAY_YCTRL: u32 = 0x0000_0104;
 /// Framebuffer dimensions (read only)
 pub const REG_FB_DIM: u32 = 0x0000_0200;
+/// Color correction base
+pub const REG_COLOR_CORRECT_PARAMS: u32 = 0x3000_0000;
 
 /// The FPGA (due to the spi implementation) can read at a speed that's some
 /// fraction of the SPI domain clock speed. At 200 MHz SPI receiver clock,
@@ -229,6 +232,16 @@ where
                 Operation::ReadWithWidth(buffer, width),
             ],
         )
+    }
+
+    pub fn write_u16(&mut self, address: u32, data: u16) -> Result<(), Error> {
+        let command = SpiCommand {
+            word_size: FpgaSpiWordSize::Bits16,
+            byte_swap: false,
+            increment_address: true,
+        };
+        let data = data.to_be_bytes();
+        self.spi_write(None, command, address, &data)
     }
 
     pub fn write_u32(&mut self, address: u32, data: u32) -> Result<(), Error> {

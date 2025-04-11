@@ -17,7 +17,7 @@ use crate::{
 };
 use crate::{ui, util::ReaderResult};
 
-use super::Bitstream;
+use super::{util::color_correction, Bitstream};
 use save_type_detector::SaveTypeDetector;
 
 mod game_db;
@@ -214,6 +214,8 @@ impl Gba {
         // Load bios if needed
         self.load_bios(&mut device)?;
 
+        color_correction::presets::GBC_GBA.configure(&mut device)?;
+
         device.fpga.write_u32(
             REG_GB_PLAYER,
             kvs::keys::GBA_ENABLE_GBP.get().unwrap() as u32,
@@ -247,6 +249,8 @@ impl Gba {
 
             // Load bios if needed
             self.load_bios(&mut device)?;
+
+            color_correction::presets::GBC_GBA.configure(&mut device)?;
 
             device.fpga.write_u32(
                 REG_GB_PLAYER,

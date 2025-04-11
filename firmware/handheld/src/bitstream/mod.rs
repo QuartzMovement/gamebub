@@ -8,6 +8,8 @@ use flate2::read::GzDecoder;
 pub mod gameboy;
 pub mod gba;
 
+mod util;
+
 /// Driver for a specific bitstream.
 pub trait Bitstream {
     /// Get the path for the bitstream.
