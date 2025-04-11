@@ -5,7 +5,7 @@ import chisel3.util._
 import _root_.circt.stage.ChiselStage
 import lib.mem.sdram.{BurstSdramController, Signals => SdramSignals}
 import lib.mem.{MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryArbiter, PipelineMemoryBurstCdc, PipelineMemoryInterface, RegisterMap}
-import lib.video.{ColorARGB, HdmiTransmitter}
+import lib.video.{ColorARGB, ColorCorrection, HdmiTransmitter}
 import platform.handheld
 import xilinx.{XpmCdcHandshake, XpmCdcSingle, XpmCdcSyncRst}
 
@@ -268,6 +268,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     // 0: cartridge switch state
     RegNext(RegNext(io.cartridgeSwitch)),
   )
+  val colorCorrectionRegister = RegInit(0.U.asTypeOf(new Bundle() {
+    val enableColorCorrections = Bool()
+  }))
 
   val overlayXControlRegister = RegInit(0.U.asTypeOf(new Bundle() {
     val start = UInt(8.W)
@@ -299,6 +302,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
         ),
       ),
       0x14 -> RegisterMap.Entry.r(statusRegister),
+      0x18 -> RegisterMap.Entry.rw(colorCorrectionRegister),
       // Overlay control
       0x100 -> RegisterMap.Entry.rw(overlayXControlRegister),
       0x104 -> RegisterMap.Entry.rw(overlayYControlRegister),
@@ -434,6 +438,12 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       (0 until 3).map(i => i.U -> RegNext(RegNext(framebuffers(i).readPorts(0).data)))
     ).asTypeOf(ColorARGB.rgb555())
 
+    // Color corrections
+    val colorCorrector = Module(new ColorCorrection(inputDepth = 5, outputDepth = 6))
+    colorCorrector.io.enable := XpmCdcSingle(clock, colorCorrectionRegister.enableColorCorrections)
+    colorCorrector.io.in := framebufferRead
+    val framebufferColor = colorCorrector.io.out
+
     // Similar for overlay framebuffer.
     val overlayXControl = XpmCdcHandshake.continuous(clock, overlayXControlRegister)
     val overlayYControl = XpmCdcHandshake.continuous(clock, overlayYControlRegister)
@@ -444,12 +454,14 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
     val framebufferInBounds = Wire(Bool())
     val overlayInBounds = Wire(Bool())
-    val videoOutput = ColorARGB.rgb555().makeBlack()
+    val videoOutput = ColorARGB(0, 6, 6, 6).makeBlack()
     when (framebufferInBounds) {
-      videoOutput := framebufferRead
+      videoOutput := framebufferColor
     }
     when (overlayRead.a.asBool && overlayInBounds) {
-      videoOutput := overlayRead
+      videoOutput.r := overlayRead.r << 1
+      videoOutput.g := overlayRead.g << 1
+      videoOutput.b := overlayRead.b << 1
     }
 
     /**
@@ -471,9 +483,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     io.lcd := dpiDriver.io.signals
     // Pad to 18-bit RGB.
     io.lcdData := Cat(
-      Cat(videoOutput.r, 0.U(1.W)),
-      Cat(videoOutput.g, 0.U(1.W)),
-      Cat(videoOutput.b, 0.U(1.W)),
+      Cat(videoOutput.r),
+      Cat(videoOutput.g),
+      Cat(videoOutput.b),
     )
 
     val i2sTransmitter =
@@ -496,9 +508,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     io.hdmiAudioClock := DontCare
     // Pad to 24-bit RGB.
     io.hdmiRgb := Cat(
-      videoOutput.r << 3,
-      videoOutput.g << 3,
-      videoOutput.b << 3,
+      videoOutput.r << 2,
+      videoOutput.g << 2,
+      videoOutput.b << 2,
     )
 
     val hdmiEnable = XpmCdcSingle(clock, displayRegister.enableHdmi)
@@ -526,7 +538,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       val videoScale = 3
       val videoOffsetX = (screenWidth - (videoWidth * videoScale)) / 2
       val videoOffsetY = (screenHeight - (videoHeight * videoScale)) / 2
-      val framebufferReadDelay = 3
+      val framebufferReadDelay = 3 /* reading */ + 3 /* color corrections */
       framebufferReadAddress :=
         (((videoY - videoOffsetY.U) / videoScale.U) * videoWidth.U) +
           ((videoX - videoOffsetX.U + framebufferReadDelay.U) / videoScale.U)
@@ -567,7 +579,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       val videoScale = 2
       val videoOffsetX = (screenWidth - (videoWidth * videoScale)) / 2
       val videoOffsetY = (screenHeight - (videoHeight * videoScale)) / 2
-      val framebufferReadDelay = 3 // 3 cycles to read from the framebuffer
+      val framebufferReadDelay = 3 /* reading */ + 3 /* color corrections */
       framebufferReadAddress :=
         (((dpiY - videoOffsetY.U + framebufferReadDelay.U) / videoScale.U) * videoWidth.U) +
           ((dpiX - videoOffsetX.U) / videoScale.U)
