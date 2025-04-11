@@ -17,7 +17,10 @@ use crate::{
 };
 use crate::{ui, util::ReaderResult};
 
-use super::{util::color_correction, Bitstream};
+use super::{
+    util::color_correction::{self, ColorCorrection},
+    Bitstream,
+};
 use save_type_detector::SaveTypeDetector;
 
 mod game_db;
@@ -224,8 +227,15 @@ impl Gba {
         // Disable IRQs (including vblank)
         device.fpga.write_u32(fpga::REG_IRQ_ENABLE, 0)?;
 
-        // Color corrections
-        color_correction::presets::GBC_GBA.configure(device)?;
+        // Color correction
+        let correction: &ColorCorrection = {
+            use color_correction::presets::*;
+            let corrections = [&IDENTITY, &GBC_GBA, &GBA_AGS101, &NDS, &NDS_LITE, &NSO_GBA];
+            let setting = kvs::keys::GBA_COLOR_PROFILE.get().unwrap() as usize;
+            corrections.get(setting).unwrap_or(&&IDENTITY)
+        };
+        // TODO: only configure if it has changed
+        correction.configure(device)?;
 
         Ok(())
     }

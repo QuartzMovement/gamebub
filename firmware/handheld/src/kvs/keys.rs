@@ -26,10 +26,19 @@ pub static GB_IS_DMG: KvsKey<bool> = KvsKey::new_with_default("gb-is-dmg", false
 /// Whether to skip DMG/CGB boot animation
 pub static GB_SKIP_BOOT_ANIM: KvsKey<bool> = KvsKey::new_with_default("gb-no-anim", false);
 
+/// DMG color palette
+pub static DMG_COLOR_PALETTE: KvsKey<i32> = KvsKey::new_with_default("dmg-colors", 0);
+
+/// CGB color profile
+pub static CGB_COLOR_PROFILE: KvsKey<i32> = KvsKey::new_with_default("cgb-colors", 0);
+
 /// Whether to skip GBA boot animation.
 pub static GBA_SKIP_BOOT_ANIM: KvsKey<bool> = KvsKey::new_with_default("gba-no-anim", false);
 
-/// Whether to enable Game Boy Player functiona.lity
+/// GBA color profile
+pub static GBA_COLOR_PROFILE: KvsKey<i32> = KvsKey::new_with_default("gba-colors", 0);
+
+/// Whether to enable Game Boy Player functionality
 pub static GBA_ENABLE_GBP: KvsKey<bool> = KvsKey::new_with_default("gba-enable-gbp", false);
 
 /// Rumble strength level
@@ -42,7 +51,10 @@ pub fn flush_all() {
     DARK_MODE.flush();
     GB_IS_DMG.flush();
     GB_SKIP_BOOT_ANIM.flush();
+    DMG_COLOR_PALETTE.flush();
+    CGB_COLOR_PROFILE.flush();
     GBA_SKIP_BOOT_ANIM.flush();
+    GBA_COLOR_PROFILE.flush();
     GBA_ENABLE_GBP.flush();
     RUMBLE_LEVEL.flush()
 }

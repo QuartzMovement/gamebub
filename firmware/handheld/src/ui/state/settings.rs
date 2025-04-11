@@ -42,7 +42,7 @@ impl Model for SettingsModel {
     type Data = SettingEntry;
 
     fn row_count(&self) -> usize {
-        7
+        9
     }
 
     fn row_data(&self, row: usize) -> Option<Self::Data> {
@@ -103,6 +103,15 @@ impl Model for SettingsModel {
                 ..Default::default()
             }),
             5 => Some(SettingEntry {
+                name: "GB: CGB Color Corrections".into(),
+                r#type: SettingType::List,
+                value: SettingValue {
+                    int_value: kvs::keys::CGB_COLOR_PROFILE.get().unwrap(),
+                    ..SettingValue::default()
+                },
+                choices: ["None".into(), "GBC".into(), "GBA".into(), "GBA SP".into()].into(),
+            }),
+            6 => Some(SettingEntry {
                 name: "GBA: Skip Boot Animation".into(),
                 r#type: SettingType::Checkbox,
                 value: SettingValue {
@@ -111,7 +120,24 @@ impl Model for SettingsModel {
                 },
                 ..Default::default()
             }),
-            6 => Some(SettingEntry {
+            7 => Some(SettingEntry {
+                name: "GBA: Color Corrections".into(),
+                r#type: SettingType::List,
+                value: SettingValue {
+                    int_value: kvs::keys::GBA_COLOR_PROFILE.get().unwrap(),
+                    ..SettingValue::default()
+                },
+                choices: [
+                    "None".into(),
+                    "GBA".into(),
+                    "GBA SP".into(),
+                    "NDS".into(),
+                    "NDS Lite".into(),
+                    "NSO GBA".into(),
+                ]
+                .into(),
+            }),
+            8 => Some(SettingEntry {
                 name: "GBA: Enable Game Boy Player".into(),
                 r#type: SettingType::Checkbox,
                 value: SettingValue {
@@ -159,8 +185,10 @@ impl SettingsModel {
             2 => kvs::keys::RUMBLE_LEVEL.set(&value.int_value),
             3 => kvs::keys::GB_IS_DMG.set(&value.bool_value),
             4 => kvs::keys::GB_SKIP_BOOT_ANIM.set(&value.bool_value),
-            5 => kvs::keys::GBA_SKIP_BOOT_ANIM.set(&value.bool_value),
-            6 => kvs::keys::GBA_ENABLE_GBP.set(&value.bool_value),
+            5 => kvs::keys::CGB_COLOR_PROFILE.set(&value.int_value),
+            6 => kvs::keys::GBA_SKIP_BOOT_ANIM.set(&value.bool_value),
+            7 => kvs::keys::GBA_COLOR_PROFILE.set(&value.int_value),
+            8 => kvs::keys::GBA_ENABLE_GBP.set(&value.bool_value),
             _ => {
                 log::info!("Unknown setting changed: {} -> {:?}", index, value);
                 return;

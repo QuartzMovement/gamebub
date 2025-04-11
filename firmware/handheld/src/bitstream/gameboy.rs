@@ -14,7 +14,10 @@ use crate::{
 };
 use crate::{ui, util::ReaderResult};
 
-use super::{util::color_correction, Bitstream};
+use super::{
+    util::color_correction::{self, ColorCorrection},
+    Bitstream,
+};
 
 const SYSTEM_CLOCK_RATE: Hertz = Hertz(8 * 1024 * 1024);
 const PROGRESS_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
@@ -228,7 +231,8 @@ impl Gameboy {
         device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
 
         // Set configuration
-        let config = 0 | (((!kvs::keys::GB_IS_DMG.get().unwrap()) as u32) << 0);
+        let is_dmg = kvs::keys::GB_IS_DMG.get().unwrap();
+        let config = 0 | (((!is_dmg) as u32) << 0);
         device.fpga.write_u32(REG_EMU_CONFIG, config)?;
 
         device.imu.disable_accel().unwrap();
@@ -237,7 +241,18 @@ impl Gameboy {
         device.fpga.write_u32(fpga::REG_IRQ_ENABLE, 0)?;
 
         // Color correction
-        color_correction::presets::GBC_GBA.configure(device)?;
+        let correction: &ColorCorrection = {
+            use color_correction::presets::*;
+            let corrections = [&IDENTITY, &GBC_GBA, &GBC_GBA, &GBA_AGS101];
+            if is_dmg {
+                &IDENTITY
+            } else {
+                let setting = kvs::keys::CGB_COLOR_PROFILE.get().unwrap() as usize;
+                corrections.get(setting).unwrap_or(&&IDENTITY)
+            }
+        };
+        // TODO: only configure if it has changed
+        correction.configure(device)?;
 
         // Bootrom
         self.load_bootrom(device)?;
