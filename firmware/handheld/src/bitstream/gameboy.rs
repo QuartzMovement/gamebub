@@ -180,13 +180,6 @@ impl Gameboy {
         }
     }
 
-    fn set_config(&mut self, device: &mut Device) -> Result<(), GameboyError> {
-        let config = 0 | (((!kvs::keys::GB_IS_DMG.get().unwrap()) as u32) << 0);
-        device.fpga.write_u32(REG_EMU_CONFIG, config)?;
-        color_correction::presets::GBC_GBA.configure(device)?;
-        Ok(())
-    }
-
     fn load_bootrom(&mut self, device: &mut Device) -> Result<(), GameboyError> {
         let bios_path = Self::get_bootrom_path();
         if self.bootrom_path == Some(bios_path) {
@@ -229,23 +222,37 @@ impl Gameboy {
         Ok(())
     }
 
+    /// Prepare to load a new cartridge (physical or emulated)
+    fn initialize(&mut self, device: &mut Device) -> Result<(), GameboyError> {
+        // Hold in reset
+        device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
+
+        // Set configuration
+        let config = 0 | (((!kvs::keys::GB_IS_DMG.get().unwrap()) as u32) << 0);
+        device.fpga.write_u32(REG_EMU_CONFIG, config)?;
+
+        device.imu.disable_accel().unwrap();
+
+        // Disable IRQs (including vblank)
+        device.fpga.write_u32(fpga::REG_IRQ_ENABLE, 0)?;
+
+        // Color correction
+        color_correction::presets::GBC_GBA.configure(device)?;
+
+        // Bootrom
+        self.load_bootrom(device)?;
+
+        Ok(())
+    }
+
     pub fn set_physical_cartridge(&mut self) -> Result<(), GameboyError> {
         self.ram_path = None;
 
         let mut device = Device::lock();
-
-        // Hold in reset
-        device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
-
-        // Configure device.
-        self.set_config(&mut device)?;
-        self.load_bootrom(&mut device)?;
+        self.initialize(&mut device)?;
 
         // Switch to physical cartridge.
         device.fpga.write_u32(REG_EMU_CART_CONFIG, 0)?;
-
-        // Disable IRQs (including vblank)
-        device.fpga.write_u32(fpga::REG_IRQ_ENABLE, 0)?;
 
         // Resume
         device.fpga.write_u32(fpga::REG_CONTROL, 0b1011)?;
@@ -255,15 +262,9 @@ impl Gameboy {
     }
 
     pub fn set_emulated_cartridge(&mut self, rom_path: &Path) -> Result<(), GameboyError> {
-        // Hold in reset
         {
             let mut device = Device::lock();
-            device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
-            device.imu.disable_accel().unwrap();
-
-            // Configure device
-            self.set_config(&mut device)?;
-            self.load_bootrom(&mut device)?;
+            self.initialize(&mut device)?;
         }
 
         // Load ROM

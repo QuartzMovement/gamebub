@@ -205,34 +205,42 @@ impl Gba {
         Ok(())
     }
 
-    pub fn set_physical_cartridge(&mut self) -> Result<(), GbaError> {
-        let mut device = Device::lock();
-
+    /// Prepare to load a new cartridge (physical or emulated)
+    fn initialize(&mut self, device: &mut Device) -> Result<(), GbaError> {
         // Hold in reset
         device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
+        device.imu.disable_gyro().unwrap();
+        device.imu.disable_accel().unwrap();
 
         // Load bios if needed
-        self.load_bios(&mut device)?;
+        self.load_bios(device)?;
 
-        color_correction::presets::GBC_GBA.configure(&mut device)?;
-
+        // Other config
         device.fpga.write_u32(
             REG_GB_PLAYER,
             kvs::keys::GBA_ENABLE_GBP.get().unwrap() as u32,
         )?;
+
+        // Disable IRQs (including vblank)
+        device.fpga.write_u32(fpga::REG_IRQ_ENABLE, 0)?;
+
+        // Color corrections
+        color_correction::presets::GBC_GBA.configure(device)?;
+
+        Ok(())
+    }
+
+    pub fn set_physical_cartridge(&mut self) -> Result<(), GbaError> {
+        let mut device = Device::lock();
+        self.initialize(&mut device)?;
 
         // Switch to physical cartridge.
         device
             .fpga
             .write_u32(REG_EMU_CART_CONFIG, EmulatedCartridgeConfig::DISABLED)?;
 
-        // Disable IRQs (including vblank)
-        device.fpga.write_u32(fpga::REG_IRQ_ENABLE, 0)?;
-
         // Resume
         device.fpga.write_u32(fpga::REG_CONTROL, 0b1011)?;
-        device.imu.disable_gyro().unwrap();
-        device.imu.disable_accel().unwrap();
 
         self.save_path = None;
         self.emu_cart_config = None;
@@ -240,22 +248,9 @@ impl Gba {
     }
 
     pub fn set_emulated_cartridge(&mut self, rom_path: &Path) -> Result<(), GbaError> {
-        // Hold in reset
         {
             let mut device = Device::lock();
-            device.fpga.write_u32(fpga::REG_CONTROL, 0b0000)?;
-            device.imu.disable_gyro().unwrap();
-            device.imu.disable_accel().unwrap();
-
-            // Load bios if needed
-            self.load_bios(&mut device)?;
-
-            color_correction::presets::GBC_GBA.configure(&mut device)?;
-
-            device.fpga.write_u32(
-                REG_GB_PLAYER,
-                kvs::keys::GBA_ENABLE_GBP.get().unwrap() as u32,
-            )?;
+            self.initialize(&mut device)?;
         }
 
         // Load ROM
