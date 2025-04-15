@@ -1,4 +1,4 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::super::slint::Backend;
@@ -95,7 +95,7 @@ impl UiState {
     pub(super) fn on_settings_enter(&mut self) {
         let root = self.root.unwrap();
         let backend = root.global::<Backend>();
-        let model = Rc::new(SettingsModel::root(&mut Device::lock()));
+        let model = Rc::new(SettingsModel::new(&settings::PAGES[0]));
         self.settings_model = Some(model.clone());
         backend.set_settings(ModelRc::from(model));
     }
@@ -104,7 +104,6 @@ impl UiState {
 pub struct SettingsModel {
     page: &'static settings::Page,
     notify: ModelNotify,
-    datetime: Cell<OffsetDateTime>,
 }
 
 impl Model for SettingsModel {
@@ -145,7 +144,7 @@ impl Model for SettingsModel {
                 r#type: SettingType::Datetime,
                 value: SettingValue {
                     datetime_value: {
-                        let dt = self.datetime.get();
+                        let dt = OffsetDateTime::now_utc();
                         SettingDatetime {
                             year: dt.year(),
                             month: dt.month() as i32,
@@ -174,15 +173,10 @@ impl Model for SettingsModel {
 }
 
 impl SettingsModel {
-    pub fn root(device: &mut Device) -> Self {
-        Self::new(device, &settings::PAGES[0])
-    }
-
-    pub fn new(device: &mut Device, page: &'static settings::Page) -> Self {
+    pub fn new(page: &'static settings::Page) -> Self {
         SettingsModel {
             page,
             notify: ModelNotify::default(),
-            datetime: Cell::new(device.get_datetime()),
         }
     }
 
@@ -203,7 +197,6 @@ impl SettingsModel {
                 let dt = dt.replace_second(0).unwrap();
                 let dt = dt.assume_utc();
                 Device::lock().set_datetime(dt);
-                self.datetime.set(dt);
             }
         }
         self.notify.row_changed(index);
