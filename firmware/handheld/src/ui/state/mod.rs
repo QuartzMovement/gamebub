@@ -19,7 +19,7 @@ pub struct UiState {
     root: Weak<MainWindow>,
 
     rom_select_directory: PathBuf,
-    settings_model: Rc<settings::SettingsModel>,
+    settings_model: Option<Rc<settings::SettingsModel>>,
 }
 
 impl UiState {
@@ -33,7 +33,7 @@ impl UiState {
             .unwrap_or_else(|| Path::new(rom_select::BASE_DIR).to_path_buf());
         let state: UiState = UiState {
             root: root.as_weak(),
-            settings_model: Rc::new(settings::SettingsModel::new(device)),
+            settings_model: None,
             rom_select_directory,
         };
         let state = Rc::new(RefCell::new(state));

@@ -3,12 +3,80 @@ use std::rc::Rc;
 
 use super::super::slint::Backend;
 use crate::device::Device;
-use crate::kvs;
 use crate::ui::state::{SettingDatetime, SettingEntry, SettingType, SettingValue};
 use slint::{ComponentHandle, Model, ModelNotify, ModelRc, ModelTracker};
 use time::OffsetDateTime;
 
 use super::UiState;
+
+mod settings {
+    use crate::kvs::{keys, KvsKey};
+
+    pub struct Page {
+        pub entries: &'static [Entry],
+    }
+
+    pub enum Entry {
+        Checkbox {
+            name: &'static str,
+            key: &'static KvsKey<bool>,
+        },
+        List {
+            name: &'static str,
+            key: &'static KvsKey<i32>,
+            choices: &'static [&'static str],
+        },
+        SystemDatetime {
+            name: &'static str,
+        },
+    }
+
+    pub static PAGES: &[Page] = &[
+        // Root page
+        Page {
+            entries: &[
+                Entry::Checkbox {
+                    name: "Dark Mode",
+                    key: &keys::DARK_MODE,
+                },
+                Entry::SystemDatetime {
+                    name: "Date and Time (UTC)",
+                },
+                Entry::List {
+                    name: "Rumble Strength",
+                    key: &keys::RUMBLE_LEVEL,
+                    choices: &["Off", "Low", "Medium", "High"],
+                },
+                Entry::Checkbox {
+                    name: "GB: Enable DMG mode",
+                    key: &keys::GB_IS_DMG,
+                },
+                Entry::Checkbox {
+                    name: "GB: Skip Boot Animation",
+                    key: &keys::GB_SKIP_BOOT_ANIM,
+                },
+                Entry::List {
+                    name: "GB: CGB Color Corrections",
+                    key: &keys::CGB_COLOR_PROFILE,
+                    choices: &["None", "GBC", "GBA", "GBA SP"],
+                },
+                Entry::Checkbox {
+                    name: "GBA: Skip Boot Animation",
+                    key: &keys::GBA_SKIP_BOOT_ANIM,
+                },
+                Entry::List {
+                    name: "GBA: Color Corrections",
+                    key: &keys::GBA_COLOR_PROFILE,
+                    choices: &["None", "GBA", "GBA SP", "NDS", "NDS Lite", "NSO GBA"],
+                },
+                Entry::Checkbox {
+                    name: "GBA: Enable Game Boy Player",
+                    key: &keys::GBA_ENABLE_GBP,
+                },
+            ],
+        },
+    ];
+}
 
 impl UiState {
     /// Set up the "Settings" screen.
@@ -18,22 +86,23 @@ impl UiState {
 
         let state_ = state.clone();
         backend.on_setting_changed(move |i, value| {
-            state_
-                .borrow_mut()
-                .settings_model
-                .changed(i as usize, value);
+            if let Some(model) = state_.borrow_mut().settings_model.as_ref() {
+                model.changed(i as usize, value);
+            }
         });
     }
 
     pub(super) fn on_settings_enter(&mut self) {
         let root = self.root.unwrap();
         let backend = root.global::<Backend>();
-        self.settings_model.refresh();
-        backend.set_settings(ModelRc::from(self.settings_model.clone()));
+        let model = Rc::new(SettingsModel::root(&mut Device::lock()));
+        self.settings_model = Some(model.clone());
+        backend.set_settings(ModelRc::from(model));
     }
 }
 
 pub struct SettingsModel {
+    page: &'static settings::Page,
     notify: ModelNotify,
     datetime: Cell<OffsetDateTime>,
 }
@@ -42,22 +111,37 @@ impl Model for SettingsModel {
     type Data = SettingEntry;
 
     fn row_count(&self) -> usize {
-        9
+        self.page.entries.len()
     }
 
     fn row_data(&self, row: usize) -> Option<Self::Data> {
-        match row {
-            0 => Some(SettingEntry {
-                name: "Dark mode".into(),
+        let entry = self.page.entries.get(row)?;
+        let row = match entry {
+            settings::Entry::Checkbox { name, key } => SettingEntry {
+                name: (*name).into(),
                 r#type: SettingType::Checkbox,
                 value: SettingValue {
-                    bool_value: kvs::keys::DARK_MODE.get().unwrap(),
+                    bool_value: key.get().unwrap(),
                     ..SettingValue::default()
                 },
                 ..Default::default()
-            }),
-            1 => Some(SettingEntry {
-                name: "Date and Time (UTC)".into(),
+            },
+            settings::Entry::List { name, key, choices } => SettingEntry {
+                name: (*name).into(),
+                r#type: SettingType::List,
+                value: SettingValue {
+                    int_value: key.get().unwrap(),
+                    ..SettingValue::default()
+                },
+                choices: ModelRc::new(
+                    choices
+                        .iter()
+                        .map(|x| slint::SharedString::from(*x))
+                        .collect::<slint::VecModel<_>>(),
+                ),
+            },
+            settings::Entry::SystemDatetime { name } => SettingEntry {
+                name: (*name).into(),
                 r#type: SettingType::Datetime,
                 value: SettingValue {
                     datetime_value: {
@@ -74,80 +158,9 @@ impl Model for SettingsModel {
                     ..SettingValue::default()
                 },
                 ..Default::default()
-            }),
-            2 => Some(SettingEntry {
-                name: "Rumble Strength".into(),
-                r#type: SettingType::List,
-                value: SettingValue {
-                    int_value: kvs::keys::RUMBLE_LEVEL.get().unwrap(),
-                    ..SettingValue::default()
-                },
-                choices: ["Off".into(), "Low".into(), "Medium".into(), "High".into()].into(),
-            }),
-            3 => Some(SettingEntry {
-                name: "GB: Enable DMG mode".into(),
-                r#type: SettingType::Checkbox,
-                value: SettingValue {
-                    bool_value: kvs::keys::GB_IS_DMG.get().unwrap(),
-                    ..SettingValue::default()
-                },
-                ..Default::default()
-            }),
-            4 => Some(SettingEntry {
-                name: "GB: Skip Boot Animation".into(),
-                r#type: SettingType::Checkbox,
-                value: SettingValue {
-                    bool_value: kvs::keys::GB_SKIP_BOOT_ANIM.get().unwrap(),
-                    ..SettingValue::default()
-                },
-                ..Default::default()
-            }),
-            5 => Some(SettingEntry {
-                name: "GB: CGB Color Corrections".into(),
-                r#type: SettingType::List,
-                value: SettingValue {
-                    int_value: kvs::keys::CGB_COLOR_PROFILE.get().unwrap(),
-                    ..SettingValue::default()
-                },
-                choices: ["None".into(), "GBC".into(), "GBA".into(), "GBA SP".into()].into(),
-            }),
-            6 => Some(SettingEntry {
-                name: "GBA: Skip Boot Animation".into(),
-                r#type: SettingType::Checkbox,
-                value: SettingValue {
-                    bool_value: kvs::keys::GBA_SKIP_BOOT_ANIM.get().unwrap(),
-                    ..SettingValue::default()
-                },
-                ..Default::default()
-            }),
-            7 => Some(SettingEntry {
-                name: "GBA: Color Corrections".into(),
-                r#type: SettingType::List,
-                value: SettingValue {
-                    int_value: kvs::keys::GBA_COLOR_PROFILE.get().unwrap(),
-                    ..SettingValue::default()
-                },
-                choices: [
-                    "None".into(),
-                    "GBA".into(),
-                    "GBA SP".into(),
-                    "NDS".into(),
-                    "NDS Lite".into(),
-                    "NSO GBA".into(),
-                ]
-                .into(),
-            }),
-            8 => Some(SettingEntry {
-                name: "GBA: Enable Game Boy Player".into(),
-                r#type: SettingType::Checkbox,
-                value: SettingValue {
-                    bool_value: kvs::keys::GBA_ENABLE_GBP.get().unwrap(),
-                    ..SettingValue::default()
-                },
-                ..Default::default()
-            }),
-            _ => None,
-        }
+            },
+        };
+        Some(row)
     }
 
     fn model_tracker(&self) -> &dyn ModelTracker {
@@ -161,37 +174,36 @@ impl Model for SettingsModel {
 }
 
 impl SettingsModel {
-    pub fn new(device: &mut Device) -> Self {
+    pub fn root(device: &mut Device) -> Self {
+        Self::new(device, &settings::PAGES[0])
+    }
+
+    pub fn new(device: &mut Device, page: &'static settings::Page) -> Self {
         SettingsModel {
+            page,
             notify: ModelNotify::default(),
             datetime: Cell::new(device.get_datetime()),
         }
     }
 
-    pub fn refresh(&self) {
-        self.datetime.set(Device::lock().get_datetime());
-    }
-
     pub fn changed(&self, index: usize, value: SettingValue) {
-        match index {
-            0 => kvs::keys::DARK_MODE.set(&value.bool_value),
-            1 => {
+        let entry = match self.page.entries.get(index) {
+            Some(x) => x,
+            None => {
+                log::info!("Unknown setting changed: {} -> {:?}", index, value);
+                return;
+            }
+        };
+
+        match entry {
+            settings::Entry::Checkbox { key, .. } => key.set(&value.bool_value),
+            settings::Entry::List { key, .. } => key.set(&value.int_value),
+            settings::Entry::SystemDatetime { .. } => {
                 let dt = convert_settings_datetime(&value.datetime_value).unwrap();
                 let dt = dt.replace_second(0).unwrap();
                 let dt = dt.assume_utc();
                 Device::lock().set_datetime(dt);
                 self.datetime.set(dt);
-            }
-            2 => kvs::keys::RUMBLE_LEVEL.set(&value.int_value),
-            3 => kvs::keys::GB_IS_DMG.set(&value.bool_value),
-            4 => kvs::keys::GB_SKIP_BOOT_ANIM.set(&value.bool_value),
-            5 => kvs::keys::CGB_COLOR_PROFILE.set(&value.int_value),
-            6 => kvs::keys::GBA_SKIP_BOOT_ANIM.set(&value.bool_value),
-            7 => kvs::keys::GBA_COLOR_PROFILE.set(&value.int_value),
-            8 => kvs::keys::GBA_ENABLE_GBP.set(&value.bool_value),
-            _ => {
-                log::info!("Unknown setting changed: {} -> {:?}", index, value);
-                return;
             }
         }
         self.notify.row_changed(index);
