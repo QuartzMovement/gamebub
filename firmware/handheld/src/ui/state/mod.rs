@@ -19,9 +19,7 @@ pub struct UiState {
     root: Weak<MainWindow>,
 
     rom_select_directory: PathBuf,
-    settings_model: Option<Rc<settings::SettingsModel>>,
-    settings_page: usize,
-    settings_stack: Vec<(usize, usize)>,
+    settings: settings::SettingsState,
 }
 
 impl UiState {
@@ -36,9 +34,7 @@ impl UiState {
         let state: UiState = UiState {
             root: root.as_weak(),
             rom_select_directory,
-            settings_model: None,
-            settings_page: 0,
-            settings_stack: Vec::new(),
+            settings: settings::SettingsState::default(),
         };
         let state = Rc::new(RefCell::new(state));
         state.borrow_mut().setup(state.clone(), device);

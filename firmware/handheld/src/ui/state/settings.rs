@@ -98,6 +98,13 @@ mod settings {
     ];
 }
 
+#[derive(Default)]
+pub struct SettingsState {
+    model: Option<Rc<SettingsModel>>,
+    page: usize,
+    stack: Vec<(usize, usize)>,
+}
+
 impl UiState {
     /// Set up the "Settings" screen.
     pub(super) fn setup_settings(&mut self, state: &Rc<RefCell<UiState>>, _device: &mut Device) {
@@ -109,13 +116,13 @@ impl UiState {
             let mut state = state_.borrow_mut();
 
             let mut new_page = None;
-            if let Some(model) = state.settings_model.as_ref() {
+            if let Some(model) = state.settings.model.as_ref() {
                 new_page = model.changed(i as usize, value);
             }
 
             if let Some(new_page) = new_page {
-                let entry = (state.settings_page, i as usize);
-                state.settings_stack.push(entry);
+                let entry = (state.settings.page, i as usize);
+                state.settings.stack.push(entry);
                 state.set_settings_page(new_page, 0);
             }
         });
@@ -123,7 +130,7 @@ impl UiState {
         let state_ = state.clone();
         backend.on_settings_back(move || {
             let mut state = state_.borrow_mut();
-            match state.settings_stack.pop() {
+            match state.settings.stack.pop() {
                 Some(previous) => {
                     state.set_settings_page(previous.0, previous.1);
                     true
@@ -137,14 +144,14 @@ impl UiState {
         let root = self.root.unwrap();
         let backend = root.global::<Backend>();
         let model = Rc::new(SettingsModel::new(&settings::PAGES[page]));
-        self.settings_model = Some(model.clone());
-        self.settings_page = page;
+        self.settings.model = Some(model.clone());
+        self.settings.page = page;
         backend.set_settings(ModelRc::from(model));
         backend.set_settings_index(item as i32);
     }
 
     pub(super) fn on_settings_enter(&mut self) {
-        self.settings_stack.clear();
+        self.settings.stack.clear();
         self.set_settings_page(0, 0);
     }
 }
