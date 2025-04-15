@@ -3,6 +3,7 @@ import { ListViewBase } from "../../components/list_view.slint";
 import { SettingType, SettingValue, SettingEntry } from "types.slint";
 import { DatetimePicker } from "datetime.slint";
 import { ListBox } from "list_box.slint";
+import { Icons } from "../../icons.slint";
 
 export component SettingsListViewItem {
     in property <SettingEntry> item;
@@ -50,10 +51,10 @@ export component SettingsListViewItem {
             background: gray;
         }
     }
-    if item.type == SettingType.subpage: Text {
-        // TODO replace with icon
-        text: "->";
+    if item.type == SettingType.subpage: Image {
         x: parent.width - self.width - 4px;
+        source: Icons.right-arrow;
+        colorize: #666;
     }
     if item.type == SettingType.datetime: DatetimePicker {
         selected: root.selected;
