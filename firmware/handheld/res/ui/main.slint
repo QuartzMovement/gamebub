@@ -34,6 +34,10 @@ export component MainWindow inherits Window {
         Global.set-screen(screen);
     }
 
+    public function set-title(title: string) {
+        screen-title = title;
+    }
+
     width: 240px;
     height: 160px;
     background: Global.ui-transparent ? transparent : #E8E8E8;

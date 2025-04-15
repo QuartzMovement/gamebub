@@ -5,7 +5,7 @@ use super::super::slint::Backend;
 use crate::device::Device;
 use crate::ui::state::{SettingDatetime, SettingEntry, SettingType, SettingValue};
 use settings::Page;
-use slint::{ComponentHandle, Model, ModelNotify, ModelRc, ModelTracker};
+use slint::{ComponentHandle, Model, ModelNotify, ModelRc, ModelTracker, ToSharedString};
 use time::OffsetDateTime;
 
 use super::UiState;
@@ -14,6 +14,7 @@ mod settings {
     use crate::kvs::{keys, KvsKey};
 
     pub struct Page {
+        pub name: &'static str,
         pub entries: &'static [Entry],
     }
 
@@ -37,6 +38,7 @@ mod settings {
     }
 
     pub static PAGE_ROOT: Page = Page {
+        name: "",
         entries: &[
             Entry::Checkbox {
                 name: "Dark Mode",
@@ -51,7 +53,7 @@ mod settings {
                 choices: &["Off", "Low", "Medium", "High"],
             },
             Entry::Subpage {
-                name: "GB / GBC",
+                name: "GB",
                 page: &PAGE_GB,
             },
             Entry::Subpage {
@@ -62,6 +64,7 @@ mod settings {
     };
 
     pub static PAGE_GB: Page = Page {
+        name: "GB",
         entries: &[
             Entry::Checkbox {
                 name: "Enable DMG mode",
@@ -80,6 +83,7 @@ mod settings {
     };
 
     pub static PAGE_GBA: Page = Page {
+        name: "GBA",
         entries: &[
             Entry::Checkbox {
                 name: "Skip Boot Animation",
@@ -157,6 +161,14 @@ impl UiState {
         self.settings.page = page;
         backend.set_settings(ModelRc::from(model));
         backend.set_settings_index(selected_item as i32);
+
+        // Should be in Slint, but there isn't a good way to do it
+        let mut title = "Settings".to_shared_string();
+        if !page.name.is_empty() {
+            title.push_str(": ");
+            title.push_str(page.name);
+        }
+        root.invoke_set_title(title);
     }
 
     pub(super) fn on_settings_enter(&mut self) {
