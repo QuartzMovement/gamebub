@@ -4,6 +4,7 @@ use std::rc::Rc;
 use super::super::slint::Backend;
 use crate::device::Device;
 use crate::ui::state::{SettingDatetime, SettingEntry, SettingType, SettingValue};
+use settings::Page;
 use slint::{ComponentHandle, Model, ModelNotify, ModelRc, ModelTracker};
 use time::OffsetDateTime;
 
@@ -31,78 +32,86 @@ mod settings {
         },
         Subpage {
             name: &'static str,
-            page_index: usize,
+            page: &'static Page,
         },
     }
 
-    pub static PAGES: &[Page] = &[
-        // Root page
-        Page {
-            entries: &[
-                Entry::Checkbox {
-                    name: "Dark Mode",
-                    key: &keys::DARK_MODE,
-                },
-                Entry::SystemDatetime {
-                    name: "Date and Time (UTC)",
-                },
-                Entry::List {
-                    name: "Rumble Strength",
-                    key: &keys::RUMBLE_LEVEL,
-                    choices: &["Off", "Low", "Medium", "High"],
-                },
-                Entry::Subpage {
-                    name: "GB / GBC",
-                    page_index: 1,
-                },
-                Entry::Subpage {
-                    name: "GBA",
-                    page_index: 2,
-                },
-            ],
-        },
-        Page {
-            entries: &[
-                Entry::Checkbox {
-                    name: "Enable DMG mode",
-                    key: &keys::GB_IS_DMG,
-                },
-                Entry::Checkbox {
-                    name: "Skip Boot Animation",
-                    key: &keys::GB_SKIP_BOOT_ANIM,
-                },
-                Entry::List {
-                    name: "CGB Color Corrections",
-                    key: &keys::CGB_COLOR_PROFILE,
-                    choices: &["None", "GBC", "GBA", "GBA SP"],
-                },
-            ],
-        },
-        Page {
-            entries: &[
-                Entry::Checkbox {
-                    name: "Skip Boot Animation",
-                    key: &keys::GBA_SKIP_BOOT_ANIM,
-                },
-                Entry::List {
-                    name: "Color Corrections",
-                    key: &keys::GBA_COLOR_PROFILE,
-                    choices: &["None", "GBA", "GBA SP", "NDS", "NDS Lite", "NSO GBA"],
-                },
-                Entry::Checkbox {
-                    name: "Enable Game Boy Player",
-                    key: &keys::GBA_ENABLE_GBP,
-                },
-            ],
-        },
-    ];
+    pub static PAGE_ROOT: Page = Page {
+        entries: &[
+            Entry::Checkbox {
+                name: "Dark Mode",
+                key: &keys::DARK_MODE,
+            },
+            Entry::SystemDatetime {
+                name: "Date and Time (UTC)",
+            },
+            Entry::List {
+                name: "Rumble Strength",
+                key: &keys::RUMBLE_LEVEL,
+                choices: &["Off", "Low", "Medium", "High"],
+            },
+            Entry::Subpage {
+                name: "GB / GBC",
+                page: &PAGE_GB,
+            },
+            Entry::Subpage {
+                name: "GBA",
+                page: &PAGE_GBA,
+            },
+        ],
+    };
+
+    pub static PAGE_GB: Page = Page {
+        entries: &[
+            Entry::Checkbox {
+                name: "Enable DMG mode",
+                key: &keys::GB_IS_DMG,
+            },
+            Entry::Checkbox {
+                name: "Skip Boot Animation",
+                key: &keys::GB_SKIP_BOOT_ANIM,
+            },
+            Entry::List {
+                name: "CGB Color Corrections",
+                key: &keys::CGB_COLOR_PROFILE,
+                choices: &["None", "GBC", "GBA", "GBA SP"],
+            },
+        ],
+    };
+
+    pub static PAGE_GBA: Page = Page {
+        entries: &[
+            Entry::Checkbox {
+                name: "Skip Boot Animation",
+                key: &keys::GBA_SKIP_BOOT_ANIM,
+            },
+            Entry::List {
+                name: "Color Corrections",
+                key: &keys::GBA_COLOR_PROFILE,
+                choices: &["None", "GBA", "GBA SP", "NDS", "NDS Lite", "NSO GBA"],
+            },
+            Entry::Checkbox {
+                name: "Enable Game Boy Player",
+                key: &keys::GBA_ENABLE_GBP,
+            },
+        ],
+    };
 }
 
-#[derive(Default)]
 pub struct SettingsState {
     model: Option<Rc<SettingsModel>>,
-    page: usize,
-    stack: Vec<(usize, usize)>,
+    page: &'static Page,
+    stack: Vec<(&'static Page, usize)>,
+}
+
+impl Default for SettingsState {
+    fn default() -> Self {
+        Self {
+            model: None,
+            page: &settings::PAGE_ROOT,
+            stack: Vec::new(),
+        }
+    }
 }
 
 impl UiState {
@@ -140,19 +149,19 @@ impl UiState {
         })
     }
 
-    fn set_settings_page(&mut self, page: usize, item: usize) {
+    fn set_settings_page(&mut self, page: &'static Page, selected_item: usize) {
         let root = self.root.unwrap();
         let backend = root.global::<Backend>();
-        let model = Rc::new(SettingsModel::new(&settings::PAGES[page]));
+        let model = Rc::new(SettingsModel::new(page));
         self.settings.model = Some(model.clone());
         self.settings.page = page;
         backend.set_settings(ModelRc::from(model));
-        backend.set_settings_index(item as i32);
+        backend.set_settings_index(selected_item as i32);
     }
 
     pub(super) fn on_settings_enter(&mut self) {
         self.settings.stack.clear();
-        self.set_settings_page(0, 0);
+        self.set_settings_page(&settings::PAGE_ROOT, 0);
     }
 }
 
@@ -213,11 +222,10 @@ impl Model for SettingsModel {
                 },
                 ..Default::default()
             },
-            settings::Entry::Subpage { name, page_index } => SettingEntry {
+            settings::Entry::Subpage { name, .. } => SettingEntry {
                 name: (*name).into(),
                 r#type: SettingType::Subpage,
                 value: SettingValue {
-                    int_value: *page_index as i32,
                     ..SettingValue::default()
                 },
                 ..Default::default()
@@ -245,7 +253,7 @@ impl SettingsModel {
     }
 
     /// Notify that a setting has changed. Returns whether we navigated to a new page.
-    pub fn changed(&self, index: usize, value: SettingValue) -> Option<usize> {
+    pub fn changed(&self, index: usize, value: SettingValue) -> Option<&'static Page> {
         let entry = match self.page.entries.get(index) {
             Some(x) => x,
             None => {
@@ -263,8 +271,8 @@ impl SettingsModel {
                 let dt = dt.assume_utc();
                 Device::lock().set_datetime(dt);
             }
-            settings::Entry::Subpage { page_index, .. } => {
-                return Some(*page_index);
+            settings::Entry::Subpage { page, .. } => {
+                return Some(*page);
             }
         }
         self.notify.row_changed(index);
