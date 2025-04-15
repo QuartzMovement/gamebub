@@ -7,7 +7,6 @@ enum ButtonId {
     Rom,
     Settings,
     Tools,
-    About,
 }
 
 global MainMenu {
@@ -27,8 +26,6 @@ export component MainMenuScreen inherits ScreenBase {
                     btn-settings.focus();
                 } else if (MainMenu.last-focus == ButtonId.Tools) {
                     btn-tools.focus();
-                } else if (MainMenu.last-focus == ButtonId.About) {
-                    btn-about.focus();
                 }
             }
         }
@@ -85,11 +82,7 @@ export component MainMenuScreen inherits ScreenBase {
                             accept
                         }
                         on-down => {
-                            if (MainMenu.last-focus == ButtonId.Tools) {
-                                btn-tools.focus();
-                            } else {
-                                btn-about.focus();
-                            }
+                            btn-tools.focus();
                             MainMenu.last-focus = ButtonId.Rom;
                             accept
                         }
@@ -106,7 +99,7 @@ export component MainMenuScreen inherits ScreenBase {
 
                     btn-settings := Button {
                         text: "Settings";
-                        width: (parent.width - 8px) / 3;
+                        width: (parent.width - 4px) / 2;
                         on-up => {
                             btn-cart.focus();
                             MainMenu.last-focus = ButtonId.Settings;
@@ -124,7 +117,7 @@ export component MainMenuScreen inherits ScreenBase {
 
                     btn-tools := Button {
                         text: "Tools";
-                        width: (parent.width - 8px) / 3;
+                        width: (parent.width - 4px) / 2;
                         on-up => {
                             if (MainMenu.last-focus == ButtonId.Rom) {
                                 btn-rom.focus();
@@ -138,31 +131,9 @@ export component MainMenuScreen inherits ScreenBase {
                             btn-settings.focus();
                             accept
                         }
-                        on-right => {
-                            btn-about.focus();
-                            accept
-                        }
                         on-pressed => {
                             MainMenu.last-focus = ButtonId.Tools;
                             Global.set-screen(ScreenId.Tools);
-                        }
-                    }
-
-                    btn-about := Button {
-                        text: "About";
-                        width: (parent.width - 8px) / 3;
-                        on-up => {
-                            btn-rom.focus();
-                            MainMenu.last-focus = ButtonId.About;
-                            accept
-                        }
-                        on-left => {
-                            btn-tools.focus();
-                            accept
-                        }
-                        on-pressed => {
-                            MainMenu.last-focus = ButtonId.About;
-                            Global.set-screen(ScreenId.About);
                         }
                     }
                 }
