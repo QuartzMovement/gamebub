@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 use super::super::slint::Backend;
 use crate::device::Device;
+use crate::ui::slint::ScreenId;
 use crate::ui::state::{SettingDatetime, SettingEntry, SettingType, SettingValue};
 use settings::Page;
 use slint::{ComponentHandle, Model, ModelNotify, ModelRc, ModelTracker, ToSharedString};
@@ -12,6 +13,7 @@ use super::UiState;
 
 mod settings {
     use crate::kvs::{keys, KvsKey};
+    use crate::ui::state::ScreenId;
 
     pub struct Page {
         pub name: &'static str,
@@ -35,11 +37,19 @@ mod settings {
             name: &'static str,
             page: &'static Page,
         },
+        Screen {
+            name: &'static str,
+            screen: ScreenId,
+        },
     }
 
     pub static PAGE_ROOT: Page = Page {
         name: "",
         entries: &[
+            Entry::Screen {
+                name: "About",
+                screen: ScreenId::About,
+            },
             Entry::Checkbox {
                 name: "Dark Mode",
                 key: &keys::DARK_MODE,
@@ -127,16 +137,23 @@ impl UiState {
         let state_ = state.clone();
         backend.on_settings_changed(move |i, value| {
             let mut state = state_.borrow_mut();
+            let Some(model) = state.settings.model.as_ref() else {
+                return;
+            };
 
-            let mut new_page = None;
-            if let Some(model) = state.settings.model.as_ref() {
-                new_page = model.changed(i as usize, value);
-            }
-
-            if let Some(new_page) = new_page {
-                let entry = (state.settings.page, i as usize);
-                state.settings.stack.push(entry);
-                state.set_settings_page(new_page, 0);
+            let action = model.changed(i as usize, value);
+            match action {
+                SettingsAction::None => {}
+                SettingsAction::Subpage(page) => {
+                    let entry = (state.settings.page, i as usize);
+                    state.settings.stack.push(entry);
+                    state.set_settings_page(page, 0);
+                }
+                SettingsAction::Screen(screen_id) => {
+                    let root = state.root.unwrap();
+                    std::mem::drop(state);
+                    root.invoke_set_screen(screen_id);
+                }
             }
         });
 
@@ -237,9 +254,11 @@ impl Model for SettingsModel {
             settings::Entry::Subpage { name, .. } => SettingEntry {
                 name: (*name).into(),
                 r#type: SettingType::Subpage,
-                value: SettingValue {
-                    ..SettingValue::default()
-                },
+                ..Default::default()
+            },
+            settings::Entry::Screen { name, .. } => SettingEntry {
+                name: (*name).into(),
+                r#type: SettingType::Subpage,
                 ..Default::default()
             },
         };
@@ -257,7 +276,7 @@ impl Model for SettingsModel {
 }
 
 impl SettingsModel {
-    pub fn new(page: &'static settings::Page) -> Self {
+    fn new(page: &'static settings::Page) -> Self {
         SettingsModel {
             page,
             notify: ModelNotify::default(),
@@ -265,13 +284,10 @@ impl SettingsModel {
     }
 
     /// Notify that a setting has changed. Returns whether we navigated to a new page.
-    pub fn changed(&self, index: usize, value: SettingValue) -> Option<&'static Page> {
-        let entry = match self.page.entries.get(index) {
-            Some(x) => x,
-            None => {
-                log::info!("Unknown setting changed: {} -> {:?}", index, value);
-                return None;
-            }
+    fn changed(&self, index: usize, value: SettingValue) -> SettingsAction {
+        let Some(entry) = self.page.entries.get(index) else {
+            log::info!("Unknown setting changed: {} -> {:?}", index, value);
+            return SettingsAction::None;
         };
 
         match entry {
@@ -284,12 +300,21 @@ impl SettingsModel {
                 Device::lock().set_datetime(dt);
             }
             settings::Entry::Subpage { page, .. } => {
-                return Some(*page);
+                return SettingsAction::Subpage(*page);
+            }
+            settings::Entry::Screen { screen, .. } => {
+                return SettingsAction::Screen(*screen);
             }
         }
         self.notify.row_changed(index);
-        None
+        SettingsAction::None
     }
+}
+
+enum SettingsAction {
+    None,
+    Subpage(&'static Page),
+    Screen(ScreenId),
 }
 
 /// Helper function used by the UI to be able to correctly modify individual datetime components.
