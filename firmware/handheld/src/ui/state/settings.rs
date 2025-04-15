@@ -29,6 +29,10 @@ mod settings {
         SystemDatetime {
             name: &'static str,
         },
+        Subpage {
+            name: &'static str,
+            page_index: usize,
+        },
     }
 
     pub static PAGES: &[Page] = &[
@@ -47,30 +51,46 @@ mod settings {
                     key: &keys::RUMBLE_LEVEL,
                     choices: &["Off", "Low", "Medium", "High"],
                 },
+                Entry::Subpage {
+                    name: "GB / GBC",
+                    page_index: 1,
+                },
+                Entry::Subpage {
+                    name: "GBA",
+                    page_index: 2,
+                },
+            ],
+        },
+        Page {
+            entries: &[
                 Entry::Checkbox {
-                    name: "GB: Enable DMG mode",
+                    name: "Enable DMG mode",
                     key: &keys::GB_IS_DMG,
                 },
                 Entry::Checkbox {
-                    name: "GB: Skip Boot Animation",
+                    name: "Skip Boot Animation",
                     key: &keys::GB_SKIP_BOOT_ANIM,
                 },
                 Entry::List {
-                    name: "GB: CGB Color Corrections",
+                    name: "CGB Color Corrections",
                     key: &keys::CGB_COLOR_PROFILE,
                     choices: &["None", "GBC", "GBA", "GBA SP"],
                 },
+            ],
+        },
+        Page {
+            entries: &[
                 Entry::Checkbox {
-                    name: "GBA: Skip Boot Animation",
+                    name: "Skip Boot Animation",
                     key: &keys::GBA_SKIP_BOOT_ANIM,
                 },
                 Entry::List {
-                    name: "GBA: Color Corrections",
+                    name: "Color Corrections",
                     key: &keys::GBA_COLOR_PROFILE,
                     choices: &["None", "GBA", "GBA SP", "NDS", "NDS Lite", "NSO GBA"],
                 },
                 Entry::Checkbox {
-                    name: "GBA: Enable Game Boy Player",
+                    name: "Enable Game Boy Player",
                     key: &keys::GBA_ENABLE_GBP,
                 },
             ],
@@ -85,19 +105,47 @@ impl UiState {
         let backend = root.global::<Backend>();
 
         let state_ = state.clone();
-        backend.on_setting_changed(move |i, value| {
-            if let Some(model) = state_.borrow_mut().settings_model.as_ref() {
-                model.changed(i as usize, value);
+        backend.on_settings_changed(move |i, value| {
+            let mut state = state_.borrow_mut();
+
+            let mut new_page = None;
+            if let Some(model) = state.settings_model.as_ref() {
+                new_page = model.changed(i as usize, value);
+            }
+
+            if let Some(new_page) = new_page {
+                let entry = (state.settings_page, i as usize);
+                state.settings_stack.push(entry);
+                state.set_settings_page(new_page, 0);
             }
         });
+
+        let state_ = state.clone();
+        backend.on_settings_back(move || {
+            let mut state = state_.borrow_mut();
+            match state.settings_stack.pop() {
+                Some(previous) => {
+                    state.set_settings_page(previous.0, previous.1);
+                    true
+                }
+                None => false,
+            }
+        })
+    }
+
+    fn set_settings_page(&mut self, page: usize, item: usize) {
+        let root = self.root.unwrap();
+        let backend = root.global::<Backend>();
+        let model = Rc::new(SettingsModel::new(&settings::PAGES[page]));
+        self.settings_model = Some(model.clone());
+        self.settings_page = page;
+        backend.set_settings(ModelRc::from(model));
+        backend.set_settings_index(item as i32);
     }
 
     pub(super) fn on_settings_enter(&mut self) {
-        let root = self.root.unwrap();
-        let backend = root.global::<Backend>();
-        let model = Rc::new(SettingsModel::new(&settings::PAGES[0]));
-        self.settings_model = Some(model.clone());
-        backend.set_settings(ModelRc::from(model));
+        self.settings_stack.clear();
+        self.set_settings_page(0, 0);
     }
 }
 
@@ -158,6 +206,15 @@ impl Model for SettingsModel {
                 },
                 ..Default::default()
             },
+            settings::Entry::Subpage { name, page_index } => SettingEntry {
+                name: (*name).into(),
+                r#type: SettingType::Subpage,
+                value: SettingValue {
+                    int_value: *page_index as i32,
+                    ..SettingValue::default()
+                },
+                ..Default::default()
+            },
         };
         Some(row)
     }
@@ -180,12 +237,13 @@ impl SettingsModel {
         }
     }
 
-    pub fn changed(&self, index: usize, value: SettingValue) {
+    /// Notify that a setting has changed. Returns whether we navigated to a new page.
+    pub fn changed(&self, index: usize, value: SettingValue) -> Option<usize> {
         let entry = match self.page.entries.get(index) {
             Some(x) => x,
             None => {
                 log::info!("Unknown setting changed: {} -> {:?}", index, value);
-                return;
+                return None;
             }
         };
 
@@ -198,8 +256,12 @@ impl SettingsModel {
                 let dt = dt.assume_utc();
                 Device::lock().set_datetime(dt);
             }
+            settings::Entry::Subpage { page_index, .. } => {
+                return Some(*page_index);
+            }
         }
         self.notify.row_changed(index);
+        None
     }
 }
 

@@ -81,6 +81,7 @@ export global Backend {
             value: { datetime-value: { year: 2024, month: 3, day: 31, hour: 9, min: 30 } }
         },
     ];
+    in-out property <int> settings-index: 0;
 
     callback volume-changed(int);
     callback brightness-changed(int);
@@ -94,7 +95,8 @@ export global Backend {
     callback rom-select-up() -> bool;
     callback game-set-paused(bool);
     callback game-reset();
-    callback setting-changed(int, SettingValue);
+    callback settings-changed(int, SettingValue);
+    callback settings-back() -> bool;
     callback tools-start-usb-drive();
     callback tools-end-usb-drive();
     callback tools-get-battery-info() -> BatteryInfo;

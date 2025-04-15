@@ -12,7 +12,12 @@ export component SettingsScreen inherits ScreenBase {
     i-focus-scope := FocusScope {
         key-pressed(event) => {
             if (event.text == "b") {
-                // TODO: if in a nested subpage, just exit it.
+                // If there's no page to go back to, go to the main menu.
+                if !Backend.settings-back() {
+                    Global.set-screen(ScreenId.MainMenu);
+                }
+                accept
+            } else if event.text == "Home" && !Global.home-consumed {
                 Global.set-screen(ScreenId.MainMenu);
                 accept
             } else {
@@ -26,6 +31,7 @@ export component SettingsScreen inherits ScreenBase {
 
             list := SettingsListView {
                 model: entries;
+                focus-item <=> Backend.settings-index;
             }
 
             HorizontalLayout {

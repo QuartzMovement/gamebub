@@ -20,6 +20,8 @@ pub struct UiState {
 
     rom_select_directory: PathBuf,
     settings_model: Option<Rc<settings::SettingsModel>>,
+    settings_page: usize,
+    settings_stack: Vec<(usize, usize)>,
 }
 
 impl UiState {
@@ -33,8 +35,10 @@ impl UiState {
             .unwrap_or_else(|| Path::new(rom_select::BASE_DIR).to_path_buf());
         let state: UiState = UiState {
             root: root.as_weak(),
-            settings_model: None,
             rom_select_directory,
+            settings_model: None,
+            settings_page: 0,
+            settings_stack: Vec::new(),
         };
         let state = Rc::new(RefCell::new(state));
         state.borrow_mut().setup(state.clone(), device);
