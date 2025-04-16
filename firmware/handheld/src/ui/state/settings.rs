@@ -153,6 +153,10 @@ impl UiState {
                     let root = state.root.unwrap();
                     std::mem::drop(state);
                     root.invoke_set_screen(screen_id);
+
+                    // Workaround for issue where the title doesn't get updated
+                    // (it's updated, but it doesn't take effect until the next render)
+                    crate::ui::send(crate::ui::Message::Redraw);
                 }
             }
         });
