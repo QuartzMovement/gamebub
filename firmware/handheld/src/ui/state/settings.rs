@@ -89,6 +89,11 @@ mod settings {
                 key: &keys::CGB_COLOR_PROFILE,
                 choices: &["None", "GBC", "GBA", "GBA SP"],
             },
+            Entry::List {
+                name: "DMG Color Palette",
+                key: &keys::DMG_COLOR_PALETTE,
+                choices: &["Grayscale", "DMG Green", "GB Pocket"],
+            },
         ],
     };
 

@@ -32,8 +32,20 @@ const REG_RTC_STATE: u32 = 0xC000_0018;
 const REG_RTC_LATCHED: u32 = 0xC000_001C;
 const REG_IMU_ACCEL_X: u32 = 0xC000_0020;
 const REG_IMU_ACCEL_Y: u32 = 0xC000_0024;
+const REG_DMG_PALETTE0: u32 = 0xC000_0028;
+const REG_DMG_PALETTE1: u32 = 0xC000_002C;
 const REG_STAT_STALLS: u32 = 0xC000_1000;
 const REG_STAT_CYCLES: u32 = 0xC000_1004;
+
+// From mGBA
+static DMG_PALETTES: &[[u32; 4]] = &[
+    // Grayscale
+    [0x7FFF, 0x56B5, 0x294A, 0x0000],
+    // DMG Green"
+    [0x4689, 0x25A6, 0x1504, 0x0CA1],
+    // GB Pocket"
+    [0x52D4, 0x4270, 0x258A, 0x0CA4],
+];
 
 #[derive(Debug, Error)]
 pub enum GameboyError {
@@ -253,6 +265,18 @@ impl Gameboy {
         };
         // TODO: only configure if it has changed
         correction.configure(device)?;
+
+        // DMG palettes
+        if is_dmg {
+            let setting = kvs::keys::DMG_COLOR_PALETTE.get().unwrap() as usize;
+            let palette = DMG_PALETTES.get(setting).unwrap_or(&DMG_PALETTES[0]);
+            device
+                .fpga
+                .write_u32(REG_DMG_PALETTE0, palette[0] | (palette[1] << 16))?;
+            device
+                .fpga
+                .write_u32(REG_DMG_PALETTE1, palette[2] | (palette[3] << 16))?;
+        }
 
         // Bootrom
         self.load_bootrom(device)?;
