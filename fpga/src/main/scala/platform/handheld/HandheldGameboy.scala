@@ -5,6 +5,7 @@ import chisel3.util._
 import gameboy.Gameboy
 import gameboy.cart.emu.{EmuCartConfig, EmuCartridge, Mbc3RtcAccess, RtcState}
 import lib.mem.{MemoryInterface, MemoryMap, PipelineInterfaceBridge, RegisterMap}
+import lib.video.ColorARGB
 
 object HandheldGameboy {
   class Config extends Bundle {
@@ -32,6 +33,8 @@ class HandheldGameboy extends Module with HandheldModule {
   val configRegRamMask = RegInit(0.U(17.W))
   val configRegImuAccelX = RegInit(0.U(16.W))
   val configRegImuAccelY = RegInit(0.U(16.W))
+  val configRegDmgPalette0 = RegInit("h56B57FFF".U(32.W))
+  val configRegDmgPalette1 = RegInit("h0000294A".U(32.W))
   val statRegStalls = RegInit(0.U(32.W))
   val statRegCycles = RegInit(0.U(32.W))
 
@@ -81,6 +84,8 @@ class HandheldGameboy extends Module with HandheldModule {
         0x001C -> makeRtcAccess(latched = true),
         0x0020 -> RegisterMap.Entry.rw(configRegImuAccelX),
         0x0024 -> RegisterMap.Entry.rw(configRegImuAccelY),
+        0x0028 -> RegisterMap.Entry.w(configRegDmgPalette0),
+        0x002C -> RegisterMap.Entry.w(configRegDmgPalette1),
 
         0x1000 -> RegisterMap.Entry.rw(statRegStalls),
         0x1004 -> RegisterMap.Entry.rw(statRegCycles),
@@ -144,6 +149,14 @@ class HandheldGameboy extends Module with HandheldModule {
   io.link.scDir := gameboy.io.serial.clockEnable
 
   // Framebuffer output
+  val dmgPalette = VecInit(
+    Seq(
+      configRegDmgPalette0(14, 0),
+      configRegDmgPalette0(30, 16),
+      configRegDmgPalette1(14, 0),
+      configRegDmgPalette1(30, 16)
+    ).map(x => x.asTypeOf(ColorARGB.rgb555()))
+  )
   val framebufferX = RegInit(0.U(8.W))
   val framebufferY = RegInit(0.U(8.W))
   io.framebufferX := framebufferX
@@ -176,9 +189,14 @@ class HandheldGameboy extends Module with HandheldModule {
       // vblank when the LCD is on. This ensures that the entire screen is blanked,
       // and matches Gameboy behavior.
       io.framebufferWriteEnable := true.B
-      io.framebufferData.r := 0x1F.U(5.W)
-      io.framebufferData.g := 0x1F.U(5.W)
-      io.framebufferData.b := 0x1F.U(5.W)
+
+      when (configRegSystem.isCgb) {
+        io.framebufferData.r := 0x1F.U(5.W)
+        io.framebufferData.g := 0x1F.U(5.W)
+        io.framebufferData.b := 0x1F.U(5.W)
+      } .otherwise {
+        io.framebufferData := dmgPalette(0)
+      }
 
       when (framebufferX < 159.U) {
         framebufferX := framebufferX + 1.U
@@ -207,9 +225,16 @@ class HandheldGameboy extends Module with HandheldModule {
         framebufferY := framebufferY + 1.U
       } .elsewhen (gameboy.io.ppu.valid) {
         io.framebufferWriteEnable := true.B
-        io.framebufferData.r := gameboy.io.ppu.pixel(4, 0)
-        io.framebufferData.g := gameboy.io.ppu.pixel(9, 5)
-        io.framebufferData.b := gameboy.io.ppu.pixel(14, 10)
+
+        when (configRegSystem.isCgb) {
+          io.framebufferData.r := gameboy.io.ppu.pixel(4, 0)
+          io.framebufferData.g := gameboy.io.ppu.pixel(9, 5)
+          io.framebufferData.b := gameboy.io.ppu.pixel(14, 10)
+        } .otherwise {
+          val index = (~gameboy.io.ppu.pixel(14, 13)).asUInt
+          io.framebufferData := dmgPalette(index)
+        }
+
         framebufferX := framebufferX + 1.U
       }
     }
