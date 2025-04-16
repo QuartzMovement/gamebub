@@ -7,18 +7,36 @@ export component Button inherits Rectangle {
     callback on-focused();
 
     in-out property text <=> txt.text;
+    in property <bool> disabled: false;
+    property <color> text-color;
 
     horizontal-stretch: 0;
     border-width: 1px;
-    border-color: focus.has-focus ? black : gray;
-    background: focus.has-focus ? #fff : #eee;
     height: txt.preferred-height + 6px;
     min-width: txt.preferred-width + 6px;
     txt := Text {
         x: (parent.width - self.width) / 2;
         y: (parent.height - self.height) / 2;
-        color: focus.has-focus ? black : gray;
+        color: text-color;
     }
+
+    states [
+        disabled when disabled: {
+            background: #bbb;
+            border-color: gray;
+            text-color: gray;
+        }
+        focused when focus.has-focus: {
+            background: #fff;
+            border-color: black;
+            text-color: black;
+        }
+        inactive when !focus.has-focus: {
+            background: #eee;
+            border-color: gray;
+            text-color: gray;
+        }
+    ]
 
     focus := FocusScope {
         focus-changed-event => {

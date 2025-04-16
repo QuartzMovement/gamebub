@@ -55,7 +55,9 @@ export component ToolsScreen inherits ScreenBase {
         if selected-tool == 0: FocusScope {
             init => {
                 self.focus();
-                Backend.tools-start-usb-drive();
+                if Backend.sdcard-mounted {
+                    Backend.tools-start-usb-drive();
+                }
             }
             key-pressed(event) => {
                 if (event.text == "Start") {
@@ -66,9 +68,15 @@ export component ToolsScreen inherits ScreenBase {
             VerticalLayout {
                 alignment: center;
                 spacing: 16px;
-                Text {
+
+                if Backend.sdcard-mounted: Text {
                     horizontal-alignment: center;
                     text: "Exposing SD card as USB drive";
+                }
+
+                if !Backend.sdcard-mounted: Text {
+                    horizontal-alignment: center;
+                    text: "Error: no SD card mounted";
                 }
 
                 Text {

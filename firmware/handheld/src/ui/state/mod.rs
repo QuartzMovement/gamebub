@@ -59,6 +59,7 @@ impl UiState {
         backend.set_brightness_level((kvs::keys::BRIGHTNESS.get().unwrap() * 100.0) as i32);
         backend.set_device_revision(kvs::keys::DEVICE_REVISION.get().unwrap() as i32);
         backend.set_device_serial(kvs::keys::DEVICE_SERIAL.get().unwrap_or_default().into());
+        backend.set_sdcard_mounted(std::fs::exists("/sdcard").unwrap_or(false));
 
         self.setup_main_menu(&state, device);
         self.setup_game(&state, device);
