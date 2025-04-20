@@ -71,6 +71,7 @@ class HandheldGba extends Module with HandheldModule {
   def framebufferH = 160
   def clockSystemHz = 16 * 1024 * 1024
   def clockSdramHz = clockSystemHz * 4
+  def targetFramePeriod = ((240 + 68) * (160 + 68) * 4).toDouble / clockSystemHz
 
   val configRegEmuCart = RegInit(0.U.asTypeOf(new EmulatedCartridge.Config))
   val configRegRomSize = RegInit(0.U(25.W))

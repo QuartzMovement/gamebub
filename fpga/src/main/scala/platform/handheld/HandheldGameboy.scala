@@ -22,6 +22,7 @@ class HandheldGameboy extends Module with HandheldModule {
   def framebufferH = 144
   def clockSystemHz = 8 * 1024 * 1024
   def clockSdramHz = clockSystemHz * 4
+  def targetFramePeriod = (456 * 154).toDouble / (4 * 1024 * 1024)
   override def sdramBurst = false
 
   // Config

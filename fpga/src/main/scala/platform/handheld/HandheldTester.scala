@@ -10,6 +10,7 @@ class HandheldTester extends Module with HandheldModule {
     def framebufferH = 160
     def clockSystemHz = 8 * 1024 * 1024
     def clockSdramHz = clockSystemHz * 4
+    def targetFramePeriod = 1.0 / 60.0
 
     val (_, frame) = Counter(true.B, clockSystemHz / 60)
 
