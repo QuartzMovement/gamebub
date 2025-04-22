@@ -2,7 +2,7 @@ package platform.handheld
 
 import chisel3._
 import lib.mem.MemoryMap
-import platform.handheld.boot.Logo
+import platform.handheld.boot.{CartridgeUtility, Logo}
 
 class HandheldBoot extends Module with HandheldModule {
     val io = IO(new HandheldIo)
@@ -22,32 +22,24 @@ class HandheldBoot extends Module with HandheldModule {
     io.framebufferWriteEnable := logo.io.framebufferWriteEnable
     io.vblank := logo.io.vblank
 
+    // Cartridge utility
+    val cartridgeUtility = Module(new CartridgeUtility)
+    io.cartridgeEnabled := cartridgeUtility.io.cartridgeEnabled
+    io.cartridge <> cartridgeUtility.io.cartridge
+
     io.mcuInterface <> MemoryMap(
         addressWidth = 24,
         dataWidth = 32,
         entries = Seq(
             "b0000".U(4.W) -> logo.io.registers,
+            "b0010".U(4.W) -> cartridgeUtility.io.registers,
+            "b0011".U(4.W) -> cartridgeUtility.io.memInterface,
         ))
 
     private def stubUnused(): Unit = {
         io.vibrate := false.B
         io.audioLeft := 0.S
         io.audioRight := 0.S
-
-        // Cartridge unused
-        io.cartridgeEnabled := false.B
-        io.cartridge.bank0Dir := false.B
-        io.cartridge.bank1Dir := false.B
-        io.cartridge.bank2Dir := false.B
-        io.cartridge.bank3Dir := false.B
-        io.cartridge.pin30Dir := false.B
-        io.cartridge.pin31Dir := false.B
-        io.cartridge.bank0Out := DontCare
-        io.cartridge.bank1Out := DontCare
-        io.cartridge.bank2Out := DontCare
-        io.cartridge.bank3Out := DontCare
-        io.cartridge.pin30Out := DontCare
-        io.cartridge.pin31Out := DontCare
 
         // PMOD unused
         io.pmod.out := DontCare
