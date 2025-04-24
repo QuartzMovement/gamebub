@@ -12,6 +12,7 @@ object CartridgeUtility {
     val idle = Value
     val agbRomRead = Value
     val agbRamRead = Value
+    val agbRomWrite = Value
     val agbRamWrite = Value
   }
 
@@ -78,6 +79,10 @@ class CartridgeUtility extends Module {
   val regInstructionLo = Reg(UInt(32.W))
   val regInstructionHi = Reg(UInt(32.W))
   val doInstructionExecute = WireDefault(false.B)
+  val regWaitStates = RegInit(0.U.asTypeOf(new Bundle {
+    val waitB = UInt(4.W)
+    val waitA = UInt(4.W)
+  }))
 
   val regCartAddress = Reg(UInt(24.W))
   val regMemAddress = Reg(UInt(16.W))
@@ -90,6 +95,7 @@ class CartridgeUtility extends Module {
     dataWidth = 32,
     entries = Seq(
       0x0 -> RegisterMap.Entry.r(regState === State.idle),
+      0x4 -> RegisterMap.Entry.w(regWaitStates),
       0x100 -> RegisterMap.Entry.w(regInstructionLo),
       0x104 -> RegisterMap.Entry.w(regInstructionHi),
       0x108 -> RegisterMap.Entry.w(doInstructionExecute),
@@ -151,8 +157,14 @@ class CartridgeUtility extends Module {
             regCartDir.pin31 := false.B
             regCartEnabled := instruction(0).asBool
           }
-          is (Opcode.agbRomRead.litValue.U) {
-            regState := State.agbRomRead
+          is (Opcode.agbRomRead.litValue.U, Opcode.agbRomWrite.litValue.U) {
+            when (opcode === Opcode.agbRomRead.litValue.U) {
+              regState := State.agbRomRead
+              regTransferWrite := false.B
+            } .otherwise {
+              regState := State.agbRomWrite
+              regTransferWrite := true.B
+            }
             regCartAddress := instruction(23, 0)
             regTransferCount := instruction(39, 24)
             regMemAddress := instruction(55, 40)
@@ -197,8 +209,8 @@ class CartridgeUtility extends Module {
       }
     }
     is (State.agbRomRead) {
-      val waitA = 2 // Number of cycles with nCS low and nRD high (non-sequential)
-      val waitB = 2 // Number of cycles with nRD low each access
+      val waitA = regWaitStates.waitA // Number of cycles with nCS low and nRD high (non-sequential)
+      val waitB = regWaitStates.waitB // Number of cycles with nRD low each access
       val transfers = regTransferCount
       val cycle = regStateCounter
       cycle := cycle + 1.U
@@ -207,16 +219,16 @@ class CartridgeUtility extends Module {
       when (cycle === 0.U) {
         regCartOut.nCS := false.B
       }
-      when (cycle === waitA.U) {
+      when (cycle === waitA) {
         regCartOut.nRD := false.B
         regCartDir.ADLo := false.B // Input
       }
-      when (cycle === (waitA + waitB).U) {
+      when (cycle === (waitA +& waitB)) {
         regCartOut.nRD := true.B
         regData := cartIn.ADLo
         transfers := transfers - 1.U
       }
-      when (cycle === (waitA + waitB + 1).U) {
+      when (cycle === (waitA +& waitB + 1.U)) {
         // Store in memory
         mem.enable := true.B
         mem.address := regMemAddress(15, 2)
@@ -235,8 +247,50 @@ class CartridgeUtility extends Module {
         }
       }
     }
+    is (State.agbRomWrite) {
+      val waitA = regWaitStates.waitA // Number of cycles with nCS low and nWR high (non-sequential)
+      val waitB = regWaitStates.waitB // Number of cycles with nWR low each access
+      val transfers = regTransferCount
+      val cycle = regStateCounter
+      cycle := cycle + 1.U
+      mem.address := regMemAddress(15, 2)
+      mem.isWrite := false.B
+
+      when (cycle === 0.U) {
+        regCartOut.nCS := false.B
+      }
+      when (cycle === (waitA - 1.U)) {
+        // Start memory read for next cycle
+        mem.enable := true.B
+      }
+      when (cycle === waitA) {
+        // Finish read and output
+        regCartOut.ADLo := Mux(
+          regMemAddress(1),
+          Cat(mem.readData(3), mem.readData(2)),
+          Cat(mem.readData(1), mem.readData(0)),
+        )
+        regMemAddress := regMemAddress + 2.U
+        transfers := transfers - 1.U
+        regCartAddress := regCartAddress + 1.U
+
+        regCartOut.nWR := false.B
+      }
+      when (cycle === (waitA +& waitB)) {
+        regCartOut.nWR := true.B
+
+        when (transfers === 0.U) {
+          // End transfers
+          regState := State.idle
+        } .otherwise {
+          // Next transfer
+          cycle := waitA
+          mem.enable := true.B
+        }
+      }
+    }
     is (State.agbRamRead) {
-      val numWaitA = 8 // Number of cycles with nCS2 low and nRD low
+      val numWaitA = regWaitStates.waitA // Number of cycles with nCS2 low and nRD low
       val transfers = regTransferCount
       val cycle = regStateCounter
       cycle := cycle + 1.U
@@ -247,14 +301,14 @@ class CartridgeUtility extends Module {
         regCartOut.pin30 := false.B // nCS2
         regCartOut.nRD := false.B
       }
-      when (cycle === numWaitA.U) {
+      when (cycle === numWaitA) {
         regCartOut.pin30 := true.B // nCS2
         regCartOut.nRD := true.B
         regData := cartIn.ADHi
         transfers := transfers - 1.U
         regCartAddress := regCartAddress + 1.U
       }
-      when (cycle === (numWaitA + 1).U) {
+      when (cycle === (numWaitA + 1.U)) {
         // Store in memory
         val byte = regMemAddress(1, 0)
         mem.enable := true.B
@@ -276,17 +330,17 @@ class CartridgeUtility extends Module {
       }
     }
     is (State.agbRamWrite) {
-      val numWaitA = 8 // Number of cycles with nCS2 low and nWR low
+      val numWaitA = regWaitStates.waitA // Number of cycles with nCS2 low and nWR low
       val transfers = regTransferCount
       val cycle = regStateCounter
       cycle := cycle + 1.U
       regCartOut.ADLo := regCartAddress
+      mem.address := regMemAddress(15, 2)
+      mem.isWrite := false.B
 
       when (cycle === 0.U) {
         // Start memory read
         mem.enable := true.B
-        mem.address := regMemAddress(15, 2)
-        mem.isWrite := false.B
       }
       when (cycle === 1.U) {
         // Finish the read and output
@@ -298,7 +352,7 @@ class CartridgeUtility extends Module {
         regCartOut.pin30 := false.B // nCS2
         regCartOut.nWR := false.B
       }
-      when (cycle === (1 + numWaitA).U) {
+      when (cycle === (1.U + numWaitA)) {
         regCartOut.pin30 := true.B // nCS2
         regCartOut.nWR := true.B
 
@@ -309,8 +363,6 @@ class CartridgeUtility extends Module {
           // Prepare for next transfer
           cycle := 1.U
           mem.enable := true.B
-          mem.address := regMemAddress(15, 2)
-          mem.isWrite := false.B
         }
       }
     }
