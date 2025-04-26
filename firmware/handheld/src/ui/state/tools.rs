@@ -14,9 +14,17 @@ impl UiState {
         let backend = root.global::<Backend>();
 
         backend.on_tools_start_usb_drive(move || {
-            crate::device::drivers::usb::setup_tinyusb().expect("USB setup failed");
+            crate::device::drivers::usb::setup_tinyusb_sdcard().expect("USB setup failed");
         });
         backend.on_tools_end_usb_drive(move || {
+            crate::device::drivers::usb::teardown_tinyusb().expect("USB teardown failed");
+            Device::lock().reboot();
+        });
+
+        backend.on_tools_start_cart_reader(move || {
+            crate::device::drivers::usb::setup_tinyusb_cart_reader().expect("USB setup failed");
+        });
+        backend.on_tools_end_cart_reader(move || {
             crate::device::drivers::usb::teardown_tinyusb().expect("USB teardown failed");
             Device::lock().reboot();
         });

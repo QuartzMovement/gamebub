@@ -6,11 +6,56 @@ mod descriptors;
 ///
 /// This takes over the USB PHY, removing the Serial/JTAG built-in device,
 /// and instead exposes the MSC device.
-pub fn setup_tinyusb() -> Result<(), EspError> {
+pub fn setup_tinyusb_sdcard() -> Result<(), EspError> {
+    log::info!("Installing TinyUSB: sdcard");
     let mut descriptors = descriptors::Builder::new();
     descriptors.add_msc();
+    setup_tinyusb(descriptors)
+}
+
+/// Set up and install the cart reader (USB CDC) device.
+pub fn setup_tinyusb_cart_reader() -> Result<(), EspError> {
+    log::info!("Installing TinyUSB: cart reader");
+    let mut descriptors = descriptors::Builder::new();
+    descriptors.add_cdc();
+    descriptors.add_cdc();
+    setup_tinyusb(descriptors)?;
+
+    // Setup first CDC interface (console)
+    let acm_config = esp_idf_sys::tinyusb_config_cdcacm_t {
+        usb_dev: 0,          // TINYUSB_USBDEV_0
+        cdc_port: 0,         // TINYUSB_CDC_ACM_0
+        rx_unread_buf_sz: 0, // unused
+        callback_rx: None,
+        callback_rx_wanted_char: None,
+        callback_line_state_changed: None,
+        callback_line_coding_changed: None,
+    };
+    let result = unsafe { esp_idf_sys::tusb_cdc_acm_init(&acm_config) };
+    EspError::convert(result)?;
+    let result = unsafe {
+        esp_idf_sys::esp_tusb_init_console(0 /* TINYUSB_CDC_ACM_0 */)
+    };
+    EspError::convert(result)?;
+
+    // Setup second CDC interface
+    let acm_config = esp_idf_sys::tinyusb_config_cdcacm_t {
+        usb_dev: 0,          // TINYUSB_USBDEV_0
+        cdc_port: 1,         // TINYUSB_CDC_ACM_1
+        rx_unread_buf_sz: 0, // unused
+        callback_rx: None,
+        callback_rx_wanted_char: None,
+        callback_line_state_changed: None,
+        callback_line_coding_changed: None,
+    };
+    let result = unsafe { esp_idf_sys::tusb_cdc_acm_init(&acm_config) };
+    EspError::convert(result)?;
+
+    Ok(())
+}
+
+fn setup_tinyusb(descriptors: descriptors::Builder) -> Result<(), EspError> {
     let descriptors = Box::new(descriptors.build());
-    log::info!("Installing TinyUSB");
     let tinyusb_config = descriptors.tinyusb_config();
     Box::leak(descriptors); // TinyUSB will keep using the descriptors
     let result = unsafe { esp_idf_sys::tinyusb_driver_install(&tinyusb_config) };

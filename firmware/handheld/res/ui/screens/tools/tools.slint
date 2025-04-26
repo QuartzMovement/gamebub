@@ -3,7 +3,7 @@ import { ScreenBase } from "../../components/screen.slint";
 import { TextListView } from "../../components/list_view.slint";
 
 export component ToolsScreen inherits ScreenBase {
-    in property <[string]> tools: ["Mount SD Card over USB", "Debug battery info"];
+    in property <[string]> tools: ["Mount SD Card over USB", "Cartridge backup / restore", "Debug battery info"];
     private property <int> selected-tool: -1;
 
     title: "Tools";
@@ -86,8 +86,36 @@ export component ToolsScreen inherits ScreenBase {
             }
         }
 
-        // Debug battery info
+        // Cartridge backup / restore
         if selected-tool == 1: FocusScope {
+            init => {
+                self.focus();
+                Backend.tools-start-cart-reader();
+            }
+            key-pressed(event) => {
+                if (event.text == "Start") {
+                    Backend.tools-end-cart-reader();
+                }
+                accept
+            }
+            VerticalLayout {
+                alignment: center;
+                spacing: 16px;
+
+                Text {
+                    horizontal-alignment: center;
+                    text: "Cartridge Backup / Restore";
+                }
+
+                Text {
+                    horizontal-alignment: center;
+                    text: "Press START to reboot";
+                }
+            }
+        }
+
+        // Debug battery info
+        if selected-tool == 2: FocusScope {
             private property <BatteryInfo> info;
             init => {
                 self.focus();
