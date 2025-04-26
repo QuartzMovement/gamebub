@@ -6,6 +6,7 @@ const USB_PID: u16 = 0xB010;
 
 const CONFIG_DESCRIPTOR_LEN: usize = 9;
 const MSC_DESCRIPTOR_LEN: usize = 23;
+const CDC_DESCRIPTOR_LEN: usize = 66;
 
 /// Helper for generating TinyUSB descriptors
 pub struct Builder {
@@ -104,6 +105,107 @@ impl Builder {
             0,
         ];
         assert!(descriptor.len() == MSC_DESCRIPTOR_LEN);
+        self.configuration.extend_from_slice(&descriptor);
+        itfnum
+    }
+
+    pub fn add_cdc(&mut self) -> u8 {
+        // First, update device class / subclass / protocol for IAD
+        self.device.bDeviceClass = sys::tusb_class_code_t_TUSB_CLASS_MISC as u8;
+        self.device.bDeviceSubClass = sys::misc_subclass_type_t_MISC_SUBCLASS_COMMON as u8;
+        self.device.bDeviceProtocol = sys::misc_protocol_type_t_MISC_PROTOCOL_IAD as u8;
+
+        // Assign endpoint and interface numbers
+        let itfnum = self.interfaces;
+        let stridx = 4; // string index 4: CDC device
+        let ep_notif = 0x80 | (self.endpoints + 1);
+        let ep_notif_size = 8u16;
+        let ep_out = self.endpoints + 2;
+        let ep_in = 0x80 | ep_out;
+        let ep_size = 64u16;
+        self.interfaces += 2;
+        self.endpoints += 2;
+
+        // Build it
+        let descriptor = [
+            // Interface Associate
+            8,
+            sys::tusb_desc_type_t_TUSB_DESC_INTERFACE_ASSOCIATION as u8,
+            itfnum,
+            2,
+            sys::tusb_class_code_t_TUSB_CLASS_CDC as u8,
+            sys::cdc_comm_sublcass_type_t_CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL as u8,
+            sys::cdc_comm_protocol_type_t_CDC_COMM_PROTOCOL_NONE as u8,
+            0,
+            // CDC Control Interface,
+            9,
+            sys::tusb_desc_type_t_TUSB_DESC_INTERFACE as u8,
+            itfnum,
+            0,
+            1,
+            sys::tusb_class_code_t_TUSB_CLASS_CDC as u8,
+            sys::cdc_comm_sublcass_type_t_CDC_COMM_SUBCLASS_ABSTRACT_CONTROL_MODEL as u8,
+            sys::cdc_comm_protocol_type_t_CDC_COMM_PROTOCOL_NONE as u8,
+            stridx,
+            // CDC Header
+            5,
+            sys::tusb_desc_type_t_TUSB_DESC_CS_INTERFACE as u8,
+            sys::cdc_func_desc_type_t_CDC_FUNC_DESC_HEADER as u8,
+            0x20,
+            0x01,
+            // CDC Call
+            5,
+            sys::tusb_desc_type_t_TUSB_DESC_CS_INTERFACE as u8,
+            sys::cdc_func_desc_type_t_CDC_FUNC_DESC_CALL_MANAGEMENT as u8,
+            0,
+            itfnum + 1,
+            // CDC ACM: support line request + send break
+            4,
+            sys::tusb_desc_type_t_TUSB_DESC_CS_INTERFACE as u8,
+            sys::cdc_func_desc_type_t_CDC_FUNC_DESC_ABSTRACT_CONTROL_MANAGEMENT as u8,
+            6,
+            // CDC Union
+            5,
+            sys::tusb_desc_type_t_TUSB_DESC_CS_INTERFACE as u8,
+            sys::cdc_func_desc_type_t_CDC_FUNC_DESC_UNION as u8,
+            itfnum,
+            itfnum + 1,
+            // Endpoint Notification
+            7,
+            sys::tusb_desc_type_t_TUSB_DESC_ENDPOINT as u8,
+            ep_notif,
+            sys::tusb_xfer_type_t_TUSB_XFER_INTERRUPT as u8,
+            (ep_notif_size & 0xFF) as u8,
+            ((ep_notif_size >> 8) & 0xFF) as u8,
+            16,
+            // CDC Data Interface
+            9,
+            sys::tusb_desc_type_t_TUSB_DESC_INTERFACE as u8,
+            itfnum + 1,
+            0,
+            2,
+            sys::tusb_class_code_t_TUSB_CLASS_CDC_DATA as u8,
+            0,
+            0,
+            0,
+            // Endpoint Out,
+            7,
+            sys::tusb_desc_type_t_TUSB_DESC_ENDPOINT as u8,
+            ep_out,
+            sys::tusb_xfer_type_t_TUSB_XFER_BULK as u8,
+            (ep_size & 0xFF) as u8,
+            ((ep_size >> 8) & 0xFF) as u8,
+            0,
+            // Endpoint In,
+            7,
+            sys::tusb_desc_type_t_TUSB_DESC_ENDPOINT as u8,
+            ep_in,
+            sys::tusb_xfer_type_t_TUSB_XFER_BULK as u8,
+            (ep_size & 0xFF) as u8,
+            ((ep_size >> 8) & 0xFF) as u8,
+            0,
+        ];
+        assert!(descriptor.len() == CDC_DESCRIPTOR_LEN);
         self.configuration.extend_from_slice(&descriptor);
         itfnum
     }
