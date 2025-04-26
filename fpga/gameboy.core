@@ -138,7 +138,7 @@ targets:
       - "handheld"
       - "module_gba ? (handheld_clk_gba)"
       - "module_gameboy ? (handheld_clk_gameboy)"
-      - "module_boot ? (handheld_clk_gameboy)"
+      - "module_boot ? (handheld_clk_gba)"
     generate: [handheld]
     toplevel: top_handheld
     tools:
