@@ -1,6 +1,9 @@
 use esp_idf_svc::sys::{self as esp_idf_sys, EspError};
 
+mod cdc_stream;
 mod descriptors;
+
+pub use cdc_stream::CdcStream;
 
 /// Set up and install the TinyUSB driver.
 ///
@@ -43,7 +46,7 @@ pub fn setup_tinyusb_cart_reader() -> Result<(), EspError> {
         usb_dev: 0,          // TINYUSB_USBDEV_0
         cdc_port: 1,         // TINYUSB_CDC_ACM_1
         rx_unread_buf_sz: 0, // unused
-        callback_rx: None,
+        callback_rx: Some(cdc_stream::cdc_stream_callback_rx),
         callback_rx_wanted_char: None,
         callback_line_state_changed: None,
         callback_line_coding_changed: None,
