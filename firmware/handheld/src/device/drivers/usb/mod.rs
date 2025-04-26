@@ -54,6 +54,9 @@ pub fn setup_tinyusb_cart_reader() -> Result<(), EspError> {
     let result = unsafe { esp_idf_sys::tusb_cdc_acm_init(&acm_config) };
     EspError::convert(result)?;
 
+    // Start cart backup
+    crate::cart_backup::start_task(1);
+
     Ok(())
 }
 

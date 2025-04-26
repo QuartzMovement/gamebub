@@ -6,6 +6,7 @@ use device::Device;
 use crate::ui::UI;
 
 mod bitstream;
+mod cart_backup;
 mod cli;
 mod device;
 mod input;
