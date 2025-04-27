@@ -87,6 +87,7 @@ impl CartBackup {
                 0xA2 => {
                     log::info!("SET_MODE_AGB");
                     self.cart_mode = CartMode::Agb;
+                    set_waits(2, 1, 8).unwrap();
                     self.write_ack()?;
                 }
                 0xA3 => {
@@ -148,17 +149,54 @@ impl CartBackup {
                     });
                     if command.execute().is_err() {
                         log::error!("AGB ROM read failed");
-                        self.write_one(0)?;
                         continue;
                     }
                     let mut buf = vec![0u8; self.transfer_size as usize];
                     if read_mem(0, &mut buf).is_err() {
                         log::error!("Mem read failed");
-                        self.write_one(0)?;
                         continue;
                     }
                     self.address += (self.transfer_size / 2) as u32;
                     self.stream.write_all(&buf)?;
+                }
+                0xC3 => {
+                    log::debug!("AGB_CART_READ_SRAM");
+                    let command = Command::AgbRamRead(TransferParams {
+                        cart_address: self.address,
+                        transfer_count: self.transfer_size,
+                        mem_address: 0,
+                    });
+                    if command.execute().is_err() {
+                        log::error!("AGB SRAM read failed");
+                        continue;
+                    }
+                    let mut buf = vec![0u8; self.transfer_size as usize];
+                    if read_mem(0, &mut buf).is_err() {
+                        log::error!("Mem read failed");
+                        continue;
+                    }
+                    self.address += self.transfer_size as u32;
+                    self.stream.write_all(&buf)?;
+                }
+                0xC4 => {
+                    log::debug!("AGB_CART_WRITE_SRAM");
+                    let mut buf = vec![0u8; self.transfer_size as usize];
+                    self.stream.read_exact(&mut buf)?;
+                    if write_mem(0, &buf).is_err() {
+                        log::error!("Mem write failed");
+                        continue;
+                    }
+                    let command = Command::AgbRamWrite(TransferParams {
+                        cart_address: self.address,
+                        transfer_count: self.transfer_size,
+                        mem_address: 0,
+                    });
+                    if command.execute().is_err() {
+                        log::error!("AGB SRAM write failed");
+                        continue;
+                    }
+                    self.address += self.transfer_size as u32;
+                    self.write_ack()?;
                 }
                 0xC9 => {
                     log::info!("AGB_BOOTUP_SEQUENCE");
@@ -358,6 +396,7 @@ impl TransferParams {
     }
 }
 
+#[allow(unused)]
 #[derive(Copy, Clone, Debug)]
 enum Command {
     Nop,
