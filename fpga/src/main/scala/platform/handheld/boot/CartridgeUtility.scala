@@ -79,7 +79,9 @@ class CartridgeUtility extends Module {
   val regInstructionLo = Reg(UInt(32.W))
   val regInstructionHi = Reg(UInt(32.W))
   val doInstructionExecute = WireDefault(false.B)
-  val regWaitStates = RegInit(0.U.asTypeOf(new Bundle {
+  /// AGB wait states: A: ROM non-seq initial, B: ROM seq repeated, C: RAM
+  val regWaitStates = RegInit(0x812.U.asTypeOf(new Bundle {
+    val waitC = UInt(4.W)
     val waitB = UInt(4.W)
     val waitA = UInt(4.W)
   }))
@@ -290,7 +292,7 @@ class CartridgeUtility extends Module {
       }
     }
     is (State.agbRamRead) {
-      val numWaitA = regWaitStates.waitA // Number of cycles with nCS2 low and nRD low
+      val numWaits = regWaitStates.waitC // Number of cycles with nCS2 low and nRD low
       val transfers = regTransferCount
       val cycle = regStateCounter
       cycle := cycle + 1.U
@@ -300,14 +302,14 @@ class CartridgeUtility extends Module {
         regCartOut.pin30 := false.B // nCS2
         regCartOut.nRD := false.B
       }
-      when (cycle === numWaitA) {
+      when (cycle === numWaits) {
         regCartOut.pin30 := true.B // nCS2
         regCartOut.nRD := true.B
         regData := cartIn.ADHi
         transfers := transfers - 1.U
         regCartAddress := regCartAddress + 1.U
       }
-      when (cycle === (numWaitA + 1.U)) {
+      when (cycle === (numWaits + 1.U)) {
         // Store in memory
         val byte = regMemAddress(1, 0)
         mem.enable := true.B
@@ -329,7 +331,7 @@ class CartridgeUtility extends Module {
       }
     }
     is (State.agbRamWrite) {
-      val numWaitA = regWaitStates.waitA // Number of cycles with nCS2 low and nWR low
+      val numWaits = regWaitStates.waitC // Number of cycles with nCS2 low and nWR low
       val transfers = regTransferCount
       val cycle = regStateCounter
       cycle := cycle + 1.U
@@ -364,7 +366,7 @@ class CartridgeUtility extends Module {
         regCartOut.pin30 := false.B // nCS2
         regCartOut.nWR := false.B
       }
-      when (cycle === (1.U + numWaitA)) {
+      when (cycle === (1.U + numWaits)) {
         cycle := 0.U
       }
     }

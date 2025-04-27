@@ -141,7 +141,6 @@ impl CartBackup {
                         self.address,
                         self.transfer_size
                     );
-                    set_waits(2, 1).unwrap();
                     let command = Command::AgbRomRead(TransferParams {
                         cart_address: self.address,
                         transfer_count: self.transfer_size / 2,
@@ -435,8 +434,10 @@ fn write_mem(address: u16, buffer: &[u8]) -> Result<(), fpga::Error> {
         .spi_write(Some(40.MHz().into()), command, address, buffer)
 }
 
-fn set_waits(wait0: u32, wait1: u32) -> Result<(), fpga::Error> {
-    Device::lock()
-        .fpga
-        .write_u32(REG_WAITS, (wait0 & 0xF) | ((wait1 & 0xF) << 4))
+#[allow(unused)]
+fn set_waits(wait0: u32, wait1: u32, wait2: u32) -> Result<(), fpga::Error> {
+    Device::lock().fpga.write_u32(
+        REG_WAITS,
+        (wait0 & 0xF) | ((wait1 & 0xF) << 4) | ((wait2 & 0xF) << 8),
+    )
 }
