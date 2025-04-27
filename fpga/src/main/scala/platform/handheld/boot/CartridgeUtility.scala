@@ -295,7 +295,6 @@ class CartridgeUtility extends Module {
       val cycle = regStateCounter
       cycle := cycle + 1.U
       val regData = Reg(UInt(8.W))
-      regCartOut.ADLo := regCartAddress
 
       when (cycle === 0.U) {
         regCartOut.pin30 := false.B // nCS2
@@ -317,15 +316,15 @@ class CartridgeUtility extends Module {
         mem.mask.get := VecInit(byte === 0.U, byte === 1.U, byte === 2.U, byte === 3.U)
         mem.writeData := Fill(4, regData).asTypeOf(mem.writeData)
         regMemAddress := regMemAddress + 1.U
+        // Update cart address
+        regCartOut.ADLo := regCartAddress
 
         when (transfers === 0.U) {
           // End transfers
           regState := State.idle
         } .otherwise {
           // Next transfer
-          cycle := 1.U
-          regCartOut.pin30 := false.B // nCS2
-          regCartOut.nRD := false.B
+          cycle := 0.U
         }
       }
     }
@@ -334,25 +333,11 @@ class CartridgeUtility extends Module {
       val transfers = regTransferCount
       val cycle = regStateCounter
       cycle := cycle + 1.U
-      regCartOut.ADLo := regCartAddress
       mem.address := regMemAddress(15, 2)
       mem.isWrite := false.B
 
       when (cycle === 0.U) {
-        // Start memory read
-        mem.enable := true.B
-      }
-      when (cycle === 1.U) {
-        // Finish the read and output
-        regCartOut.ADHi := mem.readData(regMemAddress(1, 0))
-        regMemAddress := regMemAddress + 1.U
-        transfers := transfers - 1.U
-        regCartAddress := regCartAddress + 1.U
-
-        regCartOut.pin30 := false.B // nCS2
-        regCartOut.nWR := false.B
-      }
-      when (cycle === (1.U + numWaitA)) {
+        // End the last cart write
         regCartOut.pin30 := true.B // nCS2
         regCartOut.nWR := true.B
 
@@ -361,9 +346,26 @@ class CartridgeUtility extends Module {
           regState := State.idle
         } .otherwise {
           // Prepare for next transfer
-          cycle := 1.U
           mem.enable := true.B
         }
+      }
+      when (cycle === 1.U) {
+        regCartOut.pin30 := false.B // nCS2
+        regCartOut.nWR := false.B
+        // Finish the read and output
+        regCartOut.ADHi := mem.readData(regMemAddress(1, 0))
+        regMemAddress := regMemAddress + 1.U
+        transfers := transfers - 1.U
+        regCartOut.ADLo := regCartAddress
+        regCartAddress := regCartAddress + 1.U
+      }
+      when (cycle === 2.U) {
+        // Start the cart access
+        regCartOut.pin30 := false.B // nCS2
+        regCartOut.nWR := false.B
+      }
+      when (cycle === (1.U + numWaitA)) {
+        cycle := 0.U
       }
     }
   }
