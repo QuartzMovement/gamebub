@@ -71,6 +71,17 @@ impl CurrentBitstream {
         Ok(())
     }
 
+    /// Ensure the boot is loaded.
+    pub fn ensure_boot(&mut self) -> Result<(), String> {
+        match self {
+            CurrentBitstream::None => Ok(()),
+            _ => {
+                program_fpga("boot.bit.gz");
+                self.set(CurrentBitstream::None)
+            }
+        }
+    }
+
     /// Ensure the gameboy bitstream is loaded.
     pub fn ensure_gameboy(&mut self) -> Result<(), String> {
         match self {

@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 use super::super::slint::{Backend, BatteryInfo};
 use slint::ComponentHandle;
 
-use crate::device::Device;
+use crate::{device::Device, worker};
 
 use super::UiState;
 
@@ -22,6 +22,8 @@ impl UiState {
         });
 
         backend.on_tools_start_cart_reader(move || {
+            // The boot bitstream contains CartridgeUtility
+            worker::send(worker::Message::EnsureBootBitstream);
             crate::device::drivers::usb::setup_tinyusb_cart_reader().expect("USB setup failed");
         });
         backend.on_tools_end_cart_reader(move || {

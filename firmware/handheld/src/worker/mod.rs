@@ -29,6 +29,8 @@ pub enum Message {
     RunRomFile(PathBuf),
     /// Load ROM select entries
     ListRoms(PathBuf),
+    /// Load Boot / Utility bitstream
+    EnsureBootBitstream,
 }
 
 /// Send a message to the worker threads.
@@ -156,6 +158,9 @@ fn dispatch(message: Message) {
             let mut device = Device::lock();
             device.docked = docked;
             device.change_display_mode(mode).unwrap();
+        }
+        Message::EnsureBootBitstream => {
+            bitstream::current().ensure_boot().unwrap();
         }
         _ => {
             log::warn!("Unhandled message: {:?}", message);
