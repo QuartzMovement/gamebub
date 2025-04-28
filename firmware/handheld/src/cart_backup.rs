@@ -332,6 +332,56 @@ impl CartBackup {
                     }
                     self.write_ack()?;
                 }
+                0xC7 => {
+                    log::info!("AGB_CART_WRITE_FLASH_DATA");
+                    let flash_type = self.read_one()?;
+                    let mut buf = vec![0u8; self.transfer_size as usize];
+                    self.stream.read_exact(&mut buf)?;
+
+                    match flash_type {
+                        1 => {
+                            let command_location = 32 * 1024;
+                            let commands = [0xAA, 0x55, 0xA0, 0];
+                            write_mem(command_location, &commands).unwrap();
+                            write_mem(0, &buf).unwrap();
+
+                            // Regular flash
+                            for i in 0..buf.len() {
+                                let writes = [
+                                    (0x5555, command_location + 0),
+                                    (0x2AAA, command_location + 1),
+                                    (0x5555, command_location + 2),
+                                    (self.address as u16, i as u16),
+                                ];
+                                for (cart_address, mem_address) in writes {
+                                    Command::AgbRamWrite(TransferParams {
+                                        cart_address: cart_address as u32,
+                                        transfer_count: 1,
+                                        mem_address,
+                                    })
+                                    .execute()
+                                    .unwrap();
+                                }
+
+                                // Wait for 20 microseconds between writes
+                                esp_idf_svc::hal::delay::Ets::delay_us(20);
+
+                                self.address += 1;
+                            }
+                        }
+                        2 => {
+                            // Atmel flash
+                            log::error!("Atmel write not implemented");
+                        }
+                        _ => {
+                            log::error!("Unknown flash type {}", flash_type);
+                            self.write_one(0)?;
+                            continue 'main;
+                        }
+                    }
+
+                    self.write_ack()?;
+                }
                 0xC9 => {
                     log::info!("AGB_BOOTUP_SEQUENCE");
                     // TODO: ...?
@@ -353,21 +403,12 @@ impl CartBackup {
                     for _ in 0..count {
                         let mut address = [0u8; 4];
                         self.stream.read_exact(&mut address)?;
-                        let address = u32::from_be_bytes(address);
+                        let address = u32::from_be_bytes(address) as u16;
                         let mut data = [0u8; 2];
                         self.stream.read_exact(&mut data)?;
                         let data = u16::from_be_bytes(data) as u8;
 
-                        log::debug!("--> [{:04X}] = {:02X}", address, data);
-                        let buf = [data, 0, 0, 0];
-                        write_mem(0, &buf).unwrap();
-
-                        let command = Command::AgbRamWrite(TransferParams {
-                            cart_address: address,
-                            transfer_count: 1,
-                            mem_address: 0,
-                        });
-                        if command.execute().is_err() {
+                        if write_agb_sram_one(address, data).is_err() {
                             log::error!("AGB Flash Command failed");
                             continue 'main;
                         }
@@ -650,4 +691,17 @@ fn set_waits(wait0: u32, wait1: u32, wait2: u32) -> Result<(), fpga::Error> {
         REG_WAITS,
         (wait0 & 0xF) | ((wait1 & 0xF) << 4) | ((wait2 & 0xF) << 8),
     )
+}
+
+fn write_agb_sram_one(address: u16, data: u8) -> Result<(), fpga::Error> {
+    log::debug!("... [{:04X}] <- {:02X}", address, data);
+    let buf = [data, 0, 0, 0];
+    write_mem(0, &buf)?;
+
+    let command = Command::AgbRamWrite(TransferParams {
+        cart_address: address as u32,
+        transfer_count: 1,
+        mem_address: 0,
+    });
+    command.execute()
 }
