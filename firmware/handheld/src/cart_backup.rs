@@ -337,6 +337,12 @@ impl CartBackup {
                     // TODO: ...?
                     self.write_ack()?;
                 }
+                0xCA => {
+                    log::info!("AGB_READ_GPIO_RTC");
+                    // STUB: todo implement
+                    self.stream
+                        .write_all(&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])?;
+                }
                 0xF2 => {
                     log::info!("CART_PWR_ON");
                     match Command::CartPower(true).execute() {
