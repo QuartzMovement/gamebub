@@ -522,9 +522,83 @@ impl CartBackup {
                 }
                 0xCA => {
                     log::info!("AGB_READ_GPIO_RTC");
-                    // STUB: todo implement
-                    self.stream
-                        .write_all(&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])?;
+
+                    const GPIO_IO: u32 = 0xC4;
+                    const GPIO_DIR: u32 = 0xC6;
+                    const GPIO_CTRL: u32 = 0xC8;
+
+                    fn gpio_write_reg(reg: u32, value: u8) {
+                        let buf = [value, 0, 0, 0];
+                        write_mem(0, &buf).unwrap();
+                        let command: Command = Command::AgbRomWrite(TransferParams {
+                            cart_address: reg / 2,
+                            transfer_count: 1,
+                            mem_address: 0,
+                        });
+                        command.execute().unwrap();
+                    }
+
+                    fn gpio_read_reg(reg: u32) -> u8 {
+                        let command = Command::AgbRomRead(TransferParams {
+                            cart_address: reg / 2,
+                            transfer_count: 1,
+                            mem_address: 0,
+                        });
+                        command.execute().unwrap();
+                        let mut buf = [0u8; 4];
+                        read_mem(0, &mut buf).unwrap();
+                        buf[0]
+                    }
+
+                    // RTC: S3511   [[__] CS SIO SCK]
+                    // CS: active high
+                    // SCK: idles high, read data on rising edge  [min width: 1 us]
+                    // SIO: commands MSB first, data LSB first
+
+                    fn rtc_write_read(wdata: &[u8], rdata: &mut [u8]) {
+                        gpio_write_reg(GPIO_DIR, 0b111); // All outputs
+
+                        // Write data (command)
+                        for data in wdata {
+                            let mut data = *data;
+                            for _ in 0..8 {
+                                gpio_write_reg(GPIO_IO, 0b100 | ((data & 1) << 1));
+                                gpio_write_reg(GPIO_IO, 0b101 | ((data & 1) << 1));
+                                data >>= 1;
+                            }
+                        }
+
+                        // Read data
+                        gpio_write_reg(GPIO_DIR, 0b101);
+                        for data in rdata {
+                            *data = 0;
+                            for i in 0..8 {
+                                gpio_write_reg(GPIO_IO, 0b100);
+                                let bit = (gpio_read_reg(GPIO_IO) >> 1) & 1;
+                                *data |= (bit as u8) << i;
+                                gpio_write_reg(GPIO_IO, 0b101);
+                            }
+                        }
+
+                        // Release CS
+                        gpio_write_reg(GPIO_IO, 0b001);
+                    }
+
+                    gpio_write_reg(GPIO_CTRL, 1); // Set GPIO registers R/W
+                    gpio_write_reg(GPIO_IO, 0b001); // Initial state: SCK high
+                    let mut buffer = [0u8; 8];
+
+                    // Command: 0x63 (read status)
+                    let command = (0x63u8).reverse_bits();
+                    rtc_write_read(&[command], &mut buffer[0..1]);
+
+                    // Command: 0x65 (read date and time)
+                    let command = (0x65u8).reverse_bits();
+                    rtc_write_read(&[command], &mut buffer[1..8]);
+
+                    gpio_write_reg(GPIO_DIR, 0b000);
+                    gpio_write_reg(GPIO_CTRL, 0);
+                    self.stream.write_all(&buffer)?;
                 }
                 0xD4 => {
                     log::debug!("CART_WRITE_FLASH_CMD");
