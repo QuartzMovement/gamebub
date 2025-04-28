@@ -343,6 +343,37 @@ impl CartBackup {
                     self.stream
                         .write_all(&[0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])?;
                 }
+                0xD4 => {
+                    log::debug!("CART_WRITE_FLASH_CMD");
+                    set_waits(2, 1, 8).unwrap();
+
+                    let _is_flashcart = self.read_one()? == 1;
+                    let count = self.read_one()?;
+
+                    for _ in 0..count {
+                        let mut address = [0u8; 4];
+                        self.stream.read_exact(&mut address)?;
+                        let address = u32::from_be_bytes(address);
+                        let mut data = [0u8; 2];
+                        self.stream.read_exact(&mut data)?;
+                        let data = u16::from_be_bytes(data) as u8;
+
+                        log::debug!("--> [{:04X}] = {:02X}", address, data);
+                        let buf = [data, 0, 0, 0];
+                        write_mem(0, &buf).unwrap();
+
+                        let command = Command::AgbRamWrite(TransferParams {
+                            cart_address: address,
+                            transfer_count: 1,
+                            mem_address: 0,
+                        });
+                        if command.execute().is_err() {
+                            log::error!("AGB Flash Command failed");
+                            continue 'main;
+                        }
+                    }
+                    self.write_ack()?;
+                }
                 0xF2 => {
                     log::info!("CART_PWR_ON");
                     match Command::CartPower(true).execute() {
