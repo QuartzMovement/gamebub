@@ -1,6 +1,6 @@
 use std::{
     io::{Read, Write},
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use crate::device::{
@@ -75,7 +75,7 @@ impl CartBackup {
     }
 
     fn go(&mut self) -> std::io::Result<()> {
-        loop {
+        'main: loop {
             let data = self.read_one()?;
             match data {
                 0xA1 => {
@@ -196,6 +196,140 @@ impl CartBackup {
                         continue;
                     }
                     self.address += self.transfer_size as u32;
+                    self.write_ack()?;
+                }
+                0xC5 => {
+                    log::debug!("AGB_CART_READ_EEPROM");
+                    let eeprom_type = self.read_one()?;
+                    let address_bits = match eeprom_type {
+                        1 => 6,
+                        2 => 14,
+                        _ => {
+                            log::error!("Unknown eeprom type {}", eeprom_type);
+                            continue;
+                        }
+                    };
+                    let transfer_count = (self.transfer_size / 8) as usize;
+                    let mut buf = Vec::<u8>::new();
+                    for _ in 0..transfer_count {
+                        const EEPROM_ADDRESS: u32 = 0x1FFFF00 >> 1;
+                        // Fill buffer with 16-bit little endian words (only bit 0 matters)
+                        buf.clear();
+
+                        // "11": read request
+                        buf.extend_from_slice(&[1, 0, 1, 0]);
+                        for i in 0..address_bits {
+                            // Fill address, MSB first
+                            buf.push((self.address >> (address_bits - 1 - i)) as u8 & 1);
+                            buf.push(0);
+                        }
+                        buf.extend_from_slice(&[0, 0, 0, 0]); // Pad to 4 bytes
+                        write_mem(0, &buf).unwrap();
+                        let command = Command::AgbRomWrite(TransferParams {
+                            cart_address: EEPROM_ADDRESS,
+                            transfer_count: (2 + address_bits + 1) as u16,
+                            mem_address: 0,
+                        });
+                        if command.execute().is_err() {
+                            log::error!("AGB EEPROM command failed");
+                            continue 'main;
+                        }
+                        self.address += 1;
+
+                        buf.clear();
+                        buf.resize(68 * 2, 0);
+                        let command = Command::AgbRomRead(TransferParams {
+                            cart_address: EEPROM_ADDRESS,
+                            transfer_count: (buf.len() / 2) as u16,
+                            mem_address: 0,
+                        });
+                        if command.execute().is_err() {
+                            log::error!("AGB EEPROM read failed");
+                            continue 'main;
+                        }
+                        read_mem(0, &mut buf).unwrap();
+
+                        // Extract the 64 bit data (first 4 bits are skipped, overwritten).
+                        let mut word = 0u64;
+                        for x in buf.iter().step_by(2) {
+                            word <<= 1;
+                            word |= (x & 1) as u64;
+                        }
+                        self.stream.write_all(&word.to_be_bytes())?;
+                    }
+                }
+                0xC6 => {
+                    log::debug!("AGB_CART_WRITE_EEPROM");
+                    set_waits(8, 8, 0).unwrap();
+                    let eeprom_type = self.read_one()?;
+                    let address_bits = match eeprom_type {
+                        1 => 6,
+                        2 => 14,
+                        _ => {
+                            log::error!("Unknown eeprom type {}", eeprom_type);
+                            continue;
+                        }
+                    };
+                    let transfer_count = (self.transfer_size / 8) as usize;
+                    let mut buf = Vec::<u8>::new();
+                    for _ in 0..transfer_count {
+                        const EEPROM_ADDRESS: u32 = 0x1FFFF00 >> 1;
+
+                        // Read the data word
+                        let mut data = [0u8; 8];
+                        self.stream.read_exact(&mut data)?;
+                        let data = u64::from_be_bytes(data);
+
+                        // Fill buffer with 16-bit little endian words (only bit 0 matters)
+                        buf.clear();
+                        // "10": write request
+                        buf.extend_from_slice(&[1, 0, 0, 0]);
+                        for i in 0..address_bits {
+                            // Fill address, MSB first
+                            buf.push((self.address >> (address_bits - 1 - i)) as u8 & 1);
+                            buf.push(0);
+                        }
+                        for i in 0..64 {
+                            buf.push((data >> (63 - i)) as u8 & 1);
+                            buf.push(0);
+                        }
+                        buf.extend_from_slice(&[0, 0, 0, 0]); // end with "0", pad to 4 bytes
+                        write_mem(0, &buf).unwrap();
+                        let command = Command::AgbRomWrite(TransferParams {
+                            cart_address: EEPROM_ADDRESS,
+                            transfer_count: (2 + address_bits + 64 + 1) as u16,
+                            mem_address: 0,
+                        });
+                        if command.execute().is_err() {
+                            log::error!("AGB EEPROM command failed");
+                            continue;
+                        }
+                        self.address += 1;
+
+                        // Read from EEPROM until it returns 1 to ack the write
+                        buf.resize(4, 0);
+                        let deadline = Instant::now() + Duration::from_millis(100);
+                        loop {
+                            if Instant::now() > deadline {
+                                log::error!("EEPROM failed to respond to write");
+                                continue 'main;
+                            }
+                            let command = Command::AgbRomRead(TransferParams {
+                                cart_address: EEPROM_ADDRESS,
+                                transfer_count: 2,
+                                mem_address: 0,
+                            });
+                            if command.execute().is_err() {
+                                log::error!("AGB EEPROM read failed");
+                                continue 'main;
+                            }
+                            read_mem(0, &mut buf).unwrap();
+                            std::thread::sleep(Duration::from_millis(3));
+                            if (buf[0] & 1) == 1 {
+                                break;
+                            }
+                        }
+                    }
                     self.write_ack()?;
                 }
                 0xC9 => {
