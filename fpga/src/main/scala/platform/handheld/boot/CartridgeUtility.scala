@@ -14,6 +14,7 @@ object CartridgeUtility {
     val agbRamRead = Value
     val agbRomWrite = Value
     val agbRamWrite = Value
+    val dmgTransfer = Value
   }
 
   object Opcode extends ChiselEnum {
@@ -23,6 +24,8 @@ object CartridgeUtility {
     val agbRamRead = Value
     val agbRomWrite = Value
     val agbRamWrite = Value
+    val dmgRead = Value
+    val dmgWrite = Value
   }
 
   class CartData extends Bundle {
@@ -91,6 +94,8 @@ class CartridgeUtility extends Module {
   val regTransferCount = Reg(UInt(16.W))
   val regStateCounter = Reg(UInt(8.W))
   val regTransferWrite = Reg(Bool())
+  val regFlag0 = Reg(Bool())
+  val regFlag1 = Reg(Bool())
 
   io.registers <> RegisterMap(
     addressWidth = 16,
@@ -198,6 +203,35 @@ class CartridgeUtility extends Module {
             regCartOut.ADLo := args.cartAddress
             regCartDir.ADLo := true.B
             regCartDir.pin30 := true.B
+            regStateCounter := 0.U
+          }
+          is (Opcode.dmgRead.litValue.U, Opcode.dmgWrite.litValue.U) {
+            val args = instruction.asTypeOf(new Bundle {
+              val memAddress = UInt(16.W)
+              val transferCount = UInt(16.W)
+              val _padding = UInt(6.W)
+              /// Chip-select for the transfer is the CS pin (SRAM)
+              val csIsCs = Bool()
+              /// Chip-select for the transfer is the A15 pin (ROM)
+              val csIsA15 = Bool()
+              val cartAddress = UInt(16.W)
+            })
+            SetCartIdle()
+            when (opcode === Opcode.dmgRead.litValue.U) {
+              regTransferWrite := false.B
+              regCartOut.nRD := false.B
+            } .otherwise {
+              regTransferWrite := true.B
+            }
+            regState := State.dmgTransfer
+            regCartAddress := args.cartAddress
+            regTransferCount := args.transferCount
+            regMemAddress := args.memAddress
+            regFlag0 := args.csIsA15
+            regFlag1 := args.csIsCs
+            regCartDir.ADLo := true.B
+            regCartDir.ADHi := false.B
+            regCartOut.phi := true.B
             regStateCounter := 0.U
           }
         }
@@ -308,7 +342,7 @@ class CartridgeUtility extends Module {
         mem.enable := true.B
         mem.address := regMemAddress(15, 2)
         mem.isWrite := true.B
-        mem.mask.get := VecInit(byte === 0.U, byte === 1.U, byte === 2.U, byte === 3.U)
+        mem.mask.get := UIntToOH(regMemAddress(1, 0)).asTypeOf(mem.mask.get)
         mem.writeData := Fill(4, regData).asTypeOf(mem.writeData)
         regMemAddress := regMemAddress + 1.U
         // Update cart address
@@ -361,6 +395,82 @@ class CartridgeUtility extends Module {
       }
       when (cycle === (1.U + numWaits)) {
         cycle := 0.U
+      }
+    }
+    is (State.dmgTransfer) {
+      // Cycles (4 MHz) -- multiply by 4. 1 MHz loop (16 cycles at 16 MHz)
+      // 0  : RD goes low (already done)
+      // 0.5: address on bus
+      // 1  : CS/A15 goes low
+      // 2  : phi goes low
+      // 12 : sample data (or later)
+      // 16: CS/A15 goes high. RD goes high if it's the last transfer
+      val cycle = regStateCounter
+      cycle := cycle + 1.U
+      val regData = Reg(UInt(8.W))
+      val isWrite = regTransferWrite
+      val flagCsIsA15 = regFlag0
+      val flagCsIsCs = regFlag1
+
+      when (cycle === 1.U) {
+        regCartOut.ADLo := Cat("b1".U(1.W), regCartAddress(14, 0))
+      }
+      when (cycle === 3.U) {
+        regCartOut.ADLo := Cat(!flagCsIsA15, regCartAddress(14, 0))
+        regCartOut.nCS := !flagCsIsCs
+        regTransferCount := regTransferCount - 1.U
+      }
+      when (cycle === 6.U) {
+        when (isWrite) {
+          // Load the data from memory
+          mem.enable := true.B
+          mem.address := regMemAddress(15, 2)
+          mem.isWrite := false.B
+        }
+      }
+      when (cycle === 7.U) {
+        regCartOut.phi := false.B
+
+        when (isWrite) {
+          regCartDir.ADHi := true.B
+          regCartOut.ADHi := mem.readData(regMemAddress(1, 0))
+          regCartOut.nWR := false.B
+        }
+      }
+      when (cycle === 13.U) {
+        when (isWrite) {
+          // Keep regCartDir.ADHI true for a few more cycles (hold time)
+          regCartOut.nWR := true.B
+        } .otherwise {
+          // Must sample data at cycle 11 or later.
+          regData := cartIn.ADHi
+        }
+      }
+      when (cycle === 15.U) {
+        // Raise CS pin
+        regCartOut.ADLo := Cat("b1".U(1.W), regCartAddress(14, 0))
+        regCartOut.nCS := true.B
+        regCartDir.ADHi := false.B
+
+        when (!isWrite) {
+          // Store in memory
+          mem.enable := true.B
+          mem.address := regMemAddress(15, 2)
+          mem.isWrite := true.B
+          mem.mask.get := UIntToOH(regMemAddress(1, 0)).asTypeOf(mem.mask.get)
+          mem.writeData := Fill(4, regData).asTypeOf(mem.writeData)
+        }
+
+        regMemAddress := regMemAddress + 1.U
+        regCartAddress := regCartAddress + 1.U
+
+        // Continue transfer?
+        when (regTransferCount === 0.U) {
+          regCartOut.nRD := true.B
+          regState := State.idle
+        } .otherwise {
+          cycle := 0.U
+        }
       }
     }
   }
