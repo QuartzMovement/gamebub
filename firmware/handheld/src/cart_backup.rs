@@ -45,6 +45,8 @@ struct CartBackup {
     transfer_size: u16,
     /// CART_MODE: 1 is DMG, 2 is AGB?
     cart_mode_variable: u8,
+    /// DMG_ACCESS_MODE: 1 is ROM_READ, 3 is RAM_READ, 4 is RAM_WRITE
+    dmg_access_mode: u8,
 }
 
 impl CartBackup {
@@ -57,6 +59,7 @@ impl CartBackup {
             address: 0,
             transfer_size: 0,
             cart_mode_variable: 0,
+            dmg_access_mode: 0,
         }
     }
 
@@ -80,7 +83,7 @@ impl CartBackup {
             match data {
                 0xA1 => {
                     // QUERY_FW_INFO
-                    // TODO: send verison information
+                    // TODO: send version information
                     log::info!("QUERY_FW_INFO");
                     self.stream.write(&[0xE1])?;
                 }
@@ -119,6 +122,11 @@ impl CartBackup {
                     self.set_variable(size, key, value);
                     self.write_ack()?;
                 }
+                0xA8 => {
+                    log::info!("SET_ADDR_AS_INPUTS");
+                    // TODO
+                    self.write_ack()?;
+                }
                 0xAB => {
                     log::info!("ENABLE_PULLUPS");
                     self.write_ack()?;
@@ -135,6 +143,88 @@ impl CartBackup {
                     let key = u32::from_be_bytes(payload[1..5].try_into().unwrap());
                     let value = self.get_variable(size, key);
                     self.stream.write_all(&value.to_be_bytes())?;
+                }
+                0xB1 => {
+                    log::debug!(
+                        "DMG_CART_READ: addr={:X} count={:X}",
+                        self.address,
+                        self.transfer_size
+                    );
+                    let command = Command::DmgCartRead {
+                        transfer: TransferParams {
+                            cart_address: self.address,
+                            transfer_count: self.transfer_size,
+                            mem_address: 0,
+                        },
+                        cs_is_a15: self.dmg_access_mode <= 2,
+                        cs_is_cs: self.dmg_access_mode > 2,
+                    };
+                    if command.execute().is_err() {
+                        log::error!("DMG cart read failed");
+                        continue;
+                    }
+                    let mut buf = vec![0u8; self.transfer_size as usize];
+                    if read_mem(0, &mut buf).is_err() {
+                        log::error!("Mem read failed");
+                        continue;
+                    }
+                    self.address += self.transfer_size as u32;
+                    self.stream.write_all(&buf)?;
+                }
+                0xB2 => {
+                    let mut address = [0u8; 4];
+                    self.stream.read_exact(&mut address)?;
+                    let address = u32::from_be_bytes(address) as u16;
+                    let data = self.read_one()?;
+                    log::debug!("DMG_CART_WRITE: {:04X} <= {:02X}", address, data);
+
+                    if write_mem(0, &[data, 0, 0, 0]).is_err() {
+                        log::error!("Mem write failed");
+                        continue;
+                    }
+                    let command = Command::DmgCartWrite {
+                        transfer: TransferParams {
+                            cart_address: address as u32,
+                            transfer_count: 1,
+                            mem_address: 0,
+                        },
+                        cs_is_a15: true,
+                        cs_is_cs: false,
+                    };
+                    if command.execute().is_err() {
+                        log::error!("DMG cart write (one) failed");
+                        continue;
+                    }
+                    self.write_ack()?;
+                }
+                0xB3 => {
+                    log::info!("DMG_CART_WRITE_SRAM");
+                    let mut buf = vec![0u8; self.transfer_size as usize];
+                    self.stream.read_exact(&mut buf)?;
+                    if write_mem(0, &buf).is_err() {
+                        log::error!("Mem write failed");
+                        continue;
+                    }
+                    let command = Command::DmgCartWrite {
+                        transfer: TransferParams {
+                            cart_address: self.address,
+                            transfer_count: self.transfer_size,
+                            mem_address: 0,
+                        },
+                        cs_is_a15: false,
+                        cs_is_cs: true,
+                    };
+                    if command.execute().is_err() {
+                        log::error!("DMG SRAM write failed");
+                        continue;
+                    }
+                    self.address += self.transfer_size as u32;
+                    self.write_ack()?;
+                }
+                0xB4 => {
+                    log::info!("DMG_MBC_RESET");
+                    // TODO
+                    self.write_ack()?;
                 }
                 0xC1 => {
                     log::debug!(
@@ -480,7 +570,7 @@ impl CartBackup {
             // CART_MODE
             (SIZE_8, 0x00) => self.cart_mode_variable = value as u8,
             // DMG_ACCESS_MODE
-            (SIZE_8, 0x01) => {}
+            (SIZE_8, 0x01) => self.dmg_access_mode = value as u8,
             // FLASH_COMMAND_SET
             (SIZE_8, 0x02) => {}
             // FLASH_METHOD
@@ -542,7 +632,7 @@ impl CartBackup {
             // CART_MODE
             (SIZE_8, 0x00) => self.cart_mode_variable as u32,
             // DMG_ACCESS_MODE
-            (SIZE_8, 0x01) => 0,
+            (SIZE_8, 0x01) => self.dmg_access_mode as u32,
             // FLASH_COMMAND_SET
             (SIZE_8, 0x02) => 0,
             // FLASH_METHOD
@@ -617,6 +707,16 @@ enum Command {
     AgbRamRead(TransferParams),
     AgbRomWrite(TransferParams),
     AgbRamWrite(TransferParams),
+    DmgCartRead {
+        transfer: TransferParams,
+        cs_is_a15: bool,
+        cs_is_cs: bool,
+    },
+    DmgCartWrite {
+        transfer: TransferParams,
+        cs_is_a15: bool,
+        cs_is_cs: bool,
+    },
 }
 
 impl Command {
@@ -629,6 +729,26 @@ impl Command {
             AgbRamRead(t) => (3 << 56) | t.encode(),
             AgbRomWrite(t) => (4 << 56) | t.encode(),
             AgbRamWrite(t) => (5 << 56) | t.encode(),
+            DmgCartRead {
+                transfer,
+                cs_is_a15,
+                cs_is_cs,
+            } => {
+                (6 << 56)
+                    | transfer.encode()
+                    | ((cs_is_a15 as u64) << 16)
+                    | ((cs_is_cs as u64) << 17)
+            }
+            DmgCartWrite {
+                transfer,
+                cs_is_a15,
+                cs_is_cs,
+            } => {
+                (7 << 56)
+                    | transfer.encode()
+                    | ((cs_is_a15 as u64) << 16)
+                    | ((cs_is_cs as u64) << 17)
+            }
         }
     }
 
