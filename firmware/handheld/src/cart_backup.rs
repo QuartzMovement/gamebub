@@ -112,7 +112,7 @@ impl CartBackup {
                 }
                 0xA6 => {
                     // SET_VARIABLE
-                    log::info!("SET_VARIABLE");
+                    log::debug!("SET_VARIABLE");
                     let mut payload = [0u8; 9];
                     self.stream.read_exact(&mut payload)?;
 
@@ -124,7 +124,33 @@ impl CartBackup {
                 }
                 0xA8 => {
                     log::info!("SET_ADDR_AS_INPUTS");
-                    // TODO
+                    match Command::CartIdle.execute() {
+                        Ok(()) => self.write_ack()?,
+                        Err(_) => {
+                            log::error!("Error setting cart idle");
+                            self.write_one(0)?
+                        }
+                    }
+                }
+                0xA9 => {
+                    let mut count = [0u8; 4];
+                    self.stream.read_exact(&mut count)?;
+                    let count = u32::from_be_bytes(count) as u16;
+                    log::info!("CLK_TOGGLE: n={}", count);
+
+                    for _ in 0..count {
+                        let pins = SetPinsParams {
+                            phi: Some(true),
+                            ..Default::default()
+                        };
+                        Command::SetPins(pins).execute().unwrap();
+                        esp_idf_svc::hal::delay::Ets::delay_us(1);
+                        let pins = SetPinsParams {
+                            phi: Some(false),
+                            ..Default::default()
+                        };
+                        Command::SetPins(pins).execute().unwrap();
+                    }
                     self.write_ack()?;
                 }
                 0xAB => {
@@ -223,7 +249,24 @@ impl CartBackup {
                 }
                 0xB4 => {
                     log::info!("DMG_MBC_RESET");
-                    // TODO
+                    // Set RST pin low
+                    let pins = SetPinsParams {
+                        pin30: Some(false),
+                        pin30_dir: true,
+                        ..Default::default()
+                    };
+                    if Command::SetPins(pins).execute().is_err() {
+                        log::error!("DMG reset failed");
+                        self.write_one(0)?;
+                        continue;
+                    }
+                    std::thread::sleep(Duration::from_millis(1));
+                    // Release it (it will float high)
+                    if Command::CartIdle.execute().is_err() {
+                        log::error!("Error setting cart idle");
+                        self.write_one(0)?;
+                        continue;
+                    }
                     self.write_ack()?;
                 }
                 0xC1 => {
@@ -698,6 +741,18 @@ impl TransferParams {
     }
 }
 
+#[derive(Copy, Clone, Default, Debug)]
+struct SetPinsParams {
+    phi: Option<bool>,
+    wr: Option<bool>,
+    rd: Option<bool>,
+    cs: Option<bool>,
+    pin30: Option<bool>,
+    pin31: Option<bool>,
+    pin30_dir: bool,
+    pin31_dir: bool,
+}
+
 #[allow(unused)]
 #[derive(Copy, Clone, Debug)]
 enum Command {
@@ -717,6 +772,8 @@ enum Command {
         cs_is_a15: bool,
         cs_is_cs: bool,
     },
+    CartIdle,
+    SetPins(SetPinsParams),
 }
 
 impl Command {
@@ -748,6 +805,24 @@ impl Command {
                     | transfer.encode()
                     | ((cs_is_a15 as u64) << 16)
                     | ((cs_is_cs as u64) << 17)
+            }
+            CartIdle => 8 << 56,
+            SetPins(p) => {
+                (9 << 56)
+                    | ((p.pin30_dir as u64) << 13)
+                    | ((p.pin31_dir as u64) << 12)
+                    | ((p.phi.is_some() as u64) << 11)
+                    | ((p.wr.is_some() as u64) << 10)
+                    | ((p.rd.is_some() as u64) << 9)
+                    | ((p.cs.is_some() as u64) << 8)
+                    | ((p.pin30.is_some() as u64) << 7)
+                    | ((p.pin31.is_some() as u64) << 6)
+                    | ((p.phi.unwrap_or_default() as u64) << 5)
+                    | ((p.wr.unwrap_or_default() as u64) << 4)
+                    | ((p.rd.unwrap_or_default() as u64) << 3)
+                    | ((p.cs.unwrap_or_default() as u64) << 2)
+                    | ((p.pin30.unwrap_or_default() as u64) << 1)
+                    | ((p.pin31.unwrap_or_default() as u64) << 0)
             }
         }
     }
