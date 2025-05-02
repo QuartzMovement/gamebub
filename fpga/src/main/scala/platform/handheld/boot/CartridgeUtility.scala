@@ -26,6 +26,8 @@ object CartridgeUtility {
     val agbRamWrite = Value
     val dmgRead = Value
     val dmgWrite = Value
+    val cartIdle = Value
+    val setPins = Value
   }
 
   class CartData extends Bundle {
@@ -233,6 +235,41 @@ class CartridgeUtility extends Module {
             regCartDir.ADHi := false.B
             regCartOut.phi := true.B
             regStateCounter := 0.U
+          }
+          is (Opcode.cartIdle.litValue.U) {
+            SetCartIdle()
+          }
+          is (Opcode.setPins.litValue.U) {
+            val args = instruction.asTypeOf(new Bundle {
+              val dir = new Bundle {
+                val pin30 = Bool()
+                val pin31 = Bool()
+              }
+              val set = new Bundle {
+                val phi = Bool()
+                val nWR = Bool()
+                val nRD = Bool()
+                val nCS = Bool()
+                val pin30 = Bool()
+                val pin31 = Bool()
+              }
+              val value = new Bundle {
+                val phi = Bool()
+                val nWR = Bool()
+                val nRD = Bool()
+                val nCS = Bool()
+                val pin30 = Bool()
+                val pin31 = Bool()
+              }
+            })
+            regCartDir.pin30 := args.dir.pin30
+            regCartDir.pin31 := args.dir.pin31
+            when (args.set.phi) { regCartOut.phi := args.value.phi }
+            when (args.set.nWR) { regCartOut.nWR := args.value.nWR }
+            when (args.set.nRD) { regCartOut.nRD := args.value.nRD }
+            when (args.set.nCS) { regCartOut.nCS := args.value.nCS }
+            when (args.set.pin30) { regCartOut.pin30 := args.value.pin30 }
+            when (args.set.pin31) { regCartOut.pin31 := args.value.pin31 }
           }
         }
       }
