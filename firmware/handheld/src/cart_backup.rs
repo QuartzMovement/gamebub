@@ -292,6 +292,32 @@ impl CartBackup {
                     self.address += (self.transfer_size / 2) as u32;
                     self.stream.write_all(&buf)?;
                 }
+                0xC2 => {
+                    log::debug!("AGB_CART_WRITE");
+                    // Write a single word
+                    let mut address = [0u8; 4];
+                    self.stream.read_exact(&mut address)?;
+                    let address = u32::from_be_bytes(address) as u16;
+                    let mut data = [0u8; 2];
+                    self.stream.read_exact(&mut data)?;
+
+                    if write_mem(0, &[data[1], data[0], 0, 0]).is_err() {
+                        log::error!("Mem write failed");
+                        self.write_one(0)?;
+                        continue;
+                    }
+                    let command = Command::AgbRomWrite(TransferParams {
+                        cart_address: address as u32,
+                        transfer_count: 1,
+                        mem_address: 0,
+                    });
+                    if command.execute().is_err() {
+                        log::error!("AGB CART WRITE failed");
+                        self.write_one(0)?;
+                        continue 'main;
+                    }
+                    self.write_ack()?;
+                }
                 0xC3 => {
                     log::debug!("AGB_CART_READ_SRAM");
                     let command = Command::AgbRamRead(TransferParams {
