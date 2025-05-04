@@ -263,6 +263,25 @@ class CartridgeController extends Module {
       }
     }
     is (State.RomStage2) {
+      // There's a write data hold time requirement:
+      // we need to keep the write data on the bus after nWR goes high
+      // (the GBA keeps it on the bus for ~1/2 cycle, and then switches to the
+      //  next request's address)
+      // The proper way to do this would probably be to use an actual DDR output,
+      // but it's difficult (or impossible?) to time, so we'll have to hope this
+      // works well enough.
+      when (clock.asBool) {
+        when (currentIsWrite) {
+          io.cartridge.ADLoDir := true.B
+          io.cartridge.ADLoOut := romRequestDataWrite
+        } .otherwise {
+          io.cartridge.ADLoDir := false.B
+        }
+        io.cartridge.AHiOut := currentAddress(23, 16)
+        io.cartridge.AHiDir := true.B
+      }
+
+
       when (io.cartridge.isEmulated && doLatchReadData) {
         io.busTargetRom.dataRead := io.cartridge.ADLoIn
         io.cartridge.reqEnd := true.B
