@@ -306,6 +306,7 @@ class CartridgeUtility extends Module {
         when (transfers === 0.U) {
           // End transfers
           regState := State.idle
+          regCartOut.nCS := true.B
         } .otherwise {
           // Next transfer
           cycle := 1.U
@@ -348,6 +349,7 @@ class CartridgeUtility extends Module {
         when (transfers === 0.U) {
           // End transfers
           regState := State.idle
+          regCartOut.nCS := true.B
         } .otherwise {
           // Next transfer
           cycle := waitA
