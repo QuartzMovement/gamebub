@@ -270,7 +270,7 @@ class CartridgeController extends Module {
       // The proper way to do this would probably be to use an actual DDR output,
       // but it's difficult (or impossible?) to time, so we'll have to hope this
       // works well enough.
-      when (clock.asBool) {
+      when (!io.cartridge.isEmulated && clock.asBool) {
         when (currentIsWrite) {
           io.cartridge.ADLoDir := true.B
           io.cartridge.ADLoOut := romRequestDataWrite
