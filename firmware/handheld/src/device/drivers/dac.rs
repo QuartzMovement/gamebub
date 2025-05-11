@@ -176,15 +176,10 @@ where
         // Unmute right speaker, set gain = 6 dB
         self.write_reg(1, 0x2B, 0x04)?;
 
-        // Configure output drivers
-        // Enable HPL output analog volume, set = 0 dB
-        self.write_reg(1, 0x24, 0x80)?;
-        // Enable HPR output analog volume, set = 0 dB
-        self.write_reg(1, 0x25, 0x80)?;
-        // Enable speaker left output analog volume, set = 0 dB
-        self.write_reg(1, 0x26, 0x80)?;
-        // Enable speaker right output analog volume, set = 0 dB
-        self.write_reg(1, 0x27, 0x80)?;
+        // DAC left digital volume control = 0 dB
+        self.write_reg(0, 0x41, 0)?;
+        // DAC right digital volume control = 0 dB
+        self.write_reg(0, 0x42, 0)?;
 
         // TODO: Apply waiting time determined by the de-pop settings and the soft-stepping settings
         //    of the driver gain or poll page 1 / register 63
@@ -206,19 +201,22 @@ where
         self.volume
     }
 
-    /// Sets DAC volume for left and right.
-    /// Mapped to DAC's volume range of -63.5 dB to 0dB.
-    ///
-    /// Max DAC digital volume is 24dB, but full-range waveforms
-    /// would be clipped at > 0dB, so cap the volume range to 0dB.
+    /// Set analog volume for left and right.
     pub fn set_volume(&mut self, volume: u8) -> Result<(), Error> {
         self.volume = volume;
-        // map 0 -> -127, 255 -> 0
-        // range = 127
-        let value = ((((volume as i32) * 127) / 255) - 127) as u8;
         self.set_mute(volume == 0)?;
-        self.write_reg(0, 0x41, value)?;
-        self.write_reg(0, 0x42, value)?;
+
+        // Volume level 0 is mapped to value 117 (–78.3 dB analog gain)
+        // Volume level 255 is mapped to value 0 (0 dB analog gain).
+        let value = 117 - ((((volume as i32) * 117) / 255) as u8);
+        // Headphone left
+        self.write_reg(1, 0x24, value)?;
+        // Headphone right
+        self.write_reg(1, 0x25, value)?;
+        // Speaker left
+        self.write_reg(1, 0x26, value)?;
+        // Speaker right
+        self.write_reg(1, 0x27, value)?;
         Ok(())
     }
 
