@@ -331,6 +331,7 @@ impl Gba {
         let save_type = emu_cart_config.save_type;
         let save_size = save_type.get_size() as u32;
         let save_path = rom_path.with_extension("sav");
+        let _ = crate::util::copy_file(&save_path, &save_path.with_extension("sav.bak")).unwrap();
         let mut rtc_state: Option<RtcState> = None;
         let mut buf = vec![0; CHUNK_SIZE];
         if let Ok(mut save_file) = File::open(save_path.as_path()) {

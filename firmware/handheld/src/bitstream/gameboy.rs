@@ -340,6 +340,7 @@ impl Gameboy {
 
         // Load RAM
         let ram_path = rom_path.with_extension("sav");
+        let _ = crate::util::copy_file(&ram_path, &ram_path.with_extension("sav.bak"));
         match File::open(ram_path.as_path()) {
             Ok(mut ram_file) => {
                 log::info!("Loading RAM");
