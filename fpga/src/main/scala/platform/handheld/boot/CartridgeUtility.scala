@@ -145,21 +145,19 @@ class CartridgeUtility extends Module {
       when (doInstructionExecute) {
         switch (opcode) {
           is (Opcode.cartPower.litValue.U) {
-            regCartOut.phi := false.B
-            regCartOut.nWR := true.B
-            regCartOut.nRD := true.B
-            regCartOut.nCS := true.B
-            regCartOut.pin30 := true.B
-            regCartOut.pin31 := true.B
-            regCartOut.ADHi := 0.U
-            regCartOut.ADLo := 0.U
-            regCartDir.ADLo := false.B
-            regCartDir.ADHi := false.B
-            regCartDir.pin30 := false.B
-            regCartDir.pin31 := false.B
-            regCartEnabled := instruction(0).asBool
+            val args = instruction.asTypeOf(new Bundle {
+              val enabled = Bool()
+            })
+            SetCartIdle()
+            regCartEnabled := args.enabled
           }
           is (Opcode.agbRomRead.litValue.U, Opcode.agbRomWrite.litValue.U) {
+            val args = instruction.asTypeOf(new Bundle {
+              val memAddress = UInt(16.W)
+              val transferCount = UInt(16.W)
+              val cartAddress = UInt(24.W)
+            })
+            SetCartIdle()
             when (opcode === Opcode.agbRomRead.litValue.U) {
               regState := State.agbRomRead
               regTransferWrite := false.B
@@ -167,23 +165,24 @@ class CartridgeUtility extends Module {
               regState := State.agbRomWrite
               regTransferWrite := true.B
             }
-            regCartAddress := instruction(23, 0)
-            regTransferCount := instruction(39, 24)
-            regMemAddress := instruction(55, 40)
-            regCartOut.phi := false.B
-            regCartOut.nWR := true.B
-            regCartOut.nRD := true.B
-            regCartOut.nCS := true.B
-            regCartOut.pin30 := true.B
-            regCartOut.pin31 := true.B
-            regCartOut.ADHi := instruction(23, 16)
-            regCartOut.ADLo := instruction(15, 0)
+            regCartAddress := args.cartAddress
+            regTransferCount := args.transferCount
+            regMemAddress := args.memAddress
+            regCartOut.ADHi := args.cartAddress(23, 16)
+            regCartOut.ADLo := args.cartAddress(15, 0)
             regCartDir.ADLo := true.B
             regCartDir.ADHi := true.B
             regStateCounter := 0.U
             regTransferWrite := false.B
           }
           is (Opcode.agbRamRead.litValue.U, Opcode.agbRamWrite.litValue.U) {
+            val args = instruction.asTypeOf(new Bundle {
+              val memAddress = UInt(16.W)
+              val transferCount = UInt(16.W)
+              val _padding = UInt(8.W)
+              val cartAddress = UInt(16.W)
+            })
+            SetCartIdle()
             when (opcode === Opcode.agbRamRead.litValue.U) {
               regState := State.agbRamRead
               regCartDir.ADHi := false.B
@@ -193,16 +192,10 @@ class CartridgeUtility extends Module {
               regCartDir.ADHi := true.B
               regTransferWrite := true.B
             }
-            regCartAddress := instruction(15, 0)
-            regTransferCount := instruction(39, 24)
-            regMemAddress := instruction(55, 40)
-            regCartOut.phi := false.B
-            regCartOut.nWR := true.B
-            regCartOut.nRD := true.B
-            regCartOut.nCS := true.B
-            regCartOut.pin30 := true.B
-            regCartOut.pin31 := true.B
-            regCartOut.ADLo := instruction(15, 0)
+            regCartAddress := args.cartAddress
+            regTransferCount := args.transferCount
+            regMemAddress := args.memAddress
+            regCartOut.ADLo := args.cartAddress
             regCartDir.ADLo := true.B
             regCartDir.pin30 := true.B
             regStateCounter := 0.U
@@ -370,5 +363,20 @@ class CartridgeUtility extends Module {
         cycle := 0.U
       }
     }
+  }
+
+  private def SetCartIdle(): Unit = {
+    regCartOut.phi := false.B
+    regCartOut.nWR := true.B
+    regCartOut.nRD := true.B
+    regCartOut.nCS := true.B
+    regCartOut.pin30 := true.B
+    regCartOut.pin31 := true.B
+    regCartOut.ADHi := 0.U
+    regCartOut.ADLo := 0.U
+    regCartDir.ADLo := false.B
+    regCartDir.ADHi := false.B
+    regCartDir.pin30 := false.B
+    regCartDir.pin31 := false.B
   }
 }
