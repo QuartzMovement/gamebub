@@ -23,7 +23,7 @@ const MEM_BASE: u32 = 0xC030_0000;
 pub fn start_task(cdc_interface: u32) {
     std::thread::Builder::new()
         .name("cart_backup".to_string())
-        .stack_size(16 * 1024)
+        .stack_size(4 * 1024)
         .spawn(move || {
             let stream = CdcStream::new(cdc_interface);
             let mut cart = CartBackup::new(stream);

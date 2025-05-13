@@ -48,7 +48,7 @@ pub fn start() {
 
     std::thread::Builder::new()
         .name("Worker".to_string())
-        .stack_size(16 * 1024)
+        .stack_size(8 * 1024)
         .spawn(move || {
             while let Ok(message) = receiver.recv() {
                 log::debug!("Dispatch {:?}", message);

@@ -16,7 +16,7 @@ use crate::{
 pub fn start() {
     std::thread::Builder::new()
         .name("CLI".to_string())
-        .stack_size(16 * 1024)
+        .stack_size(8 * 1024)
         .spawn(cli_thread)
         .unwrap();
 }

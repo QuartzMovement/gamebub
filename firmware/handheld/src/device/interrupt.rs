@@ -46,7 +46,7 @@ impl Device<'_> {
         // Setup interrupt handler thread.
         std::thread::Builder::new()
             .name("Interrupt".to_string())
-            .stack_size(8 * 1024)
+            .stack_size(4 * 1024)
             .spawn(|| {
                 let notification = Notification::new();
 
