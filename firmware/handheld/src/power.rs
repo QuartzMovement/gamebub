@@ -36,7 +36,7 @@ impl PowerManager {
         if let Some(battery_voltage) = battery_voltage {
             if battery_voltage <= CUTOFF_VOLTAGE && !vbus {
                 log::warn!("Battery critically low, powering off");
-                device.power_off();
+                device.power_off(true);
             }
         }
 

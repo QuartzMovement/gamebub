@@ -439,12 +439,24 @@ impl Device<'_> {
     }
 
     /// Gracefully turn the device off.
-    pub fn power_off(&mut self) -> ! {
+    pub fn power_off(&mut self, blink_led: bool) -> ! {
         log::info!("Powering off");
         self.prepare_for_power_off();
 
         // Hold down the power button until the device shuts off.
         let _ = self.button_power.set_low();
+
+        // Blink LED to indicate low power
+        // TODO: generalize
+        if blink_led {
+            for _ in 0..3 {
+                std::thread::sleep(Duration::from_millis(250));
+                let _ = self.led.set_high();
+                std::thread::sleep(Duration::from_millis(250));
+                let _ = self.led.set_low();
+            }
+        }
+
         loop {
             std::thread::park();
         }

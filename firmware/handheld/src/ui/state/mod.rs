@@ -116,7 +116,7 @@ impl UiState {
         });
 
         backend.on_power_off(|| {
-            Device::lock().power_off();
+            Device::lock().power_off(false);
         });
 
         backend.on_reboot(|| {
