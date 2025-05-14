@@ -464,6 +464,7 @@ impl Device<'_> {
         let _ = self.change_display_mode(DisplayMode::None);
         // Hold DAC in reset, otherwise it interferes with I2C if rebooting.
         let _ = self.dac.reset_hold();
+        // TODO: persist save game, if needed, before shutting off FPGA power domain
         // TODO: high-Z SPI, other FPGA-power-domain pins.
         let _ = self.set_fpga_power(false);
         kvs::keys::flush_all();

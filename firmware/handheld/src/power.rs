@@ -11,6 +11,7 @@ static POWER_MANAGER: LazyLock<Mutex<PowerManager>> =
     LazyLock::new(|| Mutex::new(PowerManager::new()));
 
 const MONITOR_INTERVAL: Duration = Duration::from_secs(30);
+const CUTOFF_VOLTAGE: f32 = 3.3;
 
 pub struct PowerManager {
     monitor_timer: Option<EspTimer<'static>>,
@@ -29,6 +30,15 @@ impl PowerManager {
 
     fn update(&mut self, device: &mut Device) {
         let battery_level = device.fuel_gauge.get_battery_level().ok();
+        let vbus = device.get_vbus_pgood();
+        let battery_voltage = device.fuel_gauge.get_battery_voltage().ok();
+
+        if let Some(battery_voltage) = battery_voltage {
+            if battery_voltage <= CUTOFF_VOLTAGE && !vbus {
+                log::warn!("Battery critically low, powering off");
+                device.power_off();
+            }
+        }
 
         ui::send(ui::Message::BatteryStatus {
             level: battery_level.unwrap_or(0.),
