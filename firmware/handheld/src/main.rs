@@ -11,6 +11,7 @@ mod cli;
 mod device;
 mod input;
 mod kvs;
+mod power;
 pub mod ui;
 mod util;
 mod worker;
@@ -53,6 +54,7 @@ fn main() -> anyhow::Result<()> {
     // Setup workers.
     worker::start();
     cli::start();
+    power::PowerManager::start(&mut device);
 
     // Initial programming FPGA
     fn program_fpga(device: &mut Device) -> anyhow::Result<()> {

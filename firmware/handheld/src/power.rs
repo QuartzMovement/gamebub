@@ -1,0 +1,52 @@
+use std::{
+    sync::{LazyLock, Mutex, MutexGuard},
+    time::Duration,
+};
+
+use esp_idf_svc::timer::{EspTaskTimerService, EspTimer};
+
+use crate::{device::Device, ui};
+
+static POWER_MANAGER: LazyLock<Mutex<PowerManager>> =
+    LazyLock::new(|| Mutex::new(PowerManager::new()));
+
+const MONITOR_INTERVAL: Duration = Duration::from_secs(30);
+
+pub struct PowerManager {
+    monitor_timer: Option<EspTimer<'static>>,
+}
+
+impl PowerManager {
+    fn new() -> Self {
+        PowerManager {
+            monitor_timer: None,
+        }
+    }
+
+    pub fn lock() -> MutexGuard<'static, Self> {
+        POWER_MANAGER.lock().unwrap()
+    }
+
+    fn update(&mut self, device: &mut Device) {
+        let battery_level = device.fuel_gauge.get_battery_level().ok();
+
+        ui::send(ui::Message::BatteryStatus {
+            level: battery_level.unwrap_or(0.),
+        });
+    }
+
+    /// Start periodically polling power state.
+    pub fn start(device: &mut Device) {
+        let mut manager = PowerManager::lock();
+        assert!(manager.monitor_timer.is_none());
+        let timer_service = EspTaskTimerService::new().unwrap();
+        let timer = timer_service
+            .timer(move || {
+                PowerManager::lock().update(&mut Device::lock());
+            })
+            .unwrap();
+        timer.every(MONITOR_INTERVAL).unwrap();
+        manager.monitor_timer = Some(timer);
+        manager.update(device);
+    }
+}

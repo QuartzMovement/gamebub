@@ -43,7 +43,6 @@ impl UiState {
 
     pub fn update_battery_level(&mut self, level: f32) {
         let level = level.round() as i32;
-        log::info!("Battery level: {:?}%", level);
         let root = self.root.unwrap();
         let backend = root.global::<Backend>();
         backend.set_battery_level(level);

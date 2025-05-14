@@ -158,11 +158,7 @@ impl Device<'_> {
 
                         // Fuel gauge IRQs.
                         if let Ok(fuel_irq) = device.fuel_gauge.query_alerts() {
-                            for (alert, active) in fuel_irq.into_iter() {
-                                if active {
-                                    worker::send(worker::Message::FuelGaugeAlert(alert));
-                                }
-                            }
+                            let _ = fuel_irq;
                         }
 
                         // DAC IRQs.

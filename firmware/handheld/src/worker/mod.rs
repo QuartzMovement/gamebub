@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{mpsc, OnceLock};
 
 use crate::bitstream::CurrentBitstream;
+use crate::device::Device;
 use crate::device::DisplayMode;
-use crate::device::{drivers::fuel_gauge, Device};
 use crate::input::InputManager;
 use crate::{bitstream, ui};
 
@@ -14,8 +14,6 @@ use crate::{bitstream, ui};
 pub enum Message {
     /// An interrupt request from the FPGA
     FpgaIrq(u32),
-    /// An alert from the fuel gauge (battery)
-    FuelGaugeAlert(fuel_gauge::Alert),
     /// The headphone state has changed
     HeadphoneState(bool),
     /// The docked state has changed
@@ -69,10 +67,6 @@ fn dispatch(message: Message) {
                     bitstream.on_vblank_irq();
                 }
             }
-        }
-        Message::FuelGaugeAlert(fuel_gauge::Alert::ChargeChange) => {
-            let level = Device::lock().fuel_gauge.get_battery_level().unwrap_or(0.0);
-            ui::send(ui::Message::BatteryStatus { level });
         }
         Message::HeadphoneState(has_headphones) => {
             log::info!("Headphone detection: {}", has_headphones);
@@ -162,6 +156,7 @@ fn dispatch(message: Message) {
         Message::EnsureBootBitstream => {
             bitstream::current().ensure_boot().unwrap();
         }
+        #[allow(unreachable_patterns)]
         _ => {
             log::warn!("Unhandled message: {:?}", message);
         }
