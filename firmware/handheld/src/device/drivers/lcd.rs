@@ -161,7 +161,7 @@ where
         Ok(())
     }
 
-    fn write_cmd(&mut self, cmd: u8, params: &[u8]) -> Result<(), Error> {
+    pub fn write_cmd(&mut self, cmd: u8, params: &[u8]) -> Result<(), Error> {
         self.pin_dc.set_low().map_err(|_| Error::DcError)?;
         self.spi.write(&[cmd]).map_err(|_| Error::SpiError)?;
         if !params.is_empty() {

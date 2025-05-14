@@ -1,5 +1,7 @@
 use std::sync::{Mutex, MutexGuard};
+use std::time::Duration;
 
+use crate::device::DisplayMode;
 use crate::device::{drivers::fpga, Device};
 use crate::ui;
 
@@ -39,12 +41,26 @@ pub fn current() -> MutexGuard<'static, CurrentBitstream> {
 fn program_fpga(path: &str) {
     log::info!("Loading bitstream {}", path);
     let mut device = Device::lock();
+    let display_mode = device.get_display_mode();
+
+    if let DisplayMode::Internal = display_mode {
+        // Avoid LCD artifacts during FPGA reprogram.
+        device.lcd.enter_sleep().unwrap();
+        // For some reason, we need to sleep for a short amount of time here
+        // (before doing FPGA program), otherwise the LCD won't properly sleep.
+        // 2 ms is sometimes sufficient, 5 ms is always sufficient, 10 ms seems to always work.
+        std::thread::sleep(Duration::from_millis(10));
+    }
+
     let file = crate::util::open_system_file(path).unwrap();
     let mut bitstream = GzDecoder::new(file);
     device.fpga.program(&mut bitstream).unwrap();
-    let display_mode = device.get_display_mode();
     device.fpga.set_display_mode(display_mode).unwrap();
     ui::send(ui::Message::Redraw);
+
+    if let DisplayMode::Internal = display_mode {
+        device.lcd.exit_sleep().unwrap();
+    }
 }
 
 pub enum CurrentBitstream {
