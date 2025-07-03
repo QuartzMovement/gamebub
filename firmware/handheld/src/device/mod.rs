@@ -54,11 +54,14 @@ pub struct Device<'a> {
     lcd_backlight_duty: u16,
 
     /// LCD driver
-    pub lcd: drivers::lcd::ILI9488<
+    #[cfg(feature = "has_ili9488")]
+    pub lcd: drivers::ili9488::ILI9488<
         PinDriver<'a, AnyOutputPin, Output>,
         PinDriver<'a, AnyOutputPin, Output>,
         SpiSoftCsDeviceDriver<'a, SpiSharedDeviceDriver<'a, &'a SpiDriver<'a>>, &'a SpiDriver<'a>>,
     >,
+    #[cfg(feature = "has_st7262")]
+    pub lcd: drivers::st7262::ST7262<PinDriver<'a, AnyOutputPin, Output>>,
 
     /// Display mode (if initialized)
     pub display_mode: DisplayMode,
@@ -87,7 +90,9 @@ pub struct Device<'a> {
     /// IMU driver
     pub imu: drivers::imu::LSM6DS3TRC<MutexI2C<'a, I2cDriver<'a>>>,
 
+    #[cfg(feature = "has_io_expander")]
     io_expander: drivers::io_expander::TCA9535<MutexI2C<'a, I2cDriver<'a>>>,
+
     button_home: PinDriver<'a, AnyInputPin, Input>,
     button_vol_up: PinDriver<'a, AnyInputPin, Input>,
     button_vol_down: PinDriver<'a, AnyInputPin, Input>,
@@ -183,6 +188,41 @@ impl Device<'_> {
                 let pin_sdio_d3 = peripherals.pins.gpio26.downgrade();
                 let pin_sd_detect = peripherals.pins.gpio35.downgrade_input();
                 let pin_dac_reset = peripherals.pins.gpio45.downgrade_output();
+            } else if #[cfg(feature = "rev3")] {
+                let pin_led = peripherals.pins.gpio42.downgrade_output();
+                let pin_irq = peripherals.pins.gpio6.downgrade_input();
+                let pin_home = peripherals.pins.gpio0.downgrade_input();
+                let pin_vol_up = peripherals.pins.gpio2.downgrade_input();
+                let pin_vol_down = peripherals.pins.gpio1.downgrade_input();
+                let pin_power_switch = peripherals.pins.gpio8.downgrade();
+                let pin_vbus_pgood = peripherals.pins.gpio9.downgrade();
+                let pin_batt_chg = peripherals.pins.gpio3.downgrade_input();
+                #[allow(unused)]
+                let pin_batt_charge_enable = peripherals.pins.gpio10.downgrade_output(); // new!
+                let pin_lcd_backlight = peripherals.pins.gpio45.downgrade_output();
+                let pin_lcd_enable = peripherals.pins.gpio46.downgrade_output();
+                let pin_fpga_power = peripherals.pins.gpio13.downgrade_output();
+                let pin_fpga_init_b = peripherals.pins.gpio18.downgrade();
+                let pin_fpga_done = peripherals.pins.gpio16.downgrade_input();
+                let pin_fpga_program_b = peripherals.pins.gpio17.downgrade_output();
+                let mut pin_fpga_spi_cs = peripherals.pins.gpio21.downgrade_output();
+                let pin_fpga_spi_clk = peripherals.pins.gpio48.downgrade_output();
+                let pin_fpga_spi_d0 = peripherals.pins.gpio34.downgrade();
+                let pin_fpga_spi_d1 = peripherals.pins.gpio33.downgrade();
+                let pin_fpga_spi_d2 = peripherals.pins.gpio47.downgrade();
+                let pin_fpga_spi_d3 = peripherals.pins.gpio26.downgrade();
+                let pin_i2c_scl = peripherals.pins.gpio4.downgrade();
+                let pin_i2c_sda = peripherals.pins.gpio5.downgrade();
+                let pin_sdio_clk = peripherals.pins.gpio38.downgrade_output();
+                let pin_sdio_cmd = peripherals.pins.gpio37.downgrade();
+                let pin_sdio_d0 = peripherals.pins.gpio39.downgrade();
+                let pin_sdio_d1 = peripherals.pins.gpio40.downgrade();
+                let pin_sdio_d2 = peripherals.pins.gpio35.downgrade();
+                let pin_sdio_d3 = peripherals.pins.gpio36.downgrade();
+                let pin_sd_detect = peripherals.pins.gpio41.downgrade_input();
+                let pin_dac_reset = peripherals.pins.gpio7.downgrade_output();
+                let pin_cart_switch = peripherals.pins.gpio14.downgrade_input();
+                let pin_cart_power = peripherals.pins.gpio15.downgrade_output();
             }
         }
 
@@ -250,25 +290,46 @@ impl Device<'_> {
                     Option::<AnyInputPin>::None,
                     &spi_driver_config,
                 )?));
+            } else if #[cfg(feature = "rev3")] {
+                let fpga_spi_driver = &*Box::leak(Box::new(SpiDriver::new_quad(
+                    peripherals.spi2,
+                    pin_fpga_spi_clk,
+                    pin_fpga_spi_d0,
+                    pin_fpga_spi_d1,
+                    pin_fpga_spi_d2,
+                    pin_fpga_spi_d3,
+                    &spi_driver_config,
+                )?));
             }
         }
 
         // Setup LCD
-        log::info!("Initializing LCD");
-        let lcd_spi_config = spi::config::Config::new().baudrate(10.MHz().into());
-        let lcd_spi = SpiSoftCsDeviceDriver::new(
-            SpiSharedDeviceDriver::new(lcd_spi_driver, &lcd_spi_config)?,
-            pin_lcd_cs,
-            gpio::Level::High,
-        )?;
-        let lcd_reset = PinDriver::output(pin_lcd_reset)?;
-        let lcd_dc = PinDriver::output(pin_lcd_dc)?;
-        let mut lcd = drivers::lcd::ILI9488::new(lcd_reset, lcd_dc, lcd_spi);
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "has_ili9488")] {
+                log::info!("Initializing LCD");
+                let lcd_spi_config = spi::config::Config::new().baudrate(10.MHz().into());
+                let lcd_spi = SpiSoftCsDeviceDriver::new(
+                    SpiSharedDeviceDriver::new(lcd_spi_driver, &lcd_spi_config)?,
+                    pin_lcd_cs,
+                    gpio::Level::High,
+                )?;
+                let lcd_reset = PinDriver::output(pin_lcd_reset)?;
+                let lcd_dc = PinDriver::output(pin_lcd_dc)?;
+                let mut lcd = drivers::ili9488::ILI9488::new(lcd_reset, lcd_dc, lcd_spi);
+            } else if #[cfg(feature = "has_st7262")] {
+                let lcd_enable = PinDriver::output(pin_lcd_enable)?;
+                let mut lcd = drivers::st7262::ST7262::new(lcd_enable);
+            }
+        }
         lcd.init()?;
 
-        // Setup I/O expander
-        let mut io_expander = drivers::io_expander::TCA9535::new(MutexI2C::new(&i2c));
-        io_expander.get_pins()?;
+        // Setup I/O expander (Rev 1 and Rev 2 only)
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "has_io_expander")] {
+                let mut io_expander = drivers::io_expander::TCA9535::new(MutexI2C::new(&i2c));
+                io_expander.get_pins()?;
+            }
+        }
 
         // Direct buttons
         let button_home = PinDriver::input(pin_home)?;
@@ -281,6 +342,7 @@ impl Device<'_> {
         let rtc = drivers::rtc::PCF8563::new(MutexI2C::new(&i2c));
 
         // Setup battery fuel gauge
+        // TODO update for Rev 3
         let mut fuel_gauge = drivers::fuel_gauge::MAX17048::new(MutexI2C::new(&i2c));
         let _ = fuel_gauge.set_alert_soc_change(true); // fuel gauge won't work without a battery
         let mut pin_vbus_pgood = PinDriver::input(pin_vbus_pgood)?;
@@ -388,6 +450,7 @@ impl Device<'_> {
             dac,
             fpga,
             fuel_gauge,
+            #[cfg(feature = "has_io_expander")]
             io_expander,
             button_home,
             button_power,

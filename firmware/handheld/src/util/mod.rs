@@ -11,6 +11,8 @@ pub fn open_system_file(relative_path: &str) -> std::io::Result<File> {
         "/sdcard/system_rev1/",
         #[cfg(feature = "rev2")]
         "/sdcard/system_rev2/",
+        #[cfg(feature = "rev3")]
+        "/sdcard/system_rev3/",
         "/sdcard/system/",
         "/system/",
     ];

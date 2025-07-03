@@ -2,9 +2,13 @@ pub mod dac;
 pub mod fpga;
 pub mod fs;
 pub mod fuel_gauge;
+#[cfg(feature = "has_ili9488")]
+pub mod ili9488;
 pub mod imu;
+#[cfg(feature = "has_io_expander")]
 pub mod io_expander;
-pub mod lcd;
 pub mod rtc;
 pub mod sdcard;
+#[cfg(feature = "has_st7262")]
+pub mod st7262;
 pub mod usb;

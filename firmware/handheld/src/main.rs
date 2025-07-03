@@ -31,6 +31,8 @@ fn main() -> anyhow::Result<()> {
             let required_revision = 1;
         } else if #[cfg(feature = "rev2")] {
             let required_revision = 2;
+        } else if #[cfg(feature = "rev3")] {
+            let required_revision = 3;
         } else {
             compile_error!("No board revision selected");
         }
@@ -69,33 +71,12 @@ fn main() -> anyhow::Result<()> {
         device.lcd.enable_fpga_control()?;
         Ok(())
     }
-    let fpga_program_result = program_fpga(&mut device);
+    program_fpga(&mut device).expect("Failed to program FPGA");
 
     // Setup UI
     let mut ui = UI::new(&mut device);
     std::mem::drop(device);
 
-    // If there was an error programming the FPGA, show it now.
-    if let Err(error) = fpga_program_result {
-        show_fatal_error_anyhow(error);
-    }
-
     // Run UI in this thread.
     ui.run();
-}
-
-fn show_fatal_error_anyhow(error: anyhow::Error) {
-    use std::fmt::Write;
-
-    let mut message = format!("{}\n", error);
-    for e in error.chain().skip(1) {
-        let _ = write!(message, "\n{}", e);
-    }
-    show_fatal_error(message);
-}
-
-fn show_fatal_error(error: String) {
-    Device::lock().lcd.enable_mcu_control().unwrap();
-    ui::send(ui::Message::FatalError(error));
-    ui::send(ui::Message::Redraw);
 }
