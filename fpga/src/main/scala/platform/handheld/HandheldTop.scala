@@ -198,7 +198,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val mcuSpiDataDir = Output(UInt(4.W))
 
     val lcd = Output(new DpiSignals)
-    val lcdData = Output(UInt(18.W))
+    val lcdDataR = Output(UInt(6.W))
+    val lcdDataG = Output(UInt(6.W))
+    val lcdDataB = Output(UInt(6.W))
     val dac = Output(new I2sSignals)
 
     /** HDMI */
@@ -528,11 +530,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     dpiDriver.io.lastRenderedFrame := lastFrameComplete
     io.lcd := dpiDriver.io.signals
     // Pad to 18-bit RGB.
-    io.lcdData := Cat(
-      Cat(videoOutput.r),
-      Cat(videoOutput.g),
-      Cat(videoOutput.b),
-    )
+    io.lcdDataR := videoOutput.r
+    io.lcdDataG := videoOutput.g
+    io.lcdDataB := videoOutput.b
 
     val i2sTransmitter =
       Module(new I2sTransmitter(
@@ -726,6 +726,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   // Cartridge
   io.cartridge <> module.io.cartridge
   io.cartridgeOutputEnableN := !module.io.cartridgeEnabled
+  // Rev1 and Rev2 only
   io.cartridge3V3Enable := RegNext(module.io.cartridgeEnabled && !io.cartridgeSwitch)
   io.cartridge5V0Enable := RegNext(module.io.cartridgeEnabled && io.cartridgeSwitch)
 

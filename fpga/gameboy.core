@@ -33,6 +33,10 @@ filesets:
     files:
       - verilog/handheld/rev_2.xdc : {file_type : xdc}
 
+  handheld_rev_3:
+    files:
+      - verilog/handheld/rev_3.xdc : {file_type : xdc}
+
   handheld_clk_gameboy:
     files:
       - verilog/handheld/clk_wiz_system_gameboy.v : {file_type : verilogSource}
@@ -80,6 +84,10 @@ parameters:
   BOARD_REV_2:
     datatype: bool
     paramtype: vlogdefine
+
+  BOARD_REV_3:
+      datatype: bool
+      paramtype: vlogdefine
 
 generate:
   gameboy:
@@ -154,6 +162,11 @@ targets:
     <<: *handheld
     filesets_append: [handheld_rev_2]
     parameters: [BOARD_REV_2=true]
+
+  handheld_rev3:
+    <<: *handheld
+    filesets_append: [handheld_rev_3]
+    parameters: [BOARD_REV_3=true]
 
   sim:
     default_tool: verilator

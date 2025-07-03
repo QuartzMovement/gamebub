@@ -30,7 +30,9 @@ module top_handheld (
     output wire        lcd_hsync,
     output wire        lcd_vsync,
     output wire        lcd_data_en,
-    output wire [17:0] lcd_db,
+    output wire [5:0]  lcd_data_r,
+    output wire [5:0]  lcd_data_g,
+    output wire [5:0]  lcd_data_b,
 `ifdef BOARD_REV_2
     input wire         lcd_te,
 `endif
@@ -48,8 +50,10 @@ module top_handheld (
     output wire        cart_bank2_dir,
     output wire        cart_bank3_dir,
     input  wire        cart_switch,
+`ifndef BOARD_REV_3
     output wire        cart_en_3v3,
     output wire        cart_en_5v0,
+`endif
     output wire        cart_oe_n,
 
     inout  wire        link_so,
@@ -83,11 +87,11 @@ module top_handheld (
 
     inout  wire [3:0]  pmod,
     output wire        vibrate_en,
-`ifdef BOARD_REV_2
+`ifndef BOARD_REV_1
     output wire        vibrate_brake,
 `endif
 
-`ifdef BOARD_REV_2
+`ifndef BOARD_REV_1
     inout  wire        usb_sbu_1,
     inout  wire        usb_sbu_2,
 `endif
@@ -191,6 +195,12 @@ module top_handheld (
     logic [9:0] hdmi_cx;
     logic [9:0] hdmi_cy;
 
+`ifdef BOARD_REV_3
+    // Pins no longer connected, stub out.
+    logic cart_en_3v3;
+    logic cart_en_5v0;
+`endif
+
     ///// BEGIN Reset synchronizer
     logic [1:0] reset_sync;
     initial reset_sync = 2'b11;
@@ -225,7 +235,9 @@ module top_handheld (
         .io_lcd_hsync(lcd_hsync),
         .io_lcd_enable(lcd_data_en),
         .io_lcd_dotclk(lcd_dotclk),
-        .io_lcdData(lcd_db),
+        .io_lcdDataR(lcd_data_r),
+        .io_lcdDataG(lcd_data_g),
+        .io_lcdDataB(lcd_data_b),
 
         .io_dac_mclk(dac_mclk),
         .io_dac_wclk(dac_wclk),
@@ -348,9 +360,8 @@ module top_handheld (
 `ifdef BOARD_REV_1
     // Rev 1: FPGA irq directly connected to open-drain MCU_INT
     assign mcu_irq_n = inner_mcu_irq ? 1'b0 : 1'bz;
-`endif
-`ifdef BOARD_REV_2
-    // Rev 2: FPGA irq connected to nFET, active-high
+`elsif
+    // Rev 2, 3: FPGA irq connected to nFET, active-high
     assign mcu_irq_n = inner_mcu_irq;
 `endif
     assign inner_mcu_spi_data_in = mcu_spi_d;
@@ -411,6 +422,12 @@ module top_handheld (
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds1      (.I(hdmi_tmds_data[1]), .O(hdmi_data_n[1]), .OB(hdmi_data_p[1]));
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds2      (.I(hdmi_tmds_data[2]), .O(hdmi_data_n[2]), .OB(hdmi_data_p[2]));
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds_clock (.I(hdmi_tmds_clock  ), .O(hdmi_clk_n    ), .OB(hdmi_clk_p    ));
+`endif
+`ifdef BOARD_REV_3
+    OBUFDS #(.IOSTANDARD("TMDS_33")) obufds0      (.I(hdmi_tmds_data[0]), .O(hdmi_data_p[0]), .OB(hdmi_data_n[0]));
+    OBUFDS #(.IOSTANDARD("TMDS_33")) obufds1      (.I(hdmi_tmds_data[1]), .O(hdmi_data_p[1]), .OB(hdmi_data_n[1]));
+    OBUFDS #(.IOSTANDARD("TMDS_33")) obufds2      (.I(hdmi_tmds_data[2]), .O(hdmi_data_p[2]), .OB(hdmi_data_n[2]));
+    OBUFDS #(.IOSTANDARD("TMDS_33")) obufds_clock (.I(hdmi_tmds_clock  ), .O(hdmi_clk_p    ), .OB(hdmi_clk_n    ));
 `endif
 endmodule
 
