@@ -32,11 +32,6 @@ pub const REG_FB_DIM: u32 = 0x0000_0200;
 /// Color correction base
 pub const REG_COLOR_CORRECT_PARAMS: u32 = 0x3000_0000;
 
-pub const IRQ_MODULE_VBLANK: u32 = 0x1;
-pub const IRQ_BUTTON: u32 = 0x2;
-pub const IRQ_SPI_REQUEST_OVERFLOW: u32 = 0x4;
-pub const IRQ_SPI_RESPONSE_UNDERFLOW: u32 = 0x8;
-
 /// The FPGA (due to the spi implementation) can read at a speed that's some
 /// fraction of the SPI domain clock speed. At 200 MHz SPI receiver clock,
 /// 16 MHz is a safe speed.
@@ -57,6 +52,21 @@ pub enum Error {
     SpiError,
 }
 
+#[derive(Copy, Clone)]
+#[repr(u32)]
+pub enum Irq {
+    ModuleVblank = 0,
+    Button = 1,
+    SpiRequestOverflow = 2,
+    SpiResponseUnderflow = 3,
+}
+
+impl Irq {
+    pub const fn as_flag(self) -> u32 {
+        1 << (self as u32)
+    }
+}
+
 pub struct Fpga<
     'a,
     PinDone: InputPin,
@@ -74,6 +84,9 @@ pub struct Fpga<
     /// Top-level "system" clock speed, which determines how fast reads
     /// and writes can occur.
     system_clock: Hertz,
+
+    /// Bitfield of enabled interrupts
+    interrupts: u32,
 }
 
 impl<'a, PinDone, PinProgramB, PinInitB, ProgramSpi>
@@ -98,6 +111,7 @@ where
             data_spi,
             program_spi,
             system_clock: Hertz(8 * 1024 * 1024),
+            interrupts: 0,
         }
     }
 
@@ -159,6 +173,16 @@ where
 
     pub fn set_system_clock_rate(&mut self, rate: Hertz) {
         self.system_clock = rate;
+    }
+
+    pub fn enable_interrupt(&mut self, irq: Irq) -> Result<(), Error> {
+        self.interrupts |= irq.as_flag();
+        self.write_u32(REG_IRQ_ENABLE, self.interrupts)
+    }
+
+    pub fn disable_interrupt(&mut self, irq: Irq) -> Result<(), Error> {
+        self.interrupts &= !irq.as_flag();
+        self.write_u32(REG_IRQ_ENABLE, self.interrupts)
     }
 
     /// Finds a SPI data driver with the maximum clock speed.

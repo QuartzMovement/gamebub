@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{mpsc, OnceLock};
 
 use crate::bitstream::CurrentBitstream;
+use crate::device::drivers::fpga;
 use crate::device::Device;
 use crate::device::DisplayMode;
 use crate::input::InputManager;
@@ -61,7 +62,7 @@ static SENDER: OnceLock<mpsc::Sender<Message>> = OnceLock::new();
 fn dispatch(message: Message) {
     match message {
         Message::FpgaIrq(irq_mask) => {
-            if irq_mask & 0b1 != 0 {
+            if (irq_mask & fpga::Irq::ModuleVblank.as_flag()) != 0 {
                 // Module vblank
                 if let Some(bitstream) = crate::bitstream::current().get() {
                     bitstream.on_vblank_irq();

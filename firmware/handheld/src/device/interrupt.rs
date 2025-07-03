@@ -179,7 +179,7 @@ impl Device<'_> {
                                 .unwrap();
                             worker::send(worker::Message::FpgaIrq(fpga_irq));
                         }
-                        if (fpga_irq & fpga::IRQ_BUTTON) != 0 {
+                        if (fpga_irq & fpga::Irq::Button.as_flag()) != 0 {
                             poll_buttons = true;
                         }
 

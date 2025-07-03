@@ -249,8 +249,8 @@ impl Gameboy {
 
         device.imu.disable_accel().unwrap();
 
-        // Disable IRQs (including vblank)
-        device.fpga.write_u32(fpga::REG_IRQ_ENABLE, 0)?;
+        // Disable vblank IRQ
+        device.fpga.disable_interrupt(fpga::Irq::ModuleVblank)?;
 
         // Color correction
         let correction: &ColorCorrection = {
@@ -403,14 +403,11 @@ impl Gameboy {
             .write_u32(REG_EMU_CART_RAM_MASK, rom_header.ram_size - 1)?;
 
         // If IMU is needed, enable vsync IRQ
-        let irq_mask = if rom_header.has_sensor {
+        if rom_header.has_sensor {
             // XXX: if other components need IMU too, switch to a global lease system
             device.imu.enable_accel().unwrap();
-            0b1
-        } else {
-            0b0
-        };
-        device.fpga.write_u32(fpga::REG_IRQ_ENABLE, irq_mask)?;
+            device.fpga.enable_interrupt(fpga::Irq::ModuleVblank)?;
+        }
 
         // Resume
         device.fpga.write_u32(fpga::REG_CONTROL, 0b1011)?;

@@ -56,6 +56,7 @@ fn program_fpga(path: &str) {
     let mut bitstream = GzDecoder::new(file);
     device.fpga.program(&mut bitstream).unwrap();
     device.fpga.set_display_mode(display_mode).unwrap();
+    device.fpga.enable_interrupt(fpga::Irq::Button).unwrap();
     ui::send(ui::Message::Redraw);
 
     if let DisplayMode::Internal = display_mode {

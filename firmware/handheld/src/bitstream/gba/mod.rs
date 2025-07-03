@@ -224,8 +224,8 @@ impl Gba {
             kvs::keys::GBA_ENABLE_GBP.get().unwrap() as u32,
         )?;
 
-        // Disable IRQs (including vblank)
-        device.fpga.write_u32(fpga::REG_IRQ_ENABLE, 0)?;
+        // Disable Vblank IRQ
+        device.fpga.disable_interrupt(fpga::Irq::ModuleVblank)?;
 
         // Color correction
         let correction: &ColorCorrection = {
@@ -410,16 +410,18 @@ impl Gba {
         device.fpga.write_u32(REG_RTC_HI, rtc_hi)?;
 
         // If IMU is needed, enable vsync IRQ
-        let mut irq_mask = 0b0;
+        let mut need_vblank = false;
         if emu_cart_config.has_gyro {
             device.imu.enable_gyro().unwrap();
-            irq_mask |= 0b1;
+            need_vblank = true;
         }
         if emu_cart_config.has_accel {
             device.imu.enable_accel().unwrap();
-            irq_mask |= 0b1;
+            need_vblank = true;
         }
-        device.fpga.write_u32(fpga::REG_IRQ_ENABLE, irq_mask)?;
+        if need_vblank {
+            device.fpga.enable_interrupt(fpga::Irq::ModuleVblank)?;
+        }
 
         // Resume
         device.fpga.write_u32(fpga::REG_CONTROL, 0b1011)?;

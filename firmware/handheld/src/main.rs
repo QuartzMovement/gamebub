@@ -3,7 +3,7 @@ use flate2::read::GzDecoder;
 
 use device::Device;
 
-use crate::ui::UI;
+use crate::{device::drivers::fpga, ui::UI};
 
 mod bitstream;
 mod cart_backup;
@@ -65,6 +65,7 @@ fn main() -> anyhow::Result<()> {
             .fpga
             .program(&mut bitstream)
             .context("Failed to program FPGA")?;
+        device.fpga.enable_interrupt(fpga::Irq::Button)?;
         device.lcd.enable_fpga_control()?;
         Ok(())
     }
