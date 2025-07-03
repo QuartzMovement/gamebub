@@ -18,18 +18,24 @@ use thiserror::Error;
 use crate::device::DisplayMode;
 
 pub const REG_CONTROL: u32 = 0x0000_0000;
-pub const REG_BUTTON: u32 = 0x0000_0004;
+pub const REG_FORCE_BUTTON: u32 = 0x0000_0004;
 pub const REG_DISPLAY: u32 = 0x0000_0008;
 pub const REG_IRQ_ENABLE: u32 = 0x0000_000C;
 pub const REG_IRQ_STATUS: u32 = 0x0000_0010;
 pub const REG_STATUS: u32 = 0x0000_0014;
 pub const REG_COLOR_CORRECT_ENABLE: u32 = 0x0000_0018;
+pub const REG_BUTTON_STATE: u32 = 0x0000_001C;
 pub const REG_OVERLAY_XCTRL: u32 = 0x0000_0100;
 pub const REG_OVERLAY_YCTRL: u32 = 0x0000_0104;
 /// Framebuffer dimensions (read only)
 pub const REG_FB_DIM: u32 = 0x0000_0200;
 /// Color correction base
 pub const REG_COLOR_CORRECT_PARAMS: u32 = 0x3000_0000;
+
+pub const IRQ_MODULE_VBLANK: u32 = 0x1;
+pub const IRQ_BUTTON: u32 = 0x2;
+pub const IRQ_SPI_REQUEST_OVERFLOW: u32 = 0x4;
+pub const IRQ_SPI_RESPONSE_UNDERFLOW: u32 = 0x8;
 
 /// The FPGA (due to the spi implementation) can read at a speed that's some
 /// fraction of the SPI domain clock speed. At 200 MHz SPI receiver clock,

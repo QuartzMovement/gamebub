@@ -161,6 +161,7 @@ class HandheldLink extends Bundle {
 class HandheldInterrupts extends Bundle {
   val spiResponseFifoUnderflow = Bool()
   val spiRequestFifoOverflow = Bool()
+  val buttonEdge = Bool()
   val moduleVblank = Bool()
 }
 
@@ -259,7 +260,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val displayRegister = RegInit(0.U.asTypeOf(new Bundle() {
     val enableHdmi = Bool()
   }))
-  val buttonRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
+  /// Buttons that are forced down by MCU
+  val buttonForceRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
   val interruptEnable = RegInit(0.U.asTypeOf(new HandheldInterrupts))
   val interruptFlags = RegInit(0.U.asTypeOf(new HandheldInterrupts))
   val statusRegister = Cat(
@@ -280,13 +282,15 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val end = UInt(8.W)
     val scroll = UInt(8.W)
   }))
+  /// Synchronized physical button state (without MCU force override)
+  val buttonState = Wire(new HandheldButtons)
 
   val registerMap = RegisterMap(
     addressWidth = 16,
     dataWidth = 32,
     entries = Seq(
       0x0 -> RegisterMap.Entry.rw(controlRegister),
-      0x4 -> RegisterMap.Entry.rw(buttonRegister),
+      0x4 -> RegisterMap.Entry.rw(buttonForceRegister),
       0x8 -> RegisterMap.Entry.rw(displayRegister),
       0xC -> RegisterMap.Entry.rw(interruptEnable),
       0x10 -> RegisterMap.Entry(
@@ -301,6 +305,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
       ),
       0x14 -> RegisterMap.Entry.r(statusRegister),
       0x18 -> RegisterMap.Entry.rw(colorCorrectionRegister),
+      0x1C -> RegisterMap.Entry.r(buttonState),
       // Overlay control
       0x100 -> RegisterMap.Entry.rw(overlayXControlRegister),
       0x104 -> RegisterMap.Entry.rw(overlayYControlRegister),
@@ -347,6 +352,20 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.mcuIrq := (interruptFlags.asUInt & interruptEnable.asUInt).orR
   when (module.io.vblank && !RegNext(module.io.vblank)) {
     interruptFlags.moduleVblank := true.B
+  }
+
+  //////////////////////////////////
+  // Buttons
+  //////////////////////////////////
+  {
+    // Invert and synchronize buttons
+    val regButtons = RegNext(RegNext(~io.buttons.asUInt)).asTypeOf(new HandheldButtons)
+    buttonState := regButtons
+
+    when (regButtons.asUInt =/= RegNext(regButtons.asUInt)) {
+      // Button edge, mark interrupt
+      interruptFlags.buttonEdge := true.B
+    }
   }
 
   //////////////////////////////////
@@ -681,10 +700,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   io.link <> module.io.link
   io.pmod <> module.io.pmod
   module.io.mcuInterface <> moduleMcuInterface
-
-  // Buttons must be synchronized and inverted.
-  module.io.buttons :=
-    (RegNext(RegNext(~io.buttons.asUInt)).asUInt | buttonRegister.asUInt).asTypeOf(new HandheldButtons)
+  module.io.buttons := (buttonState.asUInt | buttonForceRegister.asUInt).asTypeOf(new HandheldButtons)
 
   // Framebuffer writes
   val framebufferWriteIndex = RegInit(0.U(1.W))

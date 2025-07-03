@@ -19,6 +19,8 @@ const FLAG_POWER: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(4) };
 const FLAG_VOL_UP: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(8) };
 const FLAG_VOL_DOWN: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(16) };
 const FLAG_VBUS_PGOOD: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(32) };
+const FLAG_BUTTONS: u32 =
+    FLAG_HOME.get() | FLAG_POWER.get() | FLAG_VOL_UP.get() | FLAG_VOL_DOWN.get();
 
 fn setup_gpio_interrupt(
     pin: &mut PinDriver<'_, impl Pin, impl InputMode>,
@@ -124,14 +126,13 @@ impl Device<'_> {
                     if (flags & FLAG_VBUS_PGOOD.get()) != 0 {
                         let _ = device.pin_vbus_pgood.enable_interrupt();
                     }
-
-                    let io_expander = device.io_expander.get_pins().unwrap();
-                    let input_state = device.get_input_state(io_expander).unwrap();
-                    ui::send(ui::Message::InputState(input_state));
+                    let mut poll_buttons = (flags & FLAG_BUTTONS) != 0;
 
                     // Handle dock monitoring
                     cfg_if::cfg_if! {
                         if #[cfg(feature = "rev1")] {
+                            let io_expander = device.io_expander.get_pins().unwrap();
+
                             // Docking is based on HDMI hot plug
                             let hdmi_detected = device.parse_hdmi_detect(io_expander).unwrap();
                             if prev_hdmi_detected != Some(hdmi_detected) {
@@ -139,6 +140,9 @@ impl Device<'_> {
                                 worker::send(worker::Message::DockState(hdmi_detected));
                             }
                         } else if #[cfg(feature = "rev2")] {
+                            // Must read I/O expander to clear IRQ.
+                            let _ = device.io_expander.get_pins().unwrap();
+
                             // On VBUS pgood falling, force undock
                             let vbus_pgood = device.get_vbus_pgood();
                             if prev_vbus_pgood != Some(vbus_pgood) {
@@ -152,9 +156,6 @@ impl Device<'_> {
 
                     if (flags & FLAG_MCU_IRQ.get()) != 0 {
                         log::debug!("Interrupt: MCU_IRQ");
-                        // N.B. important to read buttons above to clear i/o expander interrupt
-
-                        // TODO handle other possible interrupt sources, including FPGA
 
                         // Fuel gauge IRQs.
                         if let Ok(fuel_irq) = device.fuel_gauge.query_alerts() {
@@ -169,8 +170,7 @@ impl Device<'_> {
                             }
                         }
 
-                        // Read FPGA.
-                        // TODO: only read and ack interrupts that we've enabled?
+                        // FPGA IRQs
                         let fpga_irq = device.fpga.read_u32(fpga::REG_IRQ_STATUS).unwrap();
                         if fpga_irq != 0 {
                             device
@@ -179,8 +179,17 @@ impl Device<'_> {
                                 .unwrap();
                             worker::send(worker::Message::FpgaIrq(fpga_irq));
                         }
+                        if (fpga_irq & fpga::IRQ_BUTTON) != 0 {
+                            poll_buttons = true;
+                        }
 
                         let _ = device.pin_irq.enable_interrupt();
+                    }
+
+                    if poll_buttons {
+                        let fpga_buttons = device.fpga.read_u32(fpga::REG_BUTTON_STATE).unwrap();
+                        let input_state = device.get_input_state(fpga_buttons).unwrap();
+                        ui::send(ui::Message::InputState(input_state));
                     }
                 }
             })
