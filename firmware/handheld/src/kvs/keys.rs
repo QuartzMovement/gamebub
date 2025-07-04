@@ -2,12 +2,6 @@ use std::path::PathBuf;
 
 use super::KvsKey;
 
-/// The device hardware revision
-pub static DEVICE_REVISION: KvsKey<u32> = KvsKey::new_ro("revision");
-
-/// Serial number
-pub static DEVICE_SERIAL: KvsKey<String> = KvsKey::new_ro("serial");
-
 /// The full path of the last selected ROM.
 pub static LAST_ROM_PATH: KvsKey<PathBuf> = KvsKey::new("last-rom-path");
 

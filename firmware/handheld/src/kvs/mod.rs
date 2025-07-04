@@ -82,16 +82,6 @@ impl<T: Serialize + DeserializeOwned + Clone> KvsKey<T> {
         }
     }
 
-    const fn new_ro(name: &'static str) -> Self {
-        assert!(name.len() < 16);
-        KvsKey::<T> {
-            name,
-            read_only: true,
-            default: None,
-            cache: RwLock::new(None),
-        }
-    }
-
     /// Get the value directly from NVS, without going through the cache.
     fn get_direct(&self) -> Option<T> {
         let mut kvs = Kvs::get();

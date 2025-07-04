@@ -9,7 +9,7 @@ use crate::{
         Device,
     },
     input::{GamepadId, InputState},
-    kvs, ui, worker,
+    ui, worker,
 };
 
 /// Start the CLI thread. Called once during system init.
@@ -67,8 +67,8 @@ fn get_arg_u32<'a>(arg: Option<&'a str>) -> Result<u32, String> {
 fn handle_get_hwinfo<'a>(_args: impl Iterator<Item = &'a str>) -> Result<(), String> {
     println!(
         "<ok,{},{}",
-        kvs::keys::DEVICE_SERIAL.get().as_deref().unwrap_or(""),
-        kvs::keys::DEVICE_REVISION.get().unwrap_or_default(),
+        crate::hwinfo::get_serial_number(),
+        crate::hwinfo::get_hardware_version().major,
     );
     Ok(())
 }

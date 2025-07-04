@@ -9,6 +9,7 @@ mod bitstream;
 mod cart_backup;
 mod cli;
 mod device;
+mod hwinfo;
 mod input;
 mod kvs;
 mod power;
@@ -22,8 +23,8 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::log::set_target_level("gpio", log::LevelFilter::Warn).unwrap();
 
     kvs::Kvs::init()?;
-    log::info!("Device revision {:?}", kvs::keys::DEVICE_REVISION.get());
-    log::info!("Serial: {:?}", kvs::keys::DEVICE_SERIAL.get());
+    log::info!("Hardware version {:?}", hwinfo::get_hardware_version());
+    log::info!("Serial: {}", hwinfo::get_serial_number());
 
     // Check that the firmware is compatible with the listed revision.
     cfg_if::cfg_if! {
@@ -37,10 +38,11 @@ fn main() -> anyhow::Result<()> {
             compile_error!("No board revision selected");
         }
     };
-    if kvs::keys::DEVICE_REVISION.get() != Some(required_revision) {
+    let actual_revision = hwinfo::get_hardware_version().major;
+    if actual_revision != required_revision && actual_revision != 0 {
         anyhow::bail!(
             "Incompatible firmware revision: device={:?} firmware={}",
-            kvs::keys::DEVICE_REVISION.get(),
+            actual_revision,
             required_revision
         );
     }
