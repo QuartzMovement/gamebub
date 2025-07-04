@@ -58,6 +58,7 @@ impl UiState {
         backend.set_brightness_level((kvs::keys::BRIGHTNESS.get().unwrap() * 100.0) as i32);
         backend.set_hardware_version(crate::hwinfo::get_hardware_version().to_string().into());
         backend.set_hardware_serial(crate::hwinfo::get_serial_number().to_string().into());
+        backend.set_firmware_version(env!("CARGO_PKG_VERSION").into());
         backend.set_sdcard_mounted(std::fs::exists("/sdcard").unwrap_or(false));
 
         self.setup_main_menu(&state, device);
