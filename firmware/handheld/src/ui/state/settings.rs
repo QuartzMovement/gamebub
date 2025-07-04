@@ -50,10 +50,6 @@ mod settings {
                 name: "About",
                 screen: ScreenId::About,
             },
-            Entry::Checkbox {
-                name: "Dark Mode",
-                key: &keys::DARK_MODE,
-            },
             Entry::SystemDatetime {
                 name: "Date and Time (UTC)",
             },
