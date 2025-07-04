@@ -158,6 +158,7 @@ impl Device<'_> {
                         log::debug!("Interrupt: MCU_IRQ");
 
                         // Fuel gauge IRQs.
+                        #[cfg(feature = "has_max17048")]
                         if let Ok(fuel_irq) = device.fuel_gauge.query_alerts() {
                             let _ = fuel_irq;
                         }

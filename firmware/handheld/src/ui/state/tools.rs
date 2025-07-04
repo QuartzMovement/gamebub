@@ -34,10 +34,6 @@ impl UiState {
         backend.on_tools_get_battery_info(move || {
             let mut device = Device::lock();
             BatteryInfo {
-                charge_rate: device
-                    .fuel_gauge
-                    .get_battery_charge_rate()
-                    .unwrap_or(f32::NAN),
                 is_charging: device.get_battery_is_charging(),
                 level: device.fuel_gauge.get_battery_level().unwrap_or(f32::NAN),
                 vbus_pgood: device.get_vbus_pgood(),

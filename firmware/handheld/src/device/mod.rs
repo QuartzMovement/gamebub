@@ -85,7 +85,10 @@ pub struct Device<'a> {
     pub rtc: drivers::rtc::PCF8563<MutexI2C<'a, I2cDriver<'a>>>,
 
     /// Battery fuel gauge driver
-    pub fuel_gauge: drivers::fuel_gauge::MAX17048<MutexI2C<'a, I2cDriver<'a>>>,
+    #[cfg(feature = "has_max17048")]
+    pub fuel_gauge: drivers::max17048::MAX17048<MutexI2C<'a, I2cDriver<'a>>>,
+    #[cfg(feature = "has_bq27427")]
+    pub fuel_gauge: drivers::bq27427::BQ27427<MutexI2C<'a, I2cDriver<'a>>>,
 
     /// IMU driver
     pub imu: drivers::imu::LSM6DS3TRC<MutexI2C<'a, I2cDriver<'a>>>,
@@ -342,9 +345,17 @@ impl Device<'_> {
         let rtc = drivers::rtc::PCF8563::new(MutexI2C::new(&i2c));
 
         // Setup battery fuel gauge
-        // TODO update for Rev 3
-        let mut fuel_gauge = drivers::fuel_gauge::MAX17048::new(MutexI2C::new(&i2c));
-        let _ = fuel_gauge.set_alert_soc_change(true); // fuel gauge won't work without a battery
+        cfg_if::cfg_if! {
+            if #[cfg(feature = "has_max17048")] {
+                let mut fuel_gauge = drivers::max17048::MAX17048::new(MutexI2C::new(&i2c));
+                let _ = fuel_gauge.set_alert_soc_change(true); // fuel gauge won't work without a battery
+            } else if #[cfg(feature = "has_bq27427")] {
+                let fuel_gauge = drivers::bq27427::BQ27427::new(MutexI2C::new(&i2c));
+                // TODO setup in another thread
+            }
+        }
+
+        // Battery charger
         let mut pin_vbus_pgood = PinDriver::input(pin_vbus_pgood)?;
         pin_vbus_pgood.set_pull(gpio::Pull::Up)?;
         let pin_batt_chg = PinDriver::input(pin_batt_chg)?;

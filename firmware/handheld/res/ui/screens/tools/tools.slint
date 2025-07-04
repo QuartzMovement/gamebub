@@ -134,8 +134,7 @@ export component ToolsScreen inherits ScreenBase {
                     text: ("Charging: \{info.is-charging ? "yes" : "no"}\n" + //
                     "VBUS good: \{info.vbus-pgood ? "yes" : "no"}\n" + //
                     "Voltage: \{round(info.voltage * 100) / 100} V\n" + //
-                    "Charge Level: \{round(info.level * 10) / 10}%\n" + //
-                    "Charge Rate: \{round(info.charge-rate * 100) / 100} %/hr" //
+                    "Charge Level: \{round(info.level * 10) / 10}%\n" //
                 );
                 }
 
