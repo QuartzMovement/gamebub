@@ -38,6 +38,7 @@ impl UiState {
                 level: device.fuel_gauge.get_battery_level().unwrap_or(f32::NAN),
                 vbus_pgood: device.get_vbus_pgood(),
                 voltage: device.fuel_gauge.get_battery_voltage().unwrap_or(f32::NAN),
+                current: device.fuel_gauge.get_battery_current().unwrap_or(f32::NAN),
             }
         })
     }

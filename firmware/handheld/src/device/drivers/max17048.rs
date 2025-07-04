@@ -70,6 +70,11 @@ where
         Ok((raw as f32) * 0.208)
     }
 
+    /// Get the battery current (unsupported, always returns NaN)
+    pub fn get_battery_current(&mut self) -> Result<f32, Error> {
+        Ok(f32::NAN)
+    }
+
     /// Enable or disable the 1% state-of-charge change alert.
     pub fn set_alert_soc_change(&mut self, enabled: bool) -> Result<(), Error> {
         self.alert_soc_change = enabled;
