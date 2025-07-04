@@ -23,7 +23,7 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::log::set_target_level("gpio", log::LevelFilter::Warn).unwrap();
 
     kvs::Kvs::init()?;
-    log::info!("Hardware version {:?}", hwinfo::get_hardware_version());
+    log::info!("Hardware version: {}", hwinfo::get_hardware_version());
     log::info!("Serial: {}", hwinfo::get_serial_number());
 
     // Check that the firmware is compatible with the listed revision.

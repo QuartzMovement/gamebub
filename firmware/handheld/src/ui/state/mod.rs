@@ -56,8 +56,8 @@ impl UiState {
         self.update_battery_level(battery_level);
         backend.set_volume_level(((kvs::keys::VOLUME.get().unwrap() as i32) * 100) / 255);
         backend.set_brightness_level((kvs::keys::BRIGHTNESS.get().unwrap() * 100.0) as i32);
-        backend.set_device_revision(crate::hwinfo::get_hardware_version().major as i32);
-        backend.set_device_serial(crate::hwinfo::get_serial_number().to_string().into());
+        backend.set_hardware_version(crate::hwinfo::get_hardware_version().to_string().into());
+        backend.set_hardware_serial(crate::hwinfo::get_serial_number().to_string().into());
         backend.set_sdcard_mounted(std::fs::exists("/sdcard").unwrap_or(false));
 
         self.setup_main_menu(&state, device);

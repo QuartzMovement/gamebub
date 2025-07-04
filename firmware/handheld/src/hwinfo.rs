@@ -32,6 +32,16 @@ pub struct HardwareVersion {
     pub variant: u8,
 }
 
+impl Display for HardwareVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "{}.{}.{}.{}",
+            self.product, self.major, self.minor, self.variant
+        )
+    }
+}
+
 pub fn get_serial_number() -> SerialNumber {
     SerialNumber(read_efuse(REG_SERIAL_NUMBER))
 }
