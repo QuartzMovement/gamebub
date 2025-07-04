@@ -100,21 +100,25 @@ pub struct UI {
     root: slint::MainWindow,
     state: Rc<RefCell<UiState>>,
     button_event_detector: buttons::ButtonEventDetector,
-    boot_animation_end: Instant,
 }
 
 impl UI {
     pub fn new(device: &mut Device) -> Self {
-        // Start the boot animation.
-        device.fpga.write_u32(0xC000_0004, 36).unwrap(); // Set logo y
+        device.fpga.write_u32(0xC000_0004, 39).unwrap(); // Set logo y
         let display_mode = if device.docked {
             DisplayMode::External
         } else {
             DisplayMode::Internal
         };
         device.change_display_mode(display_mode).unwrap();
-        device.fpga.write_u32(0xC000_0000, 1).unwrap(); // Start animation (no loop)
-        let boot_animation_end = Instant::now() + Duration::from_secs(1);
+        // Start the boot animation after a delay.
+        Timer::single_shot(Duration::from_millis(500), || {
+            let animation = 1 | (6 << 2); // 6: 0.66 seconds
+            Device::lock()
+                .fpga
+                .write_u32(0xC000_0000, animation)
+                .unwrap(); // Start animation (no loop)
+        });
 
         let (sender, receiver) = mpsc::channel::<Message>();
         SENDER.set(sender).expect("UI already initialized");
@@ -142,7 +146,6 @@ impl UI {
             state: UiState::new(&root, device),
             root,
             button_event_detector: buttons::ButtonEventDetector::new(),
-            boot_animation_end,
         };
         ui
     }

@@ -10,6 +10,7 @@ import javax.imageio.ImageIO
 
 class LogoAnimationState extends Bundle {
   val time = UInt(8.W)
+  val speed = UInt(4.W) // duration = (4 seconds / "speed")
   val loop = Bool()
   val running = Bool()
 }
@@ -59,7 +60,7 @@ class Logo(framebufferW: Int, framebufferH: Int) extends Module {
     regY := 0.U
 
     when (regAnimation.running) {
-      val nextTime = regAnimation.time + 4.U
+      val nextTime = regAnimation.time + regAnimation.speed
       when ((nextTime < regAnimation.time) && !regAnimation.loop) {
         regAnimation.time := 0.U
         regAnimation.running := false.B
@@ -127,11 +128,11 @@ class Logo(framebufferW: Int, framebufferH: Int) extends Module {
   private def makeColorTable(width: Int) = {
     VecInit((0 until width).map(x => {
       val t = x.toDouble / (width - 1)
-      val hueDelta = (-4.0 * t * (t - 1.0)) * 0.2 // TODO: or 0.15?
+      val delta = (-4.0 * t * (t - 1.0))
 
-      val hsbVals = Color.RGBtoHSB(0x3A, 0x3C, 0x99, null)
-      hsbVals(0) += hueDelta.toFloat
-      val out = Color.getHSBColor(hsbVals(0), hsbVals(1), hsbVals(2))
+      val hsbVals = Color.RGBtoHSB(0x56, 0x05, 0x91, null)
+      hsbVals(2) += (delta * 0.5).toFloat
+      val out = Color.getHSBColor(hsbVals(0), hsbVals(1), hsbVals(2).min(1))
       val color = Wire(ColorARGB.rgb555())
       color.a := DontCare
       color.r := (out.getRed >> 3).U(5.W)
