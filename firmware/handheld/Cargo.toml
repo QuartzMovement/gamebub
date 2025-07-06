@@ -54,7 +54,7 @@ embedded-hal-bus = "0.1.0"
 flate2 = "1.0.28"
 thiserror = "1.0.57"
 enum-map = "2.7.3"
-slint = { version = "~1.9.1", default-features = false, features = [
+slint = { version = "~1.12.1", default-features = false, features = [
     "compat-1-2",
     "unsafe-single-threaded",
     "libm",
@@ -73,7 +73,7 @@ hex = "0.4.3"
 
 [build-dependencies]
 embuild = "0.33.0"
-slint-build = "~1.9.1"
+slint-build = "~1.12.1"
 
 [[package.metadata.esp-idf-sys.extra_components]]
 remote_component = { name = "espressif/esp_tinyusb", version = "^1.7.2" }

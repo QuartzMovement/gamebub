@@ -133,9 +133,9 @@ export component ToolsScreen inherits ScreenBase {
                     horizontal-alignment: center;
                     text: ("Charging: \{info.is-charging ? "yes" : "no"}\n" + //
                     "VBUS good: \{info.vbus-pgood ? "yes" : "no"}\n" + //
-                    "Voltage: \{round(info.voltage * 100) / 100} V\n" + //
-                    "Charge Level: \{round(info.level * 10) / 10}%\n" + //
-                    "Current: \{round(info.current * 1000) / 1000} A\n" //
+                    "Voltage: \{info.voltage.to-fixed(2)} V\n" + //
+                    "Charge Level: \{info.level.to_fixed(2)}%\n" + //
+                    "Current: \{info.current.to-fixed(3)} A\n" //
                 );
                 }
 
