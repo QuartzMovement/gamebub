@@ -31,9 +31,9 @@ class HandheldBoot extends Module with HandheldModule {
         addressWidth = 24,
         dataWidth = 32,
         entries = Seq(
-            "b0000".U(4.W) -> logo.io.registers,
-            "b0010".U(4.W) -> cartridgeUtility.io.registers,
-            "b0011".U(4.W) -> cartridgeUtility.io.memInterface,
+            0x0.U(4.W) -> logo.io.registers,
+            0x2.U(4.W) -> cartridgeUtility.io.registers,
+            0x3.U(4.W) -> cartridgeUtility.io.memInterface,
         ))
 
     private def stubUnused(): Unit = {

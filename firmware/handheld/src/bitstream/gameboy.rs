@@ -22,20 +22,20 @@ use super::{
 const SYSTEM_CLOCK_RATE: Hertz = Hertz(8 * 1024 * 1024);
 const PROGRESS_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
 
-const REG_EMU_CONFIG: u32 = 0xC000_0000;
-const REG_EMU_CART_CONFIG: u32 = 0xC000_0004;
-const REG_EMU_CART_ROM_ADDR: u32 = 0xC000_0008;
-const REG_EMU_CART_ROM_MASK: u32 = 0xC000_000C;
-const REG_EMU_CART_RAM_ADDR: u32 = 0xC000_0010;
-const REG_EMU_CART_RAM_MASK: u32 = 0xC000_0014;
-const REG_RTC_STATE: u32 = 0xC000_0018;
-const REG_RTC_LATCHED: u32 = 0xC000_001C;
-const REG_IMU_ACCEL_X: u32 = 0xC000_0020;
-const REG_IMU_ACCEL_Y: u32 = 0xC000_0024;
-const REG_DMG_PALETTE0: u32 = 0xC000_0028;
-const REG_DMG_PALETTE1: u32 = 0xC000_002C;
-const REG_STAT_STALLS: u32 = 0xC000_1000;
-const REG_STAT_CYCLES: u32 = 0xC000_1004;
+const REG_EMU_CONFIG: u32 = 0xE000_0000;
+const REG_EMU_CART_CONFIG: u32 = 0xE000_0004;
+const REG_EMU_CART_ROM_ADDR: u32 = 0xE000_0008;
+const REG_EMU_CART_ROM_MASK: u32 = 0xE000_000C;
+const REG_EMU_CART_RAM_ADDR: u32 = 0xE000_0010;
+const REG_EMU_CART_RAM_MASK: u32 = 0xE000_0014;
+const REG_RTC_STATE: u32 = 0xE000_0018;
+const REG_RTC_LATCHED: u32 = 0xE000_001C;
+const REG_IMU_ACCEL_X: u32 = 0xE000_0020;
+const REG_IMU_ACCEL_Y: u32 = 0xE000_0024;
+const REG_DMG_PALETTE0: u32 = 0xE000_0028;
+const REG_DMG_PALETTE1: u32 = 0xE000_002C;
+const REG_STAT_STALLS: u32 = 0xE000_1000;
+const REG_STAT_CYCLES: u32 = 0xE000_1004;
 
 // From mGBA
 static DMG_PALETTES: &[[u32; 4]] = &[
@@ -219,7 +219,7 @@ impl Gameboy {
             return Err(GameboyError::InvalidBootrom);
         }
 
-        let address = 0xC010_0000;
+        let address = 0xE010_0000;
         let command = fpga::SpiCommand {
             word_size: fpga::FpgaSpiWordSize::Bits8,
             byte_swap: true,

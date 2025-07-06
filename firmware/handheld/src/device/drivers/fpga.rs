@@ -17,20 +17,20 @@ use thiserror::Error;
 
 use crate::device::DisplayMode;
 
-pub const REG_CONTROL: u32 = 0x0000_0000;
-pub const REG_FORCE_BUTTON: u32 = 0x0000_0004;
-pub const REG_DISPLAY: u32 = 0x0000_0008;
-pub const REG_IRQ_ENABLE: u32 = 0x0000_000C;
-pub const REG_IRQ_STATUS: u32 = 0x0000_0010;
-pub const REG_STATUS: u32 = 0x0000_0014;
-pub const REG_COLOR_CORRECT_ENABLE: u32 = 0x0000_0018;
-pub const REG_BUTTON_STATE: u32 = 0x0000_001C;
-pub const REG_OVERLAY_XCTRL: u32 = 0x0000_0100;
-pub const REG_OVERLAY_YCTRL: u32 = 0x0000_0104;
+pub const REG_CONTROL: u32 = 0x0100_0000;
+pub const REG_FORCE_BUTTON: u32 = 0x0100_0004;
+pub const REG_DISPLAY: u32 = 0x0100_0008;
+pub const REG_IRQ_ENABLE: u32 = 0x0100_000C;
+pub const REG_IRQ_STATUS: u32 = 0x0100_0010;
+pub const REG_STATUS: u32 = 0x0100_0014;
+pub const REG_COLOR_CORRECT_ENABLE: u32 = 0x0100_0018;
+pub const REG_BUTTON_STATE: u32 = 0x0100_001C;
+pub const REG_OVERLAY_XCTRL: u32 = 0x0100_0100;
+pub const REG_OVERLAY_YCTRL: u32 = 0x0100_0104;
 /// Framebuffer dimensions (read only)
-pub const REG_FB_DIM: u32 = 0x0000_0200;
+pub const REG_FB_DIM: u32 = 0x0100_0200;
 /// Color correction base
-pub const REG_COLOR_CORRECT_PARAMS: u32 = 0x3000_0000;
+pub const REG_COLOR_CORRECT_PARAMS: u32 = 0x0200_0000;
 
 /// The FPGA (due to the spi implementation) can read at a speed that's some
 /// fraction of the SPI domain clock speed. At 200 MHz SPI receiver clock,
@@ -296,7 +296,7 @@ where
     }
 
     pub fn sram_write(&mut self, address: u32, data: &[u8]) -> Result<(), Error> {
-        let address = 0x1000_0000 | address;
+        let address = 0x0500_0000 | address;
         let command = SpiCommand {
             word_size: FpgaSpiWordSize::Bits16,
             byte_swap: true,
@@ -309,7 +309,7 @@ where
     }
 
     pub fn sram_read(&mut self, address: u32, data: &mut [u8]) -> Result<(), Error> {
-        let address = 0x1000_0000 | address;
+        let address = 0x0500_0000 | address;
         let command = SpiCommand {
             word_size: FpgaSpiWordSize::Bits16,
             byte_swap: true,
@@ -321,7 +321,7 @@ where
     }
 
     pub fn sdram_write(&mut self, address: u32, data: &[u8]) -> Result<(), Error> {
-        let address = 0x2000_0000 | address;
+        let address = 0x8000_0000 | address;
         let command = SpiCommand {
             word_size: FpgaSpiWordSize::Bits32,
             byte_swap: true,
@@ -333,7 +333,7 @@ where
     }
 
     pub fn sdram_read(&mut self, address: u32, data: &mut [u8]) -> Result<(), Error> {
-        let address = 0x2000_0000 | address;
+        let address = 0x8000_0000 | address;
         let command = SpiCommand {
             word_size: FpgaSpiWordSize::Bits32,
             byte_swap: true,
@@ -379,7 +379,7 @@ where
         };
         // 16 bits per transfer, 2 cycles per transfer.
         let max_clock = (self.system_clock.0 * 16) / (4 * 2);
-        self.spi_write(Some(Hertz(max_clock)), command, 0x38000000 | offset, data)
+        self.spi_write(Some(Hertz(max_clock)), command, 0x03000000 | offset, data)
     }
 
     /// Get the state of the cartridge slot button.

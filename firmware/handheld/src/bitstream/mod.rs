@@ -7,6 +7,7 @@ use crate::ui;
 
 use flate2::read::GzDecoder;
 
+pub mod boot;
 pub mod gameboy;
 pub mod gba;
 

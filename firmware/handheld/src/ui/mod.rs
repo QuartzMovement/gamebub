@@ -104,7 +104,10 @@ pub struct UI {
 
 impl UI {
     pub fn new(device: &mut Device) -> Self {
-        device.fpga.write_u32(0xC000_0004, 39).unwrap(); // Set logo y
+        device
+            .fpga
+            .write_u32(crate::bitstream::boot::REG_LOGO_Y, 39)
+            .unwrap();
         let display_mode = if device.docked {
             DisplayMode::External
         } else {
@@ -116,7 +119,7 @@ impl UI {
             let animation = 1 | (6 << 2); // 6: 0.66 seconds
             Device::lock()
                 .fpga
-                .write_u32(0xC000_0000, animation)
+                .write_u32(crate::bitstream::boot::REG_LOGO_ANIM, animation)
                 .unwrap(); // Start animation (no loop)
         });
 

@@ -12,13 +12,13 @@ use crate::device::{
 };
 use esp_idf_svc::hal::units::FromValueType;
 
-const REG_BASE: u32 = 0xC020_0000;
+const REG_BASE: u32 = crate::bitstream::boot::REG_CART_BASE;
 const REG_STATUS_IDLE: u32 = REG_BASE | 0x0;
 const REG_WAITS: u32 = REG_BASE | 0x4;
 const REG_INSTRUCTION_LO: u32 = REG_BASE | 0x100;
 const REG_INSTRUCTION_HI: u32 = REG_BASE | 0x104;
 const REG_INSTRUCTION_GO: u32 = REG_BASE | 0x108;
-const MEM_BASE: u32 = 0xC030_0000;
+const MEM_BASE: u32 = crate::bitstream::boot::REG_CART_MEM;
 
 pub fn start_task(cdc_interface: u32) {
     std::thread::Builder::new()

@@ -326,17 +326,21 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val overlayInterface = Wire(new MemoryInterface(addressWidth = 18, dataWidth = 16))
   val framebufferInterface = Wire(new MemoryInterface(addressWidth = 18, dataWidth = 16))
   val colorCorrectInterface = Wire(new MemoryInterface(addressWidth = 9, dataWidth = 16))
+  // 16 bit prefix: 64 KiB
+  // 12 bit prefix: 1 MiB
+  // 8 bit prefix: 16 MiB
+  // 4 bit prefix: 256 MiB
   spi.io.mem <> MemoryMap(
     addressWidth = 32,
     dataWidth = 32,
     entries = Seq(
-      "b0000".U(4.W) -> registerMap,
-      "b0001".U(4.W) -> sramSpiInterface,
-      "b0010".U(4.W) -> sdramSpiInterface,
-      "b001100".U(6.W) -> colorCorrectInterface,
-      "b001110".U(6.W) -> overlayInterface,
-      "b001111".U(6.W) -> framebufferInterface,
-      "b11".U(2.W) -> moduleMcuInterface,
+      0x01.U(8.W) -> registerMap,
+      0x02.U(8.W) -> colorCorrectInterface,
+      0x03.U(8.W) -> overlayInterface,
+      0x04.U(8.W) -> framebufferInterface,
+      0x05.U(8.W) -> sramSpiInterface,
+      0x8.U(4.W) -> sdramSpiInterface,
+      0xE.U(4.W) -> moduleMcuInterface,
     ))
 
   controlRegister.moduleVblank := module.io.vblank

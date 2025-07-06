@@ -31,16 +31,16 @@ const SYSTEM_CLOCK_RATE: Hertz = Hertz(16 * 1024 * 1024);
 const ROM_HEADER_LENGTH: usize = 192;
 const PROGRESS_UPDATE_INTERVAL: Duration = Duration::from_millis(250);
 
-const REG_EMU_CART_CONFIG: u32 = 0xC000_0000;
-const REG_EMU_CART_ROM_SIZE: u32 = 0xC000_0004;
-const REG_GB_PLAYER: u32 = 0xC000_0008;
-const REG_IMU_GYRO_Z: u32 = 0xC000_0100;
-const REG_IMU_ACCEL_X: u32 = 0xC000_0104;
-const REG_IMU_ACCEL_Y: u32 = 0xC000_0108;
-const REG_RTC_LO: u32 = 0xC000_0200;
-const REG_RTC_HI: u32 = 0xC000_0204;
-const REG_STAT_STALLS: u32 = 0xC000_1000;
-const REG_STAT_CYCLES: u32 = 0xC000_1004;
+const REG_EMU_CART_CONFIG: u32 = 0xE000_0000;
+const REG_EMU_CART_ROM_SIZE: u32 = 0xE000_0004;
+const REG_GB_PLAYER: u32 = 0xE000_0008;
+const REG_IMU_GYRO_Z: u32 = 0xE000_0100;
+const REG_IMU_ACCEL_X: u32 = 0xE000_0104;
+const REG_IMU_ACCEL_Y: u32 = 0xE000_0108;
+const REG_RTC_LO: u32 = 0xE000_0200;
+const REG_RTC_HI: u32 = 0xE000_0204;
+const REG_STAT_STALLS: u32 = 0xE000_1000;
+const REG_STAT_CYCLES: u32 = 0xE000_1004;
 
 #[derive(Debug, Error)]
 pub enum GbaError {
@@ -192,7 +192,7 @@ impl Gba {
         let mut buf = vec![0u8; 16 * 1024].into_boxed_slice();
         bios_file.read(&mut buf)?;
 
-        let address = 0xC010_0000;
+        let address = 0xE010_0000;
         let command = fpga::SpiCommand {
             word_size: fpga::FpgaSpiWordSize::Bits32,
             byte_swap: true,

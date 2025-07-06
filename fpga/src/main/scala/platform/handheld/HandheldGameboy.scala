@@ -66,8 +66,8 @@ class HandheldGameboy extends Module with HandheldModule {
     addressWidth = 24,
     dataWidth = 32,
     entries = Seq(
-      "b0000".U(4.W) -> registerInterface,
-      "b0001".U(4.W) -> biosInterface,
+      0x0.U(4.W) -> registerInterface,
+      0x1.U(4.W) -> biosInterface,
     ))
 
   suppressEnumCastWarning {
