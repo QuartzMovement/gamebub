@@ -1,6 +1,7 @@
 package lib.video
 
 import chisel3._
+import chisel3.util._
 
 object ColorARGB {
   def apply(a: Int, r: Int, g: Int, b: Int): ColorARGB = {
@@ -13,7 +14,7 @@ object ColorARGB {
 }
 
 // TODO: consider splitting up into ColorARGB and ColorRGB (with inheritance?)
-class ColorARGB(aWidth: Int, rWidth: Int, gWidth: Int, bWidth: Int) extends Bundle {
+class ColorARGB(aWidth: Int, rWidth: Int, gWidth: Int, bWidth: Int) extends Color {
   val a = UInt(aWidth.W)
   val r = UInt(rWidth.W)
   val g = UInt(gWidth.W)
@@ -26,5 +27,22 @@ class ColorARGB(aWidth: Int, rWidth: Int, gWidth: Int, bWidth: Int) extends Bund
     c.g := 0.U
     c.b := 0.U
     c
+  }
+
+  override def convertTo[T](gen: T): T = gen match {
+    case c: ColorARGB => {
+      val out = Wire(c.cloneType)
+      out.a := Color.convertA(a, c.a)
+      out.r := Color.convertRGB(r, c.r)
+      out.g := Color.convertRGB(g, c.g)
+      out.b := Color.convertRGB(b, c.b)
+      out.asInstanceOf[T]
+    }
+    case c: ColorGrayscale => {
+      val out = Wire(c.cloneType)
+      out.a := Color.convertA(a, c.a)
+      out.lum := Color.convertRGB(r, c.lum)
+      out.asInstanceOf[T]
+    }
   }
 }

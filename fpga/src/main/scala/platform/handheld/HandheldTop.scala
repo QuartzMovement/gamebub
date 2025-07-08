@@ -509,14 +509,12 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
     val framebufferInBounds = Wire(Bool())
     val overlayInBounds = Wire(Bool())
-    val videoOutput = ColorARGB(0, 6, 6, 6).makeBlack()
+    val videoOutput = ColorARGB(0, 8, 8, 8).makeBlack()
     when (framebufferInBounds) {
-      videoOutput := framebufferColor
+      videoOutput := framebufferColor.convertTo(videoOutput)
     }
     when (overlayRead.a.asBool && overlayInBounds) {
-      videoOutput.r := overlayRead.r << 1
-      videoOutput.g := overlayRead.g << 1
-      videoOutput.b := overlayRead.b << 1
+      videoOutput := overlayRead.convertTo(videoOutput)
     }
 
     /**
@@ -533,10 +531,10 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     ))
     dpiDriver.io.lastRenderedFrame := lastFrameComplete
     io.lcd := dpiDriver.io.signals
-    // Pad to 18-bit RGB.
-    io.lcdDataR := videoOutput.r
-    io.lcdDataG := videoOutput.g
-    io.lcdDataB := videoOutput.b
+    val lcdData = videoOutput.convertTo(ColorARGB(0, 6, 6, 6))
+    io.lcdDataR := lcdData.r
+    io.lcdDataG := lcdData.g
+    io.lcdDataB := lcdData.b
 
     val i2sTransmitter =
       Module(new I2sTransmitter(
@@ -557,11 +555,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     io.hdmiAudio := VecInit(audioDataLeft, audioDataRight)
     io.hdmiAudioClock := DontCare
     // Pad to 24-bit RGB.
-    io.hdmiRgb := Cat(
-      videoOutput.r << 2,
-      videoOutput.g << 2,
-      videoOutput.b << 2,
-    )
+    io.hdmiRgb := videoOutput.convertTo(ColorARGB(0, 8, 8, 8)).asUInt
     val regHdmiFrame = RegInit(0.U(1.W))
 
     val hdmiEnable = XpmCdcSingle(clock, displayRegister.enableHdmi)
