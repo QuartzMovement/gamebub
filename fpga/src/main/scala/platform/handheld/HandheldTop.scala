@@ -5,7 +5,7 @@ import chisel3.util._
 import _root_.circt.stage.ChiselStage
 import lib.mem.sdram.{BurstSdramController, Signals => SdramSignals}
 import lib.mem.{HandshakeMemoryCdc, MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryArbiter, PipelineMemoryBurstCdc, PipelineMemoryInterface, RegisterMap}
-import lib.video.{ColorARGB, ColorCorrection, HdmiTransmitter}
+import lib.video.{Color, ColorARGB, ColorCorrection, ColorGrayscale, HdmiTransmitter}
 import platform.handheld
 import xilinx.{XpmCdcHandshake, XpmCdcSingle, XpmCdcSyncRst}
 
@@ -80,6 +80,9 @@ trait HandheldModule {
 
   /// Whether SDRAM controller is optimized for linear bursts
   def sdramBurst: Boolean = true
+
+  /// UI overlay color depth (can be narrow to save framebuffer memory)
+  def overlayColorDepth: Color = ColorGrayscale.apply(1, 3)
 }
 
 /** Buttons on the handheld. All are active-high. */
@@ -431,7 +434,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   val overlayWidth = 240
   val overlayHeight = 160
   val overlayFramebuffer = SRAM(
-    overlayWidth * overlayHeight, UInt(ColorARGB.argb1555().getWidth.W),
+    overlayWidth * overlayHeight, UInt(module.overlayColorDepth.getWidth.W),
     readPortClocks = Seq(io.clock_av), writePortClocks = Seq(clock), readwritePortClocks = Seq(),
   )
   val reset_av = withClock(io.clock_av) { XpmCdcSyncRst(reset) }
@@ -505,7 +508,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
 
     overlayFramebuffer.readPorts(0).enable := true.B
     overlayFramebuffer.readPorts(0).address := overlayReadAddress
-    val overlayRead = RegNext(RegNext(overlayFramebuffer.readPorts(0).data)).asTypeOf(ColorARGB.argb1555())
+    val overlayRead = RegNext(RegNext(overlayFramebuffer.readPorts(0).data))
+      .asTypeOf(module.overlayColorDepth)
+      .convertTo(ColorARGB(1, 8, 8, 8))
 
     val framebufferInBounds = Wire(Bool())
     val overlayInBounds = Wire(Bool())
@@ -663,7 +668,11 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   overlayInterface.done := false.B
   overlayFramebuffer.writePorts(0).enable := overlayInterface.enable && overlayInterface.write
   overlayFramebuffer.writePorts(0).address := (overlayInterface.address >> 1).asUInt
-  overlayFramebuffer.writePorts(0).data := overlayInterface.dataWrite
+  overlayFramebuffer.writePorts(0).data :=
+    overlayInterface.dataWrite
+      .asTypeOf(ColorARGB.argb1555())
+      .convertTo(module.overlayColorDepth)
+      .asUInt
   overlayInterface.done := RegNext(overlayInterface.enable)
 
   // Framebuffer read via SPI.

@@ -2,6 +2,7 @@ package platform.handheld
 
 import chisel3._
 import lib.mem.MemoryMap
+import lib.video.ColorARGB
 import platform.handheld.boot.{CartridgeUtility, Logo}
 
 class HandheldBoot extends Module with HandheldModule {
@@ -11,6 +12,7 @@ class HandheldBoot extends Module with HandheldModule {
     def clockSystemHz = 16 * 1024 * 1024
     def clockSdramHz = clockSystemHz * 4
     def targetFramePeriod = 1.0 / 64.0
+    override def overlayColorDepth = ColorARGB.argb1555()
 
     stubUnused()
 
