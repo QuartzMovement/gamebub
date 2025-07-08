@@ -37,3 +37,4 @@ set_clock_groups -name exclusive_dpi_hdmi -physically_exclusive -group clk_out_d
 # From UG472, the select input's setup/hold times only determine whether the old clock is used for an extra cycle
 # after changing, which we don't care about.
 set_false_path -setup -hold -to bufgmux_av/S0
+set_false_path -setup -hold -to bufgmux_av/S1
