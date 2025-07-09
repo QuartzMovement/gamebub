@@ -39,8 +39,7 @@ pub enum DisplayMode {
 /// Main container for device hardware.
 pub struct Device<'a> {
     /// Status led, active-high.
-    #[allow(unused)]
-    led: PinDriver<'a, AnyOutputPin, Output>,
+    led: LedcDriver<'a>,
 
     /// FPGA power in, active-high.
     fpga_power: PinDriver<'a, AnyOutputPin, Output>,
@@ -230,8 +229,17 @@ impl Device<'_> {
         }
 
         // Status LED
-        let mut led = PinDriver::output(pin_led)?;
-        led.set_low()?;
+        let mut led = LedcDriver::new(
+            peripherals.ledc.channel0,
+            LedcTimerDriver::new(
+                peripherals.ledc.timer0,
+                &ledc::config::TimerConfig::new()
+                    .frequency(1.kHz().into())
+                    .resolution(ledc::config::Resolution::Bits14),
+            )?,
+            pin_led,
+        )?;
+        led.set_duty_cycle_fully_off()?;
 
         // TODO: see if we can avoid keeping FPGA power on all the time
         let mut fpga_power = PinDriver::output(pin_fpga_power)?;
@@ -248,9 +256,9 @@ impl Device<'_> {
 
         // LCD backlight
         let mut lcd_backlight = LedcDriver::new(
-            peripherals.ledc.channel0,
+            peripherals.ledc.channel1,
             LedcTimerDriver::new(
-                peripherals.ledc.timer0,
+                peripherals.ledc.timer1,
                 &ledc::config::TimerConfig::new()
                     .frequency(25.kHz().into())
                     .resolution(ledc::config::Resolution::Bits11),
@@ -542,9 +550,9 @@ impl Device<'_> {
         if blink_led {
             for _ in 0..3 {
                 std::thread::sleep(Duration::from_millis(250));
-                let _ = self.led.set_high();
+                let _ = self.led.set_duty_cycle_fully_on();
                 std::thread::sleep(Duration::from_millis(250));
-                let _ = self.led.set_low();
+                let _ = self.led.set_duty_cycle_fully_off();
             }
         }
 
