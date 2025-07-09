@@ -6,6 +6,7 @@ use slint::{ComponentHandle, Timer};
 use crate::{
     bitstream::{self, Bitstream, CurrentBitstream},
     device::Device,
+    ui::slint::ScreenId,
     worker,
 };
 
@@ -43,6 +44,18 @@ impl UiState {
             CurrentBitstream::None => {}
             CurrentBitstream::Gameboy(x) => x.reset().unwrap(),
             CurrentBitstream::Gba(x) => x.reset().unwrap(),
+        });
+
+        let state_ = state.clone();
+        backend.on_game_exit(move || {
+            // Go back to the main menu
+            let root = {
+                let state = state_.borrow_mut();
+                state.root.unwrap()
+            };
+            root.invoke_set_screen(ScreenId::MainMenu);
+            // And go back to the boot bitstream
+            bitstream::current().ensure_boot().unwrap();
         });
     }
 

@@ -188,8 +188,7 @@ impl Device<'_> {
                     }
 
                     if poll_buttons {
-                        let fpga_buttons = device.fpga.read_u32(fpga::REG_BUTTON_STATE).unwrap();
-                        let input_state = device.get_input_state(fpga_buttons).unwrap();
+                        let input_state = device.get_input_state().unwrap();
                         ui::send(ui::Message::InputState(input_state));
                     }
                 }

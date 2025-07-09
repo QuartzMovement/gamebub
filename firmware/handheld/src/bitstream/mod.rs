@@ -58,6 +58,7 @@ fn program_fpga(path: &str) {
     device.fpga.program(&mut bitstream).unwrap();
     device.fpga.set_display_mode(display_mode).unwrap();
     device.fpga.enable_interrupt(fpga::Irq::Button).unwrap();
+    ui::send(ui::Message::InputState(device.get_input_state().unwrap()));
     ui::send(ui::Message::Redraw);
 
     if let DisplayMode::Internal = display_mode {

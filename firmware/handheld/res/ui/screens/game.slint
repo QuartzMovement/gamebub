@@ -72,7 +72,7 @@ export component GameScreen inherits ScreenBase {
                         accept
                     }
                     on-pressed => {
-                        Global.set-screen(ScreenId.MainMenu);
+                        Backend.game-exit();
                     }
                 }
             }

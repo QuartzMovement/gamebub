@@ -1,9 +1,10 @@
 use super::Device;
-use crate::input::InputState;
+use crate::{device::drivers::fpga, input::InputState};
 
 impl Device<'_> {
     /// Get the current state of the internal buttons from the FPGA.
-    pub fn get_input_state(&mut self, fpga_buttons: u32) -> Result<InputState, ()> {
+    pub fn get_input_state(&mut self) -> Result<InputState, ()> {
+        let fpga_buttons = self.fpga.read_u32(fpga::REG_BUTTON_STATE).map_err(|_| ())?;
         let mut state = InputState::default();
         state.btn_a = (fpga_buttons & (1 << 11)) != 0;
         state.btn_b = (fpga_buttons & (1 << 10)) != 0;
