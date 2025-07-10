@@ -360,7 +360,7 @@ module top_handheld (
 `ifdef BOARD_REV_1
     // Rev 1: FPGA irq directly connected to open-drain MCU_INT
     assign mcu_irq_n = inner_mcu_irq ? 1'b0 : 1'bz;
-`elsif
+`else
     // Rev 2, 3: FPGA irq connected to nFET, active-high
     assign mcu_irq_n = inner_mcu_irq;
 `endif
