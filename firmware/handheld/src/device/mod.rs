@@ -248,7 +248,9 @@ impl Device<'_> {
 
         // Initialize I2C
         // TODO: see if there's a good way to do this without making and leaking a Box
-        let i2c_config = I2cConfig::new().baudrate(400.kHz().into());
+        let i2c_config = I2cConfig::new()
+            .baudrate(400.kHz().into())
+            .timeout(Duration::from_millis(10).into());
         let i2c = I2cDriver::new(peripherals.i2c0, pin_i2c_sda, pin_i2c_scl, &i2c_config)?;
         let i2c = &*Box::leak(Box::new(Mutex::new(i2c)));
 

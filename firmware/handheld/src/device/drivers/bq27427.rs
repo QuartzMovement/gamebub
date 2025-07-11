@@ -5,6 +5,10 @@ use std::time::Duration;
 use thiserror::Error;
 
 const ADDRESS: u8 = 0x55;
+/// Wait time after each I2C transaction before the next
+const WAIT_TIME: Duration = Duration::from_micros(66);
+/// Expected chip ID
+const CHIP_ID: u16 = 0x0427;
 
 mod command {
     pub struct Standard(pub u8);
@@ -90,6 +94,8 @@ pub enum Error {
     I2cError,
     #[error("poll timeout")]
     Timeout,
+    #[error("chip id")]
+    ChipId,
 }
 
 pub struct BQ27427<I2C: I2c> {
@@ -106,6 +112,11 @@ where
 
     /// Configure the fuel gauge (blocking, may take a while)
     pub fn configure(&mut self, force: bool) -> Result<(), Error> {
+        let chip_id = self.read_control(command::DEVICE_TYPE)?;
+        if chip_id != CHIP_ID {
+            return Err(Error::ChipId);
+        }
+
         let flags = self.get_flags()?;
         if force {
             log::info!("Forcing fuel gauge reconfigure");
@@ -200,25 +211,31 @@ where
         self.i2c
             .write_read(ADDRESS, &[command.0], &mut data)
             .map_err(|_| Error::I2cError)?;
+        std::thread::sleep(WAIT_TIME);
         Ok(u16::from_le_bytes(data))
     }
 
     fn read_control(&mut self, command: command::Control) -> Result<u16, Error> {
+        self.write_control(command)?;
         let mut data = [0u8; 2];
-        let [a0, a1] = command.0.to_le_bytes();
-        self.i2c
-            .write(ADDRESS, &[0x00, a0, a1])
-            .map_err(|_| Error::I2cError)?;
         self.i2c
             .write_read(ADDRESS, &[0x00], &mut data)
             .map_err(|_| Error::I2cError)?;
+        std::thread::sleep(WAIT_TIME);
         Ok(u16::from_le_bytes(data))
     }
 
     fn write_control(&mut self, command: command::Control) -> Result<(), Error> {
+        // At bus speeds above 100 kHz, only *single-byte* writes are allowed.
         let [a0, a1] = command.0.to_le_bytes();
         self.i2c
-            .write(ADDRESS, &[0x00, a0, a1])
-            .map_err(|_| Error::I2cError)
+            .write(ADDRESS, &[0x00, a0])
+            .map_err(|_| Error::I2cError)?;
+        std::thread::sleep(WAIT_TIME);
+        self.i2c
+            .write(ADDRESS, &[0x01, a1])
+            .map_err(|_| Error::I2cError)?;
+        std::thread::sleep(WAIT_TIME);
+        Ok(())
     }
 }
