@@ -8,6 +8,7 @@ pub mod ili9488;
 pub mod imu;
 #[cfg(feature = "has_io_expander")]
 pub mod io_expander;
+pub mod lcd_backlight;
 #[cfg(feature = "has_max17048")]
 pub mod max17048;
 pub mod rtc;

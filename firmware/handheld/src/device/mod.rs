@@ -2,6 +2,7 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 
 use crate::kvs;
+use drivers::lcd_backlight;
 use drivers::sdcard::Sdcard;
 use embedded_hal::pwm::SetDutyCycle;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
@@ -48,9 +49,8 @@ pub struct Device<'a> {
     #[allow(unused)]
     i2c: &'a Mutex<I2cDriver<'a>>,
 
-    /// LCD backlight PWM driver.
-    lcd_backlight: LedcDriver<'a>,
-    lcd_backlight_duty: u16,
+    /// LCD backlight PWM driver
+    lcd_backlight: lcd_backlight::PwmBacklight<'a>,
 
     /// LCD driver
     #[cfg(feature = "has_ili9488")]
@@ -255,17 +255,35 @@ impl Device<'_> {
         let pin_irq = PinDriver::input(pin_irq)?;
 
         // LCD backlight
-        let mut lcd_backlight = LedcDriver::new(
-            peripherals.ledc.channel1,
-            LedcTimerDriver::new(
-                peripherals.ledc.timer1,
-                &ledc::config::TimerConfig::new()
-                    .frequency(25.kHz().into())
-                    .resolution(ledc::config::Resolution::Bits11),
-            )?,
-            pin_lcd_backlight,
-        )?;
-        lcd_backlight.set_duty_cycle_fully_off().unwrap();
+        let lcd_backlight = {
+            #[cfg(any(feature = "rev1", feature = "rev2"))]
+            let config = lcd_backlight::PwmConfig {
+                frequency: 25.kHz().into(),
+                resolution: ledc::config::Resolution::Bits11,
+                min_duty: 0.01,
+                gamma: 2.2,
+            };
+            #[cfg(feature = "rev3")]
+            let config = lcd_backlight::PwmConfig {
+                frequency: 256.Hz(),
+                resolution: ledc::config::Resolution::Bits14,
+                min_duty: 0.03,
+                gamma: 2.8,
+            };
+            let driver = LedcDriver::new(
+                peripherals.ledc.channel1,
+                LedcTimerDriver::new(
+                    peripherals.ledc.timer1,
+                    &ledc::config::TimerConfig::new()
+                        .frequency(config.frequency)
+                        .resolution(config.resolution),
+                )?,
+                pin_lcd_backlight,
+            )?;
+            let mut backlight = lcd_backlight::PwmBacklight::new(config, driver);
+            backlight.init();
+            backlight
+        };
 
         // Setup SPI
         // TODO: see if there's a good way to do this without making and leaking a Box
@@ -480,7 +498,6 @@ impl Device<'_> {
             fpga_power,
             i2c,
             lcd_backlight,
-            lcd_backlight_duty: 0,
             lcd,
             display_mode: DisplayMode::None,
             dac,
@@ -583,22 +600,7 @@ impl Device<'_> {
 
     /// Set the LCD brightness. The input is a float in the range [0.0, 1.0].
     pub fn set_brightness(&mut self, brightness: f32) {
-        // Brightness is perceived non-linearly -- 50% brightness is one step
-        // less bright than 100%, 25% is one step less than 50%, etc.
-        // Note that <1% duty cycle seems to be completely black. So we scale
-        // brightness appropriately such that 0.0 maps to 1%.
-        let max_duty = self.lcd_backlight.get_max_duty() as f32;
-        let duty = ((0.99 * max_duty.powf(brightness)) + (0.01 * max_duty)) as u16;
-        log::info!(
-            "Setting LCD brightness to {} ({} / {})",
-            brightness,
-            duty,
-            max_duty
-        );
-        self.lcd_backlight_duty = duty;
-        if self.display_mode == DisplayMode::Internal {
-            self.lcd_backlight.set_duty_cycle(duty).unwrap();
-        }
+        self.lcd_backlight.set_brightness(brightness);
     }
 
     /// Initialize the system time (after boot).
@@ -654,7 +656,7 @@ impl Device<'_> {
         log::info!("Display mode: {:?}", new_mode);
 
         if old_mode == DisplayMode::Internal {
-            self.lcd_backlight.set_duty_cycle_fully_off().unwrap();
+            self.lcd_backlight.set_enabled(false);
             self.lcd.enter_sleep()?;
         }
 
@@ -665,9 +667,7 @@ impl Device<'_> {
 
             // Let LCD stabilize and refresh before turning on backlight. Measured empirically.
             std::thread::sleep(Duration::from_millis(200));
-            self.lcd_backlight
-                .set_duty_cycle(self.lcd_backlight_duty)
-                .unwrap();
+            self.lcd_backlight.set_enabled(true);
         }
 
         self.display_mode = new_mode;
