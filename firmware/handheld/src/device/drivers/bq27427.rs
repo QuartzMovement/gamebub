@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 use embedded_hal::i2c::I2c;
+use std::time::Duration;
 use thiserror::Error;
 
 const ADDRESS: u8 = 0x55;
@@ -49,10 +50,46 @@ mod command {
     pub const SOFT_RESET: Control = Control(0x0042);
 }
 
+/// Bit flags returned by the Flags command
+mod flag {
+    pub const OT: u16 = 1 << 15;
+    pub const UT: u16 = 1 << 14;
+    pub const FC: u16 = 1 << 9;
+    pub const CHG: u16 = 1 << 8;
+    pub const OCVTAKEN: u16 = 1 << 7;
+    pub const DOD_CORRECT: u16 = 1 << 6;
+    pub const ITPOR: u16 = 1 << 5;
+    pub const CFGUPMODE: u16 = 1 << 4;
+    pub const BAT_DET: u16 = 1 << 3;
+    pub const SOC1: u16 = 1 << 2;
+    pub const SOCF: u16 = 1 << 1;
+    pub const DSG: u16 = 1 << 0;
+}
+
+// Bit flags returned by the ControlStatus command
+mod control_status {
+    pub const SHUTDOWNEN: u16 = 1 << 15;
+    pub const WDRESET: u16 = 1 << 14;
+    pub const SS: u16 = 1 << 13;
+    pub const CALMODE: u16 = 1 << 12;
+    pub const CCA: u16 = 1 << 11;
+    pub const BCA: u16 = 1 << 10;
+    pub const QMAX_UP: u16 = 1 << 9;
+    pub const RES_UP: u16 = 1 << 8;
+    pub const INITCOMP: u16 = 1 << 7;
+    pub const SLEEP: u16 = 1 << 4;
+    pub const LDMD: u16 = 1 << 3;
+    pub const RUP_DIS: u16 = 1 << 2;
+    pub const VOK: u16 = 1 << 1;
+    pub const CHEM_CHANGE: u16 = 1 << 0;
+}
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("i2c error")]
     I2cError,
+    #[error("poll timeout")]
+    Timeout,
 }
 
 pub struct BQ27427<I2C: I2c> {
@@ -68,8 +105,54 @@ where
     }
 
     /// Configure the fuel gauge (blocking, may take a while)
-    pub fn configure(&mut self) -> Result<(), Error> {
-        todo!();
+    pub fn configure(&mut self, force: bool) -> Result<(), Error> {
+        let flags = self.get_flags()?;
+        if force {
+            log::info!("Forcing fuel gauge reconfigure");
+        } else if (flags & flag::ITPOR) != 0 {
+            log::info!("Fuel gauge needs configure");
+        } else {
+            log::info!("Fuel gauge already configured");
+            return Ok(());
+        }
+
+        // TODO: unseal and re-seal?
+
+        // Enter CFGUPDATE mode.
+        self.write_control(command::SET_CFGUPDATE)?;
+        self.poll_for_flag(flag::CFGUPMODE)?;
+
+        // Set battery chemistry B (1202), 4.2V
+        self.write_control(command::CHEM_B)?;
+
+        // TODO: design capacity and other parameters
+
+        self.soft_reset()?;
+        log::info!("Configured fuel gauge");
+        Ok(())
+    }
+
+    fn poll_for_flag(&mut self, flag: u16) -> Result<(), Error> {
+        let retries = 10;
+        let delay = Duration::from_millis(500);
+        for _ in 0..retries {
+            std::thread::sleep(delay);
+
+            if (self.get_flags()? & flag) != 0 {
+                return Ok(());
+            }
+        }
+        Err(Error::Timeout)
+    }
+
+    /// Hard reset the chip, clearing memory
+    pub fn hard_reset(&mut self) -> Result<(), Error> {
+        self.write_control(command::RESET)
+    }
+
+    /// Soft reset the chip
+    pub fn soft_reset(&mut self) -> Result<(), Error> {
+        self.write_control(command::SOFT_RESET)
     }
 
     /// Read the temperature in Kelvin.
@@ -104,6 +187,14 @@ where
         Ok((raw as f32) / 1000.0)
     }
 
+    fn get_flags(&mut self) -> Result<u16, Error> {
+        self.read_standard(command::FLAGS)
+    }
+
+    fn get_control_status(&mut self) -> Result<u16, Error> {
+        self.read_control(command::CONTROL_STATUS)
+    }
+
     fn read_standard(&mut self, command: command::Standard) -> Result<u16, Error> {
         let mut data = [0u8; 2];
         self.i2c
@@ -112,7 +203,7 @@ where
         Ok(u16::from_le_bytes(data))
     }
 
-    fn read_command(&mut self, command: command::Control) -> Result<u16, Error> {
+    fn read_control(&mut self, command: command::Control) -> Result<u16, Error> {
         let mut data = [0u8; 2];
         let [a0, a1] = command.0.to_le_bytes();
         self.i2c

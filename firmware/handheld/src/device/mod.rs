@@ -351,7 +351,24 @@ impl Device<'_> {
                 let _ = fuel_gauge.set_alert_soc_change(true); // fuel gauge won't work without a battery
             } else if #[cfg(feature = "has_bq27427")] {
                 let fuel_gauge = drivers::bq27427::BQ27427::new(MutexI2C::new(&i2c));
-                // TODO setup in another thread
+
+                // Fuel gauge requires configuration, which could block for multiple seconds. Run it in another thread,
+                // with a new instance of the driver. Scary, but fine, because the driver has no state
+                // and the I2C bus is protected by a mutex.
+                // This would be easier if everything were async, most of the blocking is just waiting to poll...
+                let i2c_2 = MutexI2C::new(&i2c);
+                std::thread::Builder::new()
+                    .name("battery_setup".to_string())
+                    .stack_size(2 * 1024)
+                    .spawn(move || {
+                        let mut fuel_gauge = drivers::bq27427::BQ27427::new(i2c_2);
+                        // TODO: after software update, force reconfigure?
+                        let force_configure = false;
+                        if fuel_gauge.configure(force_configure).is_err() {
+                            log::warn!("Failed to configure fuel gauge");
+                        }
+                    })
+                    .unwrap();
             }
         }
 
