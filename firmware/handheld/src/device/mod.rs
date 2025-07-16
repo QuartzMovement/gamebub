@@ -7,7 +7,7 @@ use drivers::sdcard::Sdcard;
 use embedded_hal::pwm::SetDutyCycle;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
 use esp_idf_svc::hal::gpio::{
-    self, AnyIOPin, AnyInputPin, IOPin, Input, InputOutput, InputPin, OutputPin,
+    self, AnyIOPin, AnyInputPin, IOPin, Input, InputOutput, InputPin, Level, OutputPin,
 };
 use esp_idf_svc::hal::gpio::{AnyOutputPin, Output, PinDriver};
 use esp_idf_svc::hal::ledc::{LedcDriver, LedcTimerDriver};
@@ -103,6 +103,9 @@ pub struct Device<'a> {
     pin_vbus_pgood: PinDriver<'a, AnyIOPin, Input>,
     pin_batt_chg: PinDriver<'a, AnyInputPin, Input>,
 
+    pin_cart_power: Option<PinDriver<'a, AnyOutputPin, Output>>,
+    pin_cart_switch: Option<PinDriver<'a, AnyInputPin, Input>>,
+
     /// Sdcard,
     pub sdcard: Option<Sdcard>,
 
@@ -155,6 +158,8 @@ impl Device<'_> {
                 let pin_sdio_d3 = peripherals.pins.gpio47.downgrade();
                 let pin_sd_detect = peripherals.pins.gpio37.downgrade_input();
                 let pin_dac_reset = peripherals.pins.gpio40.downgrade_output();
+                let pin_cart_switch = None;
+                let pin_cart_power = None;
             } else if #[cfg(feature = "rev2")] {
                 let pin_led = peripherals.pins.gpio36.downgrade_output();
                 let pin_irq = peripherals.pins.gpio16.downgrade_input();
@@ -190,6 +195,8 @@ impl Device<'_> {
                 let pin_sdio_d3 = peripherals.pins.gpio26.downgrade();
                 let pin_sd_detect = peripherals.pins.gpio35.downgrade_input();
                 let pin_dac_reset = peripherals.pins.gpio45.downgrade_output();
+                let pin_cart_switch = None;
+                let pin_cart_power = None;
             } else if #[cfg(feature = "rev3")] {
                 let pin_led = peripherals.pins.gpio42.downgrade_output();
                 let pin_irq = peripherals.pins.gpio6.downgrade_input();
@@ -223,8 +230,8 @@ impl Device<'_> {
                 let pin_sdio_d3 = peripherals.pins.gpio36.downgrade();
                 let pin_sd_detect = peripherals.pins.gpio41.downgrade_input();
                 let pin_dac_reset = peripherals.pins.gpio7.downgrade_output();
-                let pin_cart_switch = peripherals.pins.gpio14.downgrade_input();
-                let pin_cart_power = peripherals.pins.gpio15.downgrade_output();
+                let pin_cart_switch = Some(peripherals.pins.gpio14.downgrade_input());
+                let pin_cart_power = Some(peripherals.pins.gpio15.downgrade_output());
             }
         }
 
@@ -368,6 +375,14 @@ impl Device<'_> {
         let button_vol_down = PinDriver::input(pin_vol_down)?;
         let mut button_power = PinDriver::input_output_od(pin_power_switch)?;
         button_power.set_high()?;
+
+        // Cartridge switch and power
+        let pin_cart_switch = pin_cart_switch
+            .map(|p: AnyInputPin| PinDriver::input(p))
+            .transpose()?;
+        let pin_cart_power = pin_cart_power
+            .map(|p: AnyOutputPin| PinDriver::output(p))
+            .transpose()?;
 
         // Setup RTC
         let rtc = drivers::rtc::PCF8563::new(MutexI2C::new(&i2c));
@@ -514,6 +529,8 @@ impl Device<'_> {
             pin_irq,
             pin_batt_chg,
             pin_vbus_pgood,
+            pin_cart_power,
+            pin_cart_switch,
             rtc,
             imu,
             sdcard,
@@ -686,5 +703,21 @@ impl Device<'_> {
 
     pub fn get_vbus_pgood(&self) -> bool {
         self.pin_vbus_pgood.is_low() // Active low
+    }
+
+    /// Cartridge slot switch: true for pressed (Game Boy), false for not (GBA).
+    pub fn get_cart_switch(&mut self) -> bool {
+        if let Some(pin) = self.pin_cart_switch.as_ref() {
+            pin.is_high()
+        } else {
+            self.fpga.get_cartridge_slot_button().unwrap()
+        }
+    }
+
+    pub fn set_cart_power(&mut self, enabled: bool) {
+        if let Some(pin) = self.pin_cart_power.as_mut() {
+            log::info!("Cartridge power: {}", enabled);
+            pin.set_level(Level::from(enabled)).unwrap();
+        }
     }
 }

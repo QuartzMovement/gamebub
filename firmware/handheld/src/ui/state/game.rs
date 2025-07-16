@@ -48,6 +48,8 @@ impl UiState {
 
         let state_ = state.clone();
         backend.on_game_exit(move || {
+            // Cut cartridge power (if enabled)
+            Device::lock().set_cart_power(false);
             // Go back to the main menu
             let root = {
                 let state = state_.borrow_mut();

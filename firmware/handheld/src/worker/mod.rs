@@ -76,8 +76,12 @@ fn dispatch(message: Message) {
             device.dac.set_speakers_enabled(!has_headphones).unwrap();
         }
         Message::RunCartridge => {
-            let cart_type = Device::lock().fpga.get_cartridge_slot_button().unwrap();
-            log::info!("Cart button: {}", cart_type);
+            let cart_type = {
+                let mut device = Device::lock();
+                device.set_cart_power(true);
+                device.get_cart_switch()
+            };
+            log::info!("Cart switch: {}", cart_type);
             if cart_type {
                 bitstream::current().ensure_gameboy().unwrap();
             } else {
