@@ -37,12 +37,28 @@ object HandheldTop extends App {
         displayWidth = 480,
         displayHeight = 320,
         displayRotate = true,
-        displayClockHz = 12_288_000,
+        dpiConfig = AdaptiveDpiDriver.Config(
+          clockHz = 12_288_000,
+          hActive = 320,
+          vActive = 480,
+          variableVsync = true,
+        )
       )
       case "3" => Revision(
         displayWidth = 800,
         displayHeight = 480,
-        displayClockHz = 26_100_000,
+        dpiConfig = AdaptiveDpiDriver.Config(
+          clockHz = 26_100_000,
+          hActive = 800,
+          vActive = 480,
+          variableVsync = false,
+          hSyncMin = 2,
+          hBackPorchMin = 4,
+          hFrontPorchMin = 4,
+          vSyncMin = 2,
+          vBackPorchMin = 4,
+          vFrontPorchMin = 4,
+        )
       )
       case _ => throw new IllegalArgumentException("invalid revision " + name)
     }
@@ -539,10 +555,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
 
     // DPI video signal output
     val dpiDriver = Module(new AdaptiveDpiDriver(
-      clockHz = revision.displayClockHz,
+      config = revision.dpiConfig,
       sourceFramePeriod = module.targetFramePeriod,
-      hActive = if (!revision.displayRotate) revision.displayWidth else revision.displayHeight,
-      vActive = if (!revision.displayRotate) revision.displayHeight else revision.displayWidth,
     ))
     dpiDriver.io.lastRenderedFrame := lastFrameComplete
     io.lcd := dpiDriver.io.signals
@@ -765,5 +779,5 @@ case class Revision(
   displayWidth: Int,
   displayHeight: Int,
   displayRotate: Boolean = false,
-  displayClockHz: Int,
+  dpiConfig: AdaptiveDpiDriver.Config,
 )
