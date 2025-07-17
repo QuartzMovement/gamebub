@@ -88,24 +88,22 @@ where
     ///
     /// ## Clock dividers
     ///     CODEC_CLKIN = NDAC × MDAC × DOSR × DAC_fS
-    ///     DAC_fS is 48KHz, and CODEC_CLKIN is MCLK, chosen to be 256 * DAC_fS
-    ///
-    ///     So NDAC × MDAC × DOSR = 256
+    ///     DAC_fS is 48KHz, and CODEC_CLKIN is MCLK.
+    ///     
+    ///     [Rev 1, 2]: MCLK is 256 * DAC_fS
+    ///     [Rev 3]:    MCLK is 544 * DAC_fS
     ///
     ///     For filter type B, DOSR must be a multiple of 4.
     ///     (DOSR is "oversampling ratio"?)
     ///     2.8 MHz < DOSR × DAC_fS < 6.2 MHz
     ///     Thus, DOSR can be from 60 to 128
     ///
-    ///     DOSR = 128
-    ///
     ///     NDAC and MDAC can be from 1..128.
     ///     NDAC should be as large as possible with "MDAC × DOSR / 32 ≥ RC",
     ///     where RC for PRB_P7 is 6.
     ///
-    ///     MDAC = 2, NDAC = 1
-    ///
-    ///     To increase NDAC, we can use the PLL to multiply MCLK.
+    ///     [Rev 1, 2]: DOSR = 128, MDAC = 2, NDAC = 1
+    ///     [Rev 3]:    DOSR =  68, MDAC = 4, NDAC = 2
     ///
     /// ## Common-mode voltage
     ///     Based on the analog power supply. For Rev 1+, we have 3.3V.
@@ -113,6 +111,18 @@ where
     ///     <= AVDD/2.
     ///     We'll go with 1.5V
     pub fn init(&mut self) -> Result<(), Error> {
+        cfg_if::cfg_if! {
+            if #[cfg(any(feature = "rev1", feature = "rev2"))] {
+                let dosr = 128;
+                let mdac = 2;
+                let ndac = 1;
+            } else if #[cfg(feature = "rev3")] {
+                let dosr = 68;
+                let mdac = 4;
+                let ndac = 2;
+            }
+        };
+
         // 1. Set up device.
         self.reset()?;
 
@@ -129,17 +139,17 @@ where
         // self.write_reg(0, 0x08, 0x00);
         // self.write_reg(0, 0x05, 0x91);
 
-        // Program and power up NDAC ( = 1);
-        self.write_reg(0, 0x0B, 0x81)?;
+        // Program and power up NDAC
+        self.write_reg(0, 0x0B, 0x80 | ndac)?;
 
-        // Program and power up MDAC ( = 2);
-        self.write_reg(0, 0x0C, 0x82)?;
+        // Program and power up MDAC
+        self.write_reg(0, 0x0C, 0x80 | mdac)?;
 
         // Program OSR
         //
         // DOSR = 128, DOSR(9:8) = 0, DOSR(7:0) = 128
-        self.write_reg(0, 0x0D, 0x00)?;
-        self.write_reg(0, 0x0E, 0x80)?;
+        self.write_reg(0, 0x0D, ((dosr >> 8) & 0xFF) as u8)?;
+        self.write_reg(0, 0x0E, (dosr & 0xFF) as u8)?;
 
         // Program codec interface (DSP, 16-bit, BCLK/WCLK as inputs);
         self.write_reg(0, 0x1B, 0x40)?;

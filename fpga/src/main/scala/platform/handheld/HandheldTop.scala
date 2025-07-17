@@ -42,7 +42,8 @@ object HandheldTop extends App {
           hActive = 320,
           vActive = 480,
           variableVsync = true,
-        )
+        ),
+        audioMclkFactor = 256,
       )
       case "3" => Revision(
         displayWidth = 800,
@@ -58,7 +59,8 @@ object HandheldTop extends App {
           vSyncMin = 2,
           vBackPorchMin = 4,
           vFrontPorchMin = 4,
-        )
+        ),
+        audioMclkFactor = 544,
       )
       case _ => throw new IllegalArgumentException("invalid revision " + name)
     }
@@ -568,7 +570,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
     val audioTransmitter =
       Module(new AudioDspTransmitter(
         bitWidth = 16,
-        mclkFactor = 256,
+        mclkFactor = revision.audioMclkFactor,
         channels = 2,
       ))
     io.dac := audioTransmitter.io.signals
@@ -780,4 +782,7 @@ case class Revision(
   displayHeight: Int,
   displayRotate: Boolean = false,
   dpiConfig: AdaptiveDpiDriver.Config,
+
+  /// The multipler to go from audio sample rate (48kHz) to MCLK
+  audioMclkFactor: Int,
 )
