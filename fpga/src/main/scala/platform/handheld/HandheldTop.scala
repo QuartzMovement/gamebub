@@ -541,15 +541,15 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     io.lcdDataG := lcdData.g
     io.lcdDataB := lcdData.b
 
-    val i2sTransmitter =
-      Module(new I2sTransmitter(
+    val audioTransmitter =
+      Module(new AudioDspTransmitter(
         bitWidth = 16,
         mclkFactor = 256,
         channels = 2,
       ))
-    io.dac := i2sTransmitter.io.signals
-    i2sTransmitter.io.dataLeft := audioDataLeft
-    i2sTransmitter.io.dataRight := audioDataRight
+    io.dac := audioTransmitter.io.signals
+    audioTransmitter.io.dataLeft := audioDataLeft
+    audioTransmitter.io.dataRight := audioDataRight
 
     /**
      * HDMI audio and video signal output
@@ -566,7 +566,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
     val hdmiEnable = XpmCdcSingle(clock, displayRegister.enableHdmi)
     when (hdmiEnable) {
       dpiDriver.reset := true.B
-      i2sTransmitter.reset := true.B
+      audioTransmitter.reset := true.B
       val screenWidth = 720
       val screenHeight = 480
 

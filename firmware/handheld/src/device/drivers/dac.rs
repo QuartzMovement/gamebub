@@ -95,7 +95,7 @@ where
     ///     For filter type B, DOSR must be a multiple of 4.
     ///     (DOSR is "oversampling ratio"?)
     ///     2.8 MHz < DOSR × DAC_fS < 6.2 MHz
-    ///     Thus, DOSR can be 64 or 128.
+    ///     Thus, DOSR can be from 60 to 128
     ///
     ///     DOSR = 128
     ///
@@ -108,7 +108,7 @@ where
     ///     To increase NDAC, we can use the PLL to multiply MCLK.
     ///
     /// ## Common-mode voltage
-    ///     Based on the analog power supply. For Rev A, we have 3.3V.
+    ///     Based on the analog power supply. For Rev 1+, we have 3.3V.
     ///     The options are 1.35 V, 1.5 V, 1.65 V, or 1.8 V, and it must be
     ///     <= AVDD/2.
     ///     We'll go with 1.5V
@@ -141,8 +141,8 @@ where
         self.write_reg(0, 0x0D, 0x00)?;
         self.write_reg(0, 0x0E, 0x80)?;
 
-        // Program codec interface (I2S, 16-bit, BCLK/WCLK inputs);
-        self.write_reg(0, 0x1B, 0x00)?;
+        // Program codec interface (DSP, 16-bit, BCLK/WCLK as inputs);
+        self.write_reg(0, 0x1B, 0x40)?;
 
         // Program processing block. Select PRB_P7
         self.write_reg(0, 0x3C, 0x07)?;
