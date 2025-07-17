@@ -4,18 +4,16 @@ import chisel3._
 import chisel3.util._
 import _root_.circt.stage.ChiselStage
 import lib.mem.sdram.{BurstSdramController, Signals => SdramSignals}
-import lib.mem.{HandshakeMemoryCdc, MemoryArbiter, MemoryCdc, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryArbiter, PipelineMemoryBurstCdc, PipelineMemoryInterface, RegisterMap}
-import lib.video.{Color, ColorARGB, ColorCorrection, ColorGrayscale, HdmiTransmitter}
-import platform.handheld
+import lib.mem.{HandshakeMemoryCdc, MemoryArbiter, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryArbiter, PipelineMemoryBurstCdc, PipelineMemoryInterface, RegisterMap}
+import lib.video.{Color, ColorARGB, ColorCorrection, ColorGrayscale}
 import xilinx.{XpmCdcHandshake, XpmCdcSingle, XpmCdcSyncRst}
 
 object HandheldTop extends App {
   // Parse arguments.
-  if (args.length < 1) {
-    throw new IllegalArgumentException("missing arg 0: inner class")
+  if (args.length < 2) {
+    throw new IllegalArgumentException("missing arg 0: inner class, arg 1: revision")
   }
-  val argInnerClassName = args.head
-  val argRest = args.tail
+  val argInnerClassName :: argRevision :: argRest = args.toList
 
   // Generate verilog.
   val moduleFactory = () =>
@@ -26,12 +24,20 @@ object HandheldTop extends App {
       .asInstanceOf[Module with HandheldModule]
 
   ChiselStage.emitSystemVerilogFile(
-    new HandheldTop(moduleFactory()),
-    argRest,
+    new HandheldTop(moduleFactory(), getRevision(argRevision)),
+    argRest.toArray,
     firtoolOpts = Array(
       "--preserve-aggregate=1d-vec",
     )
   )
+
+  private def getRevision(name: String): Revision = {
+    name match {
+      case "1" | "2" => Revision()
+      case "3" => Revision()
+      case _ => throw new IllegalArgumentException("invalid revision " + name)
+    }
+  }
 }
 
 /** IO bundle used for a handheld submodule. */
@@ -174,7 +180,7 @@ class HandheldInterrupts extends Bundle {
  * The outer clock is passed down to the inner module,
  * e.g. 8.3886 MHz for Gameboy.
  */
-class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
+class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revision) extends Module {
   val module = Module(genT)
   val sdramConfig = BurstSdramController.Config(
     clockFrequency = module.clockSdramHz,
@@ -741,3 +747,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T) extends Module {
   sramArbiter.io.initiator(1) <> module.io.sram
   sdramArbiter.io.initiator(1) <> module.io.sdram
 }
+
+case class Revision(
+)

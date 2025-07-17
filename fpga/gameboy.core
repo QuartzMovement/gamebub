@@ -111,6 +111,9 @@ generate:
         module_boot ? (platform.handheld.HandheldBoot)
         module_gba ? (platform.handheld.HandheldGba)
         module_gameboy ? (platform.handheld.HandheldGameboy)
+        handheld_rev_1 ? (1)
+        handheld_rev_2 ? (2)
+        handheld_rev_3 ? (3)
       output:
         files:
           - build/generated/HandheldTop.sv: { file_type: systemVerilogSource }
@@ -157,16 +160,19 @@ targets:
     <<: *handheld
     filesets_append: [handheld_rev_1]
     parameters: [BOARD_REV_1=true]
+    flags: {handheld_rev: "1"}
 
   handheld_rev2:
     <<: *handheld
     filesets_append: [handheld_rev_2]
     parameters: [BOARD_REV_2=true]
+    flags: {handheld_rev: "2"}
 
   handheld_rev3:
     <<: *handheld
     filesets_append: [handheld_rev_3]
     parameters: [BOARD_REV_3=true]
+    flags: {handheld_rev: "3"}
 
   sim:
     default_tool: verilator
