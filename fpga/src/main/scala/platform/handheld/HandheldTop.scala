@@ -33,8 +33,17 @@ object HandheldTop extends App {
 
   private def getRevision(name: String): Revision = {
     name match {
-      case "1" | "2" => Revision()
-      case "3" => Revision()
+      case "1" | "2" => Revision(
+        displayWidth = 480,
+        displayHeight = 320,
+        displayRotate = true,
+        displayClockHz = 12_288_000,
+      )
+      case "3" => Revision(
+        displayWidth = 800,
+        displayHeight = 480,
+        displayClockHz = 26_100_000,
+      )
       case _ => throw new IllegalArgumentException("invalid revision " + name)
     }
   }
@@ -190,7 +199,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
     enableBurst = module.sdramBurst,
   )
   val io = IO(new Bundle {
-    /** Audio/video clock: 12.288 MHz when HDMI disabled, 27.027 MHz when HDMI enabled */
+    /** Audio/video clock: DPI when HDMI disabled, 27.027 MHz when HDMI enabled */
     val clock_av = Input(Clock())
 
     /** SPI clocking */
@@ -528,17 +537,12 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
       videoOutput := overlayRead.convertTo(videoOutput)
     }
 
-    /**
-     * DPI video signal output
-     * dotclk = 12.288MHz, fps = 60
-     * H = 320, total inactive = 88
-     * V = 480, total inactive = 22
-     */
+    // DPI video signal output
     val dpiDriver = Module(new AdaptiveDpiDriver(
-      clockHz = 12_288_000,
+      clockHz = revision.displayClockHz,
       sourceFramePeriod = module.targetFramePeriod,
-      hActive = 320,
-      vActive = 480,
+      hActive = if (!revision.displayRotate) revision.displayWidth else revision.displayHeight,
+      vActive = if (!revision.displayRotate) revision.displayHeight else revision.displayWidth,
     ))
     dpiDriver.io.lastRenderedFrame := lastFrameComplete
     io.lcd := dpiDriver.io.signals
@@ -595,7 +599,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
       }
 
       // Scale and center framebuffer within output video.
-      val videoScale = 3
+      val videoScale = (screenWidth / videoWidth).min(screenHeight / videoHeight)
       val videoOffsetX = (screenWidth - (videoWidth * videoScale)) / 2
       val videoOffsetY = (screenHeight - (videoHeight * videoScale)) / 2
       val framebufferReadDelay = 3 /* reading */ + 3 /* color corrections */
@@ -608,7 +612,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
         videoY < (videoOffsetY + (videoHeight * videoScale)).U
 
       // Scale overlay
-      val overlayScale = 3
+      val overlayScale = (screenWidth / overlayWidth).min(screenHeight / overlayHeight)
       val overlayReadDelay = 3
       overlayReadAddress :=
         ((((videoY) / overlayScale.U) + overlayYControl.scroll)(7, 0) * overlayWidth.U) +
@@ -626,38 +630,47 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
       }
       io.hdmiAudioClock := audioClock.asClock
     } .otherwise {
-      val screenWidth = 480
-      val screenHeight = 320
+      val screenWidth = revision.displayWidth
+      val screenHeight = revision.displayHeight
 
-      val dpiX = dpiDriver.io.pixelY
-      val dpiY = dpiDriver.io.pixelX
+      val dpiX = if (revision.displayRotate) dpiDriver.io.pixelY else dpiDriver.io.pixelX
+      val dpiY = if (revision.displayRotate) dpiDriver.io.pixelX else dpiDriver.io.pixelY
       videoX := dpiX
       videoY := dpiY
       framebufferIndex := dpiDriver.io.displayFrame
 
       // Scale and center framebuffer without output video.
-      val videoScale = 2
+      val videoScale = (screenWidth / videoWidth).min(screenHeight / videoHeight)
       val videoOffsetX = (screenWidth - (videoWidth * videoScale)) / 2
       val videoOffsetY = (screenHeight - (videoHeight * videoScale)) / 2
       val framebufferReadDelay = 3 /* reading */ + 3 /* color corrections */
+      val framebufferReadDelayX = if (revision.displayRotate) 0 else framebufferReadDelay
+      val framebufferReadDelayY = if (revision.displayRotate) framebufferReadDelay else 0
       framebufferReadAddress :=
-        (((dpiY - videoOffsetY.U + framebufferReadDelay.U) / videoScale.U) * videoWidth.U) +
-          ((dpiX - videoOffsetX.U) / videoScale.U)
-      framebufferInBounds := dpiX >= videoOffsetX.U &&
+        (((dpiY - videoOffsetY.U + framebufferReadDelayY.U) / videoScale.U) * videoWidth.U) +
+          ((dpiX - videoOffsetX.U + framebufferReadDelayX.U) / videoScale.U)
+      framebufferInBounds :=
+        dpiX >= videoOffsetX.U &&
         dpiX < (videoOffsetX + (videoWidth * videoScale)).U &&
         dpiY >= videoOffsetY.U &&
         dpiY < (videoOffsetY + (videoHeight * videoScale)).U
 
       // Scale overlay
-      val overlayScale = 2
+      val overlayScale = (screenWidth / overlayWidth).min(screenHeight / overlayHeight)
+      val overlayOffsetX = (screenWidth - (overlayWidth * overlayScale)) / 2
+      val overlayOffsetY = (screenHeight - (overlayHeight * overlayScale)) / 2
       val overlayReadDelay = 3
+      val overlayReadDelayX = if (revision.displayRotate) 0 else overlayReadDelay
+      val overlayReadDelayY = if (revision.displayRotate) overlayReadDelay else 0
       overlayReadAddress :=
-        ((((dpiY + overlayReadDelay.U) / overlayScale.U) + overlayYControl.scroll)(7, 0) * overlayWidth.U) +
-          ((dpiX / overlayScale.U) + overlayXControl.scroll)(7, 0)
-      overlayInBounds := videoX >= (overlayXControl.start * overlayScale.U) &&
-        videoX < (overlayXControl.end * overlayScale.U) &&
-        videoY >= (overlayYControl.start * overlayScale.U) &&
-        videoY < (overlayYControl.end * overlayScale.U)
+        (((dpiY - overlayOffsetY.U + overlayReadDelayY.U) / overlayScale.U)(7, 0) * overlayWidth.U) +
+          ((dpiX - overlayOffsetX.U + overlayReadDelayX.U) / overlayScale.U)(7, 0)
+      overlayInBounds :=
+        dpiX >= overlayOffsetX.U &&
+        dpiX < (overlayOffsetX + (overlayWidth * videoScale)).U &&
+        dpiY >= overlayOffsetY.U &&
+        dpiY < (overlayOffsetY + (overlayHeight * videoScale)).U
+      // TODO: re-add overlay X/Y positioning control if needed
     }
   }
 
@@ -749,4 +762,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
 }
 
 case class Revision(
+  displayWidth: Int,
+  displayHeight: Int,
+  displayRotate: Boolean = false,
+  displayClockHz: Int,
 )
