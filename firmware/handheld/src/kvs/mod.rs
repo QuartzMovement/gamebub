@@ -14,19 +14,13 @@ static NAMESPACE: &'static str = "gb";
 ///  * use a macro when defining keys to ensure they're all in flush_all
 pub struct Kvs {
     nvs_main: EspNvs<NvsCustom>,
-    nvs_ro: EspNvs<NvsCustom>,
 }
 
 impl Kvs {
     pub fn init() -> Result<(), anyhow::Error> {
         let nvs_main = EspNvs::new(EspNvsPartition::<NvsCustom>::take("nvs")?, NAMESPACE, true)?;
-        let nvs_ro = EspNvs::new(
-            EspNvsPartition::<NvsCustom>::take("nvs_ro")?,
-            NAMESPACE,
-            false,
-        )?;
 
-        let kvs = Kvs { nvs_main, nvs_ro };
+        let kvs = Kvs { nvs_main };
         KVS.set(Mutex::new(kvs))
             .map_err(|_| ())
             .expect("KVS already initialized");
@@ -40,7 +34,7 @@ impl Kvs {
 
     fn nvs(&mut self, read_only: bool) -> &mut EspNvs<NvsCustom> {
         if read_only {
-            &mut self.nvs_ro
+            panic!("nvs_ro not used");
         } else {
             &mut self.nvs_main
         }
