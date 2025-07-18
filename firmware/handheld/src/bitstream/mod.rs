@@ -46,7 +46,7 @@ fn program_fpga(path: &str) {
 
     if let DisplayMode::Internal = display_mode {
         // Avoid LCD artifacts during FPGA reprogram.
-        device.lcd.enter_sleep().unwrap();
+        device.set_lcd_enabled(false);
         // For some reason, we need to sleep for a short amount of time here
         // (before doing FPGA program), otherwise the LCD won't properly sleep.
         // 2 ms is sometimes sufficient, 5 ms is always sufficient, 10 ms seems to always work.
@@ -62,7 +62,7 @@ fn program_fpga(path: &str) {
     ui::send(ui::Message::Redraw);
 
     if let DisplayMode::Internal = display_mode {
-        device.lcd.exit_sleep().unwrap();
+        device.set_lcd_enabled(true);
     }
 }
 

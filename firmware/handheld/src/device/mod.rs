@@ -617,6 +617,16 @@ impl Device<'_> {
         kvs::keys::flush_all();
     }
 
+    /// Set whether the LCD is enabled or disabled.
+    pub fn set_lcd_enabled(&mut self, enabled: bool) {
+        self.lcd_backlight.set_enabled(enabled);
+        if enabled {
+            self.lcd.exit_sleep().unwrap();
+        } else {
+            self.lcd.enter_sleep().unwrap();
+        }
+    }
+
     /// Set the LCD brightness. The input is a float in the range [0.0, 1.0].
     pub fn set_brightness(&mut self, brightness: f32) {
         self.lcd_backlight.set_brightness(brightness);
