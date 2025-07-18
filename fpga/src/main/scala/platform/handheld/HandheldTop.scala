@@ -474,8 +474,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
   withClockAndReset (clock = io.clock_av, reset = reset_av) {
     val videoX = Wire(UInt(10.W))
     val videoY = Wire(UInt(10.W))
-    val framebufferReadAddress = Wire(UInt(16.W))
-    val overlayReadAddress = Wire(UInt(16.W))
+    val framebufferReadAddress = Wire(UInt(log2Ceil(videoWidth * videoHeight).W))
+    val overlayReadAddress = Wire(UInt(log2Ceil(overlayWidth * overlayHeight).W))
 
     val audioData = XpmCdcHandshake.continuous(clock, Cat(module.io.audioLeft.asUInt, module.io.audioRight.asUInt))
     val audioDataLeft = audioData(31, 16)
@@ -631,8 +631,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
       val overlayScale = (screenWidth / overlayWidth).min(screenHeight / overlayHeight)
       val overlayReadDelay = 3
       overlayReadAddress :=
-        ((((videoY) / overlayScale.U) + overlayYControl.scroll)(7, 0) * overlayWidth.U) +
-          (((videoX + overlayReadDelay.U) / overlayScale.U) + overlayXControl.scroll)(7, 0)
+        ((((videoY) / overlayScale.U) + overlayYControl.scroll)(8, 0) * overlayWidth.U) +
+          (((videoX + overlayReadDelay.U) / overlayScale.U) + overlayXControl.scroll)(8, 0)
       overlayInBounds := videoX >= (overlayXControl.start * overlayScale.U) &&
         videoX < (overlayXControl.end * overlayScale.U) &&
         videoY >= (overlayYControl.start * overlayScale.U) &&
@@ -679,13 +679,13 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
       val overlayReadDelayX = if (revision.displayRotate) 0 else overlayReadDelay
       val overlayReadDelayY = if (revision.displayRotate) overlayReadDelay else 0
       overlayReadAddress :=
-        (((dpiY - overlayOffsetY.U + overlayReadDelayY.U) / overlayScale.U)(7, 0) * overlayWidth.U) +
-          ((dpiX - overlayOffsetX.U + overlayReadDelayX.U) / overlayScale.U)(7, 0)
+        (((dpiY - overlayOffsetY.U + overlayReadDelayY.U) / overlayScale.U)(8, 0) * overlayWidth.U) +
+          ((dpiX - overlayOffsetX.U + overlayReadDelayX.U) / overlayScale.U)(8, 0)
       overlayInBounds :=
         dpiX >= overlayOffsetX.U &&
-        dpiX < (overlayOffsetX + (overlayWidth * videoScale)).U &&
+        dpiX < (overlayOffsetX + (overlayWidth * overlayScale)).U &&
         dpiY >= overlayOffsetY.U &&
-        dpiY < (overlayOffsetY + (overlayHeight * videoScale)).U
+        dpiY < (overlayOffsetY + (overlayHeight * overlayScale)).U
       // TODO: re-add overlay X/Y positioning control if needed
     }
   }
