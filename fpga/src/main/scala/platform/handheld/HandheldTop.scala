@@ -633,14 +633,17 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
 
       // Scale overlay
       val overlayScale = (screenWidth / overlayWidth).min(screenHeight / overlayHeight)
+      val overlayOffsetX = (screenWidth - (overlayWidth * overlayScale)) / 2
+      val overlayOffsetY = (screenHeight - (overlayHeight * overlayScale)) / 2
       val overlayReadDelay = 3
       overlayReadAddress :=
-        ((((videoY) / overlayScale.U) + overlayYControl.scroll)(8, 0) * overlayWidth.U) +
-          (((videoX + overlayReadDelay.U) / overlayScale.U) + overlayXControl.scroll)(8, 0)
-      overlayInBounds := videoX >= (overlayXControl.start * overlayScale.U) &&
-        videoX < (overlayXControl.end * overlayScale.U) &&
-        videoY >= (overlayYControl.start * overlayScale.U) &&
-        videoY < (overlayYControl.end * overlayScale.U)
+        (((videoY - overlayOffsetY.U) / overlayScale.U)(8, 0) * overlayWidth.U) +
+          ((videoX - overlayOffsetX.U + overlayReadDelay.U) / overlayScale.U)(8, 0)
+      overlayInBounds :=
+        videoX >= overlayOffsetX.U &&
+          videoX < (overlayOffsetX + (overlayWidth * overlayScale)).U &&
+          videoY >= overlayOffsetY.U &&
+          videoY < (overlayOffsetY + (overlayHeight * overlayScale)).U
 
       // HDMI Audio
       val audioClock = RegInit(false.B)
