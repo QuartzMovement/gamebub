@@ -19,8 +19,15 @@ use crate::input::{self, InputManager};
 
 use self::{slint::Argb1555, slint::MinimalSoftwareWindow, state::UiState};
 
-const DISPLAY_WIDTH: usize = 240;
-const DISPLAY_HEIGHT: usize = 160;
+cfg_if::cfg_if! {
+    if #[cfg(any(feature = "rev1", feature = "rev2"))] {
+        const DISPLAY_WIDTH: usize = 480 / 2;
+        const DISPLAY_HEIGHT: usize = 320 / 2;
+    } else {
+        const DISPLAY_WIDTH: usize = 720 / 2;
+        const DISPLAY_HEIGHT: usize = 480 / 2;
+    }
+}
 
 #[derive(Debug)]
 pub enum Message {

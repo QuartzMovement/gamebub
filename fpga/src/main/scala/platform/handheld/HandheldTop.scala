@@ -43,6 +43,8 @@ object HandheldTop extends App {
           vActive = 480,
           variableVsync = true,
         ),
+        overlayWidth = 240,
+        overlayHeight = 160,
         audioMclkFactor = 256,
       )
       case "3" => Revision(
@@ -60,6 +62,8 @@ object HandheldTop extends App {
           vBackPorchMin = 4,
           vFrontPorchMin = 4,
         ),
+        overlayWidth = 360,
+        overlayHeight = 240,
         audioMclkFactor = 544,
       )
       case _ => throw new IllegalArgumentException("invalid revision " + name)
@@ -464,8 +468,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
   /// Last completed frame
   val regLastFrameComplete = RegInit(0.U(1.W))
 
-  val overlayWidth = 240
-  val overlayHeight = 160
+  val overlayWidth = revision.overlayWidth
+  val overlayHeight = revision.overlayHeight
   val overlayFramebuffer = SRAM(
     overlayWidth * overlayHeight, UInt(module.overlayColorDepth.getWidth.W),
     readPortClocks = Seq(io.clock_av), writePortClocks = Seq(clock), readwritePortClocks = Seq(),
@@ -782,6 +786,9 @@ case class Revision(
   displayHeight: Int,
   displayRotate: Boolean = false,
   dpiConfig: AdaptiveDpiDriver.Config,
+
+  overlayWidth: Int,
+  overlayHeight: Int,
 
   /// The multipler to go from audio sample rate (48kHz) to MCLK
   audioMclkFactor: Int,
