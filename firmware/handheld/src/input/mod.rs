@@ -1,5 +1,7 @@
 use std::sync::{LazyLock, Mutex, MutexGuard};
 
+use crate::device::drivers::fpga;
+use crate::device::Device;
 use crate::ui::{self, ButtonMap};
 
 #[derive(Copy, Clone, Debug, PartialEq)]
@@ -200,8 +202,28 @@ impl InputManager {
 
         if self.last_button_map != buttons {
             ui::send(ui::Message::Button(buttons));
+
+            // Send new button state to FPGA
+            let fpga_buttons = if !self.gamepads.is_empty() {
+                0u32 | ((state.btn_a as u32) << 11)
+                    | ((state.btn_b as u32) << 10)
+                    | ((state.btn_x as u32) << 9)
+                    | ((state.btn_y as u32) << 8)
+                    | ((state.btn_up as u32) << 7)
+                    | ((state.btn_down as u32) << 6)
+                    | ((state.btn_left as u32) << 5)
+                    | ((state.btn_right as u32) << 4)
+                    | ((state.btn_l1 as u32) << 3)
+                    | ((state.btn_r1 as u32) << 2)
+                    | ((state.btn_start as u32) << 1)
+                    | ((state.btn_select as u32) << 0)
+            } else {
+                0
+            };
+            let _ = Device::lock()
+                .fpga
+                .write_u32(fpga::REG_FORCE_BUTTON, fpga_buttons);
         }
         self.last_button_map = buttons;
-        // TODO: update FPGA if using controller?
     }
 }
