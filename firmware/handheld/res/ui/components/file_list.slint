@@ -13,7 +13,7 @@ export struct FileListEntry {
 
 component FileListItem {
     in property <FileListEntry> entry;
-    height: i-text.min-height + 2px;
+    height: i-text.min-height;
 
     pure function iconToImage(icon: FileIcon) -> image {
         if (icon == FileIcon.folder) {
