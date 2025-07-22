@@ -23,6 +23,8 @@ export struct BatteryInfo {
 export global Palette { }
 
 export global Global {
+    // Window height
+    in-out property <length> window-height;
     // Whether Home is currently pressed.
     in-out property <bool> home-pressed: false;
     // Whether the current pressing of Home was used for a shortcut key combo.

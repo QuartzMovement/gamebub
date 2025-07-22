@@ -113,7 +113,7 @@ impl UI {
     pub fn new(device: &mut Device) -> Self {
         device
             .fpga
-            .write_u32(crate::bitstream::boot::REG_LOGO_Y, 39)
+            .write_u32(crate::bitstream::boot::REG_LOGO_Y, 38)
             .unwrap();
         let display_mode = if device.docked {
             DisplayMode::External

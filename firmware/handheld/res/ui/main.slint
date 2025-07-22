@@ -42,6 +42,10 @@ export component MainWindow inherits Window {
     default-font-family: "pixelmix";
     default-font-size: 8px;
 
+    init => {
+        Global.window-height = root.height;
+    }
+
     status-bar := StatusBar {
         visible: Global.ui-status-bar;
         title: root.screen-title;
