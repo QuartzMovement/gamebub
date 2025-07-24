@@ -253,7 +253,12 @@ where
         let debounce_headset = 0b011u8; // 128ms
         let debounce_button = 0u8; // 0ms
         let value = ((enabled as u8) << 7) | (debounce_headset << 2) | debounce_button;
-        self.write_reg(0, 0x43, value)
+        self.write_reg(0, 0x43, value)?;
+
+        let micbias = if enabled { 0xB } else { 0x0 };
+        self.write_reg(1, 0x2E, micbias)?;
+
+        Ok(())
     }
 
     /// Get whether headphones are plugged in.
