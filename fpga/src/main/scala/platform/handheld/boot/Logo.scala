@@ -130,7 +130,7 @@ class Logo(framebufferW: Int, framebufferH: Int) extends Module {
       val t = x.toDouble / (width - 1)
       val delta = (-4.0 * t * (t - 1.0))
 
-      val hsbVals = Color.RGBtoHSB(0x56, 0x05, 0x91, null)
+      val hsbVals = Color.RGBtoHSB(0x81, 0x0F, 0x97, null)
       hsbVals(2) += (delta * 0.5).toFloat
       val out = Color.getHSBColor(hsbVals(0), hsbVals(1), hsbVals(2).min(1))
       val color = Wire(ColorARGB.rgb555())
