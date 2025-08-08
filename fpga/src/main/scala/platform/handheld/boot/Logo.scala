@@ -44,12 +44,17 @@ class Logo(framebufferW: Int, framebufferH: Int) extends Module {
 
   // Load and process logo
   val (logoW, logoH, logoData) = loadLogo()
-  val logo = VecInit(logoData.map(x => x.U(8.W)))
+  val logo = VecInit(logoData.map(x => x.U(2.W)))
   val bgColor = Wire(ColorARGB.rgb555())
   bgColor.a := 0.U
   bgColor.r := (0xE8 >> 3).U(5.W)
   bgColor.g := (0xE8 >> 3).U(5.W)
   bgColor.b := (0xE8 >> 3).U(5.W)
+  val shadowColor = Wire(ColorARGB.rgb555())
+  shadowColor.a := 0.U
+  shadowColor.r := (0x5B >> 3).U(5.W)
+  shadowColor.g := (0x0B >> 3).U(5.W)
+  shadowColor.b := (0x6A >> 3).U(5.W)
   val logoStartX = (framebufferW - logoW) / 2
   val logoEndX = (framebufferW + logoW) / 2
   val colorTable = makeColorTable(logoW)
@@ -87,26 +92,25 @@ class Logo(framebufferW: Int, framebufferH: Int) extends Module {
   io.vblank := !io.framebufferWriteEnable
   io.framebufferData.a := DontCare
 
-  io.framebufferData.r := bgColor.r
-  io.framebufferData.g := bgColor.g
-  io.framebufferData.b := bgColor.b
+  io.framebufferData := bgColor
   when (regX >= logoStartX.U && regX < logoEndX.U && regY >= regLogoStartY && regY < (regLogoStartY + logoH.U)) {
     // TODO read one or two early
     val x = regX - logoStartX.U
     val y = regY - regLogoStartY
-    val alpha = logo((x * logoH.U + y)(log2Ceil(logoData.length) - 1, 0))
+    val index = logo((x * logoH.U + y)(log2Ceil(logoData.length) - 1, 0))
+    // index: 0 = transparent, 2 = shadow, 3 = color
 
     val colorX = colorOffX + x
-    val color = WireDefault(colorTable(0))
+    val glowColor = WireDefault(colorTable(0))
     when (colorX >= logoW.U && colorX < (logoW * 2).U) {
-      color := colorTable(colorX - logoW.U)
+      glowColor := colorTable(colorX - logoW.U)
     }
 
-    // Alpha blend: out = (A * alpha) + (1 - alpha) * B
-    // Division by 256 will be slightly off, because the alpha is between 0 and 255.
-    io.framebufferData.r := blend(color.r, bgColor.r, alpha)
-    io.framebufferData.g := blend(color.g, bgColor.g, alpha)
-    io.framebufferData.b := blend(color.b, bgColor.b, alpha)
+    when (index === 2.U) {
+      io.framebufferData := shadowColor
+    } .elsewhen (index === 3.U) {
+      io.framebufferData := glowColor
+    }
   }
 
   private def blend(a: UInt, b: UInt, alpha: UInt): UInt = {
@@ -118,8 +122,8 @@ class Logo(framebufferW: Int, framebufferH: Int) extends Module {
     val data = (0 until (logo.getWidth * logo.getHeight)).map(i => {
       val x = i / logo.getHeight
       val y = i % logo.getHeight
-      val alpha = (logo.getRGB(x, y) >> 24) & 0xFF
-      alpha >> 3 // convert to 5 bit color
+      val g = (logo.getRGB(x, y)) & 0xFF
+      g >> 6 // convert to 2 bit
     })
     (logo.getWidth, logo.getHeight, data)
   }
