@@ -650,6 +650,7 @@ impl CartBackup {
                 }
                 0xF2 => {
                     log::info!("CART_PWR_ON");
+                    Device::lock().set_cart_power(true);
                     match Command::CartPower(true).execute() {
                         Ok(_) => {
                             self.cart_powered = true;
@@ -663,6 +664,7 @@ impl CartBackup {
                 }
                 0xF3 => {
                     log::info!("CART_PWR_OFF");
+                    Device::lock().set_cart_power(false);
                     match Command::CartPower(false).execute() {
                         Ok(_) => {
                             self.cart_powered = false;
