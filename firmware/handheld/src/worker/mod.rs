@@ -128,7 +128,10 @@ fn dispatch(message: Message) {
             };
             match result {
                 Ok(()) => ui::send(ui::Message::EnterGame),
-                Err(err) => ui::send(ui::Message::RomSelectError(err)),
+                Err(err) => {
+                    bitstream::current().ensure_boot().unwrap();
+                    ui::send(ui::Message::RomSelectError(err))
+                }
             }
         }
         Message::ListRoms(path) => {
