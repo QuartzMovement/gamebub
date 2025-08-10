@@ -300,7 +300,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
     val moduleEnable = Bool()
   }))
   val displayRegister = RegInit(0.U.asTypeOf(new Bundle() {
-    val enableHdmi = Bool()
+    val docked = Bool()
   }))
   /// Buttons that are forced down by MCU
   val buttonForceRegister = RegInit(0.U.asTypeOf(new HandheldButtons))
@@ -456,7 +456,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
   val videoWidth = module.framebufferW
   val videoHeight = module.framebufferH
 
-  io.hdmiEnable := displayRegister.enableHdmi
+  io.hdmiEnable := displayRegister.docked
 
   // Double buffering
   val framebuffers = (0 until 2).map(_ =>
@@ -593,7 +593,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
     io.hdmiRgb := videoOutput.convertTo(ColorARGB(0, 8, 8, 8)).asUInt
     val regHdmiFrame = RegInit(0.U(1.W))
 
-    val hdmiEnable = XpmCdcSingle(clock, displayRegister.enableHdmi)
+    val hdmiEnable = XpmCdcSingle(clock, displayRegister.docked)
     when (hdmiEnable) {
       dpiDriver.reset := true.B
       audioTransmitter.reset := true.B
@@ -745,7 +745,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
   //////////////////////////////////
   module.io.enable := controlRegister.moduleEnable
   module.io.reset := !controlRegister.moduleReset
-  io.vibrate := (module.io.enable && module.io.vibrate) && controlRegister.vibrate
+  io.vibrate := RegNext((module.io.enable && module.io.vibrate) && controlRegister.vibrate && !displayRegister.docked)
   io.link <> module.io.link
   io.pmod <> module.io.pmod
   module.io.mcuInterface <> moduleMcuInterface
