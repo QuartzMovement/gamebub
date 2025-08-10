@@ -2,6 +2,9 @@ use std::path::PathBuf;
 
 use super::KvsKey;
 
+/// Total uptime, in seconds.
+pub static UPTIME: KvsKey<u32> = KvsKey::new_with_default("uptime", 0);
+
 /// The full path of the last selected ROM.
 pub static LAST_ROM_PATH: KvsKey<PathBuf> = KvsKey::new("last-rom-path");
 
@@ -39,6 +42,7 @@ pub static GBA_ENABLE_GBP: KvsKey<bool> = KvsKey::new_with_default("gba-enable-g
 pub static RUMBLE_LEVEL: KvsKey<i32> = KvsKey::new_with_default("rumble-level", 0);
 
 pub fn flush_all() {
+    UPTIME.flush();
     LAST_ROM_PATH.flush();
     VOLUME.flush();
     BRIGHTNESS.flush();

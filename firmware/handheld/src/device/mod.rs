@@ -614,6 +614,13 @@ impl Device<'_> {
         // TODO: persist save game, if needed, before shutting off FPGA power domain
         // TODO: high-Z SPI, other FPGA-power-domain pins.
         let _ = self.set_fpga_power(false);
+
+        // Update uptime
+        let this_uptime =
+            Duration::from_micros(unsafe { esp_idf_svc::sys::esp_timer_get_time() as _ });
+        let new_uptime = kvs::keys::UPTIME.get().unwrap() + (this_uptime.as_secs() as u32);
+        kvs::keys::UPTIME.set(&new_uptime);
+
         kvs::keys::flush_all();
     }
 
