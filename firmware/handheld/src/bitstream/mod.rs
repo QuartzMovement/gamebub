@@ -3,6 +3,7 @@ use std::time::Duration;
 
 use crate::device::DisplayMode;
 use crate::device::{drivers::fpga, Device};
+use crate::led;
 use crate::ui;
 
 use flate2::read::GzDecoder;
@@ -41,6 +42,7 @@ pub fn current() -> MutexGuard<'static, CurrentBitstream> {
 
 fn program_fpga(path: &str) {
     log::info!("Loading bitstream {}", path);
+    led::LedController::set_behavior(led::LedBehavior::LOADING);
     let mut device = Device::lock();
     let display_mode = device.get_display_mode();
 
@@ -60,6 +62,7 @@ fn program_fpga(path: &str) {
     device.fpga.enable_interrupt(fpga::Irq::Button).unwrap();
     ui::send(ui::Message::InputState(device.get_input_state().unwrap()));
     ui::send(ui::Message::Redraw);
+    led::LedController::set_behavior(led::LedBehavior::OFF);
 
     if let DisplayMode::Internal = display_mode {
         device.set_lcd_enabled(true);

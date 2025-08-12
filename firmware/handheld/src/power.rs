@@ -5,7 +5,11 @@ use std::{
 
 use esp_idf_svc::timer::{EspTaskTimerService, EspTimer};
 
-use crate::{device::Device, ui};
+use crate::{
+    device::Device,
+    led::{self, LedBehavior},
+    ui,
+};
 
 static POWER_MANAGER: LazyLock<Mutex<PowerManager>> =
     LazyLock::new(|| Mutex::new(PowerManager::new()));
@@ -36,7 +40,9 @@ impl PowerManager {
         if let Some(battery_voltage) = battery_voltage {
             if battery_voltage <= CUTOFF_VOLTAGE && !vbus {
                 log::warn!("Battery critically low, powering off");
-                device.power_off(true);
+
+                led::LedController::set_behavior(LedBehavior::BATTERY_CRITICAL);
+                device.power_off();
             }
         }
 

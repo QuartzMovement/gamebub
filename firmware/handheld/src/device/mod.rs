@@ -4,7 +4,6 @@ use std::time::{Duration, Instant};
 use crate::kvs;
 use drivers::lcd_backlight;
 use drivers::sdcard::Sdcard;
-use embedded_hal::pwm::SetDutyCycle;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
 use esp_idf_svc::hal::gpio::{
     self, AnyIOPin, AnyInputPin, IOPin, Input, InputOutput, InputPin, Level, OutputPin,
@@ -24,6 +23,7 @@ use esp_idf_svc::io::vfs::BlockingStdIo;
 pub mod drivers;
 mod input;
 mod interrupt;
+mod led;
 
 /// Time it may take for FPGA power rails to stabilize after enable.
 const FPGA_POWER_DELAY: Duration = Duration::from_millis(5);
@@ -39,9 +39,6 @@ pub enum DisplayMode {
 
 /// Main container for device hardware.
 pub struct Device<'a> {
-    /// Status led, active-high.
-    led: LedcDriver<'a>,
-
     /// FPGA power in, active-high.
     fpga_power: PinDriver<'a, AnyOutputPin, Output>,
 
@@ -235,8 +232,8 @@ impl Device<'_> {
             }
         }
 
-        // Status LED
-        let mut led = LedcDriver::new(
+        // Status LED: active high
+        let led = LedcDriver::new(
             peripherals.ledc.channel0,
             LedcTimerDriver::new(
                 peripherals.ledc.timer0,
@@ -246,7 +243,8 @@ impl Device<'_> {
             )?,
             pin_led,
         )?;
-        led.set_duty_cycle_fully_off()?;
+        crate::led::LedController::start(led);
+        crate::led::LedController::set_behavior(crate::led::LedBehavior::LOADING);
 
         // TODO: see if we can avoid keeping FPGA power on all the time
         let mut fpga_power = PinDriver::output(pin_fpga_power)?;
@@ -511,7 +509,6 @@ impl Device<'_> {
         let usb_serial_jtag = BlockingStdIo::usb_serial(usb_serial_jtag).unwrap();
 
         let mut device = Device {
-            led,
             fpga_power,
             i2c,
             lcd_backlight,
@@ -574,23 +571,12 @@ impl Device<'_> {
     }
 
     /// Gracefully turn the device off.
-    pub fn power_off(&mut self, blink_led: bool) -> ! {
+    pub fn power_off(&mut self) -> ! {
         log::info!("Powering off");
         self.prepare_for_power_off();
 
         // Hold down the power button until the device shuts off.
         let _ = self.button_power.set_low();
-
-        // Blink LED to indicate low power
-        // TODO: generalize
-        if blink_led {
-            for _ in 0..3 {
-                std::thread::sleep(Duration::from_millis(250));
-                let _ = self.led.set_duty_cycle_fully_on();
-                std::thread::sleep(Duration::from_millis(250));
-                let _ = self.led.set_duty_cycle_fully_off();
-            }
-        }
 
         loop {
             std::thread::park();

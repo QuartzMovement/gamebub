@@ -12,6 +12,7 @@ mod device;
 mod hwinfo;
 mod input;
 mod kvs;
+mod led;
 mod power;
 pub mod ui;
 mod util;
@@ -80,5 +81,6 @@ fn main() -> anyhow::Result<()> {
     std::mem::drop(device);
 
     // Run UI in this thread.
+    led::LedController::set_behavior(led::LedBehavior::OFF);
     ui.run();
 }
