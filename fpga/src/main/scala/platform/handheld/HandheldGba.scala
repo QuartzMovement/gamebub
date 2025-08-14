@@ -6,6 +6,7 @@ import gba.GBA
 import gba.cart.emu.EmulatedCartridge
 import lib.mem.cache.DirectReadCache
 import lib.mem.{MemoryArbiter, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryInterface, RegisterMap}
+import lib.util.ButtonFilter
 
 
 object HandheldGba {
@@ -315,16 +316,19 @@ class HandheldGba extends Module with HandheldModule {
   io.audioRight := gba.io.apu.right << 6
 
   // Keypad
-  gba.io.keypad.a := io.buttons.a
-  gba.io.keypad.b := io.buttons.b
-  gba.io.keypad.l := io.buttons.l
-  gba.io.keypad.r := io.buttons.r
-  gba.io.keypad.up := io.buttons.up
-  gba.io.keypad.down := io.buttons.down
-  gba.io.keypad.left := io.buttons.left
-  gba.io.keypad.right := io.buttons.right
-  gba.io.keypad.start := io.buttons.start
-  gba.io.keypad.select := io.buttons.select
+  val buttonFilter = Module(new ButtonFilter(new HandheldButtons))
+  buttonFilter.io.enable := io.enable
+  buttonFilter.io.input := io.buttons
+  gba.io.keypad.a := buttonFilter.io.output.a
+  gba.io.keypad.b := buttonFilter.io.output.b
+  gba.io.keypad.l := buttonFilter.io.output.l
+  gba.io.keypad.r := buttonFilter.io.output.r
+  gba.io.keypad.up := buttonFilter.io.output.up
+  gba.io.keypad.down := buttonFilter.io.output.down
+  gba.io.keypad.left := buttonFilter.io.output.left
+  gba.io.keypad.right := buttonFilter.io.output.right
+  gba.io.keypad.start := buttonFilter.io.output.start
+  gba.io.keypad.select := buttonFilter.io.output.select
 
   // BIOS
   val bios = SRAM(16 * 1024 / 4, UInt(32.W), numReadPorts = 1, numWritePorts = 1, numReadwritePorts = 0)

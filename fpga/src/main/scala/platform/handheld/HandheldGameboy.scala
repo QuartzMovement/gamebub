@@ -5,6 +5,7 @@ import chisel3.util._
 import gameboy.Gameboy
 import gameboy.cart.emu.{EmuCartConfig, EmuCartridge, Mbc3RtcAccess, RtcState}
 import lib.mem.{MemoryInterface, MemoryMap, PipelineInterfaceBridge, RegisterMap}
+import lib.util.ButtonFilter
 import lib.video.ColorARGB
 
 object HandheldGameboy {
@@ -118,14 +119,17 @@ class HandheldGameboy extends Module with HandheldModule {
   }
   gameboy.io.clockConfig.provide8Mhz := true.B
 
-  gameboy.io.joypad.a := io.buttons.a
-  gameboy.io.joypad.b := io.buttons.b
-  gameboy.io.joypad.up := io.buttons.up
-  gameboy.io.joypad.down := io.buttons.down
-  gameboy.io.joypad.left := io.buttons.left
-  gameboy.io.joypad.right := io.buttons.right
-  gameboy.io.joypad.start := io.buttons.start
-  gameboy.io.joypad.select := io.buttons.select
+  val buttonFilter = Module(new ButtonFilter(new HandheldButtons))
+  buttonFilter.io.enable := io.enable
+  buttonFilter.io.input := io.buttons
+  gameboy.io.joypad.a := buttonFilter.io.output.a
+  gameboy.io.joypad.b := buttonFilter.io.output.b
+  gameboy.io.joypad.up := buttonFilter.io.output.up
+  gameboy.io.joypad.down := buttonFilter.io.output.down
+  gameboy.io.joypad.left := buttonFilter.io.output.left
+  gameboy.io.joypad.right := buttonFilter.io.output.right
+  gameboy.io.joypad.start := buttonFilter.io.output.start
+  gameboy.io.joypad.select := buttonFilter.io.output.select
 
   // Vibration unused by default.
   io.vibrate := false.B
