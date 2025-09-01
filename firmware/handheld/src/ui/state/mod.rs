@@ -19,6 +19,7 @@ pub struct UiState {
     root: Weak<MainWindow>,
 
     rom_select_directory: PathBuf,
+    rom_select_timer: Timer,
     settings: settings::SettingsState,
 }
 
@@ -34,6 +35,7 @@ impl UiState {
         let state: UiState = UiState {
             root: root.as_weak(),
             rom_select_directory,
+            rom_select_timer: Timer::default(),
             settings: settings::SettingsState::default(),
         };
         let state = Rc::new(RefCell::new(state));

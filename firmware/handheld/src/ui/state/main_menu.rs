@@ -25,7 +25,9 @@ impl UiState {
             ));
 
             // TODO: handle this from the Rom select module?
+            backend.set_rom_select_list(slint::ModelRc::default());
             state.rom_select_update_path();
+            backend.set_rom_select_index(-1);
             backend.set_rom_select_is_loading(true);
             backend.set_rom_select_progress(0.0);
         });

@@ -1,5 +1,6 @@
 import { ListViewBase } from "list_view.slint";
 import { Icons } from "../icons.slint";
+import { ListView } from "std-widgets.slint";
 
 export enum FileIcon {
     blank,
@@ -13,6 +14,7 @@ export struct FileListEntry {
 
 component FileListItem {
     in property <FileListEntry> entry;
+    in property <bool> is-selected;
     height: i-text.min-height;
 
     pure function iconToImage(icon: FileIcon) -> image {
@@ -21,6 +23,12 @@ component FileListItem {
         } else {
             Icons.empty
         }
+    }
+
+    i-highlight := Rectangle {
+        width: root.width;
+        height: root.height;
+        background: is-selected ? #bbb : transparent;
     }
 
     if (entry.icon != FileIcon.blank): Image {
@@ -41,11 +49,159 @@ component FileListItem {
     }
 }
 
-export component FileListView inherits ListViewBase {
+// Adapted from StandardListViewBase.
+export component FileListViewBase inherits ListView {
     in property <[FileListEntry]> model;
-    num-items: model.length;
+    in-out property <int> current-item: -1;
+    in property <bool> wrap: false;
 
-    for entry in root.model: child-items := FileListItem {
-        entry: entry;
+    callback current-item-changed(current-item: int);
+
+    public function set-current-item(index: int) {
+        if index < 0 || index >= model.length || index == root.current-item {
+            return;
+        }
+        bring-into-view(index);
+
+        current-item = index;
+        focus-item = index;
+        current-item-changed(current-item);
+    }
+
+    private property <length> item-height: self.viewport-height / self.model.length;
+    private property <int> into-view-item: 0;
+    private property <length> into-view-item-y: root.item-y(root.into-view-item);
+    private property <length> current-item-y: root.item-y(root.focus-item);
+    private property <int> focus-item: 0;
+    private property <bool> has-item-been-selected: false;
+
+    vertical-scrollbar-policy: always-off;
+    horizontal-scrollbar-policy: always-off;
+
+    pure function first-visible-item() -> int {
+        return min(root.model.length - 1, max(0, round(-root.viewport-y / root.item-height)));
+    }
+
+    pure function last-visible-item() -> int {
+        return min(root.model.length - 1, max(0, round((-root.viewport-y + root.height - root.item-height) / root.item-height)));
+    }
+
+    pure function item-y(index: int) -> length {
+        return root.viewport-y + index * root.item-height;
+    }
+
+    pure function item-at-y(y: length) -> int {
+        return min(root.model.length - 1, max(0, round(y / root.item-height)));
+    }
+
+    function bring-into-view(index: int) {
+        if (index < 0 || index >= model.length) {
+            return;
+        }
+        into-view-item = index;
+
+        if (into-view-item-y < 0) {
+            self.viewport-y += 0 - into-view-item-y;
+        }
+        if (into-view-item-y + item-height > self.visible-height) {
+            self.viewport-y -= into-view-item-y + item-height - self.visible-height;
+        }
+    }
+
+    protected function focus-up() {
+        root.set-focus-item(root.focus-item - 1);
+    }
+
+    protected function focus-page-up() {
+        if root.focus-item != root.first-visible-item() {
+            root.set-focus-item(root.first-visible-item())
+        } else {
+            root.set-focus-item(root.item-at-y(root.item-y(root.first-visible-item()) - root.height));
+        }
+    }
+
+    protected function focus-first() {
+        root.set-focus-item(0);
+    }
+
+    protected function focus-down() {
+        root.set-focus-item(root.focus-item + 1);
+    }
+
+    protected function focus-page-down() {
+        if root.focus-item != root.last-visible-item() {
+            root.set-focus-item(root.last-visible-item())
+        } else {
+            root.set-focus-item(root.item-at-y(root.item-y(root.last-visible-item()) + root.height));
+        }
+    }
+
+    protected function focus-last() {
+        root.set-focus-item(root.model.length - 1);
+    }
+
+    protected function select-focus-item() {
+        root.set-current-item(root.focus-item);
+    }
+
+    protected function focus-current-item() {
+        if root.current-item == -1 && !root.has-item-been-selected && root.model.length > 0 {
+            root.set-current-item(0);
+        }
+        root.has-item-been-selected = true;
+
+        if (root.current-item-y + root.item-height < 0 || root.current-item-y > root.height) {
+            root.focus-item = root.first-visible-item();
+        }
+    }
+
+    protected function toggle-focus-item-selection() {
+        if (root.current-item == root.focus-item) {
+            root.current-item = -1;
+        } else {
+            root.select-focus-item();
+        }
+    }
+
+    protected function set-focus-item(index: int) {
+        if wrap {
+            focus-item = mod(index, root.model.length);
+        } else {
+            root.focus-item = min(root.model.length - 1, max(0, index));
+        }
+        root.bring-into-view(root.focus-item);
+    }
+
+    for item[index] in root.model: FileListItem {
+        height: 16px; // N.B. Setting this to self.min-height doesn't work.
+        entry: item;
+        is-selected: index == root.current-item;
+    }
+}
+
+export component FileListView inherits FileListViewBase {
+    in property <bool> disabled: false;
+    callback on-item-selected(/* selected-item */ int);
+
+    forward-focus: i-focus-scope;
+
+    i-focus-scope := FocusScope {
+        key-pressed(event) => {
+            if (disabled) {
+                return reject;
+            } else if (event.text == Key.UpArrow) {
+                root.focus-up();
+                root.select-focus-item();
+                return accept;
+            } else if (event.text == Key.DownArrow) {
+                root.focus-down();
+                root.select-focus-item();
+                return accept;
+            } else if (event.text == "a" && !event.repeat) {
+                root.on-item-selected(root.current-item);
+                return accept;
+            }
+            reject
+        }
     }
 }

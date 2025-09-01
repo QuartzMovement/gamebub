@@ -9,6 +9,12 @@ export component RomSelectScreen inherits ScreenBase {
     title: "Load ROM...";
     forward-focus: list;
 
+    // Hack to call set-current-item when the backend forces a new item.
+    private property <int> _selected-index: Backend.rom-select-index;
+    changed _selected-index => {
+        list.set-current-item(Backend.rom-select-index);
+    }
+
     i-focus-scope := FocusScope {
         key-pressed(event) => {
             if (Backend.rom-select-is-loading) {
@@ -36,20 +42,38 @@ export component RomSelectScreen inherits ScreenBase {
                 text: Backend.rom-select-path;
             }
 
-            list := FileListView {
-                model: Backend.rom-select-list;
-                wrap: true;
-                disabled: Backend.rom-select-is-loading || has-error;
-                focus-item <=> Backend.rom-select-index;
-                init => {
-                    self.fix-focus-item();
+            Rectangle {
+                private property <length> scrollbar-width: 2px;
+                private property <bool> has-scrollbar: list.viewport-height > list.height;
+                border-width: 1px;
+                border-color: black;
+
+                list := FileListView {
+                    x: 0px;
+                    width: scroll-bar.x;
+                    model: Backend.rom-select-list;
+                    wrap: true;
+                    disabled: Backend.rom-select-is-loading || has-error;
+                    on-item-selected(i) => {
+                        Backend.rom-select-is-loading = Backend.rom-select-selected(i);
+                    }
+                    current-item-changed(i) => {
+                        Backend.rom-select-focused(i);
+                    }
                 }
-                on-item-selected(i) => {
-                    list.item-selected = false;
-                    Backend.rom-select-is-loading = Backend.rom-select-selected(i);
-                }
-                on-item-focused(i) => {
-                    Backend.rom-select-focused(i);
+
+                scroll-bar := Rectangle {
+                    visible: has-scrollbar;
+                    x: parent.width - self.width - 2px;
+                    y: 2px;
+                    width: scrollbar-width;
+                    height: parent.height - 4px;
+                    inner := Rectangle {
+                        y: (-list.viewport-y / list.viewport-height) * parent.height;
+                        width: 100%;
+                        height: (list.height / list.viewport-height) * parent.height;
+                        background: black;
+                    }
                 }
             }
 

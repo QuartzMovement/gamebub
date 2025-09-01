@@ -2,6 +2,7 @@ use std::{
     cell::RefCell,
     path::{Path, PathBuf},
     rc::Rc,
+    time::Duration,
 };
 
 use super::super::slint::Backend;
@@ -84,9 +85,24 @@ impl UiState {
         let root = self.root.unwrap();
         let backend = root.global::<Backend>();
         backend.set_rom_select_list(files);
-        backend.set_rom_select_index(selected as i32);
-        backend.set_rom_select_is_loading(false);
         self.rom_select_update_path();
+
+        {
+            // Defer setting the index and unsetting loading, because
+            // the FileListView component can't handle shifting view to
+            // a newly selected element until the first time it renders.
+            let root = self.root.clone();
+            self.rom_select_timer.start(
+                slint::TimerMode::SingleShot,
+                Duration::from_millis(1),
+                move || {
+                    let root = root.unwrap();
+                    let backend = root.global::<Backend>();
+                    backend.set_rom_select_index(selected as i32);
+                    backend.set_rom_select_is_loading(false);
+                },
+            );
+        }
     }
 
     pub fn rom_select_update_path(&self) {
