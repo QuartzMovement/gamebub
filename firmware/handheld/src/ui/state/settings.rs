@@ -72,6 +72,11 @@ mod settings {
                 name: "Date and Time (UTC)",
             },
             Entry::List {
+                name: "Startup Action",
+                key: &keys::STARTUP_ACTION,
+                choices: &["Main Menu", "Run Cartridge"],
+            },
+            Entry::List {
                 name: "Rumble Strength",
                 key: &keys::RUMBLE_LEVEL,
                 choices: &["Off", "Low", "Medium", "High"],

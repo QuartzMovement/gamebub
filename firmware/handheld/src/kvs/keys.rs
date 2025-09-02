@@ -41,6 +41,9 @@ pub static GBA_ENABLE_GBP: KvsKey<bool> = KvsKey::new_with_default("gba-enable-g
 /// Rumble strength level
 pub static RUMBLE_LEVEL: KvsKey<i32> = KvsKey::new_with_default("rumble-level", 0);
 
+/// Startup action.
+pub static STARTUP_ACTION: KvsKey<i32> = KvsKey::new_with_default("startup-action", 0);
+
 pub fn flush_all() {
     UPTIME.flush();
     LAST_ROM_PATH.flush();
@@ -54,5 +57,6 @@ pub fn flush_all() {
     GBA_SKIP_BOOT_ANIM.flush();
     GBA_COLOR_PROFILE.flush();
     GBA_ENABLE_GBP.flush();
-    RUMBLE_LEVEL.flush()
+    RUMBLE_LEVEL.flush();
+    STARTUP_ACTION.flush();
 }

@@ -18,6 +18,18 @@ pub mod ui;
 mod util;
 mod worker;
 
+enum StartupAction {
+    MainMenu,
+    RunCartridge,
+}
+
+fn get_startup_action() -> StartupAction {
+    match kvs::keys::STARTUP_ACTION.get() {
+        Some(1) => StartupAction::RunCartridge,
+        _ => StartupAction::MainMenu,
+    }
+}
+
 fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
@@ -74,13 +86,19 @@ fn main() -> anyhow::Result<()> {
         device.lcd.enable_fpga_control()?;
         Ok(())
     }
-    program_fpga(&mut device).expect("Failed to program FPGA");
+
+    match get_startup_action() {
+        StartupAction::RunCartridge => worker::send(worker::Message::RunCartridge),
+        StartupAction::MainMenu => program_fpga(&mut device).expect("Failed to program FPGA"),
+    }
 
     // Setup UI
     let mut ui = UI::new(&mut device);
     std::mem::drop(device);
 
     // Run UI in this thread.
-    led::LedController::set_behavior(led::LedBehavior::OFF);
+    if let StartupAction::MainMenu = get_startup_action() {
+        led::LedController::set_behavior(led::LedBehavior::OFF);
+    }
     ui.run();
 }
