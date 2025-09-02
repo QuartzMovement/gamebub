@@ -50,13 +50,9 @@ mod settings {
                 name: "About",
                 screen: ScreenId::About,
             },
-            Entry::SystemDatetime {
-                name: "Date and Time (UTC)",
-            },
-            Entry::List {
-                name: "Rumble Strength",
-                key: &keys::RUMBLE_LEVEL,
-                choices: &["Off", "Low", "Medium", "High"],
+            Entry::Subpage {
+                name: "General",
+                page: &PAGE_GENERAL,
             },
             Entry::Subpage {
                 name: "GB",
@@ -65,6 +61,20 @@ mod settings {
             Entry::Subpage {
                 name: "GBA",
                 page: &PAGE_GBA,
+            },
+        ],
+    };
+
+    pub static PAGE_GENERAL: Page = Page {
+        name: "General",
+        entries: &[
+            Entry::SystemDatetime {
+                name: "Date and Time (UTC)",
+            },
+            Entry::List {
+                name: "Rumble Strength",
+                key: &keys::RUMBLE_LEVEL,
+                choices: &["Off", "Low", "Medium", "High"],
             },
         ],
     };
