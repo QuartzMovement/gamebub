@@ -359,6 +359,7 @@ impl CartBackup {
                 }
                 0xC5 => {
                     log::debug!("AGB_CART_READ_EEPROM");
+                    set_waits(8, 8, 0).unwrap();
                     let eeprom_type = self.read_one()?;
                     let address_bits = match eeprom_type {
                         1 => 6,
