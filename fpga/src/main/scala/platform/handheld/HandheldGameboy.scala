@@ -35,8 +35,7 @@ class HandheldGameboy extends Module with HandheldModule {
   val configRegRamMask = RegInit(0.U(17.W))
   val configRegImuAccelX = RegInit(0.U(16.W))
   val configRegImuAccelY = RegInit(0.U(16.W))
-  val configRegDmgPalette0 = RegInit("h56B57FFF".U(32.W))
-  val configRegDmgPalette1 = RegInit("h0000294A".U(32.W))
+  val configRegDmgOffColor = RegInit(0.U(16.W))
   val statRegStalls = RegInit(0.U(32.W))
   val statRegCycles = RegInit(0.U(32.W))
 
@@ -63,12 +62,14 @@ class HandheldGameboy extends Module with HandheldModule {
 
   val registerInterface = Wire(new MemoryInterface(addressWidth = 16, dataWidth = 32))
   val biosInterface = Wire(new MemoryInterface(addressWidth = 11, dataWidth = 8)) // 2 KiB
+  val dmgPaletteInterface = Wire(new MemoryInterface(addressWidth = 5, dataWidth = 16))
   io.mcuInterface <> MemoryMap(
     addressWidth = 24,
     dataWidth = 32,
     entries = Seq(
       0x0.U(4.W) -> registerInterface,
       0x1.U(4.W) -> biosInterface,
+      0x2.U(4.W) -> dmgPaletteInterface,
     ))
 
   suppressEnumCastWarning {
@@ -86,14 +87,20 @@ class HandheldGameboy extends Module with HandheldModule {
         0x001C -> makeRtcAccess(latched = true),
         0x0020 -> RegisterMap.Entry.rw(configRegImuAccelX),
         0x0024 -> RegisterMap.Entry.rw(configRegImuAccelY),
-        0x0028 -> RegisterMap.Entry.w(configRegDmgPalette0),
-        0x002C -> RegisterMap.Entry.w(configRegDmgPalette1),
+        0x0030 -> RegisterMap.Entry.w(configRegDmgOffColor),
 
         0x1000 -> RegisterMap.Entry.rw(statRegStalls),
         0x1004 -> RegisterMap.Entry.rw(statRegCycles),
       )
     )
   }
+
+  val dmgPalette = Reg(Vec(16, UInt(15.W)))
+  when (dmgPaletteInterface.enable && dmgPaletteInterface.write) {
+    dmgPalette(dmgPaletteInterface.address(4, 1)) := dmgPaletteInterface.dataWrite
+  }
+  dmgPaletteInterface.dataRead := 0.U
+  dmgPaletteInterface.done := RegNext(dmgPaletteInterface.enable)
 
   // Gameboy
   val gameboyConfig = Gameboy.Configuration(
@@ -154,14 +161,6 @@ class HandheldGameboy extends Module with HandheldModule {
   io.link.scDir := gameboy.io.serial.clockEnable
 
   // Framebuffer output
-  val dmgPalette = VecInit(
-    Seq(
-      configRegDmgPalette0(14, 0),
-      configRegDmgPalette0(30, 16),
-      configRegDmgPalette1(14, 0),
-      configRegDmgPalette1(30, 16)
-    ).map(x => x.asTypeOf(ColorARGB.rgb555()))
-  )
   val framebufferX = RegInit(0.U(8.W))
   val framebufferY = RegInit(0.U(8.W))
   io.framebufferX := framebufferX
@@ -200,7 +199,7 @@ class HandheldGameboy extends Module with HandheldModule {
         io.framebufferData.g := 0x1F.U(5.W)
         io.framebufferData.b := 0x1F.U(5.W)
       } .otherwise {
-        io.framebufferData := dmgPalette(0)
+        io.framebufferData := configRegDmgOffColor.asTypeOf(ColorARGB.rgb555())
       }
 
       when (framebufferX < 159.U) {
@@ -236,8 +235,8 @@ class HandheldGameboy extends Module with HandheldModule {
           io.framebufferData.g := gameboy.io.ppu.pixel(9, 5)
           io.framebufferData.b := gameboy.io.ppu.pixel(14, 10)
         } .otherwise {
-          val index = (~gameboy.io.ppu.pixel(14, 13)).asUInt
-          io.framebufferData := dmgPalette(index)
+          val index = gameboy.io.ppu.dmgColor.asUInt
+          io.framebufferData := dmgPalette(index).asTypeOf(ColorARGB.rgb555())
         }
 
         framebufferX := framebufferX + 1.U
