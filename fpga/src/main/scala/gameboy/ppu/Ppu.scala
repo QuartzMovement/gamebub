@@ -15,6 +15,15 @@ class PpuOutput extends Bundle {
   val vblank = Output(Bool())
   /** Whether the LCD is enabled */
   val lcdEnable = Output(Bool())
+  /** Where the pixel is coming from. Only relevant for DMG. */
+  val dmgColor = Output(new Bundle {
+    /** 0 for OBJ, 1 for BG */
+    val isBg = Bool()
+    /** Palette index: OBJ0/1 if obj, BG/Window if bg */
+    val paletteIndex = UInt(1.W)
+    /** Color in the palette. 0 is dark, 3 is bright. */
+    val color = UInt(2.W)
+  })
 }
 
 object Ppu {
@@ -351,8 +360,14 @@ class Ppu(config: Gameboy.Configuration) extends Module {
   /** Whether we're waiting to fetch or actively fetching an object. */
   val objFetchWaiting = Wire(Bool())
 
+  // Window registers
+  val windowHitWy = RegInit(false.B)
+  val windowActive = RegInit(false.B)
+  val windowY = Reg(UInt(8.W))
+
   // Output pixel logic
   io.output.pixel := DontCare
+  io.output.dmgColor := DontCare
   io.output.valid := false.B
   when (io.clocker.pulse4Mhz && regLcdc.enable && stateDrawing && bgFifo.io.outValid) {
     when (bgScrollCounter > 0.U) {
@@ -379,6 +394,11 @@ class Ppu(config: Gameboy.Configuration) extends Module {
             bgIndex =/= 0.U &&
             objFifo.io.outData.bgPriority
       }
+      val isBg = objIndex === 0.U || bgPriority
+
+      io.output.dmgColor.isBg := isBg
+      io.output.dmgColor.paletteIndex := Mux(isBg, windowActive, objFifo.io.outData.palette)
+      io.output.dmgColor.color := (~Mux(isBg, bgColorDmg, objColorDmg)).asUInt
 
       when (io.isCgb) {
         // CGB output
@@ -395,11 +415,11 @@ class Ppu(config: Gameboy.Configuration) extends Module {
         }
         val bgColorCgb = Cat(cgbPaletteBg(Cat(bgPalette, 1.U(1.W))), cgbPaletteBg(Cat(bgPalette, 0.U(1.W))))
         val objColorCgb = Cat(cgbPaletteObj(Cat(objPalette, 1.U(1.W))), cgbPaletteObj(Cat(objPalette, 0.U(1.W))))
-        io.output.pixel := Mux(objIndex === 0.U || bgPriority, bgColorCgb, objColorCgb)
+        io.output.pixel := Mux(isBg, bgColorCgb, objColorCgb)
       } .otherwise {
         // DMG output. Expand the grayscale to 15-bits.
         // Note that DMG grayscale is inverted -- 00 is white, 11 is black.
-        val grayPixel = Mux(objIndex === 0.U || bgPriority, bgColorDmg, objColorDmg)
+        val grayPixel = Mux(isBg, bgColorDmg, objColorDmg)
         io.output.pixel := Fill(3, Fill(3, (~grayPixel).asUInt)(5, 1))
       }
 
@@ -410,11 +430,6 @@ class Ppu(config: Gameboy.Configuration) extends Module {
 //      printf(cf"pix ly=${regLy} lx=${regLx} valid=${io.output.valid} bgcol=${bgColor} objColor=${objColor}\n")
     }
   }
-
-  // Window registers
-  val windowHitWy = RegInit(false.B)
-  val windowActive = RegInit(false.B)
-  val windowY = Reg(UInt(8.W))
 
   // OAM and VRAM access are one-cycle delayed. This poses an issue with clock enable,
   // because if we set the address and update some state, and then the next cycle we
