@@ -16,6 +16,7 @@ use ::slint::{
 
 use crate::device::{Device, DisplayMode};
 use crate::input::{self, InputManager};
+pub use state::notifications::Notification;
 
 use self::{slint::Argb1555, slint::MinimalSoftwareWindow, state::UiState};
 
@@ -50,7 +51,6 @@ pub enum Message {
     RomSelectError(String),
     /// Enter the error screen, and show the given error
     FatalError(String),
-
     /// Internal input state changed
     InputState(input::InputState),
     /// Gamepad connected
@@ -59,6 +59,8 @@ pub enum Message {
     GamepadDisconnected(input::GamepadId),
     /// Gamepad input event
     GamepadInput(input::GamepadId, input::InputState),
+    /// Show a notification
+    Notification(Notification),
 }
 
 /// Send a message to the UI thread.
@@ -273,6 +275,11 @@ impl UI {
             Message::GamepadConnected(id) => InputManager::lock().add_gamepad(id),
             Message::GamepadDisconnected(id) => InputManager::lock().remove_gamepad(id),
             Message::GamepadInput(id, state) => InputManager::lock().update_gamepad(id, state),
+            Message::Notification(notification) => {
+                self.state
+                    .borrow_mut()
+                    .queue_notification(self.state.clone(), notification);
+            }
             #[allow(unreachable_patterns)]
             _ => {
                 log::warn!("Unhandled message: {:?}", message);

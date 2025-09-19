@@ -10,6 +10,7 @@ import { ErrorScreen } from "screens/error.slint";
 import { AboutScreen } from "screens/about.slint";
 import { Global, ScreenId, Backend } from "common.slint";
 import { PowerMenu } from "components/power_menu.slint";
+import { Notification } from "components/notification.slint";
 
 export { ScreenId, Backend }
 
@@ -175,5 +176,11 @@ export component MainWindow inherits Window {
         y: 0;
         width: root.width;
         height: root.height;
+    }
+
+    if Backend.notification-visible: Notification {
+        x: root.width - self.width - 8px;
+        y: 8px;
+        text: Backend.notification-text;
     }
 }

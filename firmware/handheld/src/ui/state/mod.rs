@@ -1,4 +1,10 @@
-use std::{cell::RefCell, path::Path, path::PathBuf, rc::Rc, time::Duration};
+use std::{
+    cell::RefCell,
+    collections::VecDeque,
+    path::{Path, PathBuf},
+    rc::Rc,
+    time::Duration,
+};
 
 use slint::{ComponentHandle, Global, Timer, TimerMode, Weak};
 
@@ -11,12 +17,17 @@ use super::slint::{
 
 mod game;
 mod main_menu;
+pub mod notifications;
 mod rom_select;
 mod settings;
 mod tools;
 
 pub struct UiState {
     root: Weak<MainWindow>,
+
+    notification_timer: Timer,
+    notification_queue: VecDeque<notifications::Notification>,
+    notification_active: bool,
 
     rom_select_directory: PathBuf,
     rom_select_timer: Timer,
@@ -34,6 +45,9 @@ impl UiState {
             .unwrap_or_else(|| Path::new(rom_select::BASE_DIR).to_path_buf());
         let state: UiState = UiState {
             root: root.as_weak(),
+            notification_timer: Timer::default(),
+            notification_queue: VecDeque::new(),
+            notification_active: false,
             rom_select_directory,
             rom_select_timer: Timer::default(),
             settings: settings::SettingsState::default(),
