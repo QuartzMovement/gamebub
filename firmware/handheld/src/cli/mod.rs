@@ -155,6 +155,9 @@ fn handle_gamepad_connect<'a>(mut args: impl Iterator<Item = &'a str>) -> Result
     let gamepad_model = args.next().ok_or("missing model name")?;
     let gamepad_id = args.next().ok_or("missing unique id")?;
     ui::send(ui::Message::GamepadConnected(GamepadId(slot)));
+    ui::send(ui::Message::Notification(ui::Notification::new_short(
+        "Gamepad connected".to_string(),
+    )));
     println!("<ok");
     log::info!("Gamepad model='{gamepad_model}' id={gamepad_id}");
     Ok(())
@@ -164,6 +167,9 @@ fn handle_gamepad_connect<'a>(mut args: impl Iterator<Item = &'a str>) -> Result
 fn handle_gamepad_disconnect<'a>(mut args: impl Iterator<Item = &'a str>) -> Result<(), String> {
     let slot = get_arg_u32(args.next())?;
     ui::send(ui::Message::GamepadDisconnected(GamepadId(slot)));
+    ui::send(ui::Message::Notification(ui::Notification::new_short(
+        "Gamepad disconnected".to_string(),
+    )));
     println!("<ok");
     Ok(())
 }
