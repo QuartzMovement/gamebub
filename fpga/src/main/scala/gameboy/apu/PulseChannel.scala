@@ -1,6 +1,7 @@
 package gameboy.apu
 
 import chisel3._
+import chisel3.util._
 
 class PulseChannelIO extends ChannelIO {
   val lengthConfig = Input(new LengthControlConfig(6))
@@ -69,7 +70,13 @@ class FrequencySweepConfig extends Bundle {
 class PulseChannelWithSweep extends Module {
   val io = IO(new PulseChannelIO {
     val sweepConfig = Input(new FrequencySweepConfig)
+
+    // Since there's an internal copy of wavelength, we need
+    // to be told when to load the wavelength. This is a byte write mask.
+    val wavelengthLoad = Input(UInt(2.W))
   })
+
+  val regWavelength = RegInit(0.U(11.W))
 
   // Frequency sweep
   val freqSweepShadow = RegInit(0.U(11.W))
@@ -86,16 +93,26 @@ class PulseChannelWithSweep extends Module {
     when (freqSweepTimer === 0.U) {
       freqSweepTimer := io.sweepConfig.pace
       val offset = (freqSweepShadow >> io.sweepConfig.slope).asUInt
+      val newFreq = Wire(UInt(12.W))
       when (io.sweepConfig.decrease) {
-        freqSweepShadow := freqSweepShadow - offset
+        newFreq := freqSweepShadow - offset
       } .otherwise {
-        val newShadow = freqSweepShadow +& offset
-        freqSweepShadow := newShadow(10, 0)
-        when (newShadow >= 2048.U) {
+        newFreq := freqSweepShadow +& offset
+        when (newFreq >= 2048.U) {
           freqSweepOverflow := true.B
         }
       }
+
+      freqSweepShadow := newFreq
+      regWavelength := newFreq
     }
+  }
+
+  when (io.wavelengthLoad =/= 0.U) {
+    regWavelength := Cat(
+      Mux(io.wavelengthLoad(1), io.wavelength(10, 8), regWavelength(10, 8)),
+      Mux(io.wavelengthLoad(0), io.wavelength(7, 0), regWavelength(7, 0)),
+    )
   }
 
   // This channel is just the regular pulse channel with a frequency sweep unit.
@@ -106,7 +123,7 @@ class PulseChannelWithSweep extends Module {
   pulseChannel.io.ticks := io.ticks
   pulseChannel.io.lengthConfig := io.lengthConfig
   pulseChannel.io.volumeConfig := io.volumeConfig
-  pulseChannel.io.wavelength := freqSweepShadow
+  pulseChannel.io.wavelength := regWavelength
   pulseChannel.io.duty := io.duty
   io.dacEnabled := pulseChannel.io.dacEnabled
   io.channelDisable := pulseChannel.io.channelDisable || freqSweepOverflow

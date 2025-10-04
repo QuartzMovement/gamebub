@@ -51,13 +51,13 @@ class Psg extends Module {
   val regChannel1VolumeConfig = RegInit(0.U.asTypeOf(new VolumeEnvelopeConfig))
   val regChannel1SweepConfig = RegInit(0.U.asTypeOf(new FrequencySweepConfig))
   val regChannel1Duty = RegInit(0.U(2.W))
-  val regChannel1Wavelength = RegInit(0.U(11.W))
   val channel1 = Module(new PulseChannelWithSweep)
   channel1.io.lengthConfig.length := DontCare
   channel1.io.lengthConfig.lengthLoad := false.B
   channel1.io.lengthConfig.enabled := regLengthEnable(0)
   channel1.io.volumeConfig := regChannel1VolumeConfig
-  channel1.io.wavelength := regChannel1Wavelength
+  channel1.io.wavelength := DontCare
+  channel1.io.wavelengthLoad := 0.U
   channel1.io.duty := regChannel1Duty
   channel1.io.sweepConfig := regChannel1SweepConfig
 
@@ -139,9 +139,8 @@ class Psg extends Module {
       MmioMap.ReadFn(Cat(regLengthEnable(0), 0.U(14.W))),
       MmioMap.WriteFn((enable, data, mask) => {
         when (enable) {
-          val newWavelength = MMIO.mask(regChannel1Wavelength, data(10, 0), mask(1, 0))
-          channel1.io.wavelength := newWavelength
-          regChannel1Wavelength := newWavelength
+          channel1.io.wavelength := data
+          channel1.io.wavelengthLoad := mask
           when (mask(1)) {
             regLengthEnable(0) := data(14)
             channelTrigger(0) := data(15)

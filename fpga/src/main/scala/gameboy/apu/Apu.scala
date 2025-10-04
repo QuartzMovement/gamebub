@@ -51,13 +51,13 @@ class Apu(config: Gameboy.Configuration) extends Module {
   val channel1VolumeConfig = RegInit(0.U.asTypeOf(new VolumeEnvelopeConfig))
   val channel1SweepConfig = RegInit(0.U.asTypeOf(new FrequencySweepConfig))
   val channel1Duty = RegInit(0.U(2.W))
-  val channel1Wavelength = RegInit(0.U(11.W))
   val channel1 = Module(new PulseChannelWithSweep)
   channel1.io.lengthConfig.length := DontCare
   channel1.io.lengthConfig.lengthLoad := false.B
   channel1.io.lengthConfig.enabled := regLengthEnable(0)
   channel1.io.volumeConfig := channel1VolumeConfig
-  channel1.io.wavelength := channel1Wavelength
+  channel1.io.wavelength := DontCare
+  channel1.io.wavelengthLoad := 0.U
   channel1.io.duty := channel1Duty
   channel1.io.sweepConfig := channel1SweepConfig
 
@@ -125,12 +125,15 @@ class Apu(config: Gameboy.Configuration) extends Module {
         channel1.io.lengthConfig.lengthLoad := true.B
       }
       is (0x12.U) { channel1VolumeConfig := io.reg.dataWrite.asTypeOf(new VolumeEnvelopeConfig) }
-      is (0x13.U) { channel1Wavelength := Cat(channel1Wavelength(10, 8), io.reg.dataWrite) }
+      is (0x13.U) {
+        channel1.io.wavelength := Cat(io.reg.dataWrite, io.reg.dataWrite)
+        channel1.io.wavelengthLoad := "b01".U(2.W)
+      }
       is (0x14.U) {
+        channel1.io.wavelength := Cat(io.reg.dataWrite, io.reg.dataWrite)
+        channel1.io.wavelengthLoad := "b10".U(2.W)
+
         regLengthEnable(0) := io.reg.dataWrite(6)
-        val newWavelength = Cat(io.reg.dataWrite(2, 0), channel1Wavelength(7, 0))
-        channel1Wavelength := newWavelength
-        channel1.io.wavelength := newWavelength
         when (io.reg.dataWrite(7)) { channelTrigger(0) := true.B }
       }
 
@@ -238,7 +241,8 @@ class Apu(config: Gameboy.Configuration) extends Module {
     channel1VolumeConfig := 0.U.asTypeOf(new VolumeEnvelopeConfig)
     channel1SweepConfig := 0.U.asTypeOf(new FrequencySweepConfig)
     channel1Duty := 0.U
-    channel1Wavelength := 0.U
+    channel1.io.wavelength := 0.U
+    channel1.io.wavelengthLoad := "b11".U(2.W)
     channel1.reset := true.B
 
     channel2VolumeConfig := 0.U.asTypeOf(new VolumeEnvelopeConfig)
