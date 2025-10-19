@@ -2,6 +2,7 @@ use std::sync::{Mutex, MutexGuard, OnceLock};
 use std::time::{Duration, Instant};
 
 use crate::kvs;
+use anyhow::Context;
 use drivers::lcd_backlight;
 use drivers::sdcard::Sdcard;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
@@ -242,7 +243,8 @@ impl Device<'_> {
                     .resolution(ledc::config::Resolution::Bits14),
             )?,
             pin_led,
-        )?;
+        )
+        .context("status led")?;
         crate::led::LedController::start(led);
         crate::led::LedController::set_behavior(crate::led::LedBehavior::LOADING);
 
@@ -256,7 +258,8 @@ impl Device<'_> {
         let i2c_config = I2cConfig::new()
             .baudrate(400.kHz().into())
             .timeout(Duration::from_millis(10).into());
-        let i2c = I2cDriver::new(peripherals.i2c0, pin_i2c_sda, pin_i2c_scl, &i2c_config)?;
+        let i2c = I2cDriver::new(peripherals.i2c0, pin_i2c_sda, pin_i2c_scl, &i2c_config)
+            .context("I2cDriver")?;
         let i2c = &*Box::leak(Box::new(Mutex::new(i2c)));
 
         let pin_irq = PinDriver::input(pin_irq)?;
@@ -286,7 +289,8 @@ impl Device<'_> {
                         .resolution(config.resolution),
                 )?,
                 pin_lcd_backlight,
-            )?;
+            )
+            .context("backlight led")?;
             let mut backlight = lcd_backlight::PwmBacklight::new(config, driver);
             backlight.init();
             backlight
@@ -306,7 +310,7 @@ impl Device<'_> {
                     pin_spi_d2,
                     pin_spi_d3,
                     &spi_driver_config,
-                )?));
+                ).context("spi driver")?));
                 let fpga_spi_driver = spi_driver;
                 let lcd_spi_driver = spi_driver;
             } else if #[cfg(feature = "rev2")] {
@@ -318,14 +322,14 @@ impl Device<'_> {
                     pin_fpga_spi_d2,
                     pin_fpga_spi_d3,
                     &spi_driver_config,
-                )?));
+                ).context("fpga spi driver")?));
                 let lcd_spi_driver = &*Box::leak(Box::new(SpiDriver::new(
                     peripherals.spi3,
                     pin_lcd_spi_clk,
                     pin_lcd_spi_d0,
                     Option::<AnyInputPin>::None,
                     &spi_driver_config,
-                )?));
+                ).context("lcd spi driver")?));
             } else if #[cfg(feature = "rev3")] {
                 let fpga_spi_driver = &*Box::leak(Box::new(SpiDriver::new_quad(
                     peripherals.spi2,
@@ -335,7 +339,7 @@ impl Device<'_> {
                     pin_fpga_spi_d2,
                     pin_fpga_spi_d3,
                     &spi_driver_config,
-                )?));
+                ).context("fpga spi driver")?));
             }
         }
 
@@ -357,7 +361,7 @@ impl Device<'_> {
                 let mut lcd = drivers::st7262::ST7262::new(lcd_enable);
             }
         }
-        lcd.init()?;
+        lcd.init().context("LCD init")?;
 
         // Setup I/O expander (Rev 1 and Rev 2 only)
         cfg_if::cfg_if! {
@@ -420,7 +424,7 @@ impl Device<'_> {
 
         // Setup IMU
         let mut imu = drivers::imu::LSM6DS3TRC::new(MutexI2C::new(&i2c));
-        imu.init()?;
+        imu.init().context("IMU init")?;
 
         // Ensure fpga power has stabilized.
         let time_since_fpga_power = Instant::now().duration_since(fpga_power_time);
@@ -430,11 +434,14 @@ impl Device<'_> {
         log::info!("Initializing DAC");
         let dac_reset = PinDriver::output(pin_dac_reset)?;
         let mut dac = drivers::dac::TLV320DAC3101::new(dac_reset, MutexI2C::new(&i2c));
-        dac.init()?;
-        dac.configure_interrupts()?;
-        dac.set_volume(kvs::keys::VOLUME.get().unwrap())?;
-        dac.set_mute(false)?;
-        let headphones_detected = dac.get_headphones_detected()?;
+        dac.init().context("DAC init")?;
+        dac.configure_interrupts().context("DAC interrupts")?;
+        dac.set_volume(kvs::keys::VOLUME.get().unwrap())
+            .context("DAC set volume")?;
+        dac.set_mute(false).context("DAC set mute")?;
+        let headphones_detected = dac
+            .get_headphones_detected()
+            .context("DAC get headphones")?;
         dac.set_headphones_enabled(headphones_detected)?;
         dac.set_speakers_enabled(!headphones_detected)?;
 
@@ -480,7 +487,7 @@ impl Device<'_> {
         );
 
         // Mount system_data to /system
-        drivers::fs::mount_system_data()?;
+        drivers::fs::mount_system_data().context("mount system data")?;
 
         // Mount sdcard to /sdcard
         let sdcard = drivers::sdcard::mount_sdcard(
@@ -682,10 +689,12 @@ impl Device<'_> {
             self.lcd.enter_sleep()?;
         }
 
-        self.fpga.set_display_mode(new_mode)?;
+        self.fpga
+            .set_display_mode(new_mode)
+            .context("set FPGA display mode")?;
 
         if new_mode == DisplayMode::Internal {
-            self.lcd.exit_sleep()?;
+            self.lcd.exit_sleep().context("LCD exit sleep")?;
 
             // Let LCD stabilize and refresh before turning on backlight. Measured empirically.
             std::thread::sleep(Duration::from_millis(200));
