@@ -1,4 +1,10 @@
 ########################################
+# Metadata
+########################################
+# Set user ID to identify as Game Bub revision 3
+set_property BITSTREAM.CONFIG.USERID 0xB0100003 [current_design]
+
+########################################
 # Clocking
 ########################################
 # External 50 MHz input clock
