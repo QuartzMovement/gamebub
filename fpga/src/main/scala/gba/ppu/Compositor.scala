@@ -249,7 +249,7 @@ class Compositor extends Module {
     }
   }
 
-  // First stage: priority sorting: should start on cycle 42 (subCycle = 3)
+  // First stage: priority sorting: should start on cycle 41 (subCycle = 3)
   val regSortFirst = Reg(new Compositor.Layer)
   val regSortSecond = Reg(new Compositor.Layer)
   val regSortWindow = Reg(new PpuRegisters.WindowControl)
@@ -269,7 +269,16 @@ class Compositor extends Module {
       // Pull from BG fifo if background is enabled.
       // *Don't* pull from BG3 fifo if we're in a 16bpp bitmap mode: BG3 is never enabled,
       // and we re-use the FIFO for the upper bits of the color.
-      bgFifo.ready := true.B
+
+      when (io.tick >= 42.U) {
+        // Hack, maybe?
+        // This first stage starts on cycle 41 (subcycle 3) in order to set up the
+        // object fetch for the next full cycle (on cycle 42).
+        // If we fetched here on cycle 41, we'd pop from BG3 fifo and discard it,
+        // (since stage 2 doesn't start until cycle 46), effectively shifting everything in BG3
+        // by one pixel.
+        bgFifo.ready := true.B
+      }
     }
 
     val color = Wire(UInt(15.W))
