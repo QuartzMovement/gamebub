@@ -40,6 +40,8 @@ pub const MAX_SPI_READ_CLOCK: Hertz = Hertz(16_000_000);
 pub type SpiDataDriver<'a> =
     SpiSoftCsDeviceDriver<'a, SpiSharedDeviceDriver<'a, &'a SpiDriver<'a>>, &'a SpiDriver<'a>>;
 
+mod xilinx;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("gpio error")]
@@ -48,6 +50,8 @@ pub enum Error {
     ProgramError,
     #[error("error reading bitstream")]
     BitstreamError,
+    #[error("incompatible bitstream")]
+    IncompatibleBitstream,
     #[error("spi error")]
     SpiError,
 }
@@ -117,6 +121,19 @@ where
 
     /// Program the FPGA with a new bitstream.
     pub fn program(&mut self, bitstream: &mut dyn Read) -> Result<(), Error> {
+        let header =
+            xilinx::parse_bitstream_header(bitstream).map_err(|_| Error::BitstreamError)?;
+
+        // Check that the bitstream was built for this hardware.
+        let hardware_version = crate::hwinfo::get_hardware_version();
+        let expected_id = 0xB010_0000 | (hardware_version.major as u32);
+        if header.user_id.is_none() || header.user_id == Some(0xFFFF_FFFF) {
+            log::info!("Bitstream has no UserID, assuming it is compatible");
+        } else if header.user_id != Some(expected_id) {
+            log::error!("Incompatible bitstream, ID={:08X}", header.user_id.unwrap());
+            return Err(Error::IncompatibleBitstream);
+        }
+
         // After power-on-reset, INIT_B will be low for 10ms to 35ms (T_POR),
         // configuration can only start after this.
         // Poll INIT_B until it goes high.
@@ -144,22 +161,19 @@ where
 
         log::info!("FPGA is in program mode");
 
-        let mut bitstream_header = [0u8; 129];
-        bitstream
-            .read(&mut bitstream_header)
-            .map_err(|_| Error::BitstreamError)?;
-
         const CHUNK_SIZE: usize = 16 * 1024;
         let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
-        loop {
-            let n = bitstream
-                .read(&mut buf)
+        let mut num_read = 0;
+        while num_read < header.length {
+            let amount = (header.length - num_read).min(buf.len());
+            let buf = &mut buf[0..amount];
+            bitstream
+                .read_exact(buf)
                 .map_err(|_| Error::BitstreamError)?;
-            if n == 0 {
-                break;
-            }
+            num_read += amount;
+
             self.program_spi
-                .write(&buf[..n])
+                .write(buf)
                 .map_err(|_| Error::ProgramError)?;
         }
 
