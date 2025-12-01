@@ -24,6 +24,7 @@ filesets:
       - verilog/handheld/common.xdc : {file_type : xdc}
       - verilog/handheld/top.sv : {file_type : systemVerilogSource}
       - verilog/handheld/clk_wiz_spi_clk_wiz.v : {file_type : verilogSource}
+      - util/package_bitstream.py : {file_type : user, copyto : package_bitstream.py}
 
   handheld_rev_1:
     files:
@@ -140,6 +141,16 @@ generate:
         files:
           - build/generated/SimGba.sv: { file_type: systemVerilogSource }
 
+scripts:
+  package_bitstream:
+    cmd:
+      - python3
+      - package_bitstream.py
+      - "module_gba ? (gba)"
+      - "module_gameboy ? (gameboy)"
+      - "module_boot ? (boot)"
+
+
 targets:
   _handheld: &handheld
     default_tool: vivado
@@ -155,6 +166,9 @@ targets:
     tools:
       vivado:
         part: xc7a100tcsg324-2
+    hooks:
+      post_build:
+        - package_bitstream
 
   handheld_rev1:
     <<: *handheld
