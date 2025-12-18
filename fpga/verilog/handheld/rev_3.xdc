@@ -147,7 +147,7 @@ set_property -dict { PACKAGE_PIN P14    IOSTANDARD LVCMOS33 } [get_ports { mcu_i
 ########################################
 # Note: none of D0, D1, D2, CLK are swapped
 set_property -dict { PACKAGE_PIN B1     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_p     }];
-set_property -dict { PACKAGE_PIN A2     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_n     }];
+set_property -dict { PACKAGE_PIN A1     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_n     }];
 set_property -dict { PACKAGE_PIN B3     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[0] }];
 set_property -dict { PACKAGE_PIN B2     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_n[0] }];
 set_property -dict { PACKAGE_PIN A4     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[1] }];
