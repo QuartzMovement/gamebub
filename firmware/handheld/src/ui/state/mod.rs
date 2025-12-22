@@ -20,6 +20,7 @@ mod main_menu;
 pub mod notifications;
 mod rom_select;
 mod settings;
+mod setup;
 mod tools;
 
 pub struct UiState {
@@ -77,11 +78,17 @@ impl UiState {
         backend.set_firmware_version(env!("CARGO_PKG_VERSION").into());
         backend.set_sdcard_mounted(std::fs::exists("/sdcard").unwrap_or(false));
 
+        self.setup_setup(&state, device);
         self.setup_main_menu(&state, device);
         self.setup_game(&state, device);
         self.setup_tools(&state, device);
         self.setup_rom_select(&state, device);
         self.setup_settings(&state, device);
+
+        // Check for first boot
+        if kvs::keys::SETUP_STAGE.get().unwrap_or_default() == 0 {
+            root.invoke_set_screen(ScreenId::Setup);
+        }
 
         let state_ = state.clone();
         backend.on_screen_enter(move |screen| {

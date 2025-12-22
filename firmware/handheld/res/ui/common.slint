@@ -1,8 +1,14 @@
 import "../fonts/faraway_wide.ttf";
-import { SettingEntry, SettingValue, SettingType, SettingDatetime } from "screens/settings/types.slint";
+import {
+    SettingEntry,
+    SettingValue,
+    SettingType,
+    SettingDatetime,
+} from "screens/settings/types.slint";
 import { FileListEntry } from "components/file_list.slint";
 
 export enum ScreenId {
+    Setup,
     MainMenu,
     RomSelect,
     Game,
@@ -95,6 +101,7 @@ export global Backend {
     callback power-off();
     callback reboot();
 
+    callback setup-complete();
     callback main-menu-run-cartridge();
     callback main-menu-load-rom();
     callback rom-select-selected(int) -> bool;

@@ -2,6 +2,9 @@ use std::path::PathBuf;
 
 use super::KvsKey;
 
+/// Setup / OOBE stage
+pub static SETUP_STAGE: KvsKey<u32> = KvsKey::new_with_default("setup-stage", 0);
+
 /// Total uptime, in seconds.
 pub static UPTIME: KvsKey<u32> = KvsKey::new_with_default("uptime", 0);
 
@@ -45,6 +48,7 @@ pub static RUMBLE_LEVEL: KvsKey<i32> = KvsKey::new_with_default("rumble-level", 
 pub static STARTUP_ACTION: KvsKey<i32> = KvsKey::new_with_default("startup-action", 0);
 
 pub fn flush_all() {
+    SETUP_STAGE.flush();
     UPTIME.flush();
     LAST_ROM_PATH.flush();
     VOLUME.flush();

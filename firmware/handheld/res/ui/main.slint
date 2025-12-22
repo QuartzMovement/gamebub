@@ -11,6 +11,7 @@ import { AboutScreen } from "screens/about.slint";
 import { Global, ScreenId, Backend } from "common.slint";
 import { PowerMenu } from "components/power_menu.slint";
 import { Notification } from "components/notification.slint";
+import { SetupScreen } from "screens/setup.slint";
 
 export { ScreenId, Backend }
 
@@ -59,6 +60,13 @@ export component MainWindow inherits Window {
         VerticalLayout {
             padding: 4px;
             Rectangle {
+                if (Global.current-screen == ScreenId.Setup): SetupScreen {
+                    init => {
+                        Global.ui-status-bar = false;
+                        self.focus();
+                        root.screen-title = self.title;
+                    }
+                }
                 if (Global.current-screen == ScreenId.MainMenu): MainMenuScreen {
                     init => {
                         self.focus();

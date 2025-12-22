@@ -1,0 +1,30 @@
+import { Global, ScreenId, Backend } from "../common.slint";
+import { ScreenBase } from "../components/screen.slint";
+import { Button } from "../components/button.slint";
+
+export component SetupScreen inherits ScreenBase {
+    forward-focus: i-focus-scope;
+    i-focus-scope := FocusScope {
+        Image {
+            source: @image-url("../../logo.png");
+            y: 38px;
+            height: 12px * (Global.window-height / 80px);
+            image-rendering: pixelated;
+            visible: true;
+        }
+
+        Text {
+            text: "Press any key to continue";
+            horizontal-alignment: center;
+            x: 0;
+            y: 120px;
+            width: 100%;
+        }
+
+        key-pressed(event) => {
+            Backend.setup-complete();
+            Global.set-screen(ScreenId.MainMenu);
+            accept
+        }
+    }
+}
