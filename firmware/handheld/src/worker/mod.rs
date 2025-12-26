@@ -78,7 +78,6 @@ fn dispatch(message: Message) {
         Message::RunCartridge => {
             let cart_type = {
                 let mut device = Device::lock();
-                device.set_cart_power(true);
                 device.get_cart_switch()
             };
             log::info!("Cart switch: {}", cart_type);
@@ -87,6 +86,12 @@ fn dispatch(message: Message) {
             } else {
                 bitstream::current().ensure_gba().unwrap();
             };
+
+            // Enable cartridge power after the bitstream is loaded.
+            {
+                let mut device = Device::lock();
+                device.set_cart_power(true);
+            }
 
             match bitstream::current().deref_mut() {
                 CurrentBitstream::None => unreachable!(),
