@@ -42,7 +42,7 @@ export global Global {
 
     public function set-screen(screen: ScreenId) {
         current-screen = screen;
-        ui-transparent = (screen == ScreenId.Game);
+        ui-transparent = (screen == ScreenId.Game || screen == ScreenId.Setup);
         Backend.screen-enter(screen);
     }
 }

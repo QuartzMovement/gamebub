@@ -3,28 +3,73 @@ import { ScreenBase } from "../components/screen.slint";
 import { Button } from "../components/button.slint";
 
 export component SetupScreen inherits ScreenBase {
-    forward-focus: i-focus-scope;
-    i-focus-scope := FocusScope {
-        Image {
-            source: @image-url("../../logo.png");
-            y: 38px;
-            height: 12px * (Global.window-height / 80px);
-            image-rendering: pixelated;
-            visible: true;
-        }
+    private property <int> page: 0;
 
-        Text {
-            text: "Press any key to continue";
-            horizontal-alignment: center;
-            x: 0;
-            y: 120px;
-            width: 100%;
-        }
+    init => {
+        Global.ui-transparent = true;
+    }
 
-        key-pressed(event) => {
+    function next-page() {
+        Global.ui-transparent = false;
+        page += 1;
+        if (page == 3) {
             Backend.setup-complete();
             Global.set-screen(ScreenId.MainMenu);
-            accept
+        }
+    }
+
+    forward-focus: i-focus-scope;
+    i-focus-scope := FocusScope {
+        // Page 0: Logo
+        if page == 0: Rectangle {
+            Text {
+                text: "Press A to continue";
+                horizontal-alignment: center;
+                x: 0;
+                y: 180px;
+                width: 100%;
+            }
+        }
+
+        // Page 1: Legal information
+        if page == 1: Rectangle {
+            Text {
+                text: "Legal information";
+                y: 12px;
+            }
+
+            Text {
+                text: "Press A to continue";
+                horizontal-alignment: center;
+                x: 0;
+                y: 180px;
+                width: 100%;
+            }
+        }
+
+        // Page 2: Docs information
+        if page == 2: Rectangle {
+            Text {
+                text: "Docs";
+                y: 12px;
+            }
+
+            Text {
+                text: "Press A to finish setup";
+                horizontal-alignment: center;
+                x: 0;
+                y: 180px;
+                width: 100%;
+            }
+        }
+
+        key-released(event) => {
+            if (event.text == "a") {
+                next-page();
+                accept;
+            } else {
+                reject
+            }
         }
     }
 }
