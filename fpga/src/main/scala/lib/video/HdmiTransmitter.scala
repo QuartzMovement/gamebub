@@ -50,14 +50,14 @@ class HdmiTransmitter(config: HdmiTransmitter.Config) extends Module {
 
 private class hdmi(
   config: HdmiTransmitter.Config
-) extends BlackBox(Map(
+) extends ExtModule(Map(
   "VIDEO_ID_CODE" -> config.videoIdCode,
   "VIDEO_REFRESH_RATE" -> config.videoRefreshRate,
   "AUDIO_RATE" -> config.audioRate,
   "AUDIO_BIT_WIDTH" -> config.audioBitWidth,
   "DVI_OUTPUT" -> (if (config.dviOnly) 1 else 0),
 )) {
-  val io = IO(new Bundle {
+  val io = FlatIO(new Bundle {
     val clk_pixel_x5 = Input(Bool())
     val clk_pixel = Input(Bool())
     val clk_audio = Input(Bool())

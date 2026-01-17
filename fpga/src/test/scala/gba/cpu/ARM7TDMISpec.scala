@@ -96,7 +96,7 @@ class ARM7TDMISpec extends AnyFunSuite {
     }
 
     def reg(index: Int): Int = {
-      dut.io.debug.registers.getElements(index).peekValue().asBigInt.toInt
+      dut.io.debug.registers.getElements(index).peek().litValue.toInt
     }
 
     def cpsr(): Int = {

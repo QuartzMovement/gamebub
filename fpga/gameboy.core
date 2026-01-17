@@ -116,8 +116,8 @@ generate:
         handheld_rev_2 ? (2)
         handheld_rev_3 ? (3)
       output:
-        files:
-          - build/generated/HandheldTop.sv: { file_type: systemVerilogSource }
+        filelists:
+          - build/generated/filelist.f: { file_type: systemVerilogSource }
 
   sim_gameboy:
     generator: chisel
@@ -127,8 +127,8 @@ generate:
       main_class: "platform.sim.SimGameboy"
       extraargs: ""
       output:
-        files:
-          - build/generated/SimGameboy.sv: { file_type: systemVerilogSource }
+        filelists:
+          - build/generated/filelist.f: { file_type: systemVerilogSource }
 
   sim_gba:
     generator: chisel
@@ -138,8 +138,8 @@ generate:
       main_class: "platform.sim.SimGba"
       extraargs: ""
       output:
-        files:
-          - build/generated/SimGba.sv: { file_type: systemVerilogSource }
+        filelists:
+          - build/generated/filelist.f: { file_type: systemVerilogSource }
 
 scripts:
   package_bitstream:

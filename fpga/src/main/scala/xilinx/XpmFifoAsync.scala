@@ -66,7 +66,7 @@ class xpm_fifo_async(
   advFeatures: String = "0707",
   memoryType: String = "auto",
   readMode: String = "fwft" /* or "std" */,
-) extends BlackBox(Map(
+) extends ExtModule(Map(
   "CASCADE_HEIGHT" -> 0,
   "CDC_SYNC_STAGES" -> 2,
   "DOUT_RESET_VALUE" -> "0",
@@ -87,7 +87,7 @@ class xpm_fifo_async(
   "WRITE_DATA_WIDTH" -> writeDataWidth,
   "WR_DATA_COUNT_WIDTH" -> (log2Ceil(writeDepth) + 1),
 )) {
-  val io = IO(new Bundle {
+  val io = FlatIO(new Bundle {
     val almost_empty = Output(Bool())
     val almost_full = Output(Bool())
     val data_valid = Output(Bool())

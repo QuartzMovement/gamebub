@@ -55,7 +55,7 @@ class xpm_cdc_handshake(
   srcSyncFf: Int = 2,
   initSyncFf: Boolean = true,
   simAssertChk: Boolean = true,
-) extends BlackBox(Map(
+) extends ExtModule(Map(
   "DEST_EXT_HSK" -> (if (destExtHsk) 1 else 0),
   "DEST_SYNC_FF" -> destSyncFf,
   "INIT_SYNC_FF" -> (if (initSyncFf) 1 else 0),
@@ -63,7 +63,7 @@ class xpm_cdc_handshake(
   "SRC_SYNC_FF" -> srcSyncFf,
   "WIDTH" -> width,
 )) {
-  val io = IO(new Bundle {
+  val io = FlatIO(new Bundle {
     val dest_ack = Input(Bool())
     val dest_clk = Input(Clock())
     val dest_out = Output(UInt(width.W))

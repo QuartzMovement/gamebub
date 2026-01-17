@@ -35,14 +35,14 @@ class XpmCdcPulse extends Module {
 }
 
 class xpm_cdc_pulse(
-) extends BlackBox(Map(
+) extends ExtModule(Map(
   "DEST_SYNC_FF" -> 4,
   "INIT_SYNC_FF" -> 0,
   "REG_OUTPUT" -> 1,
   "RST_USED" -> 1,
   "SIM_ASSERT_CHK" -> 0,
 )) {
-  val io = IO(new Bundle {
+  val io = FlatIO(new Bundle {
     val dest_clk = Input(Bool())
     val dest_pulse = Output(Bool())
     val dest_rst = Input(Bool())

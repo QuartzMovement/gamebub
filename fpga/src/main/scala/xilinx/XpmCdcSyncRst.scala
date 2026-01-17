@@ -29,13 +29,13 @@ class XpmCdcSyncRst extends Module {
 }
 
 class xpm_cdc_sync_rst(
-) extends BlackBox(Map(
+) extends ExtModule(Map(
   "DEST_SYNC_FF" -> 4,
   "INIT" -> 1,
   "INIT_SYNC_FF" -> 0,
   "SIM_ASSERT_CHK" -> 0,
 )) {
-  val io = IO(new Bundle {
+  val io = FlatIO(new Bundle {
     val dest_clk = Input(Bool())
     val dest_rst = Output(Reset())
     val src_rst = Input(Reset())
