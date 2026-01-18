@@ -161,8 +161,8 @@ set_property -dict { PACKAGE_PIN F14    IOSTANDARD LVCMOS33 } [get_ports { usb_s
 ########################################
 # Vibration
 ########################################
-set_property -dict { PACKAGE_PIN G6     IOSTANDARD LVCMOS33 } [get_ports { vibrate_en    }];
-set_property -dict { PACKAGE_PIN F5     IOSTANDARD LVCMOS33 } [get_ports { vibrate_brake }];
+set_property -dict { PACKAGE_PIN G6     IOSTANDARD LVCMOS33 } [get_ports { vibrate_en      }];
+set_property -dict { PACKAGE_PIN F5     IOSTANDARD LVCMOS33 } [get_ports { vibrate_brake_n }];
 
 ########################################
 # PMOD

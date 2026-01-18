@@ -139,7 +139,7 @@ class HandheldGameboy extends Module with HandheldModule {
   gameboy.io.joypad.select := buttonFilter.io.output.select
 
   // Vibration unused by default.
-  io.vibrate := false.B
+  io.vibrate := HandheldVibrate.Off
 
   // PMOD unused
   io.pmod.out := DontCare
@@ -334,7 +334,7 @@ class HandheldGameboy extends Module with HandheldModule {
 
     // Connect emulated cartridge
     emuCart.io.cartridge <> gameboy.io.cartridge
-    io.vibrate := emuCart.io.rumble
+    io.vibrate := Mux(emuCart.io.rumble, HandheldVibrate.On, HandheldVibrate.Off)
     doStall := emuCart.io.stall
 
     // Disconnect physical cartridge

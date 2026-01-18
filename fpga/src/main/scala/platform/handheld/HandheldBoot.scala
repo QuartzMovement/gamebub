@@ -39,7 +39,7 @@ class HandheldBoot extends Module with HandheldModule {
         ))
 
     private def stubUnused(): Unit = {
-        io.vibrate := false.B
+        io.vibrate := HandheldVibrate.Off
         io.audioLeft := 0.S
         io.audioRight := 0.S
 

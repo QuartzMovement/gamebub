@@ -88,7 +88,7 @@ module top_handheld (
     inout  wire [3:0]  pmod,
     output wire        vibrate_en,
 `ifndef BOARD_REV_1
-    output wire        vibrate_brake,
+    output wire        vibrate_brake_n,
 `endif
 
 `ifndef BOARD_REV_1

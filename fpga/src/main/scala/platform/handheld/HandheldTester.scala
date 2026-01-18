@@ -117,7 +117,7 @@ class HandheldTester extends Module with HandheldModule {
         io.audioRight := 0.S
     }
 
-    io.vibrate := io.buttons.l
+    io.vibrate := Mux(io.buttons.l, HandheldVibrate.On, HandheldVibrate.Off)
 
     // Cartridge unused
     io.cartridgeEnabled := false.B

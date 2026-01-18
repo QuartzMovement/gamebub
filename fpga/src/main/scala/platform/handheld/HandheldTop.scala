@@ -90,7 +90,7 @@ class HandheldIo extends Bundle {
   val audioRight = Output(SInt(16.W))
 
   // Vibration
-  val vibrate = Output(Bool())
+  val vibrate = Output(HandheldVibrate())
 
   // Cartridge
   val cartridgeEnabled = Output(Bool())
@@ -203,6 +203,10 @@ class HandheldInterrupts extends Bundle {
   val spiRequestFifoOverflow = Bool()
   val buttonEdge = Bool()
   val moduleVblank = Bool()
+}
+
+object HandheldVibrate extends ChiselEnum {
+  val Off, On, Brake = Value
 }
 
 /**
@@ -745,7 +749,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
   //////////////////////////////////
   module.io.enable := controlRegister.moduleEnable
   module.io.reset := !controlRegister.moduleReset
-  io.vibrate := RegNext((module.io.enable && module.io.vibrate) && controlRegister.vibrate && !displayRegister.docked)
+  val vibrateEnabled = module.io.enable && controlRegister.vibrate && !displayRegister.docked
+  io.vibrate := RegNext(module.io.vibrate === HandheldVibrate.On && vibrateEnabled)
   io.link <> module.io.link
   io.pmod <> module.io.pmod
   module.io.mcuInterface <> moduleMcuInterface
