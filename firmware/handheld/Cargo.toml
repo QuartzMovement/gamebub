@@ -81,3 +81,6 @@ bindings_header = "bindings_esp_tinyusb.h"
 
 [[package.metadata.esp-idf-sys.extra_components]]
 remote_component = { name = "espressif/tinyusb", version = "^0.18.0" }
+
+[patch.crates-io]
+esp-idf-sys = { git = "https://github.com/esp-rs/esp-idf-sys.git", rev = "64667a3" }

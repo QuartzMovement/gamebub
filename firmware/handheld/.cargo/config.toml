@@ -15,7 +15,7 @@ build-std = ["std", "panic_abort"]
 
 [env]
 MCU = "esp32s3"
-ESP_IDF_VERSION = "v5.4.1"
+ESP_IDF_VERSION = "v5.4.3"
 ESP_IDF_TOOLS_INSTALL_DIR = "global"
 CARGO_WORKSPACE_DIR = { value = "", relative = true }
 # Needed on macOS: https://github.com/esp-rs/esp-idf-template/issues/174
