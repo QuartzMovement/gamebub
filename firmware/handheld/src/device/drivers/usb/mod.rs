@@ -26,32 +26,28 @@ pub fn setup_tinyusb_cart_reader() -> Result<(), EspError> {
 
     // Setup first CDC interface (console)
     let acm_config = esp_idf_sys::tinyusb_config_cdcacm_t {
-        usb_dev: 0,          // TINYUSB_USBDEV_0
-        cdc_port: 0,         // TINYUSB_CDC_ACM_0
-        rx_unread_buf_sz: 0, // unused
+        cdc_port: 0, // TINYUSB_CDC_ACM_0
         callback_rx: None,
         callback_rx_wanted_char: None,
         callback_line_state_changed: None,
         callback_line_coding_changed: None,
     };
-    let result = unsafe { esp_idf_sys::tusb_cdc_acm_init(&acm_config) };
+    let result = unsafe { esp_idf_sys::tinyusb_cdcacm_init(&acm_config) };
     EspError::convert(result)?;
     let result = unsafe {
-        esp_idf_sys::esp_tusb_init_console(0 /* TINYUSB_CDC_ACM_0 */)
+        esp_idf_sys::tinyusb_console_init(0 /* TINYUSB_CDC_ACM_0 */)
     };
     EspError::convert(result)?;
 
     // Setup second CDC interface
     let acm_config = esp_idf_sys::tinyusb_config_cdcacm_t {
-        usb_dev: 0,          // TINYUSB_USBDEV_0
-        cdc_port: 1,         // TINYUSB_CDC_ACM_1
-        rx_unread_buf_sz: 0, // unused
+        cdc_port: 1, // TINYUSB_CDC_ACM_1
         callback_rx: Some(cdc_stream::cdc_stream_callback_rx),
         callback_rx_wanted_char: None,
         callback_line_state_changed: None,
         callback_line_coding_changed: None,
     };
-    let result = unsafe { esp_idf_sys::tusb_cdc_acm_init(&acm_config) };
+    let result = unsafe { esp_idf_sys::tinyusb_cdcacm_init(&acm_config) };
     EspError::convert(result)?;
 
     // Start cart backup

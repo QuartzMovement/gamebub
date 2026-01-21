@@ -252,20 +252,29 @@ pub struct Descriptors {
 impl Descriptors {
     pub fn tinyusb_config(&self) -> sys::tinyusb_config_t {
         sys::tinyusb_config_t {
-            string_descriptor: self.strings.as_ptr().cast_mut(),
-            string_descriptor_count: (self.strings.len() - 1) as i32, // exclude NULL entry
-            __bindgen_anon_1: sys::tinyusb_config_t__bindgen_ty_1 {
-                device_descriptor: &self.device,
+            port: sys::tinyusb_port_t_TINYUSB_PORT_FULL_SPEED_0,
+            phy: sys::tinyusb_phy_config_t {
+                skip_setup: false,
+                // TODO: handle self-powered VBUS monitoring
+                self_powered: false,
+                vbus_monitor_io: -1,
             },
-            __bindgen_anon_2: sys::tinyusb_config_t__bindgen_ty_2 {
-                __bindgen_anon_1: sys::tinyusb_config_t__bindgen_ty_2__bindgen_ty_1 {
-                    configuration_descriptor: self.configuration.as_ptr(),
-                },
+            task: sys::tinyusb_task_config_t {
+                size: 4096,
+                priority: 5,
+                xCoreID: 1,
             },
-            external_phy: false,
-            // TODO: handle self-powered VBUS monitoring
-            self_powered: false,
-            vbus_monitor_io: 0,
+            descriptor: sys::tinyusb_desc_config_t {
+                device: &self.device,
+                qualifier: std::ptr::null(),
+                string: self.strings.as_ptr().cast_mut(),
+                string_count: (self.strings.len() - 1) as i32, // exclude NULL entry
+                full_speed_config: self.configuration.as_ptr(),
+                high_speed_config: std::ptr::null(),
+            },
+            // TODO event callback
+            event_cb: None,
+            event_arg: std::ptr::null_mut(),
         }
     }
 }

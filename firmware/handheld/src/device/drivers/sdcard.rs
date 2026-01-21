@@ -118,14 +118,19 @@ pub fn mount_sdcard(
 
     // Configure TinyUSB MSC driver with the sdcard. This doesn't actually expose it
     // over USB, but it configures it for if/when we actually do install tinyusb.
-    let tinyusb_msc_sdmmc_config = esp_idf_sys::tinyusb_msc_sdmmc_config_t {
-        card,
-        callback_mount_changed: None,
-        callback_premount_changed: None,
-        mount_config,
+    let tinyusb_msc_sdmmc_config = esp_idf_sys::tinyusb_msc_storage_config_t {
+        medium: esp_idf_sys::tinyusb_msc_storage_config_t__bindgen_ty_1 { card },
+        fat_fs: esp_idf_sys::tinyusb_msc_fatfs_config_t {
+            base_path: std::ptr::null_mut(),
+            config: mount_config,
+            do_not_format: true,
+            format_flags: 0,
+        },
+        mount_point: 0,
     };
-    let tinyusb_result =
-        unsafe { esp_idf_sys::tinyusb_msc_storage_init_sdmmc(&tinyusb_msc_sdmmc_config) };
+    let tinyusb_result = unsafe {
+        esp_idf_sys::tinyusb_msc_new_storage_sdmmc(&tinyusb_msc_sdmmc_config, std::ptr::null_mut())
+    };
     EspError::convert(tinyusb_result)?;
 
     Ok(Sdcard { card })

@@ -1,5 +1,6 @@
 #include "esp_private/usb_phy.h"
 #include "tinyusb.h"
+#include "tinyusb_cdc_acm.h"
 #include "tusb_msc_storage.h"
 
 // Get rid of a type that bindgen is unable to handle properly.
