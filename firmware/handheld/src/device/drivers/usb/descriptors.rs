@@ -1,5 +1,8 @@
 use esp_idf_svc::sys::{self as sys};
-use std::ffi::c_char;
+use std::{
+    ffi::{c_char, CString},
+    sync::LazyLock,
+};
 
 const USB_VID: u16 = 0x1209;
 const USB_PID: u16 = 0xB010;
@@ -7,6 +10,11 @@ const USB_PID: u16 = 0xB010;
 const CONFIG_DESCRIPTOR_LEN: usize = 9;
 const MSC_DESCRIPTOR_LEN: usize = 23;
 const CDC_DESCRIPTOR_LEN: usize = 66;
+
+static SERIAL_STRING: LazyLock<CString> = LazyLock::new(|| {
+    let serial = crate::hwinfo::get_serial_number();
+    CString::new(serial.to_string()).unwrap_or_default()
+});
 
 /// Helper for generating TinyUSB descriptors
 pub struct Builder {
@@ -31,11 +39,11 @@ impl Builder {
                 // 0: English
                 c"\x09\x04".as_ptr(),
                 // 1: Manufacturer
-                c"Game Bub".as_ptr(),
+                c"Second Bedroom".as_ptr(),
                 // 2: Product
-                c"Handheld".as_ptr(),
+                c"Game Bub Handheld".as_ptr(),
                 // 3: Serial
-                c"BUB".as_ptr(),
+                SERIAL_STRING.as_ptr(),
                 // 4: CDC Interface
                 c"CDC Device".as_ptr(),
                 // 5: MSC interface
