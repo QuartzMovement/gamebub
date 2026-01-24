@@ -3,7 +3,10 @@ use flate2::read::GzDecoder;
 
 use device::Device;
 
-use crate::{device::drivers::fpga, ui::UI};
+use crate::{
+    device::drivers::{fpga, usb},
+    ui::UI,
+};
 
 mod bitstream;
 mod cart_backup;
@@ -34,6 +37,10 @@ fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
     esp_idf_svc::log::set_target_level("gpio", log::LevelFilter::Warn).unwrap();
+
+    if let Err(e) = usb::configure_usb(usb::UsbMode::ConsoleOnly) {
+        log::error!("USB setup failed: {:?}", e);
+    }
 
     kvs::Kvs::init()?;
     log::info!("Hardware version: {}", hwinfo::get_hardware_version());
@@ -70,7 +77,6 @@ fn main() -> anyhow::Result<()> {
 
     // Setup workers.
     worker::start();
-    cli::start();
     power::PowerManager::start(&mut device);
 
     // Initial programming FPGA

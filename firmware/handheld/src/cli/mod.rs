@@ -1,4 +1,5 @@
-//! Command line interface
+//! Command line interface: temporarily broken in USB refactor
+#![allow(unused)]
 
 use base64::{prelude::BASE64_STANDARD, Engine};
 use esp_idf_svc::hal::units::MegaHertz;

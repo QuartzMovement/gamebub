@@ -3,7 +3,10 @@ use std::{cell::RefCell, rc::Rc};
 use super::super::slint::{Backend, BatteryInfo};
 use slint::ComponentHandle;
 
-use crate::{device::Device, worker};
+use crate::{
+    device::{drivers::usb, Device},
+    worker,
+};
 
 use super::UiState;
 
@@ -14,20 +17,21 @@ impl UiState {
         let backend = root.global::<Backend>();
 
         backend.on_tools_start_usb_drive(move || {
-            crate::device::drivers::usb::setup_tinyusb_sdcard().expect("USB setup failed");
+            usb::configure_usb(usb::UsbMode::ConsoleAndMassStorage).expect("USB setup failed");
         });
         backend.on_tools_end_usb_drive(move || {
-            crate::device::drivers::usb::teardown_tinyusb().expect("USB teardown failed");
+            usb::configure_usb(usb::UsbMode::ConsoleOnly).expect("USB teardown failed");
             Device::lock().reboot();
         });
 
         backend.on_tools_start_cart_reader(move || {
             // The boot bitstream contains CartridgeUtility
             worker::send(worker::Message::EnsureBootBitstream);
-            crate::device::drivers::usb::setup_tinyusb_cart_reader().expect("USB setup failed");
+            usb::configure_usb(usb::UsbMode::ConsoleAndSerial).expect("USB setup failed");
+            crate::cart_backup::start_task(1);
         });
         backend.on_tools_end_cart_reader(move || {
-            crate::device::drivers::usb::teardown_tinyusb().expect("USB teardown failed");
+            usb::configure_usb(usb::UsbMode::ConsoleOnly).expect("USB teardown failed");
             Device::lock().reboot();
         });
 

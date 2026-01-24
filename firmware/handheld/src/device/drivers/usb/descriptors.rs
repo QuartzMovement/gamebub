@@ -286,3 +286,5 @@ impl Descriptors {
         }
     }
 }
+
+unsafe impl Send for Descriptors {}

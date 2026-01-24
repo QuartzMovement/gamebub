@@ -1,32 +1,92 @@
+pub use cdc_stream::CdcStream;
+use descriptors::Descriptors;
 use esp_idf_svc::sys::{self as esp_idf_sys, EspError};
+use std::sync::Mutex;
 
 mod cdc_stream;
 mod descriptors;
 
-pub use cdc_stream::CdcStream;
+/// Current USB state
+static STATE: Mutex<UsbState> = Mutex::new(UsbState {
+    mode: UsbMode::SerialJtag,
+    descriptors: None,
+});
 
-/// Set up and install the TinyUSB driver.
-///
-/// This takes over the USB PHY, removing the Serial/JTAG built-in device,
-/// and instead exposes the MSC device.
-pub fn setup_tinyusb_sdcard() -> Result<(), EspError> {
-    log::info!("Installing TinyUSB: sdcard");
-    let mut descriptors = descriptors::Builder::new();
-    descriptors.add_msc();
-    setup_tinyusb(descriptors)
+#[repr(u32)]
+#[derive(Copy, Clone, Debug, PartialEq)]
+pub enum UsbMode {
+    SerialJtag,
+    ConsoleOnly,
+    ConsoleAndMassStorage,
+    ConsoleAndSerial,
 }
 
-/// Set up and install the cart reader (USB CDC) device.
-pub fn setup_tinyusb_cart_reader() -> Result<(), EspError> {
-    log::info!("Installing TinyUSB: cart reader");
+struct UsbState {
+    mode: UsbMode,
+    descriptors: Option<Box<Descriptors>>,
+}
+
+pub fn configure_usb(mode: UsbMode) -> Result<(), EspError> {
+    let mut state = STATE.lock().unwrap();
+    if mode == state.mode {
+        return Ok(());
+    }
+
+    // Start by tearing down previous USB.
+    match state.mode {
+        UsbMode::SerialJtag => {}
+        _ => {
+            // De-initialize the console temporarily.
+            let result = unsafe {
+                esp_idf_sys::tinyusb_cdcacm_deinit(
+                    esp_idf_sys::tinyusb_cdcacm_itf_t_TINYUSB_CDC_ACM_0 as i32,
+                )
+            };
+            EspError::convert(result)?;
+            // Uninstall the TinyUSB driver.
+            let result = unsafe { esp_idf_sys::tinyusb_driver_uninstall() };
+            EspError::convert(result)?;
+            state.descriptors = None;
+        }
+    }
+
+    // Simple case, switch to USB Serial/JTAG:
+    if mode == UsbMode::SerialJtag {
+        setup_usb_serial_jtag()?;
+        state.mode = mode;
+        return Ok(());
+    }
+
+    // Set up console CDC buffering such that:
+    // * queued data will not be cleared on USB attach or reset
+    // * new data doesn't overwrite old queued data when full
+    unsafe {
+        let mut cdc_config = esp_idf_sys::tud_cdc_configure_t::default();
+        cdc_config.set_tx_persistent(1);
+        cdc_config.set_tx_overwritabe_if_not_connected(0);
+        esp_idf_sys::tud_cdc_configure(&cdc_config);
+    }
+
+    // Set up the descriptors
     let mut descriptors = descriptors::Builder::new();
     descriptors.add_cdc();
-    descriptors.add_cdc();
-    setup_tinyusb(descriptors)?;
+    match mode {
+        UsbMode::ConsoleAndMassStorage => descriptors.add_msc(),
+        UsbMode::ConsoleAndSerial => descriptors.add_cdc(),
+        _ => 0,
+    };
+    let descriptors = Box::new(descriptors.build());
+
+    // Install the TinyUSB driver
+    let tinyusb_config = descriptors.tinyusb_config();
+    state.descriptors = Some(descriptors);
+    let result = unsafe { esp_idf_sys::tinyusb_driver_install(&tinyusb_config) };
+    EspError::convert(result)?;
 
     // Setup first CDC interface (console)
+    let cdc_port = esp_idf_sys::tinyusb_cdcacm_itf_t_TINYUSB_CDC_ACM_0;
     let acm_config = esp_idf_sys::tinyusb_config_cdcacm_t {
-        cdc_port: 0, // TINYUSB_CDC_ACM_0
+        cdc_port,
         callback_rx: None,
         callback_rx_wanted_char: None,
         callback_line_state_changed: None,
@@ -34,41 +94,28 @@ pub fn setup_tinyusb_cart_reader() -> Result<(), EspError> {
     };
     let result = unsafe { esp_idf_sys::tinyusb_cdcacm_init(&acm_config) };
     EspError::convert(result)?;
-    let result = unsafe {
-        esp_idf_sys::tinyusb_console_init(0 /* TINYUSB_CDC_ACM_0 */)
-    };
+    let result = unsafe { esp_idf_sys::tinyusb_console_init(cdc_port as i32) };
     EspError::convert(result)?;
 
-    // Setup second CDC interface
-    let acm_config = esp_idf_sys::tinyusb_config_cdcacm_t {
-        cdc_port: 1, // TINYUSB_CDC_ACM_1
-        callback_rx: Some(cdc_stream::cdc_stream_callback_rx),
-        callback_rx_wanted_char: None,
-        callback_line_state_changed: None,
-        callback_line_coding_changed: None,
-    };
-    let result = unsafe { esp_idf_sys::tinyusb_cdcacm_init(&acm_config) };
-    EspError::convert(result)?;
+    // Set up second CDC interface
+    if mode == UsbMode::ConsoleAndSerial {
+        let acm_config = esp_idf_sys::tinyusb_config_cdcacm_t {
+            cdc_port: esp_idf_sys::tinyusb_cdcacm_itf_t_TINYUSB_CDC_ACM_1,
+            callback_rx: Some(cdc_stream::cdc_stream_callback_rx),
+            callback_rx_wanted_char: None,
+            callback_line_state_changed: None,
+            callback_line_coding_changed: None,
+        };
+        let result = unsafe { esp_idf_sys::tinyusb_cdcacm_init(&acm_config) };
+        EspError::convert(result)?;
+    }
 
-    // Start cart backup
-    crate::cart_backup::start_task(1);
-
+    state.mode = mode;
     Ok(())
 }
 
-fn setup_tinyusb(descriptors: descriptors::Builder) -> Result<(), EspError> {
-    let descriptors = Box::new(descriptors.build());
-    let tinyusb_config = descriptors.tinyusb_config();
-    Box::leak(descriptors); // TinyUSB will keep using the descriptors
-    let result = unsafe { esp_idf_sys::tinyusb_driver_install(&tinyusb_config) };
-    EspError::convert(result)
-}
-
-/// Tear down / uninstall the TinyUSB driver, re-exposing to Serial/JTAG USB device.
-pub fn teardown_tinyusb() -> Result<(), EspError> {
-    let result = unsafe { esp_idf_sys::tinyusb_driver_uninstall() };
-    EspError::convert(result)?;
-
+/// Initialize USB Serial/JTAG device
+fn setup_usb_serial_jtag() -> Result<(), EspError> {
     // Re-initialize Serial/JTAG.
     let phy_config = esp_idf_sys::usb_phy_config_t {
         controller: esp_idf_sys::usb_phy_controller_t_USB_PHY_CTRL_SERIAL_JTAG,
@@ -80,8 +127,5 @@ pub fn teardown_tinyusb() -> Result<(), EspError> {
     };
     let mut jtag_phy: esp_idf_sys::usb_phy_handle_t = std::ptr::null_mut();
     let result = unsafe { esp_idf_sys::usb_new_phy(&phy_config, &mut jtag_phy) };
-    EspError::convert(result)?;
-
-    log::info!("Re-initialized Serial/JTAG USB device");
-    Ok(())
+    EspError::convert(result)
 }

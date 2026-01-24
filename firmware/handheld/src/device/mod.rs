@@ -17,9 +17,7 @@ use esp_idf_svc::hal::spi::{
     self, SpiDeviceDriver, SpiDriver, SpiDriverConfig, SpiSharedDeviceDriver, SpiSoftCsDeviceDriver,
 };
 use esp_idf_svc::hal::units::{FromValueType, Hertz};
-use esp_idf_svc::hal::usb_serial::UsbSerialDriver;
 use esp_idf_svc::hal::{i2c::*, ledc};
-use esp_idf_svc::io::vfs::BlockingStdIo;
 
 pub mod drivers;
 mod input;
@@ -106,10 +104,6 @@ pub struct Device<'a> {
 
     /// Sdcard,
     pub sdcard: Option<Sdcard>,
-
-    /// USB Serial JTAG
-    #[allow(unused)]
-    usb_serial_jtag: BlockingStdIo<'a, UsbSerialDriver<'a>>,
 
     /// Dock state
     pub docked: bool,
@@ -502,19 +496,6 @@ impl Device<'_> {
         )
         .ok();
 
-        // Setup usb serial jtag
-        let usb_serial_config = esp_idf_svc::hal::usb_serial::config::Config::new()
-            .rx_buffer_size(2048)
-            .tx_buffer_size(2048);
-        let usb_serial_jtag = UsbSerialDriver::new(
-            peripherals.usb_serial,
-            peripherals.pins.gpio19,
-            peripherals.pins.gpio20,
-            &usb_serial_config,
-        )
-        .expect("failed to init usb serial jtag");
-        let usb_serial_jtag = BlockingStdIo::usb_serial(usb_serial_jtag).unwrap();
-
         let mut device = Device {
             fpga_power,
             i2c,
@@ -538,7 +519,6 @@ impl Device<'_> {
             rtc,
             imu,
             sdcard,
-            usb_serial_jtag,
             docked: false,
         };
         device.init_datetime();
