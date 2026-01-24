@@ -15,7 +15,7 @@ fn read_efuse(index: u32) -> u32 {
 }
 
 #[derive(Copy, Clone)]
-pub struct SerialNumber(u32);
+pub struct SerialNumber(pub u32);
 
 impl Display for SerialNumber {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -30,6 +30,15 @@ pub struct HardwareVersion {
     pub major: u8,
     pub minor: u8,
     pub variant: u8,
+}
+
+impl HardwareVersion {
+    pub fn as_u32(self) -> u32 {
+        (self.variant as u32)
+            | ((self.minor as u32) << 8)
+            | ((self.major as u32) << 16)
+            | ((self.product as u32) << 24)
+    }
 }
 
 impl Display for HardwareVersion {

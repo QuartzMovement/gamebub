@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{mpsc, OnceLock};
 
 use crate::bitstream::CurrentBitstream;
-use crate::device::drivers::fpga;
+use crate::device::drivers::{fpga, usb};
 use crate::device::Device;
 use crate::device::DisplayMode;
 use crate::input::InputManager;
@@ -30,6 +30,9 @@ pub enum Message {
     ListRoms(PathBuf),
     /// Load Boot / Utility bitstream
     EnsureBootBitstream,
+
+    /// Enable USB Serial/JTAG
+    EnableUsbSerialJtag,
 }
 
 /// Send a message to the worker threads.
@@ -168,6 +171,11 @@ fn dispatch(message: Message) {
         }
         Message::EnsureBootBitstream => {
             bitstream::current().ensure_boot().unwrap();
+        }
+        Message::EnableUsbSerialJtag => {
+            if let Err(e) = usb::configure_usb(usb::UsbMode::SerialJtag) {
+                log::error!("Failed to configure USB Serial/JTAG: {e}");
+            }
         }
         #[allow(unreachable_patterns)]
         _ => {
