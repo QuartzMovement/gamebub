@@ -4,6 +4,7 @@ use esp_idf_svc::sys::{self as esp_idf_sys, EspError};
 use std::sync::Mutex;
 
 mod cdc_stream;
+pub mod control;
 mod descriptors;
 
 /// Current USB state

@@ -11,6 +11,7 @@ use crate::{
 mod bitstream;
 mod cart_backup;
 mod cli;
+mod control;
 mod device;
 mod hwinfo;
 mod input;
