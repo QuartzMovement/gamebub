@@ -1,3 +1,4 @@
+[idf]
 partition_table = "partitions.csv"
 
 # Normally, we'd set flash.mode = qio to flash with QIO, and run
