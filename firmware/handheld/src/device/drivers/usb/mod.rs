@@ -38,11 +38,10 @@ pub fn configure_usb(mode: UsbMode) -> Result<(), EspError> {
         UsbMode::SerialJtag => {}
         _ => {
             // De-initialize the console temporarily.
-            let result = unsafe {
-                esp_idf_sys::tinyusb_cdcacm_deinit(
-                    esp_idf_sys::tinyusb_cdcacm_itf_t_TINYUSB_CDC_ACM_0 as i32,
-                )
-            };
+            let cdc_port = esp_idf_sys::tinyusb_cdcacm_itf_t_TINYUSB_CDC_ACM_0 as i32;
+            let result = unsafe { esp_idf_sys::tinyusb_cdcacm_deinit(cdc_port) };
+            EspError::convert(result)?;
+            let result = unsafe { esp_idf_sys::tinyusb_console_deinit(cdc_port) };
             EspError::convert(result)?;
             // Uninstall the TinyUSB driver.
             let result = unsafe { esp_idf_sys::tinyusb_driver_uninstall() };
