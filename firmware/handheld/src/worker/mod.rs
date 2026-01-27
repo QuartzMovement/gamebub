@@ -31,6 +31,10 @@ pub enum Message {
     /// Load Boot / Utility bitstream
     EnsureBootBitstream,
 
+    /// Reboot
+    Reboot,
+    /// Bootloader reboot
+    RebootBootloader,
     /// Enable USB Serial/JTAG
     EnableUsbSerialJtag,
 }
@@ -171,6 +175,13 @@ fn dispatch(message: Message) {
         }
         Message::EnsureBootBitstream => {
             bitstream::current().ensure_boot().unwrap();
+        }
+        Message::Reboot => {
+            Device::lock().reboot();
+        }
+        Message::RebootBootloader => {
+            // TODO
+            Device::lock().reboot();
         }
         Message::EnableUsbSerialJtag => {
             if let Err(e) = usb::configure_usb(usb::UsbMode::SerialJtag) {

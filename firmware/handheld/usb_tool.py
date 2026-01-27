@@ -30,6 +30,14 @@ def handle_enable_debug(device: usb.core.Device) -> None:
     )
 
 
+def handle_reboot(device: usb.core.Device) -> None:
+    device.ctrl_transfer(
+        bmRequestType=REQUEST_TYPE_VENDOR_OUT,
+        bRequest=REQUEST_REBOOT,
+        wValue=1,  # regular reboot
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Utility for interacting with Game Bub handheld"
@@ -43,6 +51,9 @@ def main() -> None:
 
     get_info_parser = subparsers.add_parser("get-info", help="Get device info")
     get_info_parser.set_defaults(func=handle_get_info)
+
+    reboot_parser = subparsers.add_parser("reboot", help="Reboot device")
+    reboot_parser.set_defaults(func=handle_reboot)
 
     args = parser.parse_args()
     if not hasattr(args, "func"):

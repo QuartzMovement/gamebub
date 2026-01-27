@@ -9,6 +9,7 @@ use crate::{
 
 /// Get device status and info
 const REQUEST_GET_INFO: u8 = 0;
+const REQUEST_REBOOT: u8 = 1;
 /// Enable USB Serial/JTAG
 const REQUEST_ENABLE_DEBUG: u8 = 2;
 
@@ -46,6 +47,7 @@ pub fn handle_control_out(request: &Request, buf: &[u8]) -> Result<(), ()> {
     }
 
     match request.request {
+        REQUEST_REBOOT => Ok(()),
         REQUEST_ENABLE_DEBUG => Ok(()),
         REQUEST_DOCK_BEGIN => {
             if buf.len() < 16 {
@@ -139,6 +141,11 @@ pub fn handle_control_out(request: &Request, buf: &[u8]) -> Result<(), ()> {
 /// Handle a control request completion. Not needed for most requests.
 pub fn handle_control_complete(request: &Request) {
     match request.request {
+        REQUEST_REBOOT => match request.value {
+            1 => worker::send(worker::Message::Reboot),
+            2 => worker::send(worker::Message::RebootBootloader),
+            _ => {}
+        },
         REQUEST_ENABLE_DEBUG => {
             // This will cause re-enumeration, so we wait until this function
             // because the Ack has already been sent to the host.
