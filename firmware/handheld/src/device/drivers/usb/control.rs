@@ -3,6 +3,9 @@ use esp_idf_svc::sys;
 /// Maximum control transfer data payload
 const BUFFER_SIZE: usize = 512;
 
+/// Interface number of the vendor control interface (hard-coded)
+const VENDOR_INTERFACE: u16 = 0;
+
 static mut BUFFER: [u8; BUFFER_SIZE] = [0; BUFFER_SIZE];
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -81,6 +84,10 @@ pub extern "C" fn tud_vendor_control_xfer_cb(
 ) -> bool {
     let request = Request::from(unsafe { *raw_request });
     assert!(request.request_type == RequestType::Vendor);
+
+    if request.recipient != Recipient::Interface || request.index != VENDOR_INTERFACE {
+        return false;
+    }
 
     // This is only used within this callback, which is called from the TinyUSB task.
     #[allow(static_mut_refs)]

@@ -69,6 +69,7 @@ pub fn configure_usb(mode: UsbMode) -> Result<(), EspError> {
 
     // Set up the descriptors
     let mut descriptors = descriptors::Builder::new();
+    descriptors.add_vendor();
     descriptors.add_cdc();
     match mode {
         UsbMode::ConsoleAndMassStorage => descriptors.add_msc(),

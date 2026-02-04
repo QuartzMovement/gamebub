@@ -1,7 +1,7 @@
 //! USB Vendor Control interface
 
 use crate::{
-    device::drivers::usb::control::{Recipient, Request},
+    device::drivers::usb::control::Request,
     hwinfo,
     input::{GamepadId, InputState},
     ui, worker,
@@ -21,10 +21,6 @@ const REQUEST_GAMEPAD_DATA: u8 = 6;
 
 /// Handle a control request where data is sent to the host (IN).
 pub fn handle_control_in<'a>(request: &Request, buf: &'a mut [u8]) -> Result<&'a [u8], ()> {
-    if request.recipient != Recipient::Device {
-        return Err(());
-    }
-
     match request.request {
         REQUEST_GET_INFO => {
             buf[0..4].copy_from_slice(&0u32.to_le_bytes());
@@ -42,10 +38,6 @@ pub fn handle_control_in<'a>(request: &Request, buf: &'a mut [u8]) -> Result<&'a
 
 /// Handle a control request where data is sent from the host (OUT).
 pub fn handle_control_out(request: &Request, buf: &[u8]) -> Result<(), ()> {
-    if request.recipient != Recipient::Device {
-        return Err(());
-    }
-
     match request.request {
         REQUEST_REBOOT => Ok(()),
         REQUEST_ENABLE_DEBUG => Ok(()),

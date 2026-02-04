@@ -48,6 +48,8 @@ impl Builder {
                 c"CDC Device".as_ptr(),
                 // 5: MSC interface
                 c"MSC Device".as_ptr(),
+                // 6: Vendor interface
+                c"Game Bub Control".as_ptr(),
                 // NULL end
                 std::ptr::null(),
             ],
@@ -71,6 +73,25 @@ impl Builder {
             interfaces: 0,
             endpoints: 0,
         }
+    }
+
+    pub fn add_vendor(&mut self) -> u8 {
+        let itfnum = self.interfaces;
+        self.interfaces += 1;
+
+        let descriptor = [
+            9, // bLength
+            sys::tusb_desc_type_t_TUSB_DESC_INTERFACE as u8,
+            itfnum, // bInterfaceNumber
+            0,      // bAlternateSetting
+            0,      // bNumEndpoints
+            sys::tusb_class_code_t_TUSB_CLASS_VENDOR_SPECIFIC as u8,
+            0x1, // bInterfaceSubClass
+            0x0, // bInterfaceProtocol
+            6,   // iInterface (string)
+        ];
+        self.configuration.extend_from_slice(&descriptor);
+        itfnum
     }
 
     pub fn add_msc(&mut self) -> u8 {
