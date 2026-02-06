@@ -10,7 +10,7 @@ REQUEST_REBOOT = 1
 REQUEST_ENABLE_DEBUG = 2
 
 
-def handle_get_info(device: usb.core.Device) -> None:
+def handle_get_info(device: usb.core.Device, args) -> None:
     data = device.ctrl_transfer(
         bmRequestType=REQUEST_TYPE_VENDOR_IN,
         bRequest=REQUEST_GET_INFO,
@@ -23,18 +23,22 @@ def handle_get_info(device: usb.core.Device) -> None:
     print(f"Firmware Version:  {fw_version:08X}")
 
 
-def handle_enable_debug(device: usb.core.Device) -> None:
+def handle_enable_debug(device: usb.core.Device, args) -> None:
     device.ctrl_transfer(
         bmRequestType=REQUEST_TYPE_VENDOR_OUT,
         bRequest=REQUEST_ENABLE_DEBUG,
     )
 
 
-def handle_reboot(device: usb.core.Device) -> None:
+def handle_reboot(device: usb.core.Device, args) -> None:
+    mode = 1
+    if args.dfu:
+        mode = 2
+
     device.ctrl_transfer(
         bmRequestType=REQUEST_TYPE_VENDOR_OUT,
         bRequest=REQUEST_REBOOT,
-        wValue=1,  # regular reboot
+        wValue=mode,
     )
 
 
@@ -53,6 +57,7 @@ def main() -> None:
     get_info_parser.set_defaults(func=handle_get_info)
 
     reboot_parser = subparsers.add_parser("reboot", help="Reboot device")
+    reboot_parser.add_argument("--dfu", action="store_true")
     reboot_parser.set_defaults(func=handle_reboot)
 
     args = parser.parse_args()
@@ -67,7 +72,7 @@ def main() -> None:
         else:
             raise SystemExit("Device not found")
 
-    args.func(device)
+    args.func(device, args)
 
 
 if __name__ == "__main__":

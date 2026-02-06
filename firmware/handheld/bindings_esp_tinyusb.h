@@ -9,3 +9,6 @@
 struct replacement1 {
     int blank;
 };
+
+// For esp_reset_reason_set_hint
+#include "esp_private/system_internal.h"

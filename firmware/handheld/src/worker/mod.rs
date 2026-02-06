@@ -180,8 +180,7 @@ fn dispatch(message: Message) {
             Device::lock().reboot();
         }
         Message::RebootBootloader => {
-            // TODO
-            Device::lock().reboot();
+            Device::lock().reboot_dfu();
         }
         Message::EnableUsbSerialJtag => {
             if let Err(e) = usb::configure_usb(usb::UsbMode::SerialJtag) {

@@ -577,6 +577,14 @@ impl Device<'_> {
         esp_idf_svc::hal::reset::restart();
     }
 
+    /// Gracefully reset into user DFU mode.
+    pub fn reboot_dfu(&mut self) -> ! {
+        const DFU_HINT: u32 = 0x1B01;
+        log::info!("Preparing for DFU");
+        unsafe { esp_idf_svc::sys::esp_reset_reason_set_hint(DFU_HINT) };
+        self.reboot()
+    }
+
     /// Prepare for power-off or reset, by powering down peripherals and saving state.
     ///
     /// The device must go through a [soft] reset to function correctly after this.
