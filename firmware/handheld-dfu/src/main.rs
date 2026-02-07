@@ -8,13 +8,14 @@
 #![deny(clippy::large_stack_frames)]
 
 use embassy_executor::Spawner;
-use embassy_time::{Duration, Timer};
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Level, Output, OutputConfig};
+use esp_hal::otg_fs::Usb;
 use esp_hal::timer::timg::TimerGroup;
 use log::info;
 
 mod led;
+mod usb;
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -31,7 +32,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
     reason = "it's not unusual to allocate larger buffers etc. in main"
 )]
 #[esp_rtos::main]
-async fn main(spawner: Spawner) -> ! {
+async fn main(spawner: Spawner) {
     esp_println::logger::init_logger_from_env();
 
     let config = esp_hal::Config::default().with_cpu_clock(CpuClock::max());
@@ -47,8 +48,6 @@ async fn main(spawner: Spawner) -> ! {
     let led = Output::new(peripherals.GPIO42, Level::Low, OutputConfig::default());
     spawner.spawn(led::blink_task(led)).unwrap();
 
-    loop {
-        info!("ok");
-        Timer::after(Duration::from_secs(1)).await;
-    }
+    let usb = Usb::new(peripherals.USB0, peripherals.GPIO20, peripherals.GPIO19);
+    usb::setup_usb(spawner.clone(), usb);
 }
