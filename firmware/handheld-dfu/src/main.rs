@@ -14,6 +14,7 @@ use esp_hal::otg_fs::Usb;
 use esp_hal::timer::timg::TimerGroup;
 use log::info;
 
+mod info;
 mod led;
 mod usb;
 

@@ -1,3 +1,4 @@
+use alloc::string::ToString;
 use embassy_executor::Spawner;
 use embassy_usb::{Builder, UsbDevice};
 use esp_hal::otg_fs::asynch::Config;
@@ -25,7 +26,7 @@ pub fn setup_usb(spawner: Spawner, usb: Usb<'static>) {
     let mut config = embassy_usb::Config::new(0x1209, 0xB010);
     config.manufacturer = Some("Second Bedroom");
     config.product = Some("Game Bub Handheld DFU");
-    config.serial_number = Some("TODO");
+    config.serial_number = Some(crate::info::SerialNumber::get().to_string().leak());
     config.self_powered = true;
     config.max_power = 500;
     config.max_packet_size_0 = 64;
