@@ -1,12 +1,15 @@
 use alloc::string::ToString;
 use embassy_executor::Spawner;
+use embassy_futures::select::select;
 use embassy_usb::{Builder, UsbDevice};
 use esp_hal::otg_fs::asynch::Config;
 use esp_hal::otg_fs::{Usb, asynch::Driver as EspUsbDriver};
 use static_cell::{ConstStaticCell, StaticCell};
 
-use crate::usb::control::Control;
+use bulk::Bulk;
+use control::Control;
 
+mod bulk;
 mod control;
 
 const MAX_PACKET_SIZE: u16 = 64;
@@ -18,6 +21,7 @@ static MSOS_DESC: ConstStaticCell<[u8; 256]> = ConstStaticCell::new([0; 256]);
 static CONTROL_BUF: ConstStaticCell<[u8; 64]> = ConstStaticCell::new([0; 64]);
 static USB_DEVICE: StaticCell<UsbDevice<'static, EspUsbDriver<'static>>> = StaticCell::new();
 static CONTROL: StaticCell<Control> = StaticCell::new();
+static BULK: StaticCell<Bulk> = StaticCell::new();
 
 pub fn setup_usb(spawner: Spawner, usb: Usb<'static>) {
     let config = Config::default();
@@ -50,19 +54,23 @@ pub fn setup_usb(spawner: Spawner, usb: Usb<'static>) {
     let mut interface = func.interface();
     let interface_number = interface.interface_number();
     let mut alt = interface.alt_setting(0xFF, 0, 0, None);
-    let _ep_out = alt.endpoint_bulk_out(None, MAX_PACKET_SIZE);
-    let _ep_in = alt.endpoint_bulk_in(None, MAX_PACKET_SIZE);
+    let ep_out = alt.endpoint_bulk_out(None, MAX_PACKET_SIZE);
+    let ep_in = alt.endpoint_bulk_in(None, MAX_PACKET_SIZE);
     drop(func);
 
     let control = CONTROL.init_with(|| Control::new(interface_number));
     builder.handler(control);
-
+    let bulk = BULK.init_with(|| Bulk::new(ep_out, ep_in));
     let usb = USB_DEVICE.init_with(|| builder.build());
 
-    spawner.spawn(usb_task(usb)).unwrap();
+    spawner.spawn(usb_task(usb, bulk)).unwrap();
 }
 
 #[embassy_executor::task]
-async fn usb_task(usb: &'static mut UsbDevice<'static, EspUsbDriver<'static>>) -> ! {
-    usb.run().await;
+async fn usb_task(
+    usb: &'static mut UsbDevice<'static, EspUsbDriver<'static>>,
+    bulk: &'static mut Bulk,
+) {
+    select(usb.run(), bulk.run()).await;
+    unreachable!();
 }

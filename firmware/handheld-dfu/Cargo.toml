@@ -26,6 +26,7 @@ embassy-futures = "0.1"
 embassy-sync = "0.7.2"
 embassy-time = { version = "0.5.0", features = ["log"] }
 embassy-usb = { version = "0.5.0", default-features = false }
+embassy-usb-synopsys-otg = "0.3.1"
 
 critical-section = "1.2.0"
 static_cell = "2.1.1"
