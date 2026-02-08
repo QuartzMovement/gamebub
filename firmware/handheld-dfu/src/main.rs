@@ -16,6 +16,7 @@ use log::info;
 
 mod info;
 mod led;
+mod reboot;
 mod usb;
 
 #[panic_handler]
@@ -48,6 +49,8 @@ async fn main(spawner: Spawner) {
 
     let led = Output::new(peripherals.GPIO42, Level::Low, OutputConfig::default());
     spawner.spawn(led::blink_task(led)).unwrap();
+
+    spawner.spawn(reboot::task()).unwrap();
 
     let usb = Usb::new(peripherals.USB0, peripherals.GPIO20, peripherals.GPIO19);
     usb::setup_usb(spawner.clone(), usb);

@@ -17,6 +17,19 @@ impl Display for SerialNumber {
     }
 }
 
+#[derive(Copy, Clone)]
+pub struct HardwareVersion(u32);
+
+impl HardwareVersion {
+    pub fn get() -> HardwareVersion {
+        HardwareVersion(get_user_data(0))
+    }
+
+    pub fn as_u32(&self) -> u32 {
+        self.0
+    }
+}
+
 fn get_user_data(index: usize) -> u32 {
     Efuse::read_field_le::<[u32; 6]>(efuse::BLOCK_USR_DATA)[index]
 }
