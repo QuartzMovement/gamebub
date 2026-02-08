@@ -13,9 +13,13 @@ use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::otg_fs::Usb;
 use esp_hal::timer::timg::TimerGroup;
 use log::info;
+use static_cell::StaticCell;
+
+use crate::protocol::Protocol;
 
 mod info;
 mod led;
+mod protocol;
 mod reboot;
 mod usb;
 
@@ -28,6 +32,8 @@ extern crate alloc;
 
 // Application descriptor for esp-idf bootloader.
 esp_bootloader_esp_idf::esp_app_desc!();
+
+static PROTOCOL: StaticCell<Protocol> = StaticCell::new();
 
 #[allow(
     clippy::large_stack_frames,
@@ -52,6 +58,8 @@ async fn main(spawner: Spawner) {
 
     spawner.spawn(reboot::task()).unwrap();
 
+    let protocol = PROTOCOL.init(Protocol::new());
+
     let usb = Usb::new(peripherals.USB0, peripherals.GPIO20, peripherals.GPIO19);
-    usb::setup_usb(spawner.clone(), usb);
+    usb::setup_usb(spawner.clone(), usb, protocol);
 }
