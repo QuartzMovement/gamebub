@@ -42,9 +42,9 @@ fn main() -> anyhow::Result<()> {
         log::error!("USB setup failed: {:?}", e);
     }
 
-    kvs::Kvs::init()?;
     log::info!("Hardware version: {}", hwinfo::get_hardware_version());
     log::info!("Serial: {}", hwinfo::get_serial_number());
+    kvs::Kvs::init()?;
 
     // Check that the firmware is compatible with the listed revision.
     cfg_if::cfg_if! {
@@ -95,7 +95,7 @@ fn main() -> anyhow::Result<()> {
 
     match get_startup_action() {
         StartupAction::RunCartridge => worker::send(worker::Message::RunCartridge),
-        StartupAction::MainMenu => program_fpga(&mut device).expect("Failed to program FPGA"),
+        StartupAction::MainMenu => program_fpga(&mut device).context("Failed to program FPGA")?,
     }
 
     // Setup UI
