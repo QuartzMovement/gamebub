@@ -1,14 +1,7 @@
 use embassy_usb::driver::{Endpoint, EndpointIn, EndpointOut};
 use embassy_usb_synopsys_otg::{Endpoint as EspUsbEndpoint, In, Out};
 
-use crate::protocol::{self, Protocol};
-
-use super::MAX_PACKET_SIZE;
-
-pub struct BulkComm<'a> {
-    ep_out: &'a mut EspUsbEndpoint<'a, Out>,
-    ep_in: &'a mut EspUsbEndpoint<'a, In>,
-}
+use crate::protocol::{self, CommandStatus, Protocol};
 
 pub struct Bulk {
     protocol: &'static mut Protocol,
@@ -53,7 +46,24 @@ impl Bulk {
 
             // TODO: set current command
             // TODO: stream data in both directions
-            let result = self.protocol.handle(header).await;
+            let result = self
+                .protocol
+                .handle(
+                    header,
+                    async |e| {
+                        self.ep_out
+                            .read(e)
+                            .await
+                            .map_err(|_| CommandStatus::UnknownError)
+                    },
+                    async |e| {
+                        self.ep_in
+                            .write(e)
+                            .await
+                            .map_err(|_| CommandStatus::UnknownError)
+                    },
+                )
+                .await;
 
             if let Err(e) = result {
                 // TODO: set status to be readable by control
