@@ -44,8 +44,6 @@ impl Bulk {
 
             log::info!("Command: id={}", header.cmd_id);
 
-            // TODO: set current command
-            // TODO: stream data in both directions
             let result = self
                 .protocol
                 .handle(
@@ -66,7 +64,6 @@ impl Bulk {
                 .await;
 
             if let Err(e) = result {
-                // TODO: set status to be readable by control
                 // TODO: stall endpoint
                 log::warn!("Command error: {:?}", e);
                 continue;

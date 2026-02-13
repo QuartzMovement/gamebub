@@ -1,5 +1,11 @@
+use core::cell::RefCell;
+
+use embassy_sync::blocking_mutex::CriticalSectionMutex;
 use embedded_storage::nor_flash::ReadNorFlash;
 use esp_storage::FlashStorage;
+
+static STATE: CriticalSectionMutex<RefCell<CommandState>> =
+    CriticalSectionMutex::new(RefCell::new(CommandState::new()));
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -77,7 +83,15 @@ impl Protocol {
         _read_fn: impl AsyncFnMut(&mut [u8]) -> Result<usize, CommandStatus>,
         write_fn: impl AsyncFnMut(&[u8]) -> Result<(), CommandStatus>,
     ) -> Result<(), CommandStatus> {
-        match command.cmd_id {
+        STATE.lock(|x| {
+            *x.borrow_mut() = CommandState {
+                token: command.token,
+                status: CommandStatus::Ok,
+                command_id: command.cmd_id,
+                in_progress: true,
+            };
+        });
+        let result = match command.cmd_id {
             // FLASH_ERASE
             0x03 => Err(CommandStatus::UnknownCmd),
             // READ
@@ -86,7 +100,19 @@ impl Protocol {
             0x05 => Err(CommandStatus::UnknownCmd),
             // TODO efuse
             _ => Err(CommandStatus::UnknownCmd),
-        }
+        };
+        STATE.lock(|x| {
+            *x.borrow_mut() = CommandState {
+                token: command.token,
+                status: match result {
+                    Ok(()) => CommandStatus::Ok,
+                    Err(e) => e,
+                },
+                command_id: command.cmd_id,
+                in_progress: false,
+            };
+        });
+        result
     }
 
     async fn command_read(
@@ -131,4 +157,27 @@ impl Protocol {
 
         Ok(())
     }
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct CommandState {
+    pub token: u32,
+    pub status: CommandStatus,
+    pub command_id: u8,
+    pub in_progress: bool,
+}
+
+impl CommandState {
+    pub const fn new() -> Self {
+        CommandState {
+            token: 0,
+            status: CommandStatus::Ok,
+            command_id: 0,
+            in_progress: false,
+        }
+    }
+}
+
+pub fn get_command_state() -> CommandState {
+    STATE.lock(|x| x.borrow().clone())
 }

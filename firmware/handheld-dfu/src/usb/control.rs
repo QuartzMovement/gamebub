@@ -9,6 +9,7 @@ use crate::info;
 const REQ_GET_INFO: u8 = 0;
 const REQ_REBOOT: u8 = 1;
 const REQ_ENABLE_DEBUG: u8 = 2;
+const REQ_GET_COMMAND_STATUS: u8 = 0x42;
 
 pub struct Control {
     interface_number: InterfaceNumber,
@@ -34,6 +35,7 @@ impl Handler for Control {
                 crate::reboot::enable_debug();
                 Some(OutResponse::Accepted)
             }
+            // TODO: handle INTERFACE_RESET?
             _ => Some(OutResponse::Rejected),
         }
     }
@@ -55,6 +57,18 @@ impl Handler for Control {
                 buf[16..20].copy_from_slice(&0u32.to_le_bytes());
                 buf[20..24].copy_from_slice(&0u32.to_le_bytes());
                 Some(InResponse::Accepted(&buf[0..24]))
+            }
+            REQ_GET_COMMAND_STATUS => {
+                assert!(buf.len() >= 16);
+                let status = crate::protocol::get_command_state();
+                buf[0..4].copy_from_slice(&status.token.to_le_bytes());
+                buf[4..8].copy_from_slice(&(status.status as u32).to_le_bytes());
+                buf[8] = status.command_id;
+                buf[9] = status.in_progress as u8;
+                for x in &mut buf[10..16] {
+                    *x = 0;
+                }
+                Some(InResponse::Accepted(&buf[0..16]))
             }
             _ => Some(InResponse::Rejected),
         }
