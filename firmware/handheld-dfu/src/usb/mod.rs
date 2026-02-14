@@ -9,6 +9,7 @@ use static_cell::{ConstStaticCell, StaticCell};
 use bulk::Bulk;
 use control::Control;
 
+use crate::info::FirmwareMetadata;
 use crate::protocol::Protocol;
 
 mod bulk;
@@ -25,7 +26,12 @@ static USB_DEVICE: StaticCell<UsbDevice<'static, EspUsbDriver<'static>>> = Stati
 static CONTROL: StaticCell<Control> = StaticCell::new();
 static BULK: StaticCell<Bulk> = StaticCell::new();
 
-pub fn setup_usb(spawner: Spawner, usb: Usb<'static>, protocol: &'static mut Protocol) {
+pub fn setup_usb(
+    spawner: Spawner,
+    usb: Usb<'static>,
+    protocol: &'static mut Protocol,
+    fw_meta: Option<FirmwareMetadata>,
+) {
     let config = Config::default();
     let driver = EspUsbDriver::new(usb, EP_OUT_BUFFER.take(), config);
 
@@ -60,7 +66,7 @@ pub fn setup_usb(spawner: Spawner, usb: Usb<'static>, protocol: &'static mut Pro
     let ep_in = alt.endpoint_bulk_in(None, MAX_PACKET_SIZE);
     drop(func);
 
-    let control = CONTROL.init_with(|| Control::new(interface_number));
+    let control = CONTROL.init_with(|| Control::new(interface_number, fw_meta));
     builder.handler(control);
     let bulk = BULK.init_with(|| Bulk::new(protocol, ep_out, ep_in));
     let usb = USB_DEVICE.init_with(|| builder.build());

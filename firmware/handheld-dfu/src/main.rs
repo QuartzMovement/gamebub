@@ -59,9 +59,13 @@ async fn main(spawner: Spawner) {
 
     spawner.spawn(reboot::task()).unwrap();
 
-    let flash = FlashStorage::new(peripherals.FLASH);
+    let mut flash = FlashStorage::new(peripherals.FLASH);
+
+    // Load app descriptor of the actual firmware image
+    let fw_meta = info::read_fw_metadata(&mut flash);
+
     let protocol = PROTOCOL.init(Protocol::new(flash));
 
     let usb = Usb::new(peripherals.USB0, peripherals.GPIO20, peripherals.GPIO19);
-    usb::setup_usb(spawner.clone(), usb, protocol);
+    usb::setup_usb(spawner.clone(), usb, protocol, fw_meta);
 }

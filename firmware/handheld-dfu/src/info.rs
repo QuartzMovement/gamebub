@@ -1,6 +1,9 @@
 use core::fmt::{Display, Formatter};
 
+use embedded_storage::ReadStorage;
+use esp_bootloader_esp_idf::EspAppDesc;
 use esp_hal::efuse::{self, Efuse};
+use esp_storage::FlashStorage;
 
 #[derive(Copy, Clone)]
 pub struct SerialNumber(pub u32);
@@ -32,4 +35,32 @@ impl HardwareVersion {
 
 fn get_user_data(index: usize) -> u32 {
     Efuse::read_field_le::<[u32; 6]>(efuse::BLOCK_USR_DATA)[index]
+}
+
+#[repr(C)]
+pub struct FirmwareMetadata {
+    pub commit_hash: [u8; 20],
+    pub version_major: u8,
+    pub version_minor: u8,
+    pub version_patch: u8,
+    pub version_pre: u8,
+}
+
+pub fn read_fw_metadata(flash: &mut FlashStorage) -> Option<FirmwareMetadata> {
+    // TODO: use partition table to get offset
+    const OFFSET_IMAGE: u32 = 0x100000;
+    const OFFSET_APP_DESC: u32 = OFFSET_IMAGE + 0x20;
+    const OFFSET_CUSTOM_DESC: u32 = OFFSET_APP_DESC + 256;
+
+    let mut bytes = [0u8; 256];
+    flash.read(OFFSET_APP_DESC, &mut bytes).ok()?;
+    let app_desc: EspAppDesc = unsafe { core::mem::transmute(bytes) };
+    if app_desc.magic_word() != 0xABCD5432 {
+        return None;
+    }
+
+    let mut bytes = [0u8; core::mem::size_of::<FirmwareMetadata>()];
+    flash.read(OFFSET_CUSTOM_DESC, &mut bytes).ok()?;
+    let custom_desc: FirmwareMetadata = unsafe { core::mem::transmute(bytes) };
+    Some(custom_desc)
 }

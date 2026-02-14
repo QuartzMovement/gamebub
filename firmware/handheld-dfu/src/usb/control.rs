@@ -4,7 +4,7 @@ use embassy_usb::{
     types::InterfaceNumber,
 };
 
-use crate::info;
+use crate::info::{self, FirmwareMetadata};
 
 const REQ_GET_INFO: u8 = 0;
 const REQ_REBOOT: u8 = 1;
@@ -13,6 +13,7 @@ const REQ_GET_COMMAND_STATUS: u8 = 0x42;
 
 pub struct Control {
     interface_number: InterfaceNumber,
+    fw_meta: Option<FirmwareMetadata>,
 }
 
 impl Handler for Control {
@@ -52,10 +53,14 @@ impl Handler for Control {
                 buf[0..4].copy_from_slice(&0u32.to_le_bytes());
                 buf[4..8].copy_from_slice(&info::SerialNumber::get().0.to_le_bytes());
                 buf[8..12].copy_from_slice(&info::HardwareVersion::get().as_u32().to_le_bytes());
-                // TODO firmware version
-                buf[12..16].copy_from_slice(&0u32.to_le_bytes());
-                buf[16..20].copy_from_slice(&0u32.to_le_bytes());
-                buf[20..24].copy_from_slice(&0u32.to_le_bytes());
+                buf[12..24].fill(0);
+                if let Some(meta) = self.fw_meta.as_ref() {
+                    buf[12] = meta.version_pre;
+                    buf[13] = meta.version_patch;
+                    buf[14] = meta.version_minor;
+                    buf[15] = meta.version_major;
+                    buf[16..24].copy_from_slice(&meta.commit_hash[0..8]);
+                }
                 Some(InResponse::Accepted(&buf[0..24]))
             }
             REQ_GET_COMMAND_STATUS => {
@@ -76,8 +81,11 @@ impl Handler for Control {
 }
 
 impl Control {
-    pub fn new(interface_number: InterfaceNumber) -> Self {
-        Self { interface_number }
+    pub fn new(interface_number: InterfaceNumber, fw_meta: Option<FirmwareMetadata>) -> Self {
+        Self {
+            interface_number,
+            fw_meta,
+        }
     }
 
     fn check_request(&self, req: &Request) -> Option<()> {
