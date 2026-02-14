@@ -26,10 +26,10 @@ pub fn handle_control_in<'a>(request: &Request, buf: &'a mut [u8]) -> Result<&'a
             buf[0..4].copy_from_slice(&0u32.to_le_bytes());
             buf[4..8].copy_from_slice(&hwinfo::get_serial_number().0.to_le_bytes());
             buf[8..12].copy_from_slice(&hwinfo::get_hardware_version().as_u32().to_le_bytes());
-            buf[12] = 0;
-            buf[13] = env!("CARGO_PKG_VERSION_PATCH").parse().unwrap_or_default();
-            buf[14] = env!("CARGO_PKG_VERSION_MINOR").parse().unwrap_or_default();
-            buf[15] = env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap_or_default();
+            buf[12] = crate::fwinfo::FIRMWARE_VERSION.pre;
+            buf[13] = crate::fwinfo::FIRMWARE_VERSION.patch;
+            buf[14] = crate::fwinfo::FIRMWARE_VERSION.minor;
+            buf[15] = crate::fwinfo::FIRMWARE_VERSION.major;
             buf[16..24].copy_from_slice(&crate::fwinfo::GIT_COMMIT_BYTES[0..8]);
             Ok(&buf[0..24])
         }

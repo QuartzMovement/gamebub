@@ -1,12 +1,23 @@
 #[repr(C)]
+#[derive(Clone, Copy, Debug)]
+pub struct FirmwareVersion {
+    pub major: u8,
+    pub minor: u8,
+    pub patch: u8,
+    pub pre: u8,
+}
+
+#[repr(C)]
 struct FirmwareMetadata {
     git_commit: [u8; 20],
+    version: FirmwareVersion,
 }
 
 #[used]
 #[link_section = ".rodata_custom_desc"]
 static FIRMWARE_METADATA: FirmwareMetadata = FirmwareMetadata {
     git_commit: GIT_COMMIT_BYTES,
+    version: FIRMWARE_VERSION,
 };
 
 pub const GIT_COMMIT_BYTES: [u8; 20] = {
@@ -28,4 +39,28 @@ pub const GIT_COMMIT_BYTES: [u8; 20] = {
         i += 1;
     }
     hash
+};
+
+pub const FIRMWARE_VERSION: FirmwareVersion = {
+    const fn parse(data: &[u8]) -> u32 {
+        let mut val = 0;
+        let mut i = data.len();
+        while i > 0 {
+            let c = data[i - 1];
+            if c < b'0' || c > b'9' {
+                panic!();
+            }
+            val *= 10;
+            val += (c - b'0') as u32;
+            i -= 1;
+        }
+        val
+    }
+
+    FirmwareVersion {
+        major: parse(env!("CARGO_PKG_VERSION_MAJOR").as_bytes()) as u8,
+        minor: parse(env!("CARGO_PKG_VERSION_MINOR").as_bytes()) as u8,
+        patch: parse(env!("CARGO_PKG_VERSION_PATCH").as_bytes()) as u8,
+        pre: 0,
+    }
 };
