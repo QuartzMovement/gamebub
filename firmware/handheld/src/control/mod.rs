@@ -30,7 +30,8 @@ pub fn handle_control_in<'a>(request: &Request, buf: &'a mut [u8]) -> Result<&'a
             buf[13] = env!("CARGO_PKG_VERSION_PATCH").parse().unwrap_or_default();
             buf[14] = env!("CARGO_PKG_VERSION_MINOR").parse().unwrap_or_default();
             buf[15] = env!("CARGO_PKG_VERSION_MAJOR").parse().unwrap_or_default();
-            Ok(&buf[0..16])
+            buf[16..24].copy_from_slice(&crate::fwinfo::GIT_COMMIT_BYTES[0..8]);
+            Ok(&buf[0..24])
         }
         _ => Err(()),
     }

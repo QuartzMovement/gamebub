@@ -1,3 +1,5 @@
+use std::process::Command;
+
 fn main() {
     embuild::espidf::sysenv::output();
 
@@ -7,4 +9,15 @@ fn main() {
             .embed_resources(slint_build::EmbedResourcesKind::EmbedForSoftwareRenderer),
     )
     .unwrap();
+
+    // Get git commit hash
+    println!("cargo:rerun-if-changed=../../.git/HEAD");
+    let output = Command::new("git")
+        .args(&["rev-parse", "HEAD"])
+        .output()
+        .expect("git command failed");
+    let commit_hash = str::from_utf8(&output.stdout)
+        .expect("git output invalid utf-8")
+        .trim();
+    println!("cargo:rustc-env=GIT_COMMIT={}", commit_hash);
 }

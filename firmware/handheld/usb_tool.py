@@ -14,13 +14,14 @@ def handle_get_info(device: usb.core.Device, args) -> None:
     data = device.ctrl_transfer(
         bmRequestType=REQUEST_TYPE_VENDOR_IN,
         bRequest=REQUEST_GET_INFO,
-        data_or_wLength=16,
+        data_or_wLength=24,
     )
-    assert len(data) >= 16
-    _, serial, hw_version, fw_version = struct.unpack("<IIII", data)
+    assert len(data) >= 24
+    _, serial, hw_version, fw_version, commit = struct.unpack("<IIII8s", data)
     print(f"Serial Number:     {serial:08X}")
     print(f"Hardware Version:  {hw_version:08X}")
     print(f"Firmware Version:  {fw_version:08X}")
+    print(f"Firmware Commit:   {commit.hex()}")
 
 
 def handle_enable_debug(device: usb.core.Device, args) -> None:

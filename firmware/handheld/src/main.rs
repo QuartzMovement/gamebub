@@ -12,6 +12,7 @@ mod bitstream;
 mod cart_backup;
 mod control;
 mod device;
+mod fwinfo;
 mod hwinfo;
 mod input;
 mod kvs;
