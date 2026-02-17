@@ -10,6 +10,7 @@ const REQ_GET_INFO: u8 = 0;
 const REQ_REBOOT: u8 = 1;
 const REQ_ENABLE_DEBUG: u8 = 2;
 const REQ_GET_COMMAND_STATUS: u8 = 0x42;
+const REQ_CONFIGURE_WRITE_PROTECT: u8 = 0x50;
 
 pub struct Control {
     interface_number: InterfaceNumber,
@@ -34,6 +35,11 @@ impl Handler for Control {
             }
             REQ_ENABLE_DEBUG => {
                 crate::reboot::enable_debug();
+                Some(OutResponse::Accepted)
+            }
+            REQ_CONFIGURE_WRITE_PROTECT => {
+                let enabled = req.value != 0xBAAD;
+                crate::protocol::set_flash_write_protect(enabled);
                 Some(OutResponse::Accepted)
             }
             // TODO: handle INTERFACE_RESET?

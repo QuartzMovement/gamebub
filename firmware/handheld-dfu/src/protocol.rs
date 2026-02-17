@@ -1,4 +1,7 @@
-use core::cell::RefCell;
+use core::{
+    cell::RefCell,
+    sync::atomic::{AtomicBool, Ordering},
+};
 
 use embassy_sync::blocking_mutex::CriticalSectionMutex;
 use embedded_storage::nor_flash::{NorFlash, ReadNorFlash};
@@ -6,6 +9,8 @@ use esp_storage::FlashStorage;
 
 static STATE: CriticalSectionMutex<RefCell<CommandState>> =
     CriticalSectionMutex::new(RefCell::new(CommandState::new()));
+
+static FLASH_WRITE_PROTECT: AtomicBool = AtomicBool::new(true);
 
 #[repr(C)]
 #[derive(Copy, Clone)]
@@ -134,8 +139,10 @@ impl Protocol {
         if (length % sector_size) != 0 {
             return Err(CommandStatus::BadAlignment);
         }
-        if address < FLASH_PROTECT_OFFSET {
-            return Err(CommandStatus::NotPermitted);
+        if FLASH_WRITE_PROTECT.load(Ordering::SeqCst) {
+            if address < FLASH_PROTECT_OFFSET {
+                return Err(CommandStatus::NotPermitted);
+            }
         }
         if (address + length) as usize > self.flash.capacity() {
             return Err(CommandStatus::InvalidArg);
@@ -223,8 +230,10 @@ impl Protocol {
             return Err(CommandStatus::InvalidAddress);
         }
         let offset = address - FLASH_BASE_ADDR;
-        if offset < FLASH_PROTECT_OFFSET {
-            return Err(CommandStatus::NotPermitted);
+        if FLASH_WRITE_PROTECT.load(Ordering::SeqCst) {
+            if offset < FLASH_PROTECT_OFFSET {
+                return Err(CommandStatus::NotPermitted);
+            }
         }
         if (offset + length) as usize > self.flash.capacity() {
             return Err(CommandStatus::InvalidTransferLength);
@@ -271,4 +280,8 @@ impl CommandState {
 
 pub fn get_command_state() -> CommandState {
     STATE.lock(|x| x.borrow().clone())
+}
+
+pub fn set_flash_write_protect(enabled: bool) {
+    FLASH_WRITE_PROTECT.store(enabled, Ordering::SeqCst);
 }
