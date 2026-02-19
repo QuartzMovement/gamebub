@@ -91,9 +91,9 @@ pub struct Device<'a> {
     #[cfg(feature = "has_io_expander")]
     io_expander: drivers::io_expander::TCA9535<MutexI2C<'a, I2cDriver<'a>>>,
 
-    button_home: PinDriver<'a, AnyInputPin, Input>,
-    button_vol_up: PinDriver<'a, AnyInputPin, Input>,
-    button_vol_down: PinDriver<'a, AnyInputPin, Input>,
+    button_home: PinDriver<'a, AnyIOPin, Input>,
+    button_vol_up: PinDriver<'a, AnyIOPin, Input>,
+    button_vol_down: PinDriver<'a, AnyIOPin, Input>,
     button_power: PinDriver<'a, AnyIOPin, InputOutput>,
     pin_irq: PinDriver<'a, AnyInputPin, Input>,
     pin_vbus_pgood: PinDriver<'a, AnyIOPin, Input>,
@@ -120,9 +120,9 @@ impl Device<'_> {
             if #[cfg(feature = "rev1")] {
                 let pin_led = peripherals.pins.gpio3.downgrade_output();
                 let pin_irq = peripherals.pins.gpio2.downgrade_input();
-                let pin_home = peripherals.pins.gpio0.downgrade_input();
-                let pin_vol_up = peripherals.pins.gpio4.downgrade_input();
-                let pin_vol_down = peripherals.pins.gpio5.downgrade_input();
+                let pin_home = peripherals.pins.gpio0.downgrade();
+                let pin_vol_up = peripherals.pins.gpio4.downgrade();
+                let pin_vol_down = peripherals.pins.gpio5.downgrade();
                 let pin_power_switch = peripherals.pins.gpio1.downgrade();
                 let pin_vbus_pgood = peripherals.pins.gpio41.downgrade();
                 let pin_batt_chg = peripherals.pins.gpio42.downgrade_input();
@@ -155,9 +155,9 @@ impl Device<'_> {
             } else if #[cfg(feature = "rev2")] {
                 let pin_led = peripherals.pins.gpio36.downgrade_output();
                 let pin_irq = peripherals.pins.gpio16.downgrade_input();
-                let pin_home = peripherals.pins.gpio0.downgrade_input();
-                let pin_vol_up = peripherals.pins.gpio41.downgrade_input();
-                let pin_vol_down = peripherals.pins.gpio40.downgrade_input();
+                let pin_home = peripherals.pins.gpio0.downgrade();
+                let pin_vol_up = peripherals.pins.gpio41.downgrade();
+                let pin_vol_down = peripherals.pins.gpio40.downgrade();
                 let pin_power_switch = peripherals.pins.gpio15.downgrade();
                 let pin_vbus_pgood = peripherals.pins.gpio17.downgrade();
                 let pin_batt_chg = peripherals.pins.gpio39.downgrade_input();
@@ -192,9 +192,9 @@ impl Device<'_> {
             } else if #[cfg(feature = "rev3")] {
                 let pin_led = peripherals.pins.gpio42.downgrade_output();
                 let pin_irq = peripherals.pins.gpio6.downgrade_input();
-                let pin_home = peripherals.pins.gpio0.downgrade_input();
-                let pin_vol_up = peripherals.pins.gpio2.downgrade_input();
-                let pin_vol_down = peripherals.pins.gpio1.downgrade_input();
+                let pin_home = peripherals.pins.gpio0.downgrade();
+                let pin_vol_up = peripherals.pins.gpio2.downgrade();
+                let pin_vol_down = peripherals.pins.gpio1.downgrade();
                 let pin_power_switch = peripherals.pins.gpio8.downgrade();
                 let pin_vbus_pgood = peripherals.pins.gpio9.downgrade();
                 let pin_batt_chg = peripherals.pins.gpio3.downgrade_input();
@@ -366,10 +366,13 @@ impl Device<'_> {
         }
 
         // Direct buttons
-        let button_home = PinDriver::input(pin_home)?;
-        let button_vol_up = PinDriver::input(pin_vol_up)?;
-        let button_vol_down = PinDriver::input(pin_vol_down)?;
+        let mut button_home = PinDriver::input(pin_home)?;
+        let mut button_vol_up = PinDriver::input(pin_vol_up)?;
+        let mut button_vol_down = PinDriver::input(pin_vol_down)?;
         let mut button_power = PinDriver::input_output_od(pin_power_switch)?;
+        button_home.set_pull(gpio::Pull::Up)?;
+        button_vol_up.set_pull(gpio::Pull::Up)?;
+        button_vol_down.set_pull(gpio::Pull::Up)?;
         button_power.set_high()?;
 
         // Cartridge switch and power
