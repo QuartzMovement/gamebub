@@ -57,6 +57,11 @@ pub struct Device<'a> {
     >,
     #[cfg(feature = "has_st7262")]
     pub lcd: drivers::st7262::ST7262<PinDriver<'a, AnyOutputPin, Output>>,
+    #[cfg(feature = "has_ili9806e")]
+    pub lcd: drivers::ili9806e::ILI9806E<
+        PinDriver<'a, AnyOutputPin, Output>,
+        SpiSoftCsDeviceDriver<'a, SpiSharedDeviceDriver<'a, &'a SpiDriver<'a>>, &'a SpiDriver<'a>>,
+    >,
 
     /// Display mode (if initialized)
     pub display_mode: DisplayMode,
@@ -224,6 +229,42 @@ impl Device<'_> {
                 let pin_dac_reset = peripherals.pins.gpio7.downgrade_output();
                 let pin_cart_switch = Some(peripherals.pins.gpio14.downgrade_input());
                 let pin_cart_power = Some(peripherals.pins.gpio15.downgrade_output());
+            } else if #[cfg(feature = "rev4")] {
+                let pin_led = peripherals.pins.gpio42.downgrade_output();
+                let pin_irq = peripherals.pins.gpio6.downgrade_input();
+                let pin_home = peripherals.pins.gpio0.downgrade();
+                let pin_vol_up = peripherals.pins.gpio2.downgrade();
+                let pin_vol_down = peripherals.pins.gpio1.downgrade();
+                let pin_power_switch = peripherals.pins.gpio8.downgrade();
+                let pin_vbus_pgood = peripherals.pins.gpio9.downgrade();
+                let pin_batt_chg = peripherals.pins.gpio3.downgrade_input();
+                let pin_lcd_backlight = peripherals.pins.gpio45.downgrade_output();
+                let pin_lcd_reset = peripherals.pins.gpio13.downgrade_output();
+                let pin_lcd_cs = peripherals.pins.gpio12.downgrade_output();
+                let pin_lcd_spi_clk = peripherals.pins.gpio11.downgrade_output();
+                let pin_lcd_spi_d0 = peripherals.pins.gpio10.downgrade_output();
+                let pin_fpga_power = peripherals.pins.gpio46.downgrade_output();
+                let pin_fpga_init_b = peripherals.pins.gpio18.downgrade();
+                let pin_fpga_done = peripherals.pins.gpio16.downgrade_input();
+                let pin_fpga_program_b = peripherals.pins.gpio17.downgrade_output();
+                let mut pin_fpga_spi_cs = peripherals.pins.gpio21.downgrade_output();
+                let pin_fpga_spi_clk = peripherals.pins.gpio48.downgrade_output();
+                let pin_fpga_spi_d0 = peripherals.pins.gpio34.downgrade();
+                let pin_fpga_spi_d1 = peripherals.pins.gpio33.downgrade();
+                let pin_fpga_spi_d2 = peripherals.pins.gpio47.downgrade();
+                let pin_fpga_spi_d3 = peripherals.pins.gpio26.downgrade();
+                let pin_i2c_scl = peripherals.pins.gpio4.downgrade();
+                let pin_i2c_sda = peripherals.pins.gpio5.downgrade();
+                let pin_sdio_clk = peripherals.pins.gpio38.downgrade_output();
+                let pin_sdio_cmd = peripherals.pins.gpio37.downgrade();
+                let pin_sdio_d0 = peripherals.pins.gpio39.downgrade();
+                let pin_sdio_d1 = peripherals.pins.gpio40.downgrade();
+                let pin_sdio_d2 = peripherals.pins.gpio35.downgrade();
+                let pin_sdio_d3 = peripherals.pins.gpio36.downgrade();
+                let pin_sd_detect = peripherals.pins.gpio41.downgrade_input();
+                let pin_dac_reset = peripherals.pins.gpio7.downgrade_output();
+                let pin_cart_switch = Some(peripherals.pins.gpio14.downgrade_input());
+                let pin_cart_power = Some(peripherals.pins.gpio15.downgrade_output());
             }
         }
 
@@ -260,7 +301,7 @@ impl Device<'_> {
 
         // LCD backlight
         let lcd_backlight = {
-            #[cfg(any(feature = "rev1", feature = "rev2"))]
+            #[cfg(any(feature = "rev1", feature = "rev2", feature = "rev4"))]
             let config = lcd_backlight::PwmConfig {
                 frequency: 25.kHz().into(),
                 resolution: ledc::config::Resolution::Bits11,
@@ -307,7 +348,7 @@ impl Device<'_> {
                 ).context("spi driver")?));
                 let fpga_spi_driver = spi_driver;
                 let lcd_spi_driver = spi_driver;
-            } else if #[cfg(feature = "rev2")] {
+            } else if #[cfg(any(feature = "rev2", feature = "rev4"))] {
                 let fpga_spi_driver = &*Box::leak(Box::new(SpiDriver::new_quad(
                     peripherals.spi2,
                     pin_fpga_spi_clk,
@@ -335,6 +376,7 @@ impl Device<'_> {
                     &spi_driver_config,
                 ).context("fpga spi driver")?));
             }
+
         }
 
         // Setup LCD
@@ -353,6 +395,16 @@ impl Device<'_> {
             } else if #[cfg(feature = "has_st7262")] {
                 let lcd_enable = PinDriver::output(pin_lcd_enable)?;
                 let mut lcd = drivers::st7262::ST7262::new(lcd_enable);
+            } else if #[cfg(feature = "has_ili9806e")] {
+                log::info!("Initializing LCD");
+                let lcd_spi_config = spi::config::Config::new().baudrate(5.MHz().into());
+                let lcd_spi = SpiSoftCsDeviceDriver::new(
+                    SpiSharedDeviceDriver::new(lcd_spi_driver, &lcd_spi_config)?,
+                    pin_lcd_cs,
+                    gpio::Level::High,
+                )?;
+                let lcd_reset = PinDriver::output(pin_lcd_reset)?;
+                let mut lcd = drivers::ili9806e::ILI9806E::new(lcd_reset, lcd_spi);
             }
         }
         lcd.init().context("LCD init")?;

@@ -257,11 +257,11 @@ set_property -dict { PACKAGE_PIN U3     IOSTANDARD LVCMOS33 } [get_ports { sdram
 set_property -dict { PACKAGE_PIN N4     IOSTANDARD LVCMOS33 } [get_ports { sdram_bs[0] }];
 set_property -dict { PACKAGE_PIN P3     IOSTANDARD LVCMOS33 } [get_ports { sdram_bs[1] }];
 
-set_property -dict { PACKAGE_PIN V4     IOSTANDARD LVCMOS33 } [get_ports { sdram_clk   }];
-set_property -dict { PACKAGE_PIN R2     IOSTANDARD LVCMOS33 } [get_ports { sdram_we_n  }];
-set_property -dict { PACKAGE_PIN R1     IOSTANDARD LVCMOS33 } [get_ports { sdram_ldqm  }];
-set_property -dict { PACKAGE_PIN T5     IOSTANDARD LVCMOS33 } [get_ports { sdram_udqm  }];
-set_property -dict { PACKAGE_PIN T1     IOSTANDARD LVCMOS33 } [get_ports { sdram_cas_n }];
-set_property -dict { PACKAGE_PIN U1     IOSTANDARD LVCMOS33 } [get_ports { sdram_ras_n }];
-set_property -dict { PACKAGE_PIN U4     IOSTANDARD LVCMOS33 } [get_ports { sdram_cke   }];
-set_property -dict { PACKAGE_PIN V1     IOSTANDARD LVCMOS33 } [get_ports { sdram_cs_n  }];
+set_property -dict { PACKAGE_PIN V4     IOSTANDARD LVCMOS33 } [get_ports { sdram_clk     }];
+set_property -dict { PACKAGE_PIN R2     IOSTANDARD LVCMOS33 } [get_ports { sdram_we_n    }];
+set_property -dict { PACKAGE_PIN R1     IOSTANDARD LVCMOS33 } [get_ports { sdram_ldqm    }];
+set_property -dict { PACKAGE_PIN T5     IOSTANDARD LVCMOS33 } [get_ports { sdram_udqm    }];
+set_property -dict { PACKAGE_PIN T1     IOSTANDARD LVCMOS33 } [get_ports { sdram_cas_n   }];
+set_property -dict { PACKAGE_PIN U1     IOSTANDARD LVCMOS33 } [get_ports { sdram_ras_n   }];
+set_property -dict { PACKAGE_PIN U4     IOSTANDARD LVCMOS33 } [get_ports { sdram_cke[0]  }];
+set_property -dict { PACKAGE_PIN V1     IOSTANDARD LVCMOS33 } [get_ports { sdram_cs_n[0] }];

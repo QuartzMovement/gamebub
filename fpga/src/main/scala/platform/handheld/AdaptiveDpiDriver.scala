@@ -33,6 +33,8 @@ object AdaptiveDpiDriver {
     vBackPorchMin: Int = 2,
     /** Length of the vertical front porch (lines) */
     vFrontPorchMin: Int = 2,
+    /** Maximum length of the vertical front porch (lines) */
+    vFrontPorchMax: Int = 255,
   ) {
     assert(hActive > 0)
     assert(hSyncMin > 0)
@@ -92,32 +94,34 @@ class AdaptiveDpiDriver(
   }
 
   private def doRegular(): Unit = {
-    /*
-    hsync + hbp < 192
-    vsync + vbp + vfp < 32
-
-    Strategy:
-    * Make vsync and vbp as low as possible -- extend vfp if needed
-    * Set things up such that VFP can extend the frame by about 1%
-
-    "Recommendation: The porch number of VBP + VFP must be even."
-    */
+    // Strategy:
+    // Make vsync and vbp as low as possible -- extend vfp if needed
+    // Set things up such that VFP can extend the frame by about 1%
 
     // Calculate timing
     val vSync = config.vSyncMin
     val vBackPorch = config.vBackPorchMin
     val vFrontPorchMin = config.vFrontPorchMin
-    val vFrontPorchMax = 32 - vSync - vBackPorch - 1
+    val vFrontPorchMax = config.vFrontPorchMax
     val hSync = config.hSyncMin
     val hBackPorch = config.hBackPorchMin
 
     // With maximum vFrontPorch, target ~1.02x the sourceFramePeriod
     val totalHeightMin = vActive + vSync + vBackPorch + vFrontPorchMin
     val totalHeightMax = vActive + vSync + vBackPorch + vFrontPorchMax
+    val frameCycles = config.clockHz * sourceFramePeriod
     val maxFrameCycles = 1.02 * config.clockHz * sourceFramePeriod
     val approxFrameWidth = (maxFrameCycles / totalHeightMax).round.toInt
-    val hFrontPorch = approxFrameWidth - (hActive + hSync + hBackPorch)
-    val totalWidth = hActive + hSync + hBackPorch + hFrontPorch
+
+    // TODO: unify ILI9488 and ILI9806E
+    // ILI9488
+    // "Recommendation: The porch number of VBP + VFP must be even."
+    // val hFrontPorch = approxFrameWidth - (hActive + hSync + hBackPorch)
+    // val totalWidth = hActive + hSync + hBackPorch + hFrontPorch
+
+    // ILI9806E: the total h Inactive must be >= 2 microseconds
+    val hFrontPorch = config.hFrontPorchMin
+    val totalWidth = hActive + (config.clockHz.toFloat / 1000000.0 * 2).ceil.toInt
 
     val x = RegInit(0.U(log2Ceil(totalWidth).W))
     val y = RegInit(0.U(log2Ceil(totalHeightMax).W))

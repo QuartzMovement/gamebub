@@ -55,6 +55,8 @@ fn main() -> anyhow::Result<()> {
             let required_revision = 2;
         } else if #[cfg(feature = "rev3")] {
             let required_revision = 3;
+        } else if #[cfg(feature = "rev4")] {
+            let required_revision = 4;
         } else {
             compile_error!("No board revision selected");
         }

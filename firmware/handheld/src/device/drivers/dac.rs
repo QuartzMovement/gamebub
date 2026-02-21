@@ -92,6 +92,7 @@ where
     ///     
     ///     [Rev 1, 2]: MCLK is 256 * DAC_fS
     ///     [Rev 3]:    MCLK is 544 * DAC_fS
+    ///     [Rev 4]:    MCLK is 608 * DAC_fS
     ///
     ///     For filter type B, DOSR must be a multiple of 4.
     ///     (DOSR is "oversampling ratio"?)
@@ -104,6 +105,7 @@ where
     ///
     ///     [Rev 1, 2]: DOSR = 128, MDAC = 2, NDAC = 1
     ///     [Rev 3]:    DOSR =  68, MDAC = 4, NDAC = 2
+    ///     [Rev 4]:    DOSR =  76, MDAC = 4, NDAC = 2
     ///
     /// ## Common-mode voltage
     ///     Based on the analog power supply. For Rev 1+, we have 3.3V.
@@ -118,6 +120,10 @@ where
                 let ndac = 1;
             } else if #[cfg(feature = "rev3")] {
                 let dosr = 68;
+                let mdac = 4;
+                let ndac = 2;
+            } else if #[cfg(feature = "rev4")] {
+                let dosr = 76;
                 let mdac = 4;
                 let ndac = 2;
             }

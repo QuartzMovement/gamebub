@@ -38,6 +38,10 @@ filesets:
     files:
       - verilog/handheld/rev_3.xdc : {file_type : xdc}
 
+  handheld_rev_4:
+    files:
+      - verilog/handheld/rev_4.xdc : {file_type : xdc}
+
   handheld_clk_gameboy:
     files:
       - verilog/handheld/clk_wiz_system_gameboy.v : {file_type : verilogSource}
@@ -90,6 +94,10 @@ parameters:
       datatype: bool
       paramtype: vlogdefine
 
+  BOARD_REV_4:
+      datatype: bool
+      paramtype: vlogdefine
+
 generate:
   gameboy:
     generator: chisel
@@ -115,6 +123,7 @@ generate:
         handheld_rev_1 ? (1)
         handheld_rev_2 ? (2)
         handheld_rev_3 ? (3)
+        handheld_rev_4 ? (4)
       output:
         filelists:
           - build/generated/filelist.f: { file_type: systemVerilogSource }
@@ -187,6 +196,12 @@ targets:
     filesets_append: [handheld_rev_3]
     parameters: [BOARD_REV_3=true]
     flags: {handheld_rev: "3"}
+
+  handheld_rev4:
+    <<: *handheld
+    filesets_append: [handheld_rev_4]
+    parameters: [BOARD_REV_4=true]
+    flags: {handheld_rev: "4"}
 
   sim:
     default_tool: verilator

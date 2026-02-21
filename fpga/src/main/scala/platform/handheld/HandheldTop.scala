@@ -42,6 +42,14 @@ object HandheldTop extends App {
           hActive = 320,
           vActive = 480,
           variableVsync = true,
+          hSyncMin = 3,
+          hBackPorchMin = 3,
+          hFrontPorchMin = 3,
+          vSyncMin = 1,
+          vBackPorchMin = 2,
+          vFrontPorchMin = 2,
+          // vsync + vbp + vfp < 32
+          vFrontPorchMax = 32 - 1 - 2 - 1,
         ),
         overlayWidth = 240,
         overlayHeight = 160,
@@ -65,6 +73,28 @@ object HandheldTop extends App {
         overlayWidth = 360,
         overlayHeight = 240,
         audioMclkFactor = 544,
+      )
+      case "4" => Revision(
+        // TODO: handle centering
+        displayWidth = 800,
+        displayHeight = 480,
+        displayRotate = true,
+        dpiConfig = AdaptiveDpiDriver.Config(
+          clockHz = 29_362_000,
+          hActive = 480,
+          vActive = 800,
+          variableVsync = true,
+          hSyncMin = 4,
+          hBackPorchMin = 10,
+          hFrontPorchMin = 47,
+          vSyncMin = 4,
+          vBackPorchMin = 20,
+          vFrontPorchMin = 10,
+          vFrontPorchMax = 255,
+        ),
+        overlayWidth = 360,
+        overlayHeight = 240,
+        audioMclkFactor = 608,
       )
       case _ => throw new IllegalArgumentException("invalid revision " + name)
     }

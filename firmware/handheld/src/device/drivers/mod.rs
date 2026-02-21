@@ -5,6 +5,8 @@ pub mod fpga;
 pub mod fs;
 #[cfg(feature = "has_ili9488")]
 pub mod ili9488;
+#[cfg(feature = "has_ili9806e")]
+pub mod ili9806e;
 pub mod imu;
 #[cfg(feature = "has_io_expander")]
 pub mod io_expander;
