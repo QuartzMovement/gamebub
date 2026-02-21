@@ -54,6 +54,22 @@ mod command {
     pub const SOFT_RESET: Control = Control(0x0042);
 }
 
+mod extended {
+    pub const CMD_DATA_CLASS: u8 = 0x3E;
+    pub const CMD_DATA_BLOCK: u8 = 0x3F;
+    pub const CMD_BLOCK_DATA_BASE: u8 = 0x40;
+    pub const CMD_BLOCK_DATA_CHECKSUM: u8 = 0x60;
+    pub const CMD_BLOCK_DATA_CONTROL: u8 = 0x61;
+
+    // Subclass ID, Offset, Size (bytes)
+    pub struct Data(pub u8, pub u8, pub usize);
+
+    pub const DESIGN_CAPACITY: Data = Data(82, 6, 2);
+    pub const DESIGN_ENERGY: Data = Data(82, 8, 2);
+    pub const TERMINATE_VOLTAGE: Data = Data(82, 10, 2);
+    pub const TAPER_RATE: Data = Data(82, 21, 2);
+}
+
 /// Bit flags returned by the Flags command
 mod flag {
     pub const OT: u16 = 1 << 15;
@@ -96,6 +112,8 @@ pub enum Error {
     Timeout,
     #[error("chip id")]
     ChipId,
+    #[error("invalid argument")]
+    InvalidArgument,
 }
 
 pub struct BQ27427<I2C: I2c> {
@@ -136,7 +154,26 @@ where
         // Set battery chemistry B (1202), 4.2V
         self.write_control(command::CHEM_B)?;
 
-        // TODO: design capacity and other parameters
+        let design_capacity: i16 = 3000;
+        let design_voltage: f32 = 3.7;
+        let terminate_voltage: i16 = 3300;
+        let taper_current = 50;
+        // Design energy in mAh
+        let design_energy: i16 = (design_voltage * design_capacity as f32) as i16;
+        // Taper Current (mA) = Design Capacity (mAh) * 10 / TaperRate (0.1h)
+        let taper_rate = ((design_capacity as u32) * 10 / (taper_current)) as i16;
+
+        // Set Design Capacity (mAh)
+        self.write_extended(extended::DESIGN_CAPACITY, &design_capacity.to_be_bytes())?;
+        // Set Design Energy (mWh)
+        self.write_extended(extended::DESIGN_ENERGY, &design_energy.to_be_bytes())?;
+        // Set Terminate Voltage (mV)
+        self.write_extended(
+            extended::TERMINATE_VOLTAGE,
+            &terminate_voltage.to_be_bytes(),
+        )?;
+        // Set Taper Rate (0.1h)
+        self.write_extended(extended::TAPER_RATE, &taper_rate.to_be_bytes())?;
 
         self.soft_reset()?;
         log::info!("Configured fuel gauge");
@@ -237,5 +274,61 @@ where
             .map_err(|_| Error::I2cError)?;
         std::thread::sleep(WAIT_TIME);
         Ok(())
+    }
+
+    fn write_extended(&mut self, reg: extended::Data, data: &[u8]) -> Result<(), Error> {
+        // Precondition: must be in CFGUPDATE mode
+        use extended::*;
+        let subclass = reg.0;
+        let offset = reg.1;
+        if data.len() != reg.2 {
+            return Err(Error::InvalidArgument);
+        }
+
+        // Enable access to block data memory
+        self.i2c
+            .write(ADDRESS, &[CMD_BLOCK_DATA_CONTROL, 0x00])
+            .map_err(|_| Error::I2cError)?;
+
+        // Set the subclass
+        self.i2c
+            .write(ADDRESS, &[CMD_DATA_CLASS, subclass])
+            .map_err(|_| Error::I2cError)?;
+
+        // Set the block offset location
+        self.i2c
+            .write(ADDRESS, &[CMD_DATA_BLOCK, offset / 32])
+            .map_err(|_| Error::I2cError)?;
+
+        // Write the bytes to the BlockData
+        for (i, &x) in data.iter().enumerate() {
+            let reg = CMD_BLOCK_DATA_BASE + ((offset + (i as u8)) % 32);
+            self.i2c
+                .write(ADDRESS, &[reg, x])
+                .map_err(|_| Error::I2cError)?;
+        }
+
+        // Compute the new checksum and write it.
+        let new_checksum = self.compute_extended_checksum()?;
+        self.i2c
+            .write(ADDRESS, &[CMD_BLOCK_DATA_CHECKSUM, new_checksum])
+            .map_err(|_| Error::I2cError)?;
+
+        Ok(())
+    }
+
+    fn compute_extended_checksum(&mut self) -> Result<u8, Error> {
+        use extended::*;
+        let mut data = [0u8; 32];
+        self.i2c
+            .write_read(ADDRESS, &[CMD_BLOCK_DATA_BASE], &mut data)
+            .map_err(|_| Error::I2cError)?;
+
+        let mut checksum = 0u8;
+        for &x in &data {
+            checksum = checksum.wrapping_add(x);
+        }
+
+        Ok(255 - checksum)
     }
 }
