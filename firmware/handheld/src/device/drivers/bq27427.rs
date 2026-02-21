@@ -10,6 +10,8 @@ const WAIT_TIME: Duration = Duration::from_micros(66);
 /// Expected chip ID
 const CHIP_ID: u16 = 0x0427;
 
+const BLOCK_DELAY: Duration = Duration::from_millis(5);
+
 mod command {
     pub struct Standard(pub u8);
     pub struct Control(pub u16);
@@ -68,6 +70,8 @@ mod extended {
     pub const DESIGN_ENERGY: Data = Data(82, 8, 2);
     pub const TERMINATE_VOLTAGE: Data = Data(82, 10, 2);
     pub const TAPER_RATE: Data = Data(82, 21, 2);
+
+    pub const CC_GAIN: Data = Data(105, 5, 1);
 }
 
 /// Bit flags returned by the Flags command
@@ -174,6 +178,9 @@ where
         )?;
         // Set Taper Rate (0.1h)
         self.write_extended(extended::TAPER_RATE, &taper_rate.to_be_bytes())?;
+
+        // Fix BQ27427 "CC Gain" value
+        self.fix_cc_gain()?;
 
         self.soft_reset()?;
         log::info!("Configured fuel gauge");
@@ -300,6 +307,8 @@ where
             .write(ADDRESS, &[CMD_DATA_BLOCK, offset / 32])
             .map_err(|_| Error::I2cError)?;
 
+        std::thread::sleep(BLOCK_DELAY);
+
         // Write the bytes to the BlockData
         for (i, &x) in data.iter().enumerate() {
             let reg = CMD_BLOCK_DATA_BASE + ((offset + (i as u8)) % 32);
@@ -314,6 +323,7 @@ where
             .write(ADDRESS, &[CMD_BLOCK_DATA_CHECKSUM, new_checksum])
             .map_err(|_| Error::I2cError)?;
 
+        std::thread::sleep(BLOCK_DELAY);
         Ok(())
     }
 
@@ -330,5 +340,55 @@ where
         }
 
         Ok(255 - checksum)
+    }
+
+    fn fix_cc_gain(&mut self) -> Result<(), Error> {
+        // https://e2e.ti.com/support/power-management-group/power-management/f/power-management-forum/1215460/bq27427evm-misbehaving-stateofcharge
+        use extended::*;
+        let subclass = CC_GAIN.0;
+        let offset = CC_GAIN.1;
+
+        self.i2c
+            .write(ADDRESS, &[CMD_BLOCK_DATA_CONTROL, 0x00])
+            .map_err(|_| Error::I2cError)?;
+        self.i2c
+            .write(ADDRESS, &[CMD_DATA_CLASS, subclass])
+            .map_err(|_| Error::I2cError)?;
+        self.i2c
+            .write(ADDRESS, &[CMD_DATA_BLOCK, offset / 32])
+            .map_err(|_| Error::I2cError)?;
+        std::thread::sleep(BLOCK_DELAY);
+
+        // Read CC Gain
+        let mut value = [0u8];
+        self.i2c
+            .write_read(ADDRESS, &[CMD_BLOCK_DATA_BASE + offset], &mut value)
+            .map_err(|_| Error::I2cError)?;
+        let cc_gain = value[0];
+
+        if (cc_gain & 0x80) == 0 {
+            log::debug!("CC Gain already correct");
+            return Ok(());
+        }
+        let new_cc_gain = cc_gain ^ 0x80;
+        log::info!("Setting CC Gain to 0x{:02X}", new_cc_gain);
+
+        let mut value = [0u8];
+        self.i2c
+            .write_read(ADDRESS, &[CMD_BLOCK_DATA_CHECKSUM], &mut value)
+            .map_err(|_| Error::I2cError)?;
+        let checksum = value[0];
+
+        self.i2c
+            .write(ADDRESS, &[CMD_BLOCK_DATA_BASE + offset, new_cc_gain])
+            .map_err(|_| Error::I2cError)?;
+        let new_checksum = checksum ^ 0x80;
+
+        self.i2c
+            .write(ADDRESS, &[CMD_BLOCK_DATA_CHECKSUM, new_checksum])
+            .map_err(|_| Error::I2cError)?;
+
+        std::thread::sleep(BLOCK_DELAY);
+        Ok(())
     }
 }
