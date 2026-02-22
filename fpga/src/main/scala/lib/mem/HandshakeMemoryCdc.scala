@@ -14,6 +14,7 @@ import xilinx.XpmCdcHandshake
 class HandshakeMemoryCdc(addressWidth: Int, dataWidth: Int) extends Module {
   val io = IO(new Bundle {
     val sourceClock = Input(Clock())
+    val sourceReset = Input(Reset())
     val initiator = new MemoryInterface(addressWidth, dataWidth)
     val target = Flipped(new MemoryInterface(addressWidth, dataWidth))
   })
@@ -36,7 +37,7 @@ class HandshakeMemoryCdc(addressWidth: Int, dataWidth: Int) extends Module {
   io.initiator.done := false.B
   io.initiator.dataRead := 0.U // TODO
 
-  withClock (io.sourceClock) {
+  withClockAndReset (io.sourceClock, io.sourceReset) {
     val regSourceBusy = RegInit(false.B)
     val regSent = RegInit(false.B)
 

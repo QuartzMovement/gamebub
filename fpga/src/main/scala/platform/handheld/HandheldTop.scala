@@ -542,6 +542,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
     {
       val cdc = Module(new HandshakeMemoryCdc(addressWidth = 9, dataWidth = 16))
       cdc.io.sourceClock := clock
+      cdc.io.sourceReset := reset
       cdc.io.initiator <> colorCorrectInterface
       val mem = cdc.io.target
       mem.done := true.B
