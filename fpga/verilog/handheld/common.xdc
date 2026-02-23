@@ -18,9 +18,13 @@ set_property CONFIG_VOLTAGE 3.3 [current_design]
 #
 # Power optimized decomposition will split rows across BRAMs, so the same framebuffer will
 # use 19 BRAMs (each 15-bit x 2048) (depth expansion).
-set_property ram_decomp power [get_cells handheld_top/overlayFramebuffer_sram_ext/Memory_reg]
-set_property ram_decomp power [get_cells handheld_top/framebuffers_sram_ext/Memory_reg]
-set_property ram_decomp power [get_cells handheld_top/framebuffers_sram_*_ext/Memory_reg]
+#
+# -quiet prevents Vivado from complaining about get_cells returning nothing during implementation
+# (since this is a synthesis-only directory). However, it also masks any errors due to the
+# path actually being wrong in synthesis.
+set_property -quiet ram_decomp power [get_cells handheld_top/overlayFramebuffer_sram_ext/Memory_reg]
+set_property -quiet ram_decomp power [get_cells handheld_top/framebuffers_sram_ext/Memory_reg]
+set_property -quiet ram_decomp power [get_cells handheld_top/framebuffers_sram_*_ext/Memory_reg]
 
 ########################################
 # Clocking
