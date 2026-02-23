@@ -31,7 +31,7 @@ set_property CLOCK_DEDICATED_ROUTE FALSE [get_nets clk_in_50mhz]
 
 # The 'dpi' and 'hdmi' clocks pass through a clock mux, and are mutually exclusive.
 # Mark their fanouts as being in a physically exclusive clock group.
-set_clock_groups -name exclusive_dpi_hdmi -physically_exclusive -group clk_out_dpi_clk_wiz_system -group clk_out_hdmi_clk_wiz_system
+set_clock_groups -name exclusive_dpi_hdmi -physically_exclusive -group clk_out_dpi_clk_wiz_system -group clk_hdmi_clk_wiz_hdmi
 
 # Mark the BUFGMUX_CTRL select input as having a false path.
 # From UG472, the select input's setup/hold times only determine whether the old clock is used for an extra cycle

@@ -140,6 +140,8 @@ module top_handheld (
     logic clk_spi;
     logic clk_spi_locked;
     logic clk_spi_power_down;
+    logic clk_hdmi_locked;
+    logic clk_hdmi_power_down;
     assign sdram_clk = clk_sdram;
 
     // TODO: clock gate clk_spi when clk_spi_power_down is high
@@ -160,9 +162,15 @@ module top_handheld (
         .clk_out_sys(clk_sys),
         .clk_out_sdram(clk_sdram),
         .clk_out_dpi(clk_dpi),
-        .clk_out_hdmi(clk_hdmi),
-        .clk_out_hdmi_x5(clk_hdmi_x5),
         .clk_out_spi(clk_spi)
+    );
+    clk_wiz_hdmi_clk_wiz clk_wiz_hdmi(
+        .reset(pll_reset),
+        .locked(clk_hdmi_locked),
+        .power_down(clk_hdmi_power_down),
+        .clk_in_50mhz(clk_in_50mhz),
+        .clk_out_hdmi(clk_hdmi),
+        .clk_out_hdmi_x5(clk_hdmi_x5)
     );
 
     // AV clock mux, select between clk_dpi and clk_hdmi
@@ -173,6 +181,7 @@ module top_handheld (
        .I1(clk_hdmi),
        .S(hdmi_enable)
     );
+    assign clk_hdmi_power_down = ~hdmi_enable;
 
     logic [7:0] inner_cart_bank0_in;
     logic [7:0] inner_cart_bank1_in;
@@ -422,6 +431,12 @@ module top_handheld (
     assign sdram_cs_n[1] = 1'b1;
 
     // HDMI TMDS output
+    logic hdmi_reset;
+    pll_reset_generator hdmi_reset_gen(
+        .clk(clk_hdmi),
+        .clk_locked(clk_hdmi_locked),
+        .reset(hdmi_reset)
+    );
     // TODO: see if the OBUFTDS can be used: T must be connected to OSERDESE2 output
     logic hdmi_tmds_clock;
     logic [2:0] hdmi_tmds_data;
@@ -437,7 +452,7 @@ module top_handheld (
         .clk_pixel_x5(clk_hdmi_x5),
         .clk_pixel(clk_hdmi),
         .clk_audio(hdmi_audio_clock),
-        .reset(~hdmi_enable),
+        .reset(hdmi_reset),
         .rgb(hdmi_rgb),
         .audio_sample_word(hdmi_audio),
         .tmds(hdmi_tmds_data),

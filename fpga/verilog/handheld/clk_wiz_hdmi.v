@@ -1,5 +1,5 @@
 
-// file: clk_wiz_system.v
+// file: clk_wiz_hdmi.v
 // (c) Copyright 2017-2018, 2023 Advanced Micro Devices, Inc. All rights reserved.
 //
 // This file contains confidential and proprietary information
@@ -53,12 +53,8 @@
 //  Output     Output      Phase    Duty Cycle   Pk-to-Pk     Phase
 //   Clock     Freq (MHz)  (degrees)    (%)     Jitter (ps)  Error (ps)
 //----------------------------------------------------------------------------
-// clk_out_sys__16.77827______0.000______50.0______390.532____391.866
-// clk_out_sdram__67.11310______0.000______50.0______306.465____391.866
-// clk_out_dpi__12.36294______0.000______50.0______409.351____391.866 [Rev 1, 2]
-// clk_out_dpi__26.09954______0.000______50.0______409.351____391.866 [Rev 3]
-// clk_out_dpi__29.36198______0.000______50.0______409.351____391.866 [Rev 4]
-// clk_out_spi__187.91674______0.000______50.0______??____??
+// clk_hdmi__27.03125______0.000______50.0______217.121____159.389
+// clk_hdmi_x5__135.15625______0.000______50.0______142.405____159.389
 //
 //----------------------------------------------------------------------------
 // Input Clock   Freq (MHz)    Input Jitter (UI)
@@ -67,24 +63,22 @@
 
 `timescale 1ps/1ps
 
-module clk_wiz_system_clk_wiz
+module clk_wiz_hdmi_clk_wiz 
 
  (// Clock in ports
   // Clock out ports
-  output        clk_out_sys,
-  output        clk_out_sdram,
-  output        clk_out_dpi,
-  output        clk_out_spi,
+  output        clk_out_hdmi,
+  output        clk_out_hdmi_x5,
   // Status and control signals
   input         reset,
+  input         power_down,
   output        locked,
   input         clk_in_50mhz
  );
   // Input buffering
   //------------------------------------
-wire clk_in_50mhz_clk_wiz_system;
-wire clk_in2_clk_wiz_system;
-  assign clk_in_50mhz_clk_wiz_system = clk_in_50mhz;
+wire clk_in_50mhz_clk_wiz_hdmi;
+  assign clk_in_50mhz_clk_wiz_hdmi = clk_in_50mhz;
 
 
 
@@ -96,22 +90,28 @@ wire clk_in2_clk_wiz_system;
   //    * Unused inputs are tied off
   //    * Unused outputs are labeled unused
 
-  wire        clk_out_sys_clk_wiz_system;
-  wire        clk_out_sdram_clk_wiz_system;
-  wire        clk_out_dpi_clk_wiz_system;
-  wire        clk_out_spi_clk_wiz_system;
+  wire        clk_hdmi_clk_wiz_hdmi;
+  wire        clk_hdmi_x5_clk_wiz_hdmi;
+  wire        clk_out3_clk_wiz_hdmi;
+  wire        clk_out4_clk_wiz_hdmi;
+  wire        clk_out5_clk_wiz_hdmi;
+  wire        clk_out6_clk_wiz_hdmi;
+  wire        clk_out7_clk_wiz_hdmi;
 
   wire [15:0] do_unused;
   wire        drdy_unused;
   wire        psdone_unused;
   wire        locked_int;
-  wire        clkfbout_clk_wiz_system;
+  wire        clkfbout_clk_wiz_hdmi;
+  wire        clkfbout_buf_clk_wiz_hdmi;
   wire        clkfboutb_unused;
     wire clkout0b_unused;
    wire clkout1b_unused;
+   wire clkout2_unused;
    wire clkout2b_unused;
+   wire clkout3_unused;
    wire clkout3b_unused;
-  wire        clkout4_unused;
+   wire clkout4_unused;
   wire        clkout5_unused;
   wire        clkout6_unused;
   wire        clkfbstopped_unused;
@@ -123,54 +123,38 @@ wire clk_in2_clk_wiz_system;
     .CLKOUT4_CASCADE      ("FALSE"),
     .COMPENSATION         ("ZHOLD"),
     .STARTUP_WAIT         ("FALSE"),
-    .DIVCLK_DIVIDE        (3),
-    .CLKFBOUT_MULT_F      (56.375),
+    .DIVCLK_DIVIDE        (1),
+    .CLKFBOUT_MULT_F      (21.625),
     .CLKFBOUT_PHASE       (0.000),
     .CLKFBOUT_USE_FINE_PS ("FALSE"),
-    .CLKOUT0_DIVIDE_F     (56.000),
+    .CLKOUT0_DIVIDE_F     (40.000),
     .CLKOUT0_PHASE        (0.000),
     .CLKOUT0_DUTY_CYCLE   (0.5),
     .CLKOUT0_USE_FINE_PS  ("FALSE"),
-    .CLKOUT1_DIVIDE       (14),
+    .CLKOUT1_DIVIDE       (8),
     .CLKOUT1_PHASE        (0.000),
     .CLKOUT1_DUTY_CYCLE   (0.5),
     .CLKOUT1_USE_FINE_PS  ("FALSE"),
-`ifdef BOARD_REV_1
-    .CLKOUT2_DIVIDE       (76),
-`elsif BOARD_REV_2
-    .CLKOUT2_DIVIDE       (76),
-`elsif BOARD_REV_3
-    .CLKOUT2_DIVIDE       (36),
-`elsif BOARD_REV_4
-    .CLKOUT2_DIVIDE       (32),
-`endif
-    .CLKOUT2_PHASE        (0.000),
-    .CLKOUT2_DUTY_CYCLE   (0.5),
-    .CLKOUT2_USE_FINE_PS  ("FALSE"),
-    .CLKOUT3_DIVIDE       (5),
-    .CLKOUT3_PHASE        (0.000),
-    .CLKOUT3_DUTY_CYCLE   (0.500),
-    .CLKOUT3_USE_FINE_PS  ("FALSE"),
     .CLKIN1_PERIOD        (20.000))
   mmcm_adv_inst
     // Output clocks
    (
-    .CLKFBOUT            (clkfbout_clk_wiz_system),
+    .CLKFBOUT            (clkfbout_clk_wiz_hdmi),
     .CLKFBOUTB           (clkfboutb_unused),
-    .CLKOUT0             (clk_out_sys_clk_wiz_system),
+    .CLKOUT0             (clk_hdmi_clk_wiz_hdmi),
     .CLKOUT0B            (clkout0b_unused),
-    .CLKOUT1             (clk_out_sdram_clk_wiz_system),
+    .CLKOUT1             (clk_hdmi_x5_clk_wiz_hdmi),
     .CLKOUT1B            (clkout1b_unused),
-    .CLKOUT2             (clk_out_dpi_clk_wiz_system),
+    .CLKOUT2             (clkout2_unused),
     .CLKOUT2B            (clkout2b_unused),
-    .CLKOUT3             (clk_out_spi_clk_wiz_system),
+    .CLKOUT3             (clkout3_unused),
     .CLKOUT3B            (clkout3b_unused),
     .CLKOUT4             (clkout4_unused),
     .CLKOUT5             (clkout5_unused),
     .CLKOUT6             (clkout6_unused),
      // Input clock control
-    .CLKFBIN             (clkfbout_clk_wiz_system),
-    .CLKIN1              (clk_in_50mhz_clk_wiz_system),
+    .CLKFBIN             (clkfbout_buf_clk_wiz_hdmi),
+    .CLKIN1              (clk_in_50mhz_clk_wiz_hdmi),
     .CLKIN2              (1'b0),
      // Tied to always select the primary input clock
     .CLKINSEL            (1'b1),
@@ -191,9 +175,9 @@ wire clk_in2_clk_wiz_system;
     .LOCKED              (locked_int),
     .CLKINSTOPPED        (clkinstopped_unused),
     .CLKFBSTOPPED        (clkfbstopped_unused),
-    .PWRDWN              (1'b0),
+    .PWRDWN              (power_down),
     .RST                 (reset_high));
-  assign reset_high = reset;
+  assign reset_high = reset; 
 
   assign locked = locked_int;
 // Clock Monitor clock assigning
@@ -201,26 +185,24 @@ wire clk_in2_clk_wiz_system;
  // Output buffering
   //-----------------------------------
 
+  BUFG clkf_buf
+   (.O (clkfbout_buf_clk_wiz_hdmi),
+    .I (clkfbout_clk_wiz_hdmi));
+
 
 
 
 
 
   BUFG clkout1_buf
-   (.O   (clk_out_sys),
-    .I   (clk_out_sys_clk_wiz_system));
+   (.O   (clk_out_hdmi),
+    .I   (clk_hdmi_clk_wiz_hdmi));
 
 
   BUFG clkout2_buf
-   (.O   (clk_out_sdram),
-    .I   (clk_out_sdram_clk_wiz_system));
+   (.O   (clk_out_hdmi_x5),
+    .I   (clk_hdmi_x5_clk_wiz_hdmi));
 
-  BUFG clkout3_buf
-   (.O   (clk_out_dpi),
-    .I   (clk_out_dpi_clk_wiz_system));
 
-  BUFG clkout4_buf
-   (.O   (clk_out_spi),
-    .I   (clk_out_spi_clk_wiz_system));
 
 endmodule
