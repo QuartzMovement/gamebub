@@ -129,7 +129,6 @@ module top_handheld (
     output wire [2:0]  hdmi_data_n
 );
     logic pll_reset = 1'd0;
-    logic reset = 1'd0;
 
     logic clk_sys;
     logic clk_sys_locked;
@@ -234,19 +233,12 @@ module top_handheld (
     logic cart_en_5v0;
 `endif
 
-    ///// BEGIN Reset synchronizer
-    logic [1:0] reset_sync;
-    initial reset_sync = 2'b11;
-    initial reset = 1'b1;
-
-    always @(posedge clk_sys or negedge clk_sys_locked) begin
-        if (!clk_sys_locked) begin
-            {reset, reset_sync} <= 3'b111;
-        end else begin
-            {reset, reset_sync} <= {reset_sync, 1'b0};
-        end
-    end
-    //////////////////////////////
+    logic reset;
+    pll_reset_generator sys_reset_gen(
+        .clk(clk_sys),
+        .clk_locked(clk_sys_locked),
+        .reset(reset)
+    );
 
     HandheldTop handheld_top(
         .clock(clk_sys),
