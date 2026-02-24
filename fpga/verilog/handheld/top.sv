@@ -173,12 +173,18 @@ module top_handheld (
         .clk_out_hdmi_x5(clk_hdmi_x5)
     );
 
+    // Manual BUFH in case Vivado places the two MMCMs in different top/bottom halves
+    wire clk_hdmi_bufh;
+    BUFH bufh_av_hdmi (
+        .O(clk_hdmi_bufh),
+        .I(clk_hdmi)
+    );
     // AV clock mux, select between clk_dpi and clk_hdmi
     logic hdmi_enable;
     BUFGMUX_CTRL bufgmux_av (
        .O(clk_av),
        .I0(clk_dpi),
-       .I1(clk_hdmi),
+       .I1(clk_hdmi_bufh),
        .S(hdmi_enable)
     );
     assign clk_hdmi_power_down = ~hdmi_enable;
