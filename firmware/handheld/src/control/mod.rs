@@ -1,7 +1,14 @@
 //! USB Vendor Control interface
 
+use std::time::Duration;
+
+use esp_idf_svc::timer::EspTaskTimerService;
+
 use crate::{
-    device::drivers::usb::control::Request,
+    device::{
+        drivers::usb::{self, control::Request},
+        Device,
+    },
     hwinfo,
     input::{GamepadId, InputState},
     ui, worker,
@@ -134,17 +141,33 @@ pub fn handle_control_out(request: &Request, buf: &[u8]) -> Result<(), ()> {
 /// Handle a control request completion. Not needed for most requests.
 pub fn handle_control_complete(request: &Request) {
     match request.request {
-        REQUEST_REBOOT => match request.value {
-            1 => worker::send(worker::Message::Reboot),
-            2 => worker::send(worker::Message::RebootBootloader),
-            _ => {}
-        },
+        REQUEST_REBOOT => {
+            // Wait 100ms to allow USB transaction to complete.
+            let value = request.value;
+            defer_callback(move || match value {
+                1 => Device::lock().reboot(),
+                2 => Device::lock().reboot_dfu(),
+                _ => {}
+            });
+        }
         REQUEST_ENABLE_DEBUG => {
             // This will cause re-enumeration, so we wait until this function
             // because the Ack has already been sent to the host.
             log::info!("Enabling USB Serial / JTAG");
-            worker::send(worker::Message::EnableUsbSerialJtag);
+            defer_callback(|| {
+                if let Err(e) = usb::configure_usb(usb::UsbMode::SerialJtag) {
+                    log::error!("Failed to configure USB Serial/JTAG: {e}");
+                }
+            });
         }
         _ => {}
     }
+}
+
+fn defer_callback(cb: impl FnMut() + 'static + Send + Sync) {
+    let timer_service = EspTaskTimerService::new().unwrap();
+    let timer = timer_service.timer(cb).unwrap();
+    timer.after(Duration::from_millis(100)).unwrap();
+    // Leak the timer.
+    std::mem::forget(timer);
 }
