@@ -4,6 +4,7 @@ use core::{
 };
 
 use embassy_sync::blocking_mutex::CriticalSectionMutex;
+use embassy_time::Instant;
 use embedded_storage::nor_flash::{NorFlash, ReadNorFlash};
 use esp_storage::FlashStorage;
 
@@ -148,6 +149,7 @@ impl Protocol {
             return Err(CommandStatus::InvalidArg);
         }
 
+        let start_time = Instant::now();
         let mut start = address;
         let end = address + length;
         while start < end {
@@ -157,6 +159,8 @@ impl Protocol {
             start += sector_size;
             embassy_futures::yield_now().await;
         }
+        let elapsed = start_time.elapsed();
+        log::info!("Erased {} bytes in {}ms", length, elapsed.as_millis());
 
         Ok(())
     }

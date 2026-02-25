@@ -52,7 +52,7 @@ async fn main(spawner: Spawner) {
     let timg0 = TimerGroup::new(peripherals.TIMG0);
     esp_rtos::start(timg0.timer0);
 
-    info!("Initialized");
+    info!("Game Bub DFU");
 
     let led = Output::new(peripherals.GPIO42, Level::Low, OutputConfig::default());
     spawner.spawn(led::blink_task(led)).unwrap();
