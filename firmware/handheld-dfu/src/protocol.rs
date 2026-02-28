@@ -106,7 +106,8 @@ impl Protocol {
             0x84 => self.command_read(command, write_fn).await,
             // WRITE
             0x05 => self.command_write(command, read_fn).await,
-            // TODO efuse
+            // OTP_READ (efuse)
+            0x8C => self.command_efuse_read(command, write_fn).await,
             _ => Err(CommandStatus::UnknownCmd),
         };
         STATE.lock(|x| {
@@ -257,6 +258,46 @@ impl Protocol {
                 .write(offset, bytes)
                 .map_err(|_| CommandStatus::UnknownError)?;
             offset += amount as u32;
+        }
+
+        Ok(())
+    }
+
+    async fn command_efuse_read(
+        &mut self,
+        command: CommandHeader,
+        mut write_fn: impl AsyncFnMut(&[u8]) -> Result<(), CommandStatus>,
+    ) -> Result<(), CommandStatus> {
+        // From the ESP32-S3 TRM
+        let efuse_area = unsafe { core::slice::from_raw_parts(0x6000702C as *const u8, 0x150) };
+
+        // Validate arguments.
+        if command.cmd_size != 5 {
+            return Err(CommandStatus::InvalidCmdLength);
+        }
+        let row = u16::from_le_bytes(command.args[0..2].try_into().unwrap()) as usize;
+        let row_count = u16::from_le_bytes(command.args[2..4].try_into().unwrap()) as usize;
+        let ecc = command.args[4];
+        if ecc != 0 {
+            return Err(CommandStatus::InvalidArg);
+        }
+        if command.transfer_length != (row_count * 4) as u32 {
+            return Err(CommandStatus::InvalidArg);
+        }
+
+        let start = row * 4;
+        let end = start + (row_count * 4);
+        if end > efuse_area.len() {
+            return Err(CommandStatus::InvalidArg);
+        }
+        let data = &efuse_area[start..end];
+        for chunk in data.chunks(64) {
+            // Must copy out of efuse area before sending it to USB.
+            let mut buffer = [0u8; 64];
+            let buffer = &mut buffer[0..chunk.len()];
+            buffer.copy_from_slice(chunk);
+
+            write_fn(buffer).await?;
         }
 
         Ok(())
