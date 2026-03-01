@@ -301,7 +301,7 @@ impl Device<'_> {
 
         // LCD backlight
         let lcd_backlight = {
-            #[cfg(any(feature = "rev1", feature = "rev2", feature = "rev4"))]
+            #[cfg(any(feature = "rev1", feature = "rev2"))]
             let config = lcd_backlight::PwmConfig {
                 frequency: 25.kHz().into(),
                 resolution: ledc::config::Resolution::Bits11,
@@ -314,6 +314,13 @@ impl Device<'_> {
                 resolution: ledc::config::Resolution::Bits14,
                 min_duty: 0.03,
                 gamma: 2.8,
+            };
+            #[cfg(feature = "rev4")]
+            let config = lcd_backlight::PwmConfig {
+                frequency: 20.kHz().into(),
+                resolution: ledc::config::Resolution::Bits11,
+                min_duty: 0.001,
+                gamma: 1.8,
             };
             let driver = LedcDriver::new(
                 peripherals.ledc.channel1,
