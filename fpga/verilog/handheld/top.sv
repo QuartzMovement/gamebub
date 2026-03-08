@@ -187,7 +187,6 @@ module top_handheld (
        .I1(clk_hdmi_bufh),
        .S(hdmi_enable)
     );
-    assign clk_hdmi_power_down = ~hdmi_enable;
 
     logic [7:0] inner_cart_bank0_in;
     logic [7:0] inner_cart_bank1_in;
@@ -285,6 +284,7 @@ module top_handheld (
         .io_dac_data(dac_din),
 
         .io_hdmiEnable(hdmi_enable),
+        .io_hdmiClockPowerDown(clk_hdmi_power_down),
         .io_hdmiAudioClock(hdmi_audio_clock),
         .io_hdmiAudio_0(hdmi_audio[0]),
         .io_hdmiAudio_1(hdmi_audio[1]),

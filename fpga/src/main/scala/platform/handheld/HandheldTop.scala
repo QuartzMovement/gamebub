@@ -279,6 +279,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
 
     /** HDMI */
     val hdmiEnable = Output(Bool())
+    val hdmiClockPowerDown = Output(Bool())
     val hdmiAudioClock = Output(Clock())
     val hdmiAudio = Output(Vec(2, UInt(16.W)))
     val hdmiRgb = Output(UInt(24.W))
@@ -508,6 +509,17 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
     overlayWidth * overlayHeight, UInt(module.overlayColorDepth.getWidth.W),
     readPortClocks = Seq(io.clock_av), writePortClocks = Seq(clock), readwritePortClocks = Seq(),
   )
+
+  // Keep HDMI MMCM powered for a few more cycles after switching away
+  // from it to ensure the clock mux functions correctly.
+  val hdmiClockPowerTimer = RegInit(0.U(3.W))
+  when (displayRegister.docked) {
+    hdmiClockPowerTimer := 7.U
+  } .elsewhen (hdmiClockPowerTimer > 0.U) {
+    hdmiClockPowerTimer := hdmiClockPowerTimer - 1.U
+  }
+  io.hdmiClockPowerDown := hdmiClockPowerTimer === 0.U
+
   val reset_av = withClock(io.clock_av) { XpmCdcSyncRst(reset) }
   withClockAndReset (clock = io.clock_av, reset = reset_av) {
     val videoX = Wire(UInt(10.W))
