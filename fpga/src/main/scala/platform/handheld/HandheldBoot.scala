@@ -9,8 +9,8 @@ class HandheldBoot extends Module with HandheldModule {
     val io = IO(new HandheldIo)
     def framebufferW = 240
     def framebufferH = 160
-    def clockSystemHz = 16 * 1024 * 1024
-    def clockSdramHz = clockSystemHz * 4
+    def clockSystemDivider = 56
+    def clockSdramDivider = 14
     def targetFramePeriod = 1.0 / 64.0
     override def overlayColorDepth = ColorARGB.argb1555()
 

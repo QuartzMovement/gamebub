@@ -21,8 +21,8 @@ class HandheldGameboy extends Module with HandheldModule {
   val io = IO(new HandheldIo)
   def framebufferW = 160
   def framebufferH = 144
-  def clockSystemHz = 8 * 1024 * 1024
-  def clockSdramHz = clockSystemHz * 4
+  def clockSystemDivider = 112
+  def clockSdramDivider = 28
   def targetFramePeriod = (456 * 154).toDouble / (4 * 1024 * 1024)
   override def sdramBurst = false
 

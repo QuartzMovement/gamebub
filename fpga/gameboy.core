@@ -43,14 +43,6 @@ filesets:
     files:
       - verilog/handheld/rev_4.xdc : {file_type : xdc}
 
-  handheld_clk_gameboy:
-    files:
-      - verilog/handheld/clk_wiz_system_gameboy.v : {file_type : verilogSource}
-
-  handheld_clk_gba:
-    files:
-      - verilog/handheld/clk_wiz_system_gba.v : {file_type : verilogSource}
-
   sim_base:
     files:
       - sim/audio.hpp : {is_include_file: true}
@@ -168,9 +160,6 @@ targets:
       - "base"
       - "hdmi"
       - "handheld"
-      - "module_gba ? (handheld_clk_gba)"
-      - "module_gameboy ? (handheld_clk_gameboy)"
-      - "module_boot ? (handheld_clk_gba)"
     generate: [handheld]
     toplevel: top_handheld
     tools:

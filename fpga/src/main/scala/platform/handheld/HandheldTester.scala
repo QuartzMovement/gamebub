@@ -8,8 +8,8 @@ class HandheldTester extends Module with HandheldModule {
     val io = IO(new HandheldIo)
     def framebufferW = 240
     def framebufferH = 160
-    def clockSystemHz = 8 * 1024 * 1024
-    def clockSdramHz = clockSystemHz * 4
+    def clockSystemDivider = 112
+    def clockSdramDivider = 28
     def targetFramePeriod = 1.0 / 60.0
 
     val (_, frame) = Counter(true.B, clockSystemHz / 60)

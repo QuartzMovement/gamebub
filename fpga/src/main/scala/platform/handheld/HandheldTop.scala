@@ -7,6 +7,7 @@ import lib.mem.sdram.{BurstSdramController, Signals => SdramSignals}
 import lib.mem.{HandshakeMemoryCdc, MemoryArbiter, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryArbiter, PipelineMemoryBurstCdc, PipelineMemoryInterface, RegisterMap}
 import lib.video.{Color, ColorARGB, ColorCorrection, ColorGrayscale}
 import xilinx.{XpmCdcHandshake, XpmCdcSingle, XpmCdcSyncRst}
+import xilinx.MMCM
 
 object HandheldTop extends App {
   // Parse arguments.
@@ -53,6 +54,7 @@ object HandheldTop extends App {
         ),
         overlayWidth = 240,
         overlayHeight = 160,
+        dpiClockDivider = 76,
         audioMclkFactor = 256,
       )
       case "3" => Revision(
@@ -72,6 +74,7 @@ object HandheldTop extends App {
         ),
         overlayWidth = 360,
         overlayHeight = 240,
+        dpiClockDivider = 36,
         audioMclkFactor = 544,
       )
       case "4" => Revision(
@@ -94,6 +97,7 @@ object HandheldTop extends App {
         ),
         overlayWidth = 360,
         overlayHeight = 240,
+        dpiClockDivider = 32,
         audioMclkFactor = 608,
       )
       case _ => throw new IllegalArgumentException("invalid revision " + name)
@@ -141,8 +145,8 @@ trait HandheldModule {
 
   def framebufferW: Int
   def framebufferH: Int
-  def clockSystemHz: Int
-  def clockSdramHz: Int
+  def clockSystemHz: Int = (50_000_000.toDouble / 3 * 56.375 / clockSystemDivider).toInt
+  def clockSdramHz: Int = (50_000_000.toDouble / 3 * 56.375 / clockSdramDivider).toInt
   def targetFramePeriod: Double
 
   /// Whether SDRAM controller is optimized for linear bursts
@@ -150,6 +154,13 @@ trait HandheldModule {
 
   /// UI overlay color depth (can be narrow to save framebuffer memory)
   def overlayColorDepth: Color = ColorGrayscale.apply(1, 3)
+
+  /// Clock divider for system clock
+  ///
+  /// Currently hard-coded to divide the (50 / 3 * 56.375) MHz MMCM clock
+  def clockSystemDivider: Int
+  /// Clock divider for SDRAM clock
+  def clockSdramDivider: Int
 }
 
 /** Buttons on the handheld. All are active-high. */
@@ -255,13 +266,14 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
     enableBurst = module.sdramBurst,
   )
   val io = IO(new Bundle {
+    /** Clocking **/
+    val clockIn50Mhz = Input(Clock())
+    val clockOutSys = Output(Clock())
+    val clockOutDpi = Output(Clock())
+    val clockOutLocked = Output(Bool())
+
     /** Audio/video clock: DPI when HDMI disabled, 27.027 MHz when HDMI enabled */
     val clock_av = Input(Clock())
-
-    /** SPI clocking */
-    val clockSpi = Input(Clock())
-    val clockSpiLocked = Input(Bool())
-    val clockSpiPowerDown = Output(Bool())
 
     /** MCU interrupt: true to pull it low (active) */
     val mcuIrq = Output(Bool())
@@ -306,23 +318,50 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
     val sram = new AsyncSramController.Signals(addressWidth = 18, dataWidth = 16)
 
     // SDRAM
-    val sdramClock = Input(Clock())
+    val sdramClock = Output(Clock())
     val sdram = new SdramSignals(addressWidth = 13, dataWidth = 16, bankWidth = 2)
   })
+
+  //////////////////////////////////
+  // Main MMCM
+  //////////////////////////////////
+  val mmcm = Module(new MMCM(
+    clockInHz = 50_000_000,
+    divide = 3,
+    multiply = 56.375,
+    clockOutConfig = Seq(
+      MMCM.ClockOut(module.clockSystemDivider),
+      MMCM.ClockOut(module.clockSdramDivider),
+      MMCM.ClockOut(revision.dpiClockDivider),
+      MMCM.ClockOut(5), // SPI, ~188 MHz
+    )
+  ))
+  mmcm.io.clockIn := io.clockIn50Mhz
+  mmcm.io.powerDown := false.B
+  io.clockOutLocked := mmcm.io.locked
+  io.clockOutSys := mmcm.io.clockOuts(0)
+  val sdramClock = mmcm.io.clockOuts(1)
+  io.clockOutDpi := mmcm.io.clockOuts(2)
+  val clockSpi = mmcm.io.clockOuts(3)
+  io.sdramClock := sdramClock
 
   //////////////////////////////////
   // MCU Communication
   //////////////////////////////////
   // D0: PICO, D1: POCI
+  // TODO: clock gate when nCS is high
+  val clockSpiLocked = Wire(Bool())
   val spi = Module(new SpiReceiverFifo())
-  spi.io.clockSpi := io.clockSpi
-  spi.io.clockSpiLocked := io.clockSpiLocked
-  io.clockSpiPowerDown := spi.io.clockSpiPowerDown
+  spi.io.clockSpi := clockSpi
+  spi.io.clockSpiLocked := clockSpiLocked
   io.mcuSpiDataDir := Mux(io.mcuSpiChipSelect, 0.U, spi.io.signals.serialDir)
   io.mcuSpiDataOut := spi.io.signals.serialOut
   spi.io.signals.serialClock := io.mcuSpiClock
   spi.io.signals.serialIn := io.mcuSpiDataIn
   spi.io.signals.chipSelect := io.mcuSpiChipSelect
+  withClock (clockSpi) {
+    clockSpiLocked := RegNext(!spi.io.clockSpiPowerDown)
+  }
 
   val controlRegister = RegInit(0.U.asTypeOf(new Bundle() {
     /** True to enable vibration (if the module uses it) */
@@ -468,12 +507,12 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
     bridge.io.dest <> sdramArbiter.io.initiator(0)
   }
 
-  val sdram = withClock(io.sdramClock) {
+  val sdram = withClock(sdramClock) {
     Module(new BurstSdramController(sdramConfig))
   }
   io.sdram <> sdram.io.signals
 
-  withClock (io.sdramClock) {
+  withClock (sdramClock) {
     val cdc = Module(new PipelineMemoryBurstCdc(
       addressWidth = 25,
       dataWidth = 32,
@@ -841,6 +880,8 @@ case class Revision(
   overlayWidth: Int,
   overlayHeight: Int,
 
+  /// The AV clock divider
+  dpiClockDivider: Int,
   /// The multipler to go from audio sample rate (48kHz) to MCLK
   audioMclkFactor: Int,
 )

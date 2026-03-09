@@ -132,37 +132,18 @@ module top_handheld (
 
     logic clk_sys;
     logic clk_sys_locked;
-    logic clk_sdram;
     logic clk_dpi;
     logic clk_hdmi;
     logic clk_hdmi_x5;
     logic clk_av;
-    logic clk_spi;
-    logic clk_spi_locked;
-    logic clk_spi_power_down;
     logic clk_hdmi_locked;
     logic clk_hdmi_power_down;
-    assign sdram_clk = clk_sdram;
 
-    // TODO: clock gate clk_spi when clk_spi_power_down is high
-    always @(posedge clk_spi) begin
-        clk_spi_locked <= ~clk_spi_power_down;
-    end
-
-    // Manually construct IBUF for 50Mhz input clock to share between multiple clocking wizards.
+    // Manually construct IBUF for 50Mhz input clock to share between multiple MMCMs.
     wire clk_in_50mhz;
     IBUF clkin1_ibufg(
         .O (clk_in_50mhz),
         .I (clk_50mhz)
-    );
-    clk_wiz_system_clk_wiz clk_wiz_system(
-        .reset(pll_reset),
-        .locked(clk_sys_locked),
-        .clk_in_50mhz(clk_in_50mhz),
-        .clk_out_sys(clk_sys),
-        .clk_out_sdram(clk_sdram),
-        .clk_out_dpi(clk_dpi),
-        .clk_out_spi(clk_spi)
     );
     clk_wiz_hdmi_clk_wiz clk_wiz_hdmi(
         .reset(pll_reset),
@@ -257,11 +238,13 @@ module top_handheld (
     HandheldTop handheld_top(
         .clock(clk_sys),
         .reset(reset),
-        .io_clock_av(clk_av),
 
-        .io_clockSpi(clk_spi),
-        .io_clockSpiLocked(clk_spi_locked),
-        .io_clockSpiPowerDown(clk_spi_power_down),
+        .io_clockIn50Mhz(clk_in_50mhz),
+        .io_clockOutSys(clk_sys),
+        .io_clockOutDpi(clk_dpi),
+        .io_clockOutLocked(clk_sys_locked),
+
+        .io_clock_av(clk_av),
 
         .io_mcuIrq(inner_mcu_irq),
         .io_mcuSpiChipSelect(mcu_spi_cs_n),
@@ -349,7 +332,7 @@ module top_handheld (
         .io_sram_oeN(sram_oe_n),
         .io_sram_writeMaskN(inner_sram_write_mask),
 
-        .io_sdramClock(clk_sdram),
+        .io_sdramClock(sdram_clk),
         .io_sdram_cke(sdram_cke[0]),
         .io_sdram_cs(sdram_cs_n[0]),
         .io_sdram_ras(sdram_ras_n),
