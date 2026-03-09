@@ -7,6 +7,8 @@ import gba.cart.emu.EmulatedCartridge
 import lib.mem.cache.DirectReadCache
 import lib.mem.{MemoryArbiter, MemoryInterface, MemoryMap, PipelineInterfaceBridge, PipelineMemoryInterface, RegisterMap}
 import lib.util.ButtonFilter
+import lib.video.ColorARGB
+import net.gamebub.framework.interface._
 
 
 object HandheldGba {
@@ -67,12 +69,23 @@ object HandheldGba {
  * Clocked by a 16777216 Hz clock.
  */
 class HandheldGba extends Module with HandheldModule {
-  val io = IO(new HandheldIo)
-  def framebufferW = 240
-  def framebufferH = 160
-  def clockSystemDivider = 56
-  def clockSdramDivider = 14
-  def targetFramePeriod = ((240 + 68) * (160 + 68) * 4).toDouble / clockSystemHz
+  val io = IO(new HandheldIo {
+    val clocks = new ClocksFixedV0(sysDivider = 56, sdramDivider = 14)
+    val video = new VideoV0(
+      videoWidth = 240,
+      videoHeight = 160,
+      colorDepth = 5,
+      framePeriod = ((240 + 68) * (160 + 68) * 4).toDouble / (16 * 1024 * 1024),
+    )
+    val audio = new AudioV0()
+    val host = new HostV0()
+    val pmod = new PmodV0()
+    val input = new InputV0()
+    val cartridge = new CartridgePortV0()
+    val link = new LinkPortV0()
+    val sram = new SramV0()
+    val sdram = new SdramV0(sdramBurst = true)
+  })
 
   val configRegEmuCart = RegInit(0.U.asTypeOf(new EmulatedCartridge.Config))
   val configRegRomSize = RegInit(0.U(25.W))
@@ -108,7 +121,7 @@ class HandheldGba extends Module with HandheldModule {
 
   val registerInterface = Wire(new MemoryInterface(addressWidth = 16, dataWidth = 32))
   val biosInterface = Wire(new MemoryInterface(addressWidth = 14, dataWidth = 32)) // 16 KiB
-  io.mcuInterface <> MemoryMap(
+  io.host.mem <> MemoryMap(
     addressWidth = 24,
     dataWidth = 32,
     entries = Seq(
@@ -137,11 +150,11 @@ class HandheldGba extends Module with HandheldModule {
     )
   }
 
-  io.vibrate := HandheldVibrate.Off
+  io.input.vibrate := HandheldVibrate.Off
 
   // SDRAM interface and port
   private val cache = Module(new HandheldGba.MiniCache(addressWidth = 25, dataWidth = 32))
-  io.sdram <> cache.io.out
+  io.sdram.mem <> cache.io.out
   val sdramPort = cache.io.in
   sdramPort.enable := false.B
   sdramPort.address := DontCare
@@ -151,18 +164,18 @@ class HandheldGba extends Module with HandheldModule {
   
   // SRAM arbiter (shared between EWRAM and emucart)
   val sramArbiter = Module(new MemoryArbiter(addressWidth = 18, dataWidth = 16, n = 2))
-  io.sram <> sramArbiter.io.target
+  io.sram.mem <> sramArbiter.io.target
   val sramEwram = sramArbiter.io.initiator(0)
   val sramEmuCart = sramArbiter.io.initiator(1)
 
   // Gameboy
   val gba = Module(new GBA)
-  when (io.reset) {
+  when (io.host.reset) {
     gba.reset := true.B
   }
   val doStall = WireDefault(false.B)
   gba.io.enable := false.B
-  when (io.enable) {
+  when (io.host.enable) {
     when (doStall) {
       statRegStalls := statRegStalls + 1.U
     }.otherwise {
@@ -173,12 +186,12 @@ class HandheldGba extends Module with HandheldModule {
 
   gba.io.configGBPlayer := configRegGBPlayer.asBool
   when (gba.io.configGBPlayer && gba.io.gbpRumble) {
-    io.vibrate := HandheldVibrate.On
+    io.input.vibrate := HandheldVibrate.On
   }
 
   // Emulated cartridge
   val emuCart = Module(new EmulatedCartridge)
-  when (io.reset) {
+  when (io.host.reset) {
     emuCart.reset := true.B
   }
   emuCart.io.interfaceEnable := gba.io.enable
@@ -220,11 +233,11 @@ class HandheldGba extends Module with HandheldModule {
     doStall := emuCart.io.stall || gba.io.ewramStall
 
     when (emuCart.io.vibrate) {
-      io.vibrate := HandheldVibrate.On
+      io.input.vibrate := HandheldVibrate.On
     }
 
     // Disconnect physical cartridge
-    io.cartridgeEnabled := false.B
+    io.cartridge.enabled := false.B
     io.cartridge.bank0Out := DontCare
     io.cartridge.bank1Out := DontCare
     io.cartridge.bank2Out := DontCare
@@ -241,7 +254,7 @@ class HandheldGba extends Module with HandheldModule {
     doStall := gba.io.ewramStall
 
     gba.io.cartridge.isEmulated := false.B
-    io.cartridgeEnabled := true.B
+    io.cartridge.enabled := true.B
     io.cartridge.bank0Dir := gba.io.cartridge.AHiDir
     io.cartridge.bank0Out := gba.io.cartridge.AHiOut
     gba.io.cartridge.AHiIn := io.cartridge.bank0In
@@ -284,14 +297,14 @@ class HandheldGba extends Module with HandheldModule {
   // Video output
   val framebufferX = RegInit(0.U(8.W))
   val framebufferY = RegInit(0.U(8.W))
-  io.framebufferX := framebufferX
-  io.framebufferY := framebufferY
-  io.framebufferWriteEnable := false.B
-  io.framebufferData.a := DontCare
-  io.framebufferData.r := DontCare
-  io.framebufferData.g := DontCare
-  io.framebufferData.b := DontCare
-  io.vblank := gba.io.ppu.vblank
+  io.video.x := framebufferX
+  io.video.y := framebufferY
+  io.video.dataEnable := false.B
+  io.video.data.a := DontCare
+  io.video.data.r := DontCare
+  io.video.data.g := DontCare
+  io.video.data.b := DontCare
+  io.video.vblank := gba.io.ppu.vblank
 
   val prevHblank = RegInit(false.B)
   when (gba.io.enable) {
@@ -303,22 +316,22 @@ class HandheldGba extends Module with HandheldModule {
       framebufferX := 0.U
       framebufferY := framebufferY + 1.U
     } .elsewhen (gba.io.ppu.valid) {
-      io.framebufferWriteEnable := true.B
-      io.framebufferData.r := gba.io.ppu.pixel(4, 0)
-      io.framebufferData.g := gba.io.ppu.pixel(9, 5)
-      io.framebufferData.b := gba.io.ppu.pixel(14, 10)
+      io.video.dataEnable := true.B
+      io.video.data.r := gba.io.ppu.pixel(4, 0)
+      io.video.data.g := gba.io.ppu.pixel(9, 5)
+      io.video.data.b := gba.io.ppu.pixel(14, 10)
       framebufferX := framebufferX + 1.U
     }
   }
 
   // Audio output
-  io.audioLeft := gba.io.apu.left << 6
-  io.audioRight := gba.io.apu.right << 6
+  io.audio.left := gba.io.apu.left << 6
+  io.audio.right := gba.io.apu.right << 6
 
   // Keypad
-  val buttonFilter = Module(new ButtonFilter(new HandheldButtons))
-  buttonFilter.io.enable := io.enable
-  buttonFilter.io.input := io.buttons
+  val buttonFilter = Module(new ButtonFilter(new InputV0.Buttons))
+  buttonFilter.io.enable := io.host.enable
+  buttonFilter.io.input := io.input.buttons
   gba.io.keypad.a := buttonFilter.io.output.a
   gba.io.keypad.b := buttonFilter.io.output.b
   gba.io.keypad.l := buttonFilter.io.output.l

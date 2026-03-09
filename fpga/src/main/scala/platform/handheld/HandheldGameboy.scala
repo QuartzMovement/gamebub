@@ -7,6 +7,7 @@ import gameboy.cart.emu.{EmuCartConfig, EmuCartridge, Mbc3RtcAccess, RtcState}
 import lib.mem.{MemoryInterface, MemoryMap, PipelineInterfaceBridge, RegisterMap}
 import lib.util.ButtonFilter
 import lib.video.ColorARGB
+import net.gamebub.framework.interface._
 
 object HandheldGameboy {
   class Config extends Bundle {
@@ -18,13 +19,23 @@ object HandheldGameboy {
  * Clocked by the 8.3886 MHz "Gameboy" clock.
  */
 class HandheldGameboy extends Module with HandheldModule {
-  val io = IO(new HandheldIo)
-  def framebufferW = 160
-  def framebufferH = 144
-  def clockSystemDivider = 112
-  def clockSdramDivider = 28
-  def targetFramePeriod = (456 * 154).toDouble / (4 * 1024 * 1024)
-  override def sdramBurst = false
+  val io = IO(new HandheldIo {
+    val clocks = new ClocksFixedV0(sysDivider = 112, sdramDivider = 28)
+    val video = new VideoV0(
+      videoWidth = 160,
+      videoHeight = 144,
+      colorDepth = 5,
+      framePeriod = (456 * 154).toDouble / (4 * 1024 * 1024),
+    )
+    val audio = new AudioV0()
+    val host = new HostV0()
+    val pmod = new PmodV0()
+    val input = new InputV0()
+    val cartridge = new CartridgePortV0()
+    val link = new LinkPortV0()
+    val sram = new SramV0()
+    val sdram = new SdramV0(sdramBurst = false)
+  })
 
   // Config
   val configRegSystem = RegInit(0.U.asTypeOf(new HandheldGameboy.Config))
@@ -63,7 +74,7 @@ class HandheldGameboy extends Module with HandheldModule {
   val registerInterface = Wire(new MemoryInterface(addressWidth = 16, dataWidth = 32))
   val biosInterface = Wire(new MemoryInterface(addressWidth = 11, dataWidth = 8)) // 2 KiB
   val dmgPaletteInterface = Wire(new MemoryInterface(addressWidth = 5, dataWidth = 16))
-  io.mcuInterface <> MemoryMap(
+  io.host.mem <> MemoryMap(
     addressWidth = 24,
     dataWidth = 32,
     entries = Seq(
@@ -108,7 +119,7 @@ class HandheldGameboy extends Module with HandheldModule {
     optimizeForSimulation = false,
   )
   val gameboy = Module(new Gameboy(gameboyConfig))
-  when (io.reset) {
+  when (io.host.reset) {
     gameboy.reset := true.B
   }
   gameboy.io.isCgb := configRegSystem.isCgb
@@ -116,7 +127,7 @@ class HandheldGameboy extends Module with HandheldModule {
   // Gameboy clock control
   val doStall = WireDefault(false.B)
   gameboy.io.clockConfig.enable := false.B
-  when (io.enable) {
+  when (io.host.enable) {
     when (doStall) {
       statRegStalls := statRegStalls + 1.U
     }.otherwise {
@@ -126,9 +137,9 @@ class HandheldGameboy extends Module with HandheldModule {
   }
   gameboy.io.clockConfig.provide8Mhz := true.B
 
-  val buttonFilter = Module(new ButtonFilter(new HandheldButtons))
-  buttonFilter.io.enable := io.enable
-  buttonFilter.io.input := io.buttons
+  val buttonFilter = Module(new ButtonFilter(new InputV0.Buttons))
+  buttonFilter.io.enable := io.host.enable
+  buttonFilter.io.input := io.input.buttons
   gameboy.io.joypad.a := buttonFilter.io.output.a
   gameboy.io.joypad.b := buttonFilter.io.output.b
   gameboy.io.joypad.up := buttonFilter.io.output.up
@@ -139,14 +150,14 @@ class HandheldGameboy extends Module with HandheldModule {
   gameboy.io.joypad.select := buttonFilter.io.output.select
 
   // Vibration unused by default.
-  io.vibrate := HandheldVibrate.Off
+  io.input.vibrate := HandheldVibrate.Off
 
   // PMOD unused
   io.pmod.out := DontCare
   io.pmod.dir := 0.U(4.W)
 
-  io.audioLeft := gameboy.io.apu.left << 6
-  io.audioRight := gameboy.io.apu.right << 6
+  io.audio.left := gameboy.io.apu.left << 6
+  io.audio.right := gameboy.io.apu.right << 6
 
   // Link port
   io.link.soOut := gameboy.io.serial.out
@@ -163,14 +174,14 @@ class HandheldGameboy extends Module with HandheldModule {
   // Framebuffer output
   val framebufferX = RegInit(0.U(8.W))
   val framebufferY = RegInit(0.U(8.W))
-  io.framebufferX := framebufferX
-  io.framebufferY := framebufferY
-  io.framebufferWriteEnable := false.B
-  io.framebufferData.a := DontCare
-  io.framebufferData.r := DontCare
-  io.framebufferData.g := DontCare
-  io.framebufferData.b := DontCare
-  io.vblank := gameboy.io.ppu.vblank
+  io.video.x := framebufferX
+  io.video.y := framebufferY
+  io.video.dataEnable := false.B
+  io.video.data.a := DontCare
+  io.video.data.r := DontCare
+  io.video.data.g := DontCare
+  io.video.data.b := DontCare
+  io.video.vblank := gameboy.io.ppu.vblank
 
   val prevHblank = RegInit(false.B)
   val regDisplayOff = RegInit(true.B)
@@ -179,9 +190,9 @@ class HandheldGameboy extends Module with HandheldModule {
     // don't happen (when moving between display on and off, or when clock is
     // enabled and disabled),  because this signals the triple buffering
     // system that a frame is complete.
-    io.vblank := false.B
+    io.video.vblank := false.B
     when (framebufferX >= 159.U && framebufferY >= 143.U) {
-      io.vblank := true.B
+      io.video.vblank := true.B
     }
   }
 
@@ -192,14 +203,14 @@ class HandheldGameboy extends Module with HandheldModule {
       // Ensure that, when the display is turned off, it remains off until the next
       // vblank when the LCD is on. This ensures that the entire screen is blanked,
       // and matches Gameboy behavior.
-      io.framebufferWriteEnable := true.B
+      io.video.dataEnable := true.B
 
       when (configRegSystem.isCgb) {
-        io.framebufferData.r := 0x1F.U(5.W)
-        io.framebufferData.g := 0x1F.U(5.W)
-        io.framebufferData.b := 0x1F.U(5.W)
+        io.video.data.r := 0x1F.U(5.W)
+        io.video.data.g := 0x1F.U(5.W)
+        io.video.data.b := 0x1F.U(5.W)
       } .otherwise {
-        io.framebufferData := configRegDmgOffColor.asTypeOf(ColorARGB.rgb555())
+        io.video.data := configRegDmgOffColor.asTypeOf(ColorARGB.rgb555())
       }
 
       when (framebufferX < 159.U) {
@@ -208,7 +219,7 @@ class HandheldGameboy extends Module with HandheldModule {
         framebufferX := 0.U
         framebufferY := framebufferY + 1.U
       } .otherwise {
-        io.framebufferWriteEnable := false.B
+        io.video.dataEnable := false.B
       }
 
       // Only end blanking after the *next* vblank when the LCD is on
@@ -228,15 +239,15 @@ class HandheldGameboy extends Module with HandheldModule {
         framebufferX := 0.U
         framebufferY := framebufferY + 1.U
       } .elsewhen (gameboy.io.ppu.valid) {
-        io.framebufferWriteEnable := true.B
+        io.video.dataEnable := true.B
 
         when (configRegSystem.isCgb) {
-          io.framebufferData.r := gameboy.io.ppu.pixel(4, 0)
-          io.framebufferData.g := gameboy.io.ppu.pixel(9, 5)
-          io.framebufferData.b := gameboy.io.ppu.pixel(14, 10)
+          io.video.data.r := gameboy.io.ppu.pixel(4, 0)
+          io.video.data.g := gameboy.io.ppu.pixel(9, 5)
+          io.video.data.b := gameboy.io.ppu.pixel(14, 10)
         } .otherwise {
           val index = gameboy.io.ppu.dmgColor.asUInt
-          io.framebufferData := dmgPalette(index).asTypeOf(ColorARGB.rgb555())
+          io.video.data := dmgPalette(index).asTypeOf(ColorARGB.rgb555())
         }
 
         framebufferX := framebufferX + 1.U
@@ -246,7 +257,7 @@ class HandheldGameboy extends Module with HandheldModule {
 
   // Emulated Cartridge
   val emuCart = Module(new EmuCartridge(8 * 1024 * 1024))
-  when (io.reset) {
+  when (io.host.reset) {
     emuCart.reset := true.B
   }
   emuCart.io.config := configRegEmuCart
@@ -256,18 +267,18 @@ class HandheldGameboy extends Module with HandheldModule {
   emuCart.io.imu.y := configRegImuAccelY
 
   val sdramBridge = Module(new PipelineInterfaceBridge(addressWidth = 25, dataWidth = 32))
-  sdramBridge.io.dest <> io.sdram
+  sdramBridge.io.dest <> io.sdram.mem
   val sdram = sdramBridge.io.source
   sdram.enable := false.B
   sdram.write := false.B
   sdram.address := DontCare
   sdram.dataWrite := DontCare
   sdram.writeStrobe := DontCare
-  io.sram.enable := false.B
-  io.sram.write := false.B
-  io.sram.address := DontCare
-  io.sram.dataWrite := DontCare
-  io.sram.writeStrobe := DontCare
+  io.sram.mem.enable := false.B
+  io.sram.mem.write := false.B
+  io.sram.mem.address := DontCare
+  io.sram.mem.dataWrite := DontCare
+  io.sram.mem.writeStrobe := DontCare
 
   val regEmuCartBusy = RegInit(false.B)
   val regEmuCartDataRead = Reg(UInt(8.W))
@@ -311,16 +322,16 @@ class HandheldGameboy extends Module with HandheldModule {
         emuCart.io.dataAccess.valid := sdram.done
       }
     } .otherwise {
-      io.sram.enable := true.B
-      io.sram.write := emuCartIsWrite
-      io.sram.address := (configRegRamAddress + (Cat(emuCartAddress(16, 1), "b0".U(1.W)) & configRegRamMask)) >> 1
-      io.sram.dataWrite := Fill(2, emuCartDataWrite)
-      io.sram.writeStrobe := Mux(emuCartAddress(0), "b10".U(2.W), "b01".U(2.W))
-      emuCart.io.dataAccess.valid := io.sram.done
+      io.sram.mem.enable := true.B
+      io.sram.mem.write := emuCartIsWrite
+      io.sram.mem.address := (configRegRamAddress + (Cat(emuCartAddress(16, 1), "b0".U(1.W)) & configRegRamMask)) >> 1
+      io.sram.mem.dataWrite := Fill(2, emuCartDataWrite)
+      io.sram.mem.writeStrobe := Mux(emuCartAddress(0), "b10".U(2.W), "b01".U(2.W))
+      emuCart.io.dataAccess.valid := io.sram.mem.done
       emuCart.io.dataAccess.dataRead := Mux(
         emuCartAddress(0),
-        io.sram.dataRead(15, 8),
-        io.sram.dataRead(7, 0)
+        io.sram.mem.dataRead(15, 8),
+        io.sram.mem.dataRead(7, 0)
       )
     }
   }
@@ -330,11 +341,11 @@ class HandheldGameboy extends Module with HandheldModule {
   }
 
   when (emuCart.io.config.enabled) {
-    io.cartridgeEnabled := false.B
+    io.cartridge.enabled := false.B
 
     // Connect emulated cartridge
     emuCart.io.cartridge <> gameboy.io.cartridge
-    io.vibrate := Mux(emuCart.io.rumble, HandheldVibrate.On, HandheldVibrate.Off)
+    io.input.vibrate := Mux(emuCart.io.rumble, HandheldVibrate.On, HandheldVibrate.Off)
     doStall := emuCart.io.stall
 
     // Disconnect physical cartridge
@@ -352,7 +363,7 @@ class HandheldGameboy extends Module with HandheldModule {
     io.cartridge.pin31Dir := false.B
   } .otherwise {
     // Cartridge I/O
-    io.cartridgeEnabled := true.B
+    io.cartridge.enabled := true.B
 
     // Bank 0: Data bus
     gameboy.io.cartridge.dataIn := io.cartridge.bank0In

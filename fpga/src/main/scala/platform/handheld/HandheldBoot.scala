@@ -4,32 +4,42 @@ import chisel3._
 import lib.mem.MemoryMap
 import lib.video.ColorARGB
 import platform.handheld.boot.{CartridgeUtility, Logo}
+import net.gamebub.framework.interface._
 
 class HandheldBoot extends Module with HandheldModule {
-    val io = IO(new HandheldIo)
-    def framebufferW = 240
-    def framebufferH = 160
-    def clockSystemDivider = 56
-    def clockSdramDivider = 14
-    def targetFramePeriod = 1.0 / 64.0
-    override def overlayColorDepth = ColorARGB.argb1555()
+    val io = IO(new HandheldIo {
+        val clocks = new ClocksFixedV0(sysDivider = 56, sdramDivider = 14)
+        val video = new VideoV0(
+            videoWidth = 240,
+            videoHeight = 160,
+            colorDepth = 5,
+            framePeriod = 1.0 / 64.0,
+        )
+        val audio = new AudioV0()
+        val host = new HostV0(overlayColorDepth = ColorARGB.argb1555())
+        val pmod = new PmodV0()
+        val input = new InputV0()
+        val cartridge = new CartridgePortV0()
+        val link = new LinkPortV0()
+        val sram = new SramV0()
+        val sdram = new SdramV0(sdramBurst = false)
+    })
 
     stubUnused()
 
     // Logo animation
-    val logo = Module(new Logo(framebufferW, framebufferH))
-    io.framebufferX := logo.io.framebufferX
-    io.framebufferY := logo.io.framebufferY
-    io.framebufferData := logo.io.framebufferData
-    io.framebufferWriteEnable := logo.io.framebufferWriteEnable
-    io.vblank := logo.io.vblank
+    val logo = Module(new Logo(io.video.videoWidth, io.video.videoHeight))
+    io.video.x := logo.io.framebufferX
+    io.video.y := logo.io.framebufferY
+    io.video.data := logo.io.framebufferData
+    io.video.dataEnable := logo.io.framebufferWriteEnable
+    io.video.vblank := logo.io.vblank
 
     // Cartridge utility
     val cartridgeUtility = Module(new CartridgeUtility)
-    io.cartridgeEnabled := cartridgeUtility.io.cartridgeEnabled
     io.cartridge <> cartridgeUtility.io.cartridge
 
-    io.mcuInterface <> MemoryMap(
+    io.host.mem <> MemoryMap(
         addressWidth = 24,
         dataWidth = 32,
         entries = Seq(
@@ -39,9 +49,9 @@ class HandheldBoot extends Module with HandheldModule {
         ))
 
     private def stubUnused(): Unit = {
-        io.vibrate := HandheldVibrate.Off
-        io.audioLeft := 0.S
-        io.audioRight := 0.S
+        io.input.vibrate := HandheldVibrate.Off
+        io.audio.left := 0.S
+        io.audio.right := 0.S
 
         // PMOD unused
         io.pmod.out := DontCare
@@ -58,17 +68,17 @@ class HandheldBoot extends Module with HandheldModule {
         io.link.scDir := false.B
 
         // SRAM unused
-        io.sram.enable := false.B
-        io.sram.write := false.B
-        io.sram.address := DontCare
-        io.sram.dataWrite := DontCare
-        io.sram.writeStrobe := DontCare
+        io.sram.mem.enable := false.B
+        io.sram.mem.write := false.B
+        io.sram.mem.address := DontCare
+        io.sram.mem.dataWrite := DontCare
+        io.sram.mem.writeStrobe := DontCare
 
         // SDRAM unused
-        io.sdram.enable := false.B
-        io.sdram.isWrite := false.B
-        io.sdram.address := DontCare
-        io.sdram.dataWrite := DontCare
-        io.sdram.writeStrobe := DontCare
+        io.sdram.mem.enable := false.B
+        io.sdram.mem.isWrite := false.B
+        io.sdram.mem.address := DontCare
+        io.sdram.mem.dataWrite := DontCare
+        io.sdram.mem.writeStrobe := DontCare
     }
 }

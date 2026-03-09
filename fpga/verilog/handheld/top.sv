@@ -169,6 +169,7 @@ module top_handheld (
        .S(hdmi_enable)
     );
 
+    logic inner_cart_enabled;
     logic [7:0] inner_cart_bank0_in;
     logic [7:0] inner_cart_bank1_in;
     logic [7:0] inner_cart_bank2_in;
@@ -291,7 +292,7 @@ module top_handheld (
         .io_cartridgeSwitch(cart_switch),
         .io_cartridge3V3Enable(cart_en_3v3),
         .io_cartridge5V0Enable(cart_en_5v0),
-        .io_cartridgeOutputEnableN(cart_oe_n),
+        .io_cartridge_enabled(inner_cart_enabled),
         .io_cartridge_bank0In(inner_cart_bank0_in),
         .io_cartridge_bank1In(inner_cart_bank1_in),
         .io_cartridge_bank2In(inner_cart_bank2_in),
@@ -352,6 +353,7 @@ module top_handheld (
         .io_vibrate(inner_vibrate)
     );
 
+    assign cart_oe_n = ~inner_cart_enabled;
     assign inner_cart_bank0_in = cart_bank0;
     assign inner_cart_bank1_in = cart_bank1;
     assign inner_cart_bank2_in = cart_bank2;

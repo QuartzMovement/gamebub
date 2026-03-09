@@ -3,9 +3,9 @@ package platform.handheld.boot
 import chisel3._
 import chisel3.util._
 import lib.mem.{MemoryInterface, RegisterMap}
-import platform.handheld.HandheldCartridge
 import platform.handheld.boot.CartridgeUtility.Opcode.Value
 import platform.handheld.boot.CartridgeUtility.{CartData, Opcode, State}
+import net.gamebub.framework.interface.CartridgePortV0
 
 object CartridgeUtility {
   object State extends ChiselEnum {
@@ -51,8 +51,7 @@ class CartridgeUtility extends Module {
     val registers = new MemoryInterface(addressWidth = 16, dataWidth = 32)
     val memInterface = new MemoryInterface(addressWidth = 16, dataWidth = 32)
 
-    val cartridgeEnabled = Output(Bool())
-    val cartridge = new HandheldCartridge
+    val cartridge = new CartridgePortV0
   })
 
   // 64 KiB buffer, 32 bit words with byte mask
@@ -117,7 +116,7 @@ class CartridgeUtility extends Module {
   mem.mask.get := DontCare
   mem.writeData := DontCare
 
-  io.cartridgeEnabled := regCartEnabled
+  io.cartridge.enabled := regCartEnabled
   io.cartridge.bank0Dir := regCartDir.ADHi
   io.cartridge.bank1Dir := regCartDir.ADLo
   io.cartridge.bank2Dir := regCartDir.ADLo
