@@ -1,0 +1,21 @@
+package net.gamebub.framework.interface
+
+import chisel3._
+import lib.video.ColorGrayscale
+import lib.video.Color
+import lib.mem.MemoryInterface
+
+class HostV0(
+    private val overlayColorDepth: Color = ColorGrayscale(1, 3)
+) extends Bundle {
+    val enable = Input(Bool())
+    val reset = Input(Bool())
+
+    // TODO increase to addressWidth = 31
+    val mem = new MemoryInterface(addressWidth = 30, dataWidth = 32)
+
+    // TODO
+
+    // TODO figure out another way of not exposing overlayColorDepth as IO
+    def overlayColorDepth2: Color = overlayColorDepth
+}
