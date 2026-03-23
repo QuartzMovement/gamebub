@@ -723,22 +723,43 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
   module.io.input.buttons := (buttonState.asUInt | buttonForceRegister.asUInt).asTypeOf(new InputV0.Buttons)
 
   // Framebuffer writes
-  val framebufferWriteIndex = RegInit(0.U(1.W))
-  when (module.io.video.dataEnable && !framebufferInterfaceRead) {
-    // Module framebuffer write and SPI framebuffer read share the same read/write port,
-    // so ensure that they're not activated at the same time (so they can be inferred correctly).
-    val address = (module.io.video.y * videoWidth.U(8.W)) + module.io.video.x
-    for (i <- 0 until 2) {
-      framebuffers(i).readwritePorts(0).enable := (i.U === framebufferWriteIndex)
-      framebuffers(i).readwritePorts(0).address := address
-      framebuffers(i).readwritePorts(0).isWrite := true.B
-      framebuffers(i).readwritePorts(0).writeData := module.io.video.data.asUInt
+  {
+    val framebufferX = RegInit(0.U(log2Ceil(module.io.video.videoWidth).W))
+    val framebufferY = RegInit(0.U(log2Ceil(module.io.video.videoHeight).W))
+    val framebufferWriteIndex = RegInit(0.U(1.W))
+
+    when (module.io.video.dataEnable && !framebufferInterfaceRead) {
+      // Module framebuffer write and SPI framebuffer read share the same read/write port,
+      // so ensure that they're not activated at the same time (so they can be inferred correctly).
+      val address = (framebufferY * module.io.video.videoWidth.U(10.W)) + framebufferX
+      for (i <- 0 until 2) {
+        framebuffers(i).readwritePorts(0).enable := (i.U === framebufferWriteIndex)
+        framebuffers(i).readwritePorts(0).address := address
+        framebuffers(i).readwritePorts(0).isWrite := true.B
+        framebuffers(i).readwritePorts(0).writeData := module.io.video.data.asUInt
+      }
     }
-  }
-  // Frame ended
-  when (module.io.video.vblank && !RegNext(module.io.video.vblank)) {
-    regLastFrameComplete := framebufferWriteIndex
-    framebufferWriteIndex := !framebufferWriteIndex
+
+    val vblankEdge = module.io.video.vblank && !RegNext(module.io.video.vblank)
+    val hblankEdge = module.io.video.hblank && !RegNext(module.io.video.hblank)
+    when (vblankEdge) {
+      regLastFrameComplete := framebufferWriteIndex
+      framebufferWriteIndex := !framebufferWriteIndex
+    }
+
+    when (module.io.video.vblank) {
+      // Frame ended
+      framebufferX := 0.U
+      framebufferY := 0.U
+    } .elsewhen (module.io.video.hblank) {
+      // Line ended
+      when (hblankEdge) {
+        framebufferX := 0.U
+        framebufferY := framebufferY + 1.U
+      }
+    } .elsewhen (module.io.video.dataEnable) {
+      framebufferX := framebufferX + 1.U
+    }
   }
 
   // N.B. Audio synchronization happens above.

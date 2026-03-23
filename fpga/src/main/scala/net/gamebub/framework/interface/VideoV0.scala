@@ -14,9 +14,8 @@ class VideoV0(
   /// Target frame period, in seconds.
   val framePeriod: Double,
 ) extends Bundle {
-  val x = Output(UInt(log2Ceil(videoWidth).W))
-  val y = Output(UInt(log2Ceil(videoHeight).W))
   val data = Output(ColorARGB.apply(0, colorDepth, colorDepth, colorDepth))
   val dataEnable = Output(Bool())
   val vblank = Output(Bool())
+  val hblank = Output(Bool())
 }

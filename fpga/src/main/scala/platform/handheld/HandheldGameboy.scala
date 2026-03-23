@@ -171,86 +171,68 @@ class HandheldGameboy extends Module with HandheldModule {
   io.link.scOut := gameboy.io.serial.clockOut
   io.link.scDir := gameboy.io.serial.clockEnable
 
-  // Framebuffer output
-  val framebufferX = RegInit(0.U(8.W))
-  val framebufferY = RegInit(0.U(8.W))
-  io.video.x := framebufferX
-  io.video.y := framebufferY
+  // Video output
+  val videoX = RegInit(0.U(8.W))
+  val videoY = RegInit(0.U(8.W))
   io.video.dataEnable := false.B
   io.video.data.a := DontCare
   io.video.data.r := DontCare
   io.video.data.g := DontCare
   io.video.data.b := DontCare
-  io.video.vblank := gameboy.io.ppu.vblank
+  val regDisplayOff = RegInit(false.B)
 
-  val prevHblank = RegInit(false.B)
-  val regDisplayOff = RegInit(true.B)
   when (regDisplayOff) {
-    // Ensure that spurious io.vblank transitions
-    // don't happen (when moving between display on and off, or when clock is
-    // enabled and disabled),  because this signals the triple buffering
-    // system that a frame is complete.
+    // Render a frame of "lcd off" color
+    // When the display is turned off, it remains off until the next vblank when
+    // the LCD is on. This ensures that the entire screen is blanked, and matches
+    // Game Boy behavior.
+
     io.video.vblank := false.B
-    when (framebufferX >= 159.U && framebufferY >= 143.U) {
-      io.video.vblank := true.B
+    io.video.hblank := false.B
+    when (configRegSystem.isCgb) {
+      io.video.data.r := 0x1F.U(5.W)
+      io.video.data.g := 0x1F.U(5.W)
+      io.video.data.b := 0x1F.U(5.W)
+    } .otherwise {
+      io.video.data := configRegDmgOffColor.asTypeOf(ColorARGB.rgb555())
     }
-  }
 
-  when (gameboy.io.clockConfig.enable) {
-    prevHblank := gameboy.io.ppu.hblank
+    when (videoY === 144.U) {
+      io.video.vblank := true.B
+    } .elsewhen (videoX === 160.U) {
+      io.video.hblank := true.B
+      videoX := 0.U
+      videoY := videoY + 1.U
+    } .otherwise {
+      io.video.dataEnable := true.B
+      videoX := videoX + 1.U
+    }
 
-    when (regDisplayOff) {
-      // Ensure that, when the display is turned off, it remains off until the next
-      // vblank when the LCD is on. This ensures that the entire screen is blanked,
-      // and matches Gameboy behavior.
+    // Only end blanking after the *next* vblank when the LCD is on
+    when (gameboy.io.ppu.lcdEnable && gameboy.io.ppu.vblank) {
+      regDisplayOff := false.B
+    }
+  } .otherwise {
+    io.video.vblank := gameboy.io.ppu.vblank
+    io.video.hblank := gameboy.io.ppu.hblank
+
+    when (!gameboy.io.clockConfig.enable) {
+      // Do nothing.
+    } .elsewhen (!gameboy.io.ppu.lcdEnable) {
+      // Blank for at least a whole frame.
+      regDisplayOff := true.B
+      videoX := 0.U
+      videoY := 0.U
+    } .elsewhen (gameboy.io.ppu.valid) {
       io.video.dataEnable := true.B
 
       when (configRegSystem.isCgb) {
-        io.video.data.r := 0x1F.U(5.W)
-        io.video.data.g := 0x1F.U(5.W)
-        io.video.data.b := 0x1F.U(5.W)
+        io.video.data.r := gameboy.io.ppu.pixel(4, 0)
+        io.video.data.g := gameboy.io.ppu.pixel(9, 5)
+        io.video.data.b := gameboy.io.ppu.pixel(14, 10)
       } .otherwise {
-        io.video.data := configRegDmgOffColor.asTypeOf(ColorARGB.rgb555())
-      }
-
-      when (framebufferX < 159.U) {
-        framebufferX := framebufferX + 1.U
-      } .elsewhen (framebufferY < 143.U) {
-        framebufferX := 0.U
-        framebufferY := framebufferY + 1.U
-      } .otherwise {
-        io.video.dataEnable := false.B
-      }
-
-      // Only end blanking after the *next* vblank when the LCD is on
-      when (gameboy.io.ppu.lcdEnable && gameboy.io.ppu.vblank) {
-        regDisplayOff := false.B
-      }
-    } .otherwise {
-      when (!gameboy.io.ppu.lcdEnable) {
-        // Blank for at least a whole frame.
-        regDisplayOff := true.B
-        framebufferX := 0.U
-        framebufferY := 0.U
-      } .elsewhen (gameboy.io.ppu.vblank) {
-        framebufferX := 0.U
-        framebufferY := 0.U
-      } .elsewhen (gameboy.io.ppu.hblank && !prevHblank) {
-        framebufferX := 0.U
-        framebufferY := framebufferY + 1.U
-      } .elsewhen (gameboy.io.ppu.valid) {
-        io.video.dataEnable := true.B
-
-        when (configRegSystem.isCgb) {
-          io.video.data.r := gameboy.io.ppu.pixel(4, 0)
-          io.video.data.g := gameboy.io.ppu.pixel(9, 5)
-          io.video.data.b := gameboy.io.ppu.pixel(14, 10)
-        } .otherwise {
-          val index = gameboy.io.ppu.dmgColor.asUInt
-          io.video.data := dmgPalette(index).asTypeOf(ColorARGB.rgb555())
-        }
-
-        framebufferX := framebufferX + 1.U
+        val index = gameboy.io.ppu.dmgColor.asUInt
+        io.video.data := dmgPalette(index).asTypeOf(ColorARGB.rgb555())
       }
     }
   }

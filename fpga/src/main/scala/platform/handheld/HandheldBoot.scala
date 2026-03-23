@@ -28,12 +28,8 @@ class HandheldBoot extends Module with HandheldModule {
     stubUnused()
 
     // Logo animation
-    val logo = Module(new Logo(io.video.videoWidth, io.video.videoHeight))
-    io.video.x := logo.io.framebufferX
-    io.video.y := logo.io.framebufferY
-    io.video.data := logo.io.framebufferData
-    io.video.dataEnable := logo.io.framebufferWriteEnable
-    io.video.vblank := logo.io.vblank
+    val logo = Module(new Logo(io.video))
+    io.video := logo.io.video_
 
     // Cartridge utility
     val cartridgeUtility = Module(new CartridgeUtility)

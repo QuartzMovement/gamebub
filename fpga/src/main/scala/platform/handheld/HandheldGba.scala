@@ -295,34 +295,13 @@ class HandheldGba extends Module with HandheldModule {
   }
 
   // Video output
-  val framebufferX = RegInit(0.U(8.W))
-  val framebufferY = RegInit(0.U(8.W))
-  io.video.x := framebufferX
-  io.video.y := framebufferY
-  io.video.dataEnable := false.B
   io.video.data.a := DontCare
-  io.video.data.r := DontCare
-  io.video.data.g := DontCare
-  io.video.data.b := DontCare
+  io.video.data.r := gba.io.ppu.pixel(4, 0)
+  io.video.data.g := gba.io.ppu.pixel(9, 5)
+  io.video.data.b := gba.io.ppu.pixel(14, 10)
+  io.video.dataEnable := gba.io.enable && gba.io.ppu.valid
   io.video.vblank := gba.io.ppu.vblank
-
-  val prevHblank = RegInit(false.B)
-  when (gba.io.enable) {
-    prevHblank := gba.io.ppu.hblank
-    when (gba.io.ppu.vblank) {
-      framebufferX := 0.U
-      framebufferY := 0.U
-    } .elsewhen (gba.io.ppu.hblank && !prevHblank) {
-      framebufferX := 0.U
-      framebufferY := framebufferY + 1.U
-    } .elsewhen (gba.io.ppu.valid) {
-      io.video.dataEnable := true.B
-      io.video.data.r := gba.io.ppu.pixel(4, 0)
-      io.video.data.g := gba.io.ppu.pixel(9, 5)
-      io.video.data.b := gba.io.ppu.pixel(14, 10)
-      framebufferX := framebufferX + 1.U
-    }
-  }
+  io.video.hblank := gba.io.ppu.hblank
 
   // Audio output
   io.audio.left := gba.io.apu.left << 6

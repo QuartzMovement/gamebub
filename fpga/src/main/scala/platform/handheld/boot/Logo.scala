@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import lib.mem.{MemoryInterface, RegisterMap}
 import lib.video.ColorARGB
+import net.gamebub.framework.interface.VideoV0
 
 import java.awt.Color
 import javax.imageio.ImageIO
@@ -15,19 +16,15 @@ class LogoAnimationState extends Bundle {
   val running = Bool()
 }
 
-class Logo(framebufferW: Int, framebufferH: Int) extends Module {
+class Logo(video: VideoV0) extends Module {
   val io = IO(new Bundle {
     val registers = new MemoryInterface(addressWidth = 16, dataWidth = 32)
 
-    val framebufferX = Output(UInt(8.W))
-    val framebufferY = Output(UInt(8.W))
-    val framebufferData = Output(ColorARGB.rgb555())
-    val framebufferWriteEnable = Output(Bool())
-    val vblank = Output(Bool())
+    val video_ = video.cloneType
   })
 
-  val regX = RegInit(0.U(log2Ceil(framebufferW).W))
-  val regY = RegInit(0.U(log2Ceil(framebufferH).W))
+  val regX = RegInit(0.U(log2Ceil(video.videoWidth + 1).W))
+  val regY = RegInit(0.U(log2Ceil(video.videoHeight + 1).W))
 
   val regAnimation = RegInit(0.U.asTypeOf(new LogoAnimationState))
   val regLogoStartY = RegInit(26.U(8.W))
@@ -55,10 +52,26 @@ class Logo(framebufferW: Int, framebufferH: Int) extends Module {
   shadowColor.r := (0x5B >> 3).U(5.W)
   shadowColor.g := (0x0B >> 3).U(5.W)
   shadowColor.b := (0x6A >> 3).U(5.W)
-  val logoStartX = (framebufferW - logoW) / 2
-  val logoEndX = (framebufferW + logoW) / 2
+  val logoStartX = (video.videoWidth - logoW) / 2
+  val logoEndX = (video.videoWidth + logoW) / 2
   val colorTable = makeColorTable(logoW)
   val colorOffX = RegInit(0.U(log2Ceil(3 * logoW).W))
+
+  io.video_.data.a := DontCare
+  io.video_.dataEnable := false.B
+  io.video_.hblank := false.B
+  io.video_.vblank := false.B
+
+  when (regY === video.videoHeight.U) {
+    io.video_.vblank := true.B
+  } .elsewhen (regX === video.videoWidth.U) {
+    io.video_.hblank := true.B
+    regX := 0.U
+    regY := regY + 1.U
+  } .otherwise {
+    io.video_.dataEnable := true.B
+    regX := regX + 1.U
+  }
 
   when (frame) {
     regX := 0.U
@@ -76,23 +89,9 @@ class Logo(framebufferW: Int, framebufferH: Int) extends Module {
 
     // TODO calculate colorOffX with the curve
     colorOffX := ((regAnimation.time * (logoW * 2).U) >> 8).asUInt
-  } .otherwise {
-    when (regY === (framebufferH - 1).U) {
-      when (regX < framebufferW.U) {
-        regY := 0.U
-        regX := regX + 1.U
-      }
-    } .otherwise {
-      regY := regY + 1.U
-    }
   }
-  io.framebufferX := regX
-  io.framebufferY := regY
-  io.framebufferWriteEnable := regX < framebufferW.U
-  io.vblank := !io.framebufferWriteEnable
-  io.framebufferData.a := DontCare
 
-  io.framebufferData := bgColor
+  io.video_.data := bgColor
   when (regX >= logoStartX.U && regX < logoEndX.U && regY >= regLogoStartY && regY < (regLogoStartY + logoH.U)) {
     // TODO read one or two early
     val x = regX - logoStartX.U
@@ -107,9 +106,9 @@ class Logo(framebufferW: Int, framebufferH: Int) extends Module {
     }
 
     when (index === 2.U) {
-      io.framebufferData := shadowColor
+      io.video_.data := shadowColor
     } .elsewhen (index === 3.U) {
-      io.framebufferData := glowColor
+      io.video_.data := glowColor
     }
   }
 
