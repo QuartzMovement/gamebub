@@ -79,10 +79,10 @@ object HandheldTop extends App {
         audioMclkFactor = 544,
       )
       case "4" => Revision(
-        // TODO: handle centering
         displayWidth = 800,
         displayHeight = 480,
         displayRotate = true,
+        displayOffsetX = -28,
         dpiConfig = AdaptiveDpiDriver.Config(
           clockHz = 29_362_000,
           hActive = 480,
@@ -634,7 +634,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
 
       // Scale and center framebuffer without output video.
       val videoScale = (screenWidth / videoWidth).min(screenHeight / videoHeight)
-      val videoOffsetX = (screenWidth - (videoWidth * videoScale)) / 2
+      val videoOffsetX = (screenWidth - (videoWidth * videoScale)) / 2 + revision.displayOffsetX
       val videoOffsetY = (screenHeight - (videoHeight * videoScale)) / 2
       val framebufferReadDelay = 3 /* reading */ + 3 /* color corrections */
       val framebufferReadDelayX = if (revision.displayRotate) 0 else framebufferReadDelay
@@ -650,7 +650,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
 
       // Scale overlay
       val overlayScale = (screenWidth / overlayWidth).min(screenHeight / overlayHeight)
-      val overlayOffsetX = (screenWidth - (overlayWidth * overlayScale)) / 2
+      val overlayOffsetX = (screenWidth - (overlayWidth * overlayScale)) / 2 + revision.displayOffsetX
       val overlayOffsetY = (screenHeight - (overlayHeight * overlayScale)) / 2
       val overlayReadDelay = 3
       val overlayReadDelayX = if (revision.displayRotate) 0 else overlayReadDelay
@@ -780,6 +780,7 @@ case class Revision(
   displayWidth: Int,
   displayHeight: Int,
   displayRotate: Boolean = false,
+  displayOffsetX: Int = 0,
   dpiConfig: AdaptiveDpiDriver.Config,
 
   overlayWidth: Int,
