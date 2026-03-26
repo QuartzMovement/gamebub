@@ -90,6 +90,7 @@ struct EmulatedCartridgeConfig {
     pub has_rtc: bool,
     pub has_accel: bool,
     pub has_gyro: bool,
+    pub has_solar: bool,
 }
 
 impl EmulatedCartridgeConfig {
@@ -102,6 +103,7 @@ impl EmulatedCartridgeConfig {
             has_rtc: false,
             has_accel: false,
             has_gyro: false,
+            has_solar: false,
         }
     }
 
