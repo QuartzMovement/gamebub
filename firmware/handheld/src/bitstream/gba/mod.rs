@@ -277,7 +277,7 @@ impl Gba {
         let mut save_type_detector = SaveTypeDetector::new();
         let emu_cart_config = game_db::lookup(&rom_header.game_code);
 
-        const CHUNK_SIZE: usize = 32 * 1024;
+        const CHUNK_SIZE: usize = 16 * 1024;
         let mut reader = BackgroundReader::new(rom_file, CHUNK_SIZE);
 
         let mut total = 0u32;

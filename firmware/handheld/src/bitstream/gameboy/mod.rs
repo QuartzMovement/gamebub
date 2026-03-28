@@ -211,7 +211,7 @@ impl Gameboy {
         rom_file.seek(std::io::SeekFrom::Start(0))?;
         log::info!("Loading rom: {:?}", rom_header);
 
-        const CHUNK_SIZE: usize = 32 * 1024;
+        const CHUNK_SIZE: usize = 16 * 1024;
         let mut last_progress_update = Instant::now();
         let mut reader = BackgroundReader::new(rom_file, CHUNK_SIZE);
         let mut total = 0u32;
