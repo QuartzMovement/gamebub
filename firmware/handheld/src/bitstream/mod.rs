@@ -1,3 +1,4 @@
+use std::io::BufReader;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -6,8 +7,6 @@ use crate::device::DisplayMode;
 use crate::device::{drivers::fpga, Device};
 use crate::led;
 use crate::ui;
-
-use flate2::read::GzDecoder;
 
 pub mod boot;
 pub mod gameboy;
@@ -59,7 +58,10 @@ fn program_fpga(path: &str) {
     }
 
     let file = crate::util::open_system_file(path).unwrap();
-    let mut bitstream = GzDecoder::new(file);
+    let reader = BufReader::with_capacity(512, file);
+    // TODO: use a smaller gzip window size (512) to save memory. Not possible with miniz_oxide.
+    let mut bitstream = flate2::bufread::GzDecoder::new(reader);
+
     device
         .fpga
         .program(&mut bitstream, &mut SCRATCH.take().unwrap())
@@ -77,9 +79,9 @@ fn program_fpga(path: &str) {
 
 pub fn program_boot(device: &mut Device) -> anyhow::Result<()> {
     use anyhow::Context as _;
-    let bitstream =
-        crate::util::open_system_file("boot.bit.gz").context("Failed to read bitstream")?;
-    let mut bitstream = GzDecoder::new(bitstream);
+    let file = crate::util::open_system_file("boot.bit.gz").context("Failed to read bitstream")?;
+    let reader = BufReader::with_capacity(512, file);
+    let mut bitstream = flate2::bufread::GzDecoder::new(reader);
     device
         .fpga
         .program(&mut bitstream, &mut SCRATCH.take().unwrap())

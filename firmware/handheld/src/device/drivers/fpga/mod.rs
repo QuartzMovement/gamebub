@@ -166,6 +166,7 @@ where
         }
 
         log::info!("FPGA is in program mode");
+        let start_time = Instant::now();
 
         let mut num_read = 0;
         while num_read < header.length {
@@ -182,8 +183,9 @@ where
         }
 
         log::info!(
-            "Programmed FPGA, done={}",
-            self.pin_done.is_high().map_err(|_| Error::PinError)?
+            "Programmed FPGA, done={}, time={}",
+            self.pin_done.is_high().map_err(|_| Error::PinError)?,
+            start_time.elapsed().as_millis() as u32,
         );
 
         Ok(())
