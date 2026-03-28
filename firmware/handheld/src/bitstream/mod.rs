@@ -1,6 +1,7 @@
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
+use crate::bitstream::util::scratch_buffer::ScratchBuffer;
 use crate::device::DisplayMode;
 use crate::device::{drivers::fpga, Device};
 use crate::led;
@@ -13,6 +14,8 @@ pub mod gameboy;
 pub mod gba;
 
 mod util;
+
+static SCRATCH: ScratchBuffer<{ 16 * 1024 }> = ScratchBuffer::new();
 
 /// Driver for a specific bitstream.
 pub trait Bitstream {

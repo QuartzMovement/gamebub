@@ -2,6 +2,7 @@ use esp_idf_svc::hal::units::Hertz;
 use std::{
     fs::File,
     io::{Read, Seek, SeekFrom, Write},
+    ops::DerefMut,
     path::{Path, PathBuf},
     time::{Duration, Instant},
 };
@@ -100,7 +101,8 @@ impl Gameboy {
 
         log::info!("Loading CGB bootrom");
         let mut bios_file = crate::util::open_system_file(bios_path)?;
-        let mut buf = vec![0u8; 2048].into_boxed_slice();
+        let mut scratch = super::SCRATCH.take().expect("scratch buffer");
+        let mut buf = &mut scratch[..2048];
 
         let file_len = bios_file.metadata()?.len();
         if file_len == 2048 || file_len == 256 {
@@ -238,11 +240,12 @@ impl Gameboy {
         match File::open(ram_path.as_path()) {
             Ok(mut ram_file) => {
                 log::info!("Loading RAM");
-                let mut buf = vec![0; CHUNK_SIZE];
+                let mut scratch = super::SCRATCH.take().expect("scratch buffer");
+                let buf = scratch.deref_mut();
 
                 let mut pos = 0u32;
                 while pos < rom_header.ram_size {
-                    let to_read = ((rom_header.ram_size - pos) as usize).min(CHUNK_SIZE);
+                    let to_read = ((rom_header.ram_size - pos) as usize).min(buf.len());
                     let n = ram_file.read(&mut buf[..to_read])?;
                     if n == 0 {
                         break;
@@ -324,14 +327,14 @@ impl Gameboy {
         log::info!("Saving RAM: {}", ram_path.display());
 
         let mut file = File::create(ram_path)?;
-        const CHUNK_SIZE: usize = 8 * 1024;
-        let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
+        let mut scratch = super::SCRATCH.take().expect("scratch buffer");
+        let buf = scratch.deref_mut();
         let mut address: u32 = 0;
         let mut bytes_left = ram_size as usize;
 
         let mut device = Device::lock();
         while bytes_left > 0 {
-            let to_read = CHUNK_SIZE.min(bytes_left);
+            let to_read = bytes_left.min(buf.len());
             let data = &mut buf[0..to_read];
             device.fpga.sram_read(address, data)?;
             file.write(data)?;

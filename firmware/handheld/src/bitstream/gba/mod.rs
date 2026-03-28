@@ -191,8 +191,8 @@ impl Gba {
         if file_len != 16 * 1024 {
             log::warn!("Bios unexpected length: {}", file_len);
         }
-        let mut buf = vec![0u8; 16 * 1024].into_boxed_slice();
-        bios_file.read(&mut buf)?;
+        let mut scratch = super::SCRATCH.take().expect("scratch buffer");
+        bios_file.read(&mut scratch)?;
 
         let address = 0xE010_0000;
         let command = fpga::SpiCommand {
@@ -204,7 +204,7 @@ impl Gba {
         let max_clock = SYSTEM_CLOCK_RATE * 32 / (4 * 2);
         device
             .fpga
-            .spi_write(Some(max_clock), command, address, &buf)?;
+            .spi_write(Some(max_clock), command, address, &scratch)?;
 
         self.bios_path = Some(bios_path);
         Ok(())
@@ -335,13 +335,14 @@ impl Gba {
         let save_path = rom_path.with_extension("sav");
         let _ = crate::util::copy_file(&save_path, &save_path.with_extension("sav.bak"));
         let mut rtc_state: Option<RtcState> = None;
-        let mut buf = vec![0; CHUNK_SIZE];
+        let mut scratch = super::SCRATCH.take().expect("scratch buffer");
+        let buf = &mut scratch;
         if let Ok(mut save_file) = File::open(save_path.as_path()) {
             log::info!("Loading save file");
 
             let mut pos = 0u32;
             while pos < save_size {
-                let to_read = ((save_size - pos) as usize).min(CHUNK_SIZE);
+                let to_read = ((save_size - pos) as usize).min(buf.len());
                 let n = save_file.read(&mut buf[..to_read])?;
                 if n == 0 {
                     break;
@@ -384,7 +385,7 @@ impl Gba {
             buf.fill(0xFF);
             let mut pos = 0u32;
             while pos < save_size {
-                let n = ((save_size - pos) as usize).min(CHUNK_SIZE);
+                let n = ((save_size - pos) as usize).min(buf.len());
                 Device::lock().fpga.sram_write(pos, &buf[..n])?;
                 pos += n as u32;
             }
@@ -443,15 +444,14 @@ impl Gba {
         log::info!("Saving to: {}", save_path.display());
 
         let mut file = File::create(save_path)?;
-        const CHUNK_SIZE: usize = 8 * 1024;
-        let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
+        let mut scratch = super::SCRATCH.take().expect("scratch buffer");
         let mut address: u32 = 0;
         let mut bytes_left = self.save_size as usize;
 
         let mut device = Device::lock();
         while bytes_left > 0 {
-            let to_read = CHUNK_SIZE.min(bytes_left);
-            let data = &mut buf[0..to_read];
+            let to_read = bytes_left.min(scratch.len());
+            let data = &mut scratch[0..to_read];
             device.fpga.sram_read(address, data)?;
             file.write(data)?;
             address += to_read as u32;
