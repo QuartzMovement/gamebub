@@ -249,6 +249,9 @@ impl UI {
                     .set_repaint_buffer_type(RepaintBufferType::NewBuffer);
             }
             Message::EnterGame => {
+                self.root
+                    .global::<slint::Backend>()
+                    .set_rom_select_is_loading(false);
                 self.root.invoke_set_screen(slint::ScreenId::Game);
             }
             Message::GameSaved => {
@@ -264,6 +267,7 @@ impl UI {
             }
             Message::RomSelectError(error) => {
                 self.state.borrow_mut().rom_select_set_error(error);
+                self.root.invoke_set_screen(slint::ScreenId::RomSelect);
             }
             Message::FatalError(error) => {
                 self.root

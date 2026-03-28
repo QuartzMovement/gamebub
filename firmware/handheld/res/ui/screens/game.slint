@@ -77,5 +77,28 @@ export component GameScreen inherits ScreenBase {
                 }
             }
         }
+
+        if Backend.rom-select-is-loading:  Rectangle {
+            background: #FFF;
+            border-color: black;
+            border-width: 1px;
+            width: i-loading-layout.min-width;
+            height: i-loading-layout.min-height;
+
+            i-loading-layout := VerticalLayout {
+                padding: 8px;
+                spacing: 4px;
+                i-text := Text {
+                    horizontal-alignment: center;
+                    text: "Loading...";
+                }
+
+                Rectangle {
+                    background: black;
+                    width: Backend.rom-select-progress * i-text.min-width;
+                    height: 2px;
+                }
+            }
+        }
     }
 }

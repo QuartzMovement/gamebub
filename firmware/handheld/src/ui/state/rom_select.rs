@@ -124,10 +124,12 @@ impl UiState {
 
     /// Handle selection. Returns whether a loading screen should be displayed.
     fn rom_select_handle_select(&mut self, path: PathBuf, filename: &str) -> bool {
+        let mut is_loading = true;
+        let mut enter_game = false;
         if filename == ".." {
             if self.rom_select_directory == Path::new(BASE_DIR) {
                 log::warn!("No parent directory");
-                return false;
+                is_loading = false;
             } else {
                 kvs::keys::LAST_ROM_PATH.set(&self.rom_select_directory);
                 self.rom_select_directory.pop();
@@ -143,12 +145,19 @@ impl UiState {
             log::info!("Selected ROM {}", path.display());
             kvs::keys::LAST_ROM_PATH.set(&path);
             worker::send(worker::Message::RunRomFile(path));
+            enter_game = true;
         }
-        self.root
-            .unwrap()
-            .global::<Backend>()
-            .set_rom_select_progress(0.0);
-        true
+        if is_loading {
+            self.root
+                .unwrap()
+                .global::<Backend>()
+                .set_rom_select_progress(0.0);
+            self.root
+                .unwrap()
+                .global::<Backend>()
+                .set_rom_select_is_loading(true);
+        }
+        enter_game
     }
 
     pub fn rom_select_set_error(&mut self, error: String) {

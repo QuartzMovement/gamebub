@@ -77,6 +77,7 @@ export component MainWindow inherits Window {
 
                 if (Global.current-screen == ScreenId.RomSelect): RomSelectScreen {
                     init => {
+                        Global.ui-status-bar = true;
                         self.focus();
                         root.screen-title = self.title;
                     }

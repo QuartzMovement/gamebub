@@ -22,6 +22,7 @@ export component RomSelectScreen inherits ScreenBase {
             } else if (has-error) {
                 if (event.text == "a" || event.text == "b") {
                     Backend.rom-select-error = "";
+                    list.set-current-item(Backend.rom-select-index);
                 }
                 accept
             } else if event.text == "Home" && !Global.home-consumed {
@@ -55,7 +56,10 @@ export component RomSelectScreen inherits ScreenBase {
                     wrap: true;
                     disabled: Backend.rom-select-is-loading || has-error;
                     on-item-selected(i) => {
-                        Backend.rom-select-is-loading = Backend.rom-select-selected(i);
+                        Backend.rom-select-index = i;
+                        if Backend.rom-select-selected(i) {
+                            Global.set-screen(ScreenId.Game);
+                        }
                     }
                     current-item-changed(i) => {
                         Backend.rom-select-focused(i);
@@ -109,12 +113,6 @@ export component RomSelectScreen inherits ScreenBase {
             i-text := Text {
                 horizontal-alignment: center;
                 text: "Loading...";
-            }
-
-            Rectangle {
-                background: black;
-                width: Backend.rom-select-progress * i-text.min-width;
-                height: 2px;
             }
         }
     }
