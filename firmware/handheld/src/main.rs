@@ -1,5 +1,4 @@
 use anyhow::Context;
-use flate2::read::GzDecoder;
 
 use device::Device;
 
@@ -84,13 +83,7 @@ fn main() -> anyhow::Result<()> {
 
     // Initial programming FPGA
     fn program_fpga(device: &mut Device) -> anyhow::Result<()> {
-        let bitstream =
-            util::open_system_file("boot.bit.gz").context("Failed to read bitstream")?;
-        let mut bitstream = GzDecoder::new(bitstream);
-        device
-            .fpga
-            .program(&mut bitstream)
-            .context("Failed to program FPGA")?;
+        bitstream::program_boot(device)?;
         device.fpga.enable_interrupt(fpga::Irq::Button)?;
         device.lcd.enable_fpga_control()?;
         Ok(())

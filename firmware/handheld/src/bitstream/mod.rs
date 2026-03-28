@@ -60,7 +60,10 @@ fn program_fpga(path: &str) {
 
     let file = crate::util::open_system_file(path).unwrap();
     let mut bitstream = GzDecoder::new(file);
-    device.fpga.program(&mut bitstream).unwrap();
+    device
+        .fpga
+        .program(&mut bitstream, &mut SCRATCH.take().unwrap())
+        .unwrap();
     device.fpga.set_display_mode(display_mode).unwrap();
     device.fpga.enable_interrupt(fpga::Irq::Button).unwrap();
     ui::send(ui::Message::InputState(device.get_input_state().unwrap()));
@@ -72,10 +75,22 @@ fn program_fpga(path: &str) {
     }
 }
 
+pub fn program_boot(device: &mut Device) -> anyhow::Result<()> {
+    use anyhow::Context as _;
+    let bitstream =
+        crate::util::open_system_file("boot.bit.gz").context("Failed to read bitstream")?;
+    let mut bitstream = GzDecoder::new(bitstream);
+    device
+        .fpga
+        .program(&mut bitstream, &mut SCRATCH.take().unwrap())
+        .context("Failed to program FPGA")
+}
+
 pub enum CurrentBitstream {
     None,
     Gameboy(gameboy::Gameboy),
     Gba(gba::Gba),
+    // TODO: add "Boot" variant to distinguish between actually None and Boot.
 }
 
 impl CurrentBitstream {

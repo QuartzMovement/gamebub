@@ -120,7 +120,11 @@ where
     }
 
     /// Program the FPGA with a new bitstream.
-    pub fn program(&mut self, bitstream: &mut dyn Read) -> Result<(), Error> {
+    pub fn program(
+        &mut self,
+        bitstream: &mut dyn Read,
+        scratch_buf: &mut [u8],
+    ) -> Result<(), Error> {
         let header =
             xilinx::parse_bitstream_header(bitstream).map_err(|_| Error::BitstreamError)?;
 
@@ -163,12 +167,10 @@ where
 
         log::info!("FPGA is in program mode");
 
-        const CHUNK_SIZE: usize = 16 * 1024;
-        let mut buf = vec![0; CHUNK_SIZE].into_boxed_slice();
         let mut num_read = 0;
         while num_read < header.length {
-            let amount = (header.length - num_read).min(buf.len());
-            let buf = &mut buf[0..amount];
+            let amount = (header.length - num_read).min(scratch_buf.len());
+            let buf = &mut scratch_buf[0..amount];
             bitstream
                 .read_exact(buf)
                 .map_err(|_| Error::BitstreamError)?;
