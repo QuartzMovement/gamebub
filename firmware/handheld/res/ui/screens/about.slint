@@ -26,6 +26,11 @@ export component AboutScreen inherits ScreenBase {
                         horizontal-alignment: center;
                         text: "Serial: \{Backend.hardware-serial}\nHardware version: \{Backend.hardware-version}\nFirmware version: \{Backend.firmware-version}";
                     }
+
+                    if Backend.docked: Text {
+                        horizontal-alignment: center;
+                        text: "Dock serial: \{Backend.dock-serial}\nDock firmware version: \{Backend.dock-firmware-version}";
+                    }
                 }
             }
 

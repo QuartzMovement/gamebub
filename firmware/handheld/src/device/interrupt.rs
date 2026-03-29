@@ -140,7 +140,12 @@ impl Device<'_> {
                             let hdmi_detected = device.parse_hdmi_detect(io_expander).unwrap();
                             if prev_hdmi_detected != Some(hdmi_detected) {
                                 prev_hdmi_detected = Some(hdmi_detected);
-                                worker::send(worker::Message::DockState(hdmi_detected));
+
+                                if hdmi_detected {
+                                    worker::send(worker::Message::DockBegin { serial: 0, hardware: 0, firmware: 0 });
+                                } else {
+                                    worker::send(worker::Message::DockEnd);
+                                }
                             }
                         } else {
                             // On VBUS pgood falling, force undock
@@ -148,7 +153,7 @@ impl Device<'_> {
                             if prev_vbus_pgood != Some(vbus_pgood) {
                                 prev_vbus_pgood = Some(vbus_pgood);
                                 if !vbus_pgood {
-                                    worker::send(worker::Message::DockState(false));
+                                    worker::send(worker::Message::DockEnd);
                                 }
                             }
                         }

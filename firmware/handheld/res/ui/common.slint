@@ -52,6 +52,10 @@ export global Backend {
     in property <string> hardware-version;
     in property <string> firmware-version;
 
+    in property <bool> docked: false;
+    in property <string> dock-serial;
+    in property <string> dock-firmware-version;
+
     in property <bool> sdcard-mounted: true;
 
     in-out property <bool> volume-visible: false;

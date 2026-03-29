@@ -61,6 +61,10 @@ pub enum Message {
     GamepadInput(input::GamepadId, input::InputState),
     /// Show a notification
     Notification(Notification),
+    /// Docked
+    DockBegin { serial: String, firmware: String },
+    /// Dock ended
+    DockEnd,
 }
 
 /// Send a message to the UI thread.
@@ -283,6 +287,15 @@ impl UI {
                 self.state
                     .borrow_mut()
                     .queue_notification(self.state.clone(), notification);
+            }
+            Message::DockBegin { serial, firmware } => {
+                let backend = self.root.global::<slint::Backend>();
+                backend.set_dock_serial(serial.into());
+                backend.set_dock_firmware_version(firmware.into());
+                backend.set_docked(true);
+            }
+            Message::DockEnd => {
+                self.root.global::<slint::Backend>().set_docked(false);
             }
             #[allow(unreachable_patterns)]
             _ => {

@@ -8,6 +8,7 @@ use crate::bitstream::CurrentBitstream;
 use crate::device::drivers::fpga;
 use crate::device::Device;
 use crate::device::DisplayMode;
+use crate::fwinfo::FirmwareVersion;
 use crate::input::InputManager;
 use crate::{bitstream, ui};
 
@@ -17,8 +18,15 @@ pub enum Message {
     FpgaIrq(u32),
     /// The headphone state has changed
     HeadphoneState(bool),
-    /// The docked state has changed
-    DockState(bool),
+    /// The handheld has docked
+    DockBegin {
+        serial: u32,
+        #[allow(unused)]
+        hardware: u32,
+        firmware: u32,
+    },
+    /// The handheld has undocked
+    DockEnd,
 
     /// Run a cartridge
     RunCartridge,
@@ -153,18 +161,25 @@ fn dispatch(message: Message) {
             };
             ui::send(ui::Message::RomSelectFiles(files))
         }
-        Message::DockState(docked) => {
-            // Either we undocked (so remove all gamepads), or we just docked and we should ensure a clean state.
-            InputManager::lock().remove_all_gamepads();
+        Message::DockBegin {
+            serial, firmware, ..
+        } => {
+            ui::send(ui::Message::DockBegin {
+                serial: format!("{serial:08X}"),
+                firmware: format!("{}", FirmwareVersion::from(firmware)),
+            });
 
-            let mode = if docked {
-                DisplayMode::External
-            } else {
-                DisplayMode::Internal
-            };
+            InputManager::lock().remove_all_gamepads();
             let mut device = Device::lock();
-            device.docked = docked;
-            device.change_display_mode(mode).unwrap();
+            device.docked = true;
+            device.change_display_mode(DisplayMode::External).unwrap();
+        }
+        Message::DockEnd => {
+            ui::send(ui::Message::DockEnd);
+            InputManager::lock().remove_all_gamepads();
+            let mut device = Device::lock();
+            device.docked = false;
+            device.change_display_mode(DisplayMode::Internal).unwrap();
         }
         Message::EnsureBootBitstream => {
             bitstream::current().ensure_boot().unwrap();

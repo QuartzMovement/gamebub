@@ -55,12 +55,12 @@ mod settings {
                 page: &PAGE_GENERAL,
             },
             Entry::Subpage {
-                name: "GB",
-                page: &PAGE_GB,
+                name: "Core: GB",
+                page: &PAGE_CORE_GB,
             },
             Entry::Subpage {
-                name: "GBA",
-                page: &PAGE_GBA,
+                name: "Core: GBA",
+                page: &PAGE_CORE_GBA,
             },
         ],
     };
@@ -79,8 +79,8 @@ mod settings {
         ],
     };
 
-    pub static PAGE_GB: Page = Page {
-        name: "GB",
+    pub static PAGE_CORE_GB: Page = Page {
+        name: "Core: GB",
         entries: &[
             Entry::Checkbox {
                 name: "Enable DMG mode",
@@ -103,8 +103,8 @@ mod settings {
         ],
     };
 
-    pub static PAGE_GBA: Page = Page {
-        name: "GBA",
+    pub static PAGE_CORE_GBA: Page = Page {
+        name: "Core: GBA",
         entries: &[
             Entry::Checkbox {
                 name: "Skip Boot Animation",

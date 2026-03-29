@@ -57,7 +57,11 @@ pub fn handle_control_out(request: &Request, buf: &[u8]) -> Result<(), ()> {
             let hardware_version = u32::from_le_bytes(buf[8..12].try_into().unwrap());
             let firmware_version = u32::from_le_bytes(buf[12..16].try_into().unwrap());
             log::info!("Dock: serial={serial_number:08X} hw={hardware_version:08X} fw={firmware_version:08X}");
-            worker::send(worker::Message::DockState(true));
+            worker::send(worker::Message::DockBegin {
+                serial: serial_number,
+                hardware: hardware_version,
+                firmware: firmware_version,
+            });
             Ok(())
         }
         REQUEST_GAMEPAD_CONNECT => {

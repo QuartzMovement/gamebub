@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct FirmwareVersion {
@@ -5,6 +7,23 @@ pub struct FirmwareVersion {
     pub minor: u8,
     pub patch: u8,
     pub pre: u8,
+}
+
+impl From<u32> for FirmwareVersion {
+    fn from(value: u32) -> Self {
+        Self {
+            major: ((value >> 24) & 0xFF) as u8,
+            minor: ((value >> 16) & 0xFF) as u8,
+            patch: ((value >> 8) & 0xFF) as u8,
+            pre: ((value >> 0) & 0xFF) as u8,
+        }
+    }
+}
+
+impl Display for FirmwareVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+    }
 }
 
 #[repr(C)]
