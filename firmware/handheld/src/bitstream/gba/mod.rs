@@ -12,10 +12,8 @@ use thiserror::Error;
 
 use crate::{
     device::{drivers::fpga, Device},
-    kvs,
-    util::BackgroundReader,
+    kvs, ui,
 };
-use crate::{ui, util::ReaderResult};
 
 use super::{
     util::color_correction::{self, ColorCorrection},
@@ -277,23 +275,15 @@ impl Gba {
         let mut save_type_detector = SaveTypeDetector::new();
         let emu_cart_config = game_db::lookup(&rom_header.game_code);
 
-        const CHUNK_SIZE: usize = 16 * 1024;
-        let mut reader = BackgroundReader::new(rom_file, CHUNK_SIZE);
-
+        let mut scratch = super::SCRATCH.take().expect("scratch buffer");
         let mut total = 0u32;
         let mut last_progress_update = Instant::now();
         let start_time = Instant::now();
         let mut transfer_duration = Duration::ZERO;
         let mut detect_duration = Duration::ZERO;
-        loop {
-            let chunk = match reader.get() {
-                ReaderResult::Ok(buf) => buf,
-                ReaderResult::Eof => break,
-                ReaderResult::Err(err) => Err(err)?,
-            };
-
+        crate::util::background_io::iter_chunks(rom_file, &mut scratch, |chunk| {
             let transfer_start = Instant::now();
-            Device::lock().fpga.sdram_write(total, &chunk)?;
+            Device::lock().fpga.sdram_write(total, &chunk).unwrap();
             total += chunk.len() as u32;
             transfer_duration += transfer_start.elapsed();
 
@@ -309,8 +299,9 @@ impl Gba {
                 save_type_detector.process(&chunk);
             }
             detect_duration += detect_start.elapsed();
-        }
+        })?;
         ui::send(ui::Message::RomLoadingProgress(1.0));
+        drop(scratch);
         let duration = start_time.elapsed();
         log::info!(
             "Loaded ROM: {} bytes in {} ms ({}/{} ms transfer/detect)",

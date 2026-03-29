@@ -1,6 +1,4 @@
-mod background_io;
-
-pub use background_io::{BackgroundReader, ReaderResult};
+pub mod background_io;
 
 use std::{fs::File, path::Path};
 

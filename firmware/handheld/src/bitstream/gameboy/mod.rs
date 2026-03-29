@@ -10,10 +10,8 @@ use thiserror::Error;
 
 use crate::{
     device::{drivers::fpga, Device},
-    kvs,
-    util::BackgroundReader,
+    kvs, ui,
 };
-use crate::{ui, util::ReaderResult};
 
 use super::{
     util::color_correction::{self, ColorCorrection},
@@ -211,18 +209,11 @@ impl Gameboy {
         rom_file.seek(std::io::SeekFrom::Start(0))?;
         log::info!("Loading rom: {:?}", rom_header);
 
-        const CHUNK_SIZE: usize = 16 * 1024;
+        let mut scratch = super::SCRATCH.take().expect("scratch buffer");
         let mut last_progress_update = Instant::now();
-        let mut reader = BackgroundReader::new(rom_file, CHUNK_SIZE);
         let mut total = 0u32;
-        loop {
-            let chunk = match reader.get() {
-                ReaderResult::Ok(buf) => buf,
-                ReaderResult::Eof => break,
-                ReaderResult::Err(err) => Err(err)?,
-            };
-
-            Device::lock().fpga.sdram_write(total, &chunk)?;
+        crate::util::background_io::iter_chunks(rom_file, &mut scratch, |chunk| {
+            let _ = Device::lock().fpga.sdram_write(total, &chunk);
             total += chunk.len() as u32;
 
             // Update UI progress bar.
@@ -231,8 +222,9 @@ impl Gameboy {
                 ui::send(ui::Message::RomLoadingProgress(progress));
                 last_progress_update = Instant::now();
             }
-        }
+        })?;
         ui::send(ui::Message::RomLoadingProgress(1.0));
+        drop(scratch);
 
         // Load RAM
         let ram_path = rom_path.with_extension("sav");

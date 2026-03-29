@@ -1,58 +1,106 @@
 use std::{
     fs::File,
     io::Read,
-    sync::mpsc,
+    sync::{Condvar, Mutex},
     time::{Duration, Instant},
 };
 
-pub enum ReaderResult {
-    Ok(Vec<u8>),
-    Eof,
-    Err(std::io::Error),
-}
+/// Spawn a thread to read chunks from the file in background.
+///
+/// The callback function will be called for each chunk, until either
+/// EOF or an Error.
+///
+/// Each chunk is at most half of the buffer size.
+pub fn iter_chunks(
+    mut file: File,
+    buffer: &mut [u8],
+    mut f: impl FnMut(&[u8]),
+) -> Result<(), std::io::Error> {
+    pub enum ReaderResult<'a> {
+        Ok(&'a mut [u8], usize),
+        Eof,
+        Err(std::io::Error),
+    }
 
-pub struct BackgroundReader {
-    receiver: mpsc::Receiver<ReaderResult>,
-}
+    struct State<'a> {
+        result: Option<ReaderResult<'a>>,
+        free0: Option<&'a mut [u8]>,
+        free1: Option<&'a mut [u8]>,
+    }
 
-impl BackgroundReader {
-    pub fn new(file: File, chunk_size: usize) -> Self {
-        let (sender, receiver) = mpsc::sync_channel::<ReaderResult>(0);
+    let (buf0, buf1) = buffer.split_at_mut(buffer.len() / 2);
+    let state = Mutex::new(State {
+        result: None,
+        free0: Some(buf0),
+        free1: Some(buf1),
+    });
+    let condvar = Condvar::new();
 
-        let mut file = file;
-        std::thread::spawn(move || {
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
             let mut duration = Duration::ZERO;
 
             loop {
-                let mut buf = vec![0u8; chunk_size];
+                let buf = {
+                    // Wait for consumer to take result.
+                    let mut state = condvar
+                        .wait_while(state.lock().unwrap(), |x| x.result.is_some())
+                        .unwrap();
+                    // Take a free buffer.
+                    let buffer = state.free0.take();
+                    state.free0 = state.free1.take();
+                    buffer.unwrap()
+                };
+
+                // Read into the buffer.
                 let read_start = Instant::now();
-                let result = file.read(&mut buf);
+                let result = file.read(buf);
                 duration += read_start.elapsed();
 
-                let n = match result {
-                    Ok(n) => n,
-                    Err(err) => {
-                        let _ = sender.send(ReaderResult::Err(err));
-                        return;
-                    }
+                // Send to consumer
+                let (out, exit) = match result {
+                    Ok(0) => (ReaderResult::Eof, true),
+                    Ok(n) => (ReaderResult::Ok(buf, n), false),
+                    Err(err) => (ReaderResult::Err(err), true),
                 };
-                if n == 0 {
-                    log::info!("Read in {}ms", duration.as_millis());
-                    let _ = sender.send(ReaderResult::Eof);
-                    return;
-                }
-                buf.truncate(n);
+                state.lock().unwrap().result = Some(out);
+                condvar.notify_all();
 
-                if let Err(_) = sender.send(ReaderResult::Ok(buf)) {
-                    return;
+                if exit {
+                    log::info!("Read in {}ms", duration.as_millis() as u32);
+                    break;
                 }
             }
         });
 
-        BackgroundReader { receiver }
-    }
+        // Consumer (main thread)
+        loop {
+            // Wait for a result and take it (sync point)
+            let result = {
+                let mut state = condvar
+                    .wait_while(state.lock().unwrap(), |x| x.result.is_none())
+                    .unwrap();
+                state.result.take().unwrap()
+            };
+            condvar.notify_all();
 
-    pub fn get(&mut self) -> ReaderResult {
-        self.receiver.recv().unwrap_or(ReaderResult::Eof)
-    }
+            // Process result.
+            let buf = match result {
+                ReaderResult::Ok(buf, n) => {
+                    f(&buf[0..n]);
+                    buf
+                }
+                ReaderResult::Eof => break Ok(()),
+                ReaderResult::Err(error) => break Err(error),
+            };
+
+            // Return the result buffer.
+            {
+                let mut state = state.lock().unwrap();
+                assert!(state.free1.is_none());
+                state.free1 = state.free0.take();
+                state.free0 = Some(buf);
+            }
+        }
+    })
 }
