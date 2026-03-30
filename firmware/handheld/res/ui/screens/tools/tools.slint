@@ -1,6 +1,7 @@
 import { Global, ScreenId, Backend, BatteryInfo } from "../../common.slint";
 import { ScreenBase } from "../../components/screen.slint";
 import { TextListView } from "../../components/list_view.slint";
+import { ControlHint } from "../../components/control_hint.slint";
 
 export component ToolsScreen inherits ScreenBase {
     in property <[string]> tools: ["Mount SD Card over USB", "Cartridge backup / restore", "Debug battery info"];
@@ -40,13 +41,16 @@ export component ToolsScreen inherits ScreenBase {
             }
 
             HorizontalLayout {
-                Text {
-                    text: "A: Select";
+                alignment: space-between;
+
+                ControlHint {
+                    label: "Back";
+                    button: "b";
                 }
 
-                Text {
-                    text: "B: Back";
-                    horizontal-alignment: right;
+                ControlHint {
+                    label: "Select";
+                    button: "a";
                 }
             }
         }
@@ -139,9 +143,9 @@ export component ToolsScreen inherits ScreenBase {
                 );
                 }
 
-                Text {
-                    horizontal-alignment: center;
-                    text: "B: Back";
+                ControlHint {
+                    label: "Back";
+                    button: "b";
                 }
 
                 Timer {

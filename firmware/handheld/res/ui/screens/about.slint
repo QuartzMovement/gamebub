@@ -1,6 +1,7 @@
 import { Global, ScreenId, Backend } from "../common.slint";
 import { ScreenBase } from "../components/screen.slint";
 import { ScrollView } from "../components/scroll_view.slint";
+import { ControlHint } from "../components/control_hint.slint";
 
 export component AboutScreen inherits ScreenBase {
     title: "About";
@@ -35,9 +36,10 @@ export component AboutScreen inherits ScreenBase {
             }
 
             HorizontalLayout {
-                Text {
-                    text: "B: Back";
-                    horizontal-alignment: right;
+                alignment: end;
+                ControlHint {
+                    label: "Up";
+                    button: "b";
                 }
             }
         }

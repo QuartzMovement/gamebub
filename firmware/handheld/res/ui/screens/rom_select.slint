@@ -1,6 +1,7 @@
 import { Global, ScreenId, Backend } from "../common.slint";
 import { ScreenBase } from "../components/screen.slint";
 import { FileListView } from "../components/file_list.slint";
+import { ControlHint } from "../components/control_hint.slint";
 
 export component RomSelectScreen inherits ScreenBase {
     private property <bool> is-loading: false;
@@ -82,19 +83,21 @@ export component RomSelectScreen inherits ScreenBase {
             }
 
             HorizontalLayout {
-                Text {
-                    text: "A: Select";
-                    horizontal-alignment: left;
+                alignment: space-between;
+
+                ControlHint {
+                    label: "Home";
+                    button: "home";
                 }
 
-                Text {
-                    text: "Home: Back";
-                    horizontal-alignment: center;
+                ControlHint {
+                    label: "Up";
+                    button: "b";
                 }
 
-                Text {
-                    text: "B: Up";
-                    horizontal-alignment: right;
+                ControlHint {
+                    label: "Select";
+                    button: "a";
                 }
             }
         }

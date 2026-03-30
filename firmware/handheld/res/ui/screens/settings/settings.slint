@@ -2,6 +2,7 @@ import { Global, ScreenId, Backend } from "../../common.slint";
 import { ScreenBase } from "../../components/screen.slint";
 import { SettingType, SettingValue, SettingEntry } from "types.slint";
 import { SettingsListView } from "components.slint";
+import { ControlHint } from "../../components/control_hint.slint";
 
 export component SettingsScreen inherits ScreenBase {
     title: "Settings";
@@ -35,13 +36,16 @@ export component SettingsScreen inherits ScreenBase {
             }
 
             HorizontalLayout {
-                Text {
-                    text: "A: Select";
+                alignment: space-between;
+
+                ControlHint {
+                    label: "Back";
+                    button: "b";
                 }
 
-                Text {
-                    text: "B: Back";
-                    horizontal-alignment: right;
+                ControlHint {
+                    label: "Select";
+                    button: "a";
                 }
             }
         }
