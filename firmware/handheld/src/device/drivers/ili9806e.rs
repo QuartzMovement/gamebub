@@ -61,27 +61,24 @@ where
         self.write_cmd(0x31, &[0x00])?;
 
         // Vendor parameters
-        // Power control
-        self.write_cmd(0x40, &[0x14])?;
-        self.write_cmd(0x41, &[0x33])?;
-        self.write_cmd(0x42, &[0x01])?;
-        self.write_cmd(0x43, &[0x09])?;
-        self.write_cmd(0x44, &[0x06])?;
-        self.write_cmd(0x45, &[0x0A])?;
-        self.write_cmd(0x50, &[0x78])?;
-        self.write_cmd(0x51, &[0x78])?;
-        // VCOM control
-        self.write_cmd(0x52, &[0x00])?;
-        self.write_cmd(0x53, &[0x3A])?;
-        self.write_cmd(0x54, &[0x00])?;
-        self.write_cmd(0x55, &[0x3A])?;
-        // LVD detect
-        self.write_cmd(0x57, &[0x50])?;
         // Source timing adjust
         self.write_cmd(0x60, &[0x07])?;
         self.write_cmd(0x61, &[0x06])?;
         self.write_cmd(0x62, &[0x06])?;
         self.write_cmd(0x63, &[0x04])?;
+        // Power control
+        self.write_cmd(0x40, &[0x14])?;
+        self.write_cmd(0x41, &[0x33])?;
+        self.write_cmd(0x42, &[0x01])?;
+        self.write_cmd(0x43, &[0x09])?;
+        self.write_cmd(0x44, &[0x0A])?;
+        self.write_cmd(0x45, &[0x0A])?;
+        self.write_cmd(0x50, &[0x78])?;
+        self.write_cmd(0x51, &[0x78])?;
+        self.write_cmd(0x52, &[0x00])?;
+        self.write_cmd(0x53, &[0x3B])?;
+        // LVD detect
+        self.write_cmd(0x57, &[0x50])?;
         // Positive gamma control
         self.write_cmd(0xA0, &[0x00])?;
         self.write_cmd(0xA1, &[0x13])?;
@@ -117,8 +114,17 @@ where
         self.write_cmd(0xCE, &[0x08])?;
         self.write_cmd(0xCF, &[0x00])?;
 
+        // Change to page 7
+        self.write_cmd(0xFF, &[0xFF, 0x98, 0x06, 0x04, 0x07])?;
+        self.write_cmd(0x17, &[0x32])?;
+        self.write_cmd(0x18, &[0x1D])?;
+        self.write_cmd(0x26, &[0xB2])?;
+        self.write_cmd(0x02, &[0x77])?;
+        self.write_cmd(0xE1, &[0x79])?;
+        self.write_cmd(0xE1, &[0x79])?;
+        self.write_cmd(0xB3, &[0x10])?;
+
         // Change to page 6
-        // Vendor parameters
         self.write_cmd(0xFF, &[0xFF, 0x98, 0x06, 0x04, 0x06])?;
         self.write_cmd(0x00, &[0x20])?;
         self.write_cmd(0x01, &[0x04])?;
@@ -178,15 +184,6 @@ where
         self.write_cmd(0x52, &[0x10])?;
         self.write_cmd(0x53, &[0x12])?;
         self.write_cmd(0x54, &[0x13])?;
-
-        // Change to page 7
-        self.write_cmd(0xFF, &[0xFF, 0x98, 0x06, 0x04, 0x07])?;
-        self.write_cmd(0x17, &[0x32])?;
-        self.write_cmd(0x18, &[0x1D])?;
-        self.write_cmd(0x26, &[0xB2])?;
-        self.write_cmd(0x02, &[0x77])?;
-        self.write_cmd(0xE1, &[0x79])?;
-        self.write_cmd(0xB3, &[0x10])?;
 
         // Change back to page 0 for normal commands
         self.write_cmd(0xFF, &[0xFF, 0x98, 0x06, 0x04, 0x00])?;
