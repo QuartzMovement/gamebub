@@ -23,6 +23,7 @@ mod info;
 mod led;
 mod protocol;
 mod reboot;
+mod uf2;
 mod usb;
 
 #[panic_handler]
