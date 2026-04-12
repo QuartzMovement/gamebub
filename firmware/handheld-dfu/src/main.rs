@@ -12,12 +12,13 @@ use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Level, Output, OutputConfig};
 use esp_hal::otg_fs::Usb;
 use esp_hal::timer::timg::TimerGroup;
-use esp_storage::FlashStorage;
 use log::info;
 use static_cell::StaticCell;
 
+use crate::flash::Flash;
 use crate::protocol::Protocol;
 
+mod flash;
 mod info;
 mod led;
 mod protocol;
@@ -35,6 +36,7 @@ extern crate alloc;
 esp_bootloader_esp_idf::esp_app_desc!();
 
 static PROTOCOL: StaticCell<Protocol> = StaticCell::new();
+static FLASH: StaticCell<Flash> = StaticCell::new();
 
 #[allow(
     clippy::large_stack_frames,
@@ -59,10 +61,10 @@ async fn main(spawner: Spawner) {
 
     spawner.spawn(reboot::task()).unwrap();
 
-    let mut flash = FlashStorage::new(peripherals.FLASH);
+    let flash = FLASH.init_with(|| Flash::new(peripherals.FLASH));
 
     // Load app descriptor of the actual firmware image
-    let fw_meta = info::read_fw_metadata(&mut flash);
+    let fw_meta = info::read_fw_metadata(flash);
 
     let protocol = PROTOCOL.init(Protocol::new(flash));
 

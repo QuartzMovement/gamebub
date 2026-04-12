@@ -1,9 +1,9 @@
 use core::fmt::{Display, Formatter};
 
-use embedded_storage::ReadStorage;
 use esp_bootloader_esp_idf::EspAppDesc;
 use esp_hal::efuse::{self, Efuse};
-use esp_storage::FlashStorage;
+
+use crate::flash::Flash;
 
 #[derive(Copy, Clone)]
 pub struct SerialNumber(pub u32);
@@ -46,7 +46,7 @@ pub struct FirmwareMetadata {
     pub version_pre: u8,
 }
 
-pub fn read_fw_metadata(flash: &mut FlashStorage) -> Option<FirmwareMetadata> {
+pub fn read_fw_metadata(flash: &Flash) -> Option<FirmwareMetadata> {
     // TODO: use partition table to get offset
     const OFFSET_IMAGE: u32 = 0x100000;
     const OFFSET_APP_DESC: u32 = OFFSET_IMAGE + 0x20;

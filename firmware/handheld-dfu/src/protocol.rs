@@ -5,8 +5,9 @@ use core::{
 
 use embassy_sync::blocking_mutex::CriticalSectionMutex;
 use embassy_time::Instant;
-use embedded_storage::nor_flash::{NorFlash, ReadNorFlash};
 use esp_storage::FlashStorage;
+
+use crate::flash::Flash;
 
 static STATE: CriticalSectionMutex<RefCell<CommandState>> =
     CriticalSectionMutex::new(RefCell::new(CommandState::new()));
@@ -77,11 +78,11 @@ pub enum CommandStatus {
 
 /// Handler for the protocol
 pub struct Protocol {
-    flash: FlashStorage<'static>,
+    flash: &'static Flash,
 }
 
 impl Protocol {
-    pub fn new(flash: FlashStorage<'static>) -> Self {
+    pub fn new(flash: &'static Flash) -> Self {
         Protocol { flash }
     }
 
