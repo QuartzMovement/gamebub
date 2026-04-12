@@ -477,6 +477,12 @@ module top_handheld (
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds_clock (.I(hdmi_tmds_clock  ), .O(hdmi_clk_p    ), .OB(hdmi_clk_n    ));
 `endif
 `ifdef BOARD_REV_4
+    // TODO: this is due to the dock, not the handheld
+    defparam hdmi.INVERT_D0 = 1;
+    defparam hdmi.INVERT_D1 = 1;
+    defparam hdmi.INVERT_D2 = 1;
+    defparam hdmi.INVERT_CLK = 1;
+
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds0      (.I(hdmi_tmds_data[0]), .O(hdmi_data_p[0]), .OB(hdmi_data_n[0]));
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds1      (.I(hdmi_tmds_data[1]), .O(hdmi_data_p[1]), .OB(hdmi_data_n[1]));
     OBUFDS #(.IOSTANDARD("TMDS_33")) obufds2      (.I(hdmi_tmds_data[2]), .O(hdmi_data_p[2]), .OB(hdmi_data_n[2]));

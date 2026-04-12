@@ -153,14 +153,16 @@ set_property -dict { PACKAGE_PIN N15     IOSTANDARD LVCMOS33 } [get_ports { mcu_
 # USB-C / HDMI
 ########################################
 # Note: none of D0, D1, D2, CLK are swapped
-set_property -dict { PACKAGE_PIN B1     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_p     }];
-set_property -dict { PACKAGE_PIN A1     IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_n     }];
-set_property -dict { PACKAGE_PIN B3     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[0] }];
-set_property -dict { PACKAGE_PIN B2     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_n[0] }];
-set_property -dict { PACKAGE_PIN A4     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[1] }];
-set_property -dict { PACKAGE_PIN A3     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_n[1] }];
-set_property -dict { PACKAGE_PIN C2     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[2] }];
-set_property -dict { PACKAGE_PIN C1     IOSTANDARD TMDS_33  } [get_ports { hdmi_data_n[2] }];
+# However, due to dock, they're all reversed.
+# TODO parametrize it
+set_property -dict { PACKAGE_PIN C2      IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_p     }];
+set_property -dict { PACKAGE_PIN C1      IOSTANDARD TMDS_33  } [get_ports { hdmi_clk_n     }];
+set_property -dict { PACKAGE_PIN A4      IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[0] }];
+set_property -dict { PACKAGE_PIN A3      IOSTANDARD TMDS_33  } [get_ports { hdmi_data_n[0] }];
+set_property -dict { PACKAGE_PIN B3      IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[1] }];
+set_property -dict { PACKAGE_PIN B2      IOSTANDARD TMDS_33  } [get_ports { hdmi_data_n[1] }];
+set_property -dict { PACKAGE_PIN B1      IOSTANDARD TMDS_33  } [get_ports { hdmi_data_p[2] }];
+set_property -dict { PACKAGE_PIN A1      IOSTANDARD TMDS_33  } [get_ports { hdmi_data_n[2] }];
 
 set_property -dict { PACKAGE_PIN G13    IOSTANDARD LVCMOS33 } [get_ports { usb_sbu_1 }];
 set_property -dict { PACKAGE_PIN F14    IOSTANDARD LVCMOS33 } [get_ports { usb_sbu_2 }];
