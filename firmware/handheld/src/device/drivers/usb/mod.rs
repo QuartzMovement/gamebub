@@ -76,6 +76,17 @@ pub fn configure_usb(mode: UsbMode) -> Result<(), EspError> {
         UsbMode::ConsoleAndSerial => descriptors.add_cdc(),
         _ => 0,
     };
+    let hardware_version = crate::hwinfo::get_hardware_version();
+    let mode_id = match mode {
+        UsbMode::SerialJtag => 0,
+        UsbMode::ConsoleOnly => 0,
+        UsbMode::ConsoleAndMassStorage => 2,
+        UsbMode::ConsoleAndSerial => 3,
+    };
+    let device_version = ((hardware_version.major as u16) << 8)
+        | ((hardware_version.minor as u16 & 0xF) << 4)
+        | mode_id;
+    descriptors.set_device_version(device_version);
     let descriptors = Box::new(descriptors.build());
 
     // Install the TinyUSB driver

@@ -43,6 +43,11 @@ pub fn setup_usb(
     config.max_power = 500;
     config.max_packet_size_0 = 64;
 
+    // 0xMMmX: MM major, m minor, X mode (1 = dfu)
+    let hw_version = crate::info::HardwareVersion::get().as_u32();
+    config.device_release =
+        ((((hw_version >> 16) & 0xFF) << 8) | (((hw_version >> 8) & 0xF) << 4) | 0x01) as u16;
+
     config.device_class = 0xEF;
     config.device_sub_class = 0x02;
     config.device_protocol = 0x01;

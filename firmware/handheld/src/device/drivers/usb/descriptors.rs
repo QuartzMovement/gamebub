@@ -63,7 +63,7 @@ impl Builder {
                 bMaxPacketSize0: sys::CFG_TUD_ENDPOINT0_SIZE as u8,
                 idVendor: USB_VID,
                 idProduct: USB_PID,
-                bcdDevice: 0x0100,
+                bcdDevice: 0x0000,
                 iManufacturer: 0x01, // string index 1
                 iProduct: 0x02,      // string index 2
                 iSerialNumber: 0x03, // string index 3
@@ -260,6 +260,10 @@ impl Builder {
         assert!(descriptor.len() == CONFIG_DESCRIPTOR_LEN);
         self.configuration
             .splice(0..CONFIG_DESCRIPTOR_LEN, descriptor.into_iter());
+    }
+
+    pub fn set_device_version(&mut self, version: u16) {
+        self.device.bcdDevice = version;
     }
 
     pub fn build(mut self) -> Descriptors {
