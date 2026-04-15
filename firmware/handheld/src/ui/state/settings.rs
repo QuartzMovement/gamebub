@@ -55,7 +55,7 @@ mod settings {
                 page: &PAGE_GENERAL,
             },
             Entry::Subpage {
-                name: "Core: GB",
+                name: "Core: GB / GBC",
                 page: &PAGE_CORE_GB,
             },
             Entry::Subpage {
@@ -80,23 +80,23 @@ mod settings {
     };
 
     pub static PAGE_CORE_GB: Page = Page {
-        name: "Core: GB",
+        name: "Core: GB / GBC",
         entries: &[
             Entry::Checkbox {
-                name: "Enable DMG mode",
+                name: "Enable GB mode",
                 key: &keys::GB_IS_DMG,
             },
-            Entry::Checkbox {
-                name: "Skip Boot Animation",
-                key: &keys::GB_SKIP_BOOT_ANIM,
-            },
+            // Entry::Checkbox {
+            //     name: "Skip Boot Animation",
+            //     key: &keys::GB_SKIP_BOOT_ANIM,
+            // },
             Entry::List {
-                name: "CGB Color Corrections",
+                name: "GBC Color Corrections",
                 key: &keys::CGB_COLOR_PROFILE,
                 choices: &["None", "GBC", "GBA", "GBA SP"],
             },
             Entry::List {
-                name: "DMG Color Palette",
+                name: "GB Color Palette",
                 key: &keys::DMG_COLOR_PALETTE,
                 choices: &["Grayscale", "DMG Green", "GB Pocket"],
             },
@@ -106,10 +106,10 @@ mod settings {
     pub static PAGE_CORE_GBA: Page = Page {
         name: "Core: GBA",
         entries: &[
-            Entry::Checkbox {
-                name: "Skip Boot Animation",
-                key: &keys::GBA_SKIP_BOOT_ANIM,
-            },
+            // Entry::Checkbox {
+            //     name: "Skip Boot Animation",
+            //     key: &keys::GBA_SKIP_BOOT_ANIM,
+            // },
             Entry::List {
                 name: "Color Corrections",
                 key: &keys::GBA_COLOR_PROFILE,
