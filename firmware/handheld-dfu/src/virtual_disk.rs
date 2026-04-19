@@ -12,6 +12,7 @@ pub const FLASH_SIZE: u32 = 16 * 1024 * 1024;
 pub const FLASH_SECTOR_SIZE: u32 = 64 * 1024;
 
 pub const FAMILY_ID: u32 = 0xC47E5767; // ESP32-S3
+pub const EXT_DEVICE_TYPE: u32 = 0xC8A729;
 
 const FLASH_BASE_ADDR: u32 = 0;
 /// Flash below this offset is write-protected.
@@ -27,6 +28,9 @@ pub struct Uf2VirtualDisk {
     flash: &'static Flash,
 
     fat: GhostFat<'static>,
+
+    /// Hardware version of the device
+    hw_version: crate::info::HardwareVersion,
 
     /// Bitmap for written blocks.
     block_map: [u8; (FLASH_SIZE / FLASH_BLOCK_SIZE / u8::BITS) as usize],
@@ -76,6 +80,7 @@ impl Uf2VirtualDisk {
         Self {
             flash,
             fat,
+            hw_version: hw,
             block_map: [0u8; _],
             sector_map: [0u8; _],
             transfer: None,
@@ -120,7 +125,19 @@ impl Uf2VirtualDisk {
         if block.address() % FLASH_BLOCK_SIZE != 0 {
             return;
         }
-        // TODO check device type extension tag
+        if let Some(tag) = block.get_extension_tag(EXT_DEVICE_TYPE) {
+            if tag.len() != 8 {
+                return;
+            }
+            if &tag[0..4] != b"bub!" {
+                return;
+            }
+            if self.hw_version.as_u32() != 0 {
+                if tag[6] != self.hw_version.major() || tag[7] != self.hw_version.product() {
+                    return;
+                }
+            }
+        }
 
         // Possibly begin a new transfer.
         if let Some(transfer) = self.transfer.as_mut() {

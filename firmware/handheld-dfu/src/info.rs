@@ -31,6 +31,14 @@ impl HardwareVersion {
     pub fn as_u32(&self) -> u32 {
         self.0
     }
+
+    pub fn product(self) -> u8 {
+        ((self.0 >> 24) & 0xFF) as u8
+    }
+
+    pub fn major(self) -> u8 {
+        ((self.0 >> 16) & 0xFF) as u8
+    }
 }
 
 impl Display for HardwareVersion {
