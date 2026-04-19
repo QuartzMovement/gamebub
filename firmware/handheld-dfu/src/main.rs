@@ -25,6 +25,7 @@ mod protocol;
 mod reboot;
 mod uf2;
 mod usb;
+mod usb_class;
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
