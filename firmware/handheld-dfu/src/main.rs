@@ -17,6 +17,7 @@ use static_cell::StaticCell;
 
 use crate::flash::Flash;
 use crate::protocol::Protocol;
+use crate::virtual_disk::Uf2VirtualDisk;
 
 mod flash;
 mod info;
@@ -26,6 +27,7 @@ mod reboot;
 mod uf2;
 mod usb;
 mod usb_class;
+mod virtual_disk;
 
 #[panic_handler]
 fn panic(_: &core::panic::PanicInfo) -> ! {
@@ -39,6 +41,7 @@ esp_bootloader_esp_idf::esp_app_desc!();
 
 static PROTOCOL: StaticCell<Protocol> = StaticCell::new();
 static FLASH: StaticCell<Flash> = StaticCell::new();
+static VIRTUAL_DISK: StaticCell<Uf2VirtualDisk> = StaticCell::new();
 
 #[allow(
     clippy::large_stack_frames,
@@ -69,7 +72,8 @@ async fn main(spawner: Spawner) {
     let fw_meta = info::read_fw_metadata(flash);
 
     let protocol = PROTOCOL.init(Protocol::new(flash));
+    let virtual_disk = VIRTUAL_DISK.init(Uf2VirtualDisk::new(flash));
 
     let usb = Usb::new(peripherals.USB0, peripherals.GPIO20, peripherals.GPIO19);
-    usb::setup_usb(spawner.clone(), usb, protocol, fw_meta);
+    usb::setup_usb(spawner.clone(), usb, protocol, fw_meta, virtual_disk);
 }

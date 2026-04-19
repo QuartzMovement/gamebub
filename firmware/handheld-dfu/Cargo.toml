@@ -33,6 +33,8 @@ embassy-time = { version = "0.5.0", features = ["log"] }
 embassy-usb = { version = "0.5.0", default-features = false }
 embassy-usb-synopsys-otg = "0.3.1"
 esp-storage = { version = "0.8.1", features = ["esp32s3"] }
+ghostfat = { version = "0.5.0", default-features = false }
+usbd_scsi = { version = "0.1.0", default-features = false }
 
 critical-section = "1.2.0"
 static_cell = "2.1.1"

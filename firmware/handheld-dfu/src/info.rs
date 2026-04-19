@@ -33,6 +33,16 @@ impl HardwareVersion {
     }
 }
 
+impl Display for HardwareVersion {
+    fn fmt(&self, f: &mut alloc::fmt::Formatter) -> alloc::fmt::Result {
+        let variant = self.0 & 0xFF;
+        let minor = (self.0 >> 8) & 0xFF;
+        let major = (self.0 >> 16) & 0xFF;
+        let product = (self.0 >> 24) & 0xFF;
+        write!(f, "{product}.{major}.{minor}.{variant}")
+    }
+}
+
 fn get_user_data(index: usize) -> u32 {
     Efuse::read_field_le::<[u32; 6]>(efuse::BLOCK_USR_DATA)[index]
 }
