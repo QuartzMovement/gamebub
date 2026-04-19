@@ -83,9 +83,26 @@ impl CartBackup {
             match data {
                 0xA1 => {
                     // QUERY_FW_INFO
-                    // TODO: send version information
                     log::info!("QUERY_FW_INFO");
-                    self.stream.write(&[0xE1])?;
+
+                    let hw_major = crate::hwinfo::get_hardware_version().major;
+                    let device_name = format!("Game Bub ({})", crate::fwinfo::FIRMWARE_VERSION);
+
+                    self.stream.write(&[
+                        8,    // size of first part of header
+                        b'E', // fw identifier
+                        0, 12,       // fw version
+                        hw_major, // pcb version
+                        0, 0, 0, 0, // build timestamp
+                    ])?;
+                    self.stream.write(&[
+                        device_name.len() as u8, // device name length
+                    ])?;
+                    self.stream.write(device_name.as_bytes())?;
+                    self.stream.write(&[
+                        1, // power control support
+                        0, //bootloader reset support
+                    ])?;
                 }
                 0xA2 => {
                     log::info!("SET_MODE_AGB");
