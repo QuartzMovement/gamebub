@@ -9,7 +9,7 @@
 
 use embassy_executor::Spawner;
 use esp_hal::clock::CpuClock;
-use esp_hal::gpio::{Level, Output, OutputConfig};
+use esp_hal::gpio::{Input, InputConfig, Level, Output, OutputConfig, Pull};
 use esp_hal::otg_fs::Usb;
 use esp_hal::timer::timg::TimerGroup;
 use log::info;
@@ -64,6 +64,12 @@ async fn main(spawner: Spawner) {
     let led = Output::new(peripherals.GPIO42, Level::Low, OutputConfig::default());
     spawner.spawn(led::blink_task(led)).unwrap();
 
+    let button_dfu = {
+        let config = InputConfig::default().with_pull(Pull::Up);
+        Input::new(peripherals.GPIO1, config)
+    };
+    let manual_dfu = button_dfu.is_low();
+
     spawner.spawn(reboot::task()).unwrap();
 
     let flash = FLASH.init_with(|| Flash::new(peripherals.FLASH));
@@ -75,5 +81,11 @@ async fn main(spawner: Spawner) {
     let virtual_disk = VIRTUAL_DISK.init(Uf2VirtualDisk::new(flash));
 
     let usb = Usb::new(peripherals.USB0, peripherals.GPIO20, peripherals.GPIO19);
-    usb::setup_usb(spawner.clone(), usb, protocol, fw_meta, virtual_disk);
+    usb::setup_usb(
+        spawner.clone(),
+        usb,
+        protocol,
+        fw_meta,
+        if manual_dfu { Some(virtual_disk) } else { None },
+    );
 }

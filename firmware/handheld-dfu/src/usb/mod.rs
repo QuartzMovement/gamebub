@@ -1,6 +1,6 @@
 use alloc::string::ToString;
 use embassy_executor::Spawner;
-use embassy_futures::select::select3;
+use embassy_futures::select::{select, select3};
 use embassy_usb::{Builder, UsbDevice};
 use esp_hal::otg_fs::asynch::Config;
 use esp_hal::otg_fs::{Usb, asynch::Driver as EspUsbDriver};
@@ -36,7 +36,7 @@ pub fn setup_usb(
     usb: Usb<'static>,
     protocol: &'static mut Protocol,
     fw_meta: Option<FirmwareMetadata>,
-    virtual_disk: &'static mut Uf2VirtualDisk,
+    virtual_disk: Option<&'static mut Uf2VirtualDisk>,
 ) {
     let config = Config::default();
     let driver = EspUsbDriver::new(usb, EP_OUT_BUFFER.take(), config);
@@ -80,26 +80,41 @@ pub fn setup_usb(
     let control = CONTROL.init_with(|| Control::new(interface_number, fw_meta));
     builder.handler(control);
 
-    let msc_state = MSC_STATE.init_with(|| MscState::new());
-    let msc = MSC.init_with(|| MscClass::new(&mut builder, msc_state, 64));
+    let msc = virtual_disk.map(|virtual_disk| {
+        let msc_state = MSC_STATE.init_with(|| MscState::new());
+        let msc = MSC.init_with(|| MscClass::new(&mut builder, msc_state, 64));
+        MscWrapper { msc, virtual_disk }
+    });
 
     let bulk = BULK.init_with(|| Bulk::new(protocol, ep_out, ep_in));
 
     let usb = USB_DEVICE.init_with(|| builder.build());
 
-    spawner
-        .spawn(usb_task(usb, bulk, msc, virtual_disk))
-        .unwrap();
+    spawner.spawn(usb_task(usb, bulk, msc)).unwrap();
 }
 
 #[embassy_executor::task]
 async fn usb_task(
     usb: &'static mut UsbDevice<'static, EspUsbDriver<'static>>,
     bulk: &'static mut Bulk,
+    msc: Option<MscWrapper>,
+) {
+    if let Some(mut msc) = msc {
+        select3(usb.run(), bulk.run(), msc.run()).await;
+    } else {
+        select(usb.run(), bulk.run()).await;
+    }
+    unreachable!();
+}
+
+struct MscWrapper {
     msc: &'static mut MscClass<'static, EspUsbDriver<'static>>,
     virtual_disk: &'static mut Uf2VirtualDisk,
-) {
-    let mut block_buf = [0u8; Uf2VirtualDisk::BLOCK_SIZE as usize];
-    select3(usb.run(), bulk.run(), msc.run(virtual_disk, &mut block_buf)).await;
-    unreachable!();
+}
+
+impl MscWrapper {
+    async fn run(&mut self) {
+        let mut block_buf = [0u8; Uf2VirtualDisk::BLOCK_SIZE as usize];
+        self.msc.run(self.virtual_disk, &mut block_buf).await;
+    }
 }
