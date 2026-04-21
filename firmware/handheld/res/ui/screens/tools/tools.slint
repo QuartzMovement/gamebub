@@ -4,7 +4,11 @@ import { TextListView } from "../../components/list_view.slint";
 import { ControlHint } from "../../components/control_hint.slint";
 
 export component ToolsScreen inherits ScreenBase {
-    in property <[string]> tools: ["Mount SD Card over USB", "Cartridge backup / restore", "Debug battery info"];
+    in property <[string]> tools: [
+        "Mount SD Card over USB",
+        "FlashGBX Cartridge Backup / Restore",
+        "Debug battery info"
+    ];
     private property <int> selected-tool: -1;
 
     title: "Tools";
@@ -101,7 +105,7 @@ export component ToolsScreen inherits ScreenBase {
             }
             Text {
                 horizontal-alignment: center;
-                text: "Cartridge backup and restore mode\n\nConnect a computer running FlashGBX to Game Bub";
+                text: "Cartridge Backup and Restore Mode\n\nConnect Game Bub to a computer running FlashGBX\nSee the User Guide for more information";
             }
 
             ControlHint {
