@@ -10,6 +10,7 @@
 use embassy_executor::Spawner;
 use esp_hal::clock::CpuClock;
 use esp_hal::gpio::{Input, InputConfig, Level, Output, OutputConfig, Pull};
+use esp_hal::interrupt::software::SoftwareInterruptControl;
 use esp_hal::otg_fs::Usb;
 use esp_hal::timer::timg::TimerGroup;
 use log::info;
@@ -56,13 +57,14 @@ async fn main(spawner: Spawner) {
 
     esp_alloc::heap_allocator!(#[esp_hal::ram(reclaimed)] size: 73744);
 
+    let sw_int = SoftwareInterruptControl::new(peripherals.SW_INTERRUPT);
     let timg0 = TimerGroup::new(peripherals.TIMG0);
-    esp_rtos::start(timg0.timer0);
+    esp_rtos::start(timg0.timer0, sw_int.software_interrupt0);
 
     info!("Game Bub DFU");
 
     let led = Output::new(peripherals.GPIO42, Level::Low, OutputConfig::default());
-    spawner.spawn(led::blink_task(led)).unwrap();
+    spawner.spawn(led::blink_task(led).unwrap());
 
     let button_dfu = {
         let config = InputConfig::default().with_pull(Pull::Up);
@@ -70,7 +72,7 @@ async fn main(spawner: Spawner) {
     };
     let manual_dfu = button_dfu.is_low();
 
-    spawner.spawn(reboot::task()).unwrap();
+    spawner.spawn(reboot::task().unwrap());
 
     let flash = FLASH.init_with(|| Flash::new(peripherals.FLASH));
 

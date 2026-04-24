@@ -90,7 +90,7 @@ pub fn setup_usb(
 
     let usb = USB_DEVICE.init_with(|| builder.build());
 
-    spawner.spawn(usb_task(usb, bulk, msc)).unwrap();
+    spawner.spawn(usb_task(usb, bulk, msc).unwrap());
 }
 
 #[embassy_executor::task]

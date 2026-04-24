@@ -1,7 +1,7 @@
 use core::fmt::{Display, Formatter};
 
 use esp_bootloader_esp_idf::EspAppDesc;
-use esp_hal::efuse::{self, Efuse};
+use esp_hal::efuse;
 
 use crate::flash::Flash;
 
@@ -52,7 +52,7 @@ impl Display for HardwareVersion {
 }
 
 fn get_user_data(index: usize) -> u32 {
-    Efuse::read_field_le::<[u32; 6]>(efuse::BLOCK_USR_DATA)[index]
+    efuse::read_field_le::<[u32; 6]>(efuse::BLOCK_USR_DATA)[index]
 }
 
 #[repr(C)]
