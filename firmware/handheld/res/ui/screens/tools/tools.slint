@@ -122,22 +122,41 @@ export component ToolsScreen inherits ScreenBase {
                 self.focus();
             }
 
-            VerticalLayout {
+            Text {
+                y: 8px;
+                horizontal-alignment: center;
+                font-weight: 800;
+                text: "Battery Info";
+            }
+
+            HorizontalLayout {
                 alignment: center;
-                spacing: 16px;
+                spacing: 8px;
+                width: 100%;
+                y: (root.height - self.min-height) / 2;
+
                 Text {
-                    horizontal-alignment: center;
-                    text: "Battery Info";
+                    width: 45%;
+                    horizontal-alignment: right;
+                    text: ( //
+                            "Charging:" + //
+                            "\nVBUS Good:" + //
+                            "\nVoltage:" + //
+                            "\nLevel:" + //
+                            "\nCurrent:" //
+                        );
                 }
 
                 Text {
-                    horizontal-alignment: center;
-                    text: ("Charging: \{info.is-charging ? "yes" : "no"}\n" + //
-                        "VBUS good: \{info.vbus-pgood ? "yes" : "no"}\n" + //
-                        "Voltage: \{info.voltage.to-fixed(2)} V\n" + //
-                        "Charge Level: \{info.level.to_fixed(2)}%\n" + //
-                        "Current: \{info.current.to-fixed(3)} A\n" //
-                    );
+                    width: 45%;
+                    horizontal-alignment: left;
+                    text: ( //
+                            "\{info.is-charging ? "yes" : "no"}" + //
+                            "\n\{info.vbus-pgood ? "yes" : "no"}" + //
+                            "\n\{info.voltage.to-fixed(2)} V" + //
+                            "\n\{info.level.to_fixed(2)}%" + //
+                            "\n\{info.current.to-fixed(3)} A" //
+                        );
                 }
             }
 
@@ -148,7 +167,7 @@ export component ToolsScreen inherits ScreenBase {
             }
 
             Timer {
-                interval: 2s;
+                interval: 500ms;
                 triggered => {
                     info = Backend.tools-get-battery-info();
                 }
