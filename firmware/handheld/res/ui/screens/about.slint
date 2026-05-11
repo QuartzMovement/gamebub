@@ -20,17 +20,43 @@ export component AboutScreen inherits ScreenBase {
 
                     Text {
                         horizontal-alignment: center;
-                        text: "Game Bub\ngithub.com/elipsitz/gamebub";
+                        font-weight: 800;
+                        text: "Game Bub™  -  gamebub.net";
+                    }
+
+                    HorizontalLayout {
+                        alignment: center;
+                        spacing: 8px;
+
+                        Text {
+                            horizontal-alignment: right;
+                            text: ( //
+                                "Device serial:" + //
+                                "\nHardware version:" + //
+                                "\nFirmware version:" + //
+                                (Backend.docked ? //
+                                    "\nDock serial:" + //
+                                    "\nDock firmware version:" //
+                                : ""));
+                        }
+
+                        Text {
+                            horizontal-alignment: left;
+                            text: ( //
+                                "\{Backend.hardware-serial}" + //
+                                "\n\{Backend.hardware-version}" + //
+                                "\n\{Backend.firmware-version}" + //
+                                (Backend.docked ? //
+                                    "\n\{Backend.dock-serial}" + //
+                                    "\n\{Backend.dock-firmware-version}" //
+                                : ""));
+                        }
                     }
 
                     Text {
                         horizontal-alignment: center;
-                        text: "Serial: \{Backend.hardware-serial}\nHardware version: \{Backend.hardware-version}\nFirmware version: \{Backend.firmware-version}";
-                    }
-
-                    if Backend.docked: Text {
-                        horizontal-alignment: center;
-                        text: "Dock serial: \{Backend.dock-serial}\nDock firmware version: \{Backend.dock-firmware-version}";
+                        text: "Game Bub™ is a trademark of Second Bedroom LLC.\n\nGame Bub is open-source hardware and software. For full license information, including open-source libraries and subcomponents, visit docs.gamebub.net.";
+                        wrap: word-wrap;
                     }
                 }
             }
@@ -38,7 +64,7 @@ export component AboutScreen inherits ScreenBase {
             HorizontalLayout {
                 alignment: end;
                 ControlHint {
-                    label: "Up";
+                    label: "Back";
                     button: "b";
                 }
             }
