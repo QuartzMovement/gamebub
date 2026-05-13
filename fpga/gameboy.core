@@ -26,6 +26,7 @@ filesets:
       - verilog/handheld/pll_reset_generator.sv : {file_type : systemVerilogSource}
       - verilog/handheld/clk_wiz_hdmi.v : {file_type : verilogSource}
       - util/package_bitstream.py : {file_type : user, copyto : package_bitstream.py}
+      - verilog/picorv32.v : {file_type : verilogSource}
 
   handheld_rev_1:
     files:
