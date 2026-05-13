@@ -146,6 +146,10 @@ class HandheldBoot extends Module with HandheldModule {
     val regPeriphCartDir = RegInit(0.U(6.W))
     val regPeriphCartEn = RegInit(0.U(1.W))
 
+    val regPeriphLinkOut = RegInit(0.U(4.W))
+    val regPeriphLinkDir = RegInit(0.U(4.W))
+    val regPeriphLinkIn = Reg(UInt(4.W))
+
     val cpuPeriph = RegisterMap(
         addressWidth = 16,
         dataWidth = 32,
@@ -208,12 +212,17 @@ class HandheldBoot extends Module with HandheldModule {
             ),
             0x0320 -> RegisterMap.Entry.r(regPeriphCartIn),
             0x0380 -> RegisterMap.Entry.rw(regPeriphCartEn),
+            // GPIO: Link
+            0x0400 -> RegisterMap.Entry.rw(regPeriphLinkDir),
+            0x0410 -> RegisterMap.Entry.rw(regPeriphLinkOut),
+            0x0420 -> RegisterMap.Entry.r(regPeriphLinkIn),
         )
     )
 
     io.pmod.out := regPeriphPmodOut
     io.pmod.dir := regPeriphPmodDir
     regPeriphPmodIn := RegNext(io.pmod.in)
+
     io.cartridge.enabled := regPeriphCartEn
     cartPowerOn := regPeriphCartEn
     io.cartridge.bank0Out := regPeriphCartOut(23, 16) // A16 to A23
@@ -237,6 +246,20 @@ class HandheldBoot extends Module with HandheldModule {
         io.cartridge.bank2In,
     ))
 
+    io.link.soOut := regPeriphPmodOut(3)
+    io.link.siOut := regPeriphPmodOut(2)
+    io.link.sdOut := regPeriphPmodOut(1)
+    io.link.scOut := regPeriphPmodOut(0)
+    io.link.soDir := regPeriphPmodDir(3)
+    io.link.siDir := regPeriphPmodDir(2)
+    io.link.sdDir := regPeriphPmodDir(1)
+    io.link.scDir := regPeriphPmodDir(0)
+    regPeriphPmodIn := RegNext(Cat(
+        io.link.soIn,
+        io.link.siIn,
+        io.link.sdIn,
+        io.link.scIn,
+    ))
 
     // PicoRV32 core
     val cpu = Module(new picorv32)
@@ -276,16 +299,6 @@ class HandheldBoot extends Module with HandheldModule {
         io.input.vibrate := HandheldVibrate.Off
         io.audio.left := 0.S
         io.audio.right := 0.S
-
-        // Link unused
-        io.link.soOut := DontCare
-        io.link.siOut := DontCare
-        io.link.sdOut := DontCare
-        io.link.scOut := DontCare
-        io.link.soDir := false.B
-        io.link.siDir := false.B
-        io.link.sdDir := false.B
-        io.link.scDir := false.B
 
         // SRAM unused
         io.sram.mem.enable := false.B
