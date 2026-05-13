@@ -25,6 +25,20 @@ impl CdcStream {
             timeout: Duration::from_millis(1000),
         }
     }
+
+    pub fn try_read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let mut num = 0usize;
+        let result = unsafe {
+            esp_idf_svc::sys::tinyusb_cdcacm_read(
+                self.interface,
+                buf.as_mut_ptr(),
+                buf.len(),
+                &mut num,
+            )
+        };
+        EspError::convert(result).map_err(|e| std::io::Error::new(ErrorKind::Other, e))?;
+        Ok(num)
+    }
 }
 
 impl Read for CdcStream {
