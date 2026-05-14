@@ -171,16 +171,6 @@ component LegalPage inherits Rectangle {
                         height: 45px;
                     }
                 }
-
-                HorizontalLayout {
-                    width: 100%;
-                    alignment: center;
-
-                    ControlHint {
-                        label: "Continue";
-                        button: "a";
-                    }
-                }
             }
 
             i-focus-scope := FocusScope {
@@ -192,6 +182,21 @@ component LegalPage inherits Rectangle {
                         reject
                     }
                 }
+            }
+        }
+
+        HorizontalLayout {
+            alignment: space-between;
+
+            ControlHint {
+                label: "Scroll";
+                button: "dpad-down";
+            }
+
+            ControlHint {
+                label: "Continue";
+                button: "a";
+                enabled: i-view.is-scroll-at-end;
             }
         }
     }

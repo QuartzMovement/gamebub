@@ -4,6 +4,7 @@ export component ControlHint inherits Rectangle {
     in property <string> button;
     in property <string> label;
     private property <length> spacing: 6px;
+    in property <bool> enabled: true;
 
     width: i-image.width + spacing + i-text.width;
     height: max(i-image.height, i-image.height);
@@ -15,6 +16,8 @@ export component ControlHint inherits Rectangle {
             Icons.btn-b
         } else if (button == "home") {
             Icons.btn-home
+        } else if (button == "dpad-down") {
+            Icons.btn-dpad-down
         } else {
             Icons.empty
         }
@@ -26,7 +29,7 @@ export component ControlHint inherits Rectangle {
         width: 12px;
         height: 12px;
         source: getImage(button);
-        colorize: #333;
+        colorize: enabled ? #333 : gray;
     }
 
     i-text := Text {
@@ -34,5 +37,6 @@ export component ControlHint inherits Rectangle {
         text: label;
         vertical-alignment: center;
         horizontal-alignment: left;
+        color: enabled ? black : gray;
     }
 }
