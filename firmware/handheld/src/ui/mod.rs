@@ -1,4 +1,5 @@
 pub mod buttons;
+mod screenshot;
 mod slint;
 mod state;
 
@@ -65,6 +66,8 @@ pub enum Message {
     DockBegin { serial: String, firmware: String },
     /// Dock ended
     DockEnd,
+    /// Take a UI screenshot
+    Screenshot,
 }
 
 /// Send a message to the UI thread.
@@ -296,6 +299,12 @@ impl UI {
             }
             Message::DockEnd => {
                 self.root.global::<slint::Backend>().set_docked(false);
+            }
+            Message::Screenshot => {
+                match screenshot::save_ui_screenshot(&self.window, &mut self.framebuffer) {
+                    Ok(f) => log::info!("Saved UI screenshot to {f}"),
+                    Err(e) => log::error!("Screenshot error: {e}"),
+                }
             }
             #[allow(unreachable_patterns)]
             _ => {

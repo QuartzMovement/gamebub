@@ -19,6 +19,7 @@ const REQUEST_GET_INFO: u8 = 0;
 const REQUEST_REBOOT: u8 = 1;
 /// Enable USB Serial/JTAG
 const REQUEST_ENABLE_DEBUG: u8 = 2;
+const REQUEST_SCREENSHOT: u8 = 7;
 
 const REQUEST_DOCK_BEGIN: u8 = 3;
 
@@ -49,6 +50,10 @@ pub fn handle_control_out(request: &Request, buf: &[u8]) -> Result<(), ()> {
     match request.request {
         REQUEST_REBOOT => Ok(()),
         REQUEST_ENABLE_DEBUG => Ok(()),
+        REQUEST_SCREENSHOT => {
+            ui::send(ui::Message::Screenshot);
+            Ok(())
+        }
         REQUEST_DOCK_BEGIN => {
             if buf.len() < 16 {
                 return Err(());

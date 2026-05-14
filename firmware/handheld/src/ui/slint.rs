@@ -120,6 +120,10 @@ impl Argb1555 {
     pub fn blue(self) -> u8 {
         ((self.0 & Self::B_MASK) << 3) as u8
     }
+
+    pub fn as_u16(self) -> u16 {
+        self.0
+    }
 }
 
 impl TargetPixel for Argb1555 {
