@@ -2,6 +2,7 @@ import { Global, ScreenId, Backend } from "../common.slint";
 import { ScreenBase } from "../components/screen.slint";
 import { Button } from "../components/button.slint";
 import { ControlHint } from "../components/control_hint.slint";
+import { ScrollView } from "../components/scroll_view.slint";
 
 component ControlsPage inherits Rectangle {
     in property <int> step;
@@ -129,8 +130,76 @@ component ControlsPage inherits Rectangle {
     }
 }
 
+component LegalPage inherits Rectangle {
+    forward-focus: i-focus-scope;
+
+    VerticalLayout {
+        spacing: 2px;
+
+        Text {
+            text: "Legal & Regulatory Information";
+            font-weight: 800;
+        }
+
+        i-view := ScrollView {
+            scroll-rate: 16px;
+
+            VerticalLayout {
+                spacing: 16px;
+                padding: 2px;
+                alignment: start;
+
+                Text {
+                    width: 100%;
+                    text: "Game Bub™ is a trademark of Second Bedroom LLC. All rights reserved. All other trademarks are the property of their respective owners.\n\nGame Bub is open-source: the software is licensed under GPLv3, and the hardware and gateware is licensed under CERN-OHL-S.\nSource code is available on the Game Bub website: gamebub.net\n\nGame Bub is built on top of numerous open-source libraries and components. For a complete listing including licenses, please see the User Guide at docs.gamebub.net. \n\nPlease note that while Game Bub is designed to be open and extensible, unofficial modifications to the hardware or software are performed at your own risk. Such changes may cause the device to behave in unintended ways, void your legal authority to operate the equipment, or lead to permanent hardware damage. The manufacturer’s warranty does not cover damage due to unofficial modifications.\n\nManufacturer: Second Bedroom LLC\nContact: support@gamebub.net\nProduct Model: BUB-HANDHELD-01\nContains FCC ID: 2AC7Z-ESPS3MINI1\n\nThis device complies with part 15 of the FCC Rules. Operation is subject to the following two conditions: (1) this device may not cause harmful interference, and (2) this device must accept any interference received, including interference that may cause undesired operation.\n\nThis device complies with all essential requirements of the CE directives 2011/65/EU (RoHS), 2014/53/EU (RED), and 2023/1542/EU (BATTERY).\n\nPlease carefully read the printed safety information and regulatory compliance information included with the device in order to understand how to operate this device safely.";
+                    wrap: word-wrap;
+                }
+
+                HorizontalLayout {
+                    width: 100%;
+                    spacing: 16px;
+                    alignment: center;
+
+                    for source in [
+                        @image-url("../../icons/legal/ce-45px.png"),
+                        @image-url("../../icons/legal/ukca-45px.png"),
+                        @image-url("../../icons/legal/weee-45px.png"),
+                        @image-url("../../icons/legal/fcc-45px.png"),
+                    ]: Image {
+                        source: source;
+                        image-fit: contain;
+                        height: 45px;
+                    }
+                }
+
+                HorizontalLayout {
+                    width: 100%;
+                    alignment: center;
+
+                    ControlHint {
+                        label: "Continue";
+                        button: "a";
+                    }
+                }
+            }
+
+            i-focus-scope := FocusScope {
+                key-pressed(event) => {
+                    if (event.text == "a" && !i-view.is-scroll-at-end) {
+                        // Prevent moving to the next page until scroll is complete.
+                        accept
+                    } else {
+                        reject
+                    }
+                }
+            }
+        }
+    }
+}
+
 export component SetupScreen inherits ScreenBase {
     private property <int> page: 0;
+    private property <int> max-page: 8;
 
     function prev-page() {
         if (page > 0) {
@@ -143,10 +212,8 @@ export component SetupScreen inherits ScreenBase {
 
     function next-page() {
         Global.ui-transparent = false;
-        page += 1;
-        if (page == 9) {
-            Backend.setup-complete();
-            Global.set-screen(ScreenId.MainMenu);
+        if (page < max-page) {
+            page += 1;
         }
     }
 
@@ -154,6 +221,9 @@ export component SetupScreen inherits ScreenBase {
     i-focus-scope := FocusScope {
         // Page 0: Logo
         if page == 0: Rectangle {
+            init => {
+                root.focus();
+            }
             ControlHint {
                 label: "Begin Tutorial";
                 button: "a";
@@ -163,14 +233,25 @@ export component SetupScreen inherits ScreenBase {
 
         // Page 1: Controls
         if page >= 1 && page < 7: ControlsPage {
-            step: page - 1;
-        }
-
-        // Docs and Update information
-        if page == 7: Rectangle {
             init => {
                 root.focus();
             }
+            step: page - 1;
+        }
+
+        // Legal information
+        if page == 7: LegalPage {
+            init => {
+                self.focus();
+            }
+        }
+
+        // Docs and Update information
+        if page == 8: Rectangle {
+            init => {
+                root.focus();
+            }
+
             Text {
                 text: "Read the full user guide at";
                 horizontal-alignment: center;
@@ -198,22 +279,8 @@ export component SetupScreen inherits ScreenBase {
             }
 
             ControlHint {
-                label: "Continue";
-                button: "a";
-                y: root.height - self.height - 8px;
-            }
-        }
-
-        // Legal information
-        if page == 8: Rectangle {
-            Text {
-                text: "Legal Information\n\nTODO";
-                y: 12px;
-            }
-
-            ControlHint {
-                label: "Continue";
-                button: "a";
+                label: "Exit Setup";
+                button: "home";
                 y: root.height - self.height - 8px;
             }
         }
@@ -226,6 +293,10 @@ export component SetupScreen inherits ScreenBase {
                 accept
             } else if (event.text == "b") {
                 prev-page();
+                accept
+            } else if (page == max-page && event.text == "Home") {
+                Backend.setup-complete();
+                Global.set-screen(ScreenId.MainMenu);
                 accept
             } else {
                 reject

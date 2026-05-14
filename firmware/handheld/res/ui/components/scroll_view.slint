@@ -1,8 +1,10 @@
 // Vertically scrollable container, where child elements cannot be interacted with 
 export component ScrollView inherits Rectangle {
-    property <length> scroll-rate: 4px;
+    in property <length> scroll-rate: 4px;
     private property <bool> has-scrollbar: area.viewport-height > area.height;
     private property <length> scrollbar-width: 2px;
+
+    out property <bool> is-scroll-at-end: area.viewport-y == (area.height - area.viewport-height);
 
     forward-focus: i-focus-scope;
     border-width: 1px;
@@ -20,7 +22,7 @@ export component ScrollView inherits Rectangle {
         area := Flickable {
             x: 2px;
             y: 2px;
-            width: root.has-scrollbar ? scroll-bar.x - scrollbar-width - 1px : parent.width - 4px;
+            width: scroll-bar.x - scrollbar-width - 1px;
             height: parent.height - 4px;
 
             @children

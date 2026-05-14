@@ -54,7 +54,7 @@ export component MainWindow inherits Window {
     }
 
     focus-scope := FocusScope {
-        y: status-bar.height;
+        y: status-bar.visible ? status-bar.height : 0;
         height: parent.height - self.y;
 
         VerticalLayout {
