@@ -173,7 +173,7 @@ export component FileListViewBase inherits ListView {
     }
 
     for item[index] in root.model: FileListItem {
-        height: 16px; // N.B. Setting this to self.min-height doesn't work.
+        height: 15px; // N.B. Setting this to self.min-height doesn't work.
         entry: item;
         is-selected: index == root.current-item;
     }
