@@ -39,6 +39,7 @@ object HandheldTop extends App {
         displayWidth = 480,
         displayHeight = 320,
         displayRotate = true,
+        displayColorDepth = 6,
         dpiConfig = AdaptiveDpiDriver.Config(
           clockHz = 12_288_000,
           hActive = 320,
@@ -61,6 +62,7 @@ object HandheldTop extends App {
       case "3" => Revision(
         displayWidth = 800,
         displayHeight = 480,
+        displayColorDepth = 6,
         dpiConfig = AdaptiveDpiDriver.Config(
           clockHz = 26_100_000,
           hActive = 800,
@@ -83,6 +85,7 @@ object HandheldTop extends App {
         displayHeight = 480,
         displayRotate = true,
         displayOffsetX = -28,
+        displayColorDepth = 8,
         dpiConfig = AdaptiveDpiDriver.Config(
           clockHz = 29_362_000,
           hActive = 480,
@@ -169,9 +172,9 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
     val mcuSpiDataDir = Output(UInt(4.W))
 
     val lcd = Output(new DpiSignals)
-    val lcdDataR = Output(UInt(6.W))
-    val lcdDataG = Output(UInt(6.W))
-    val lcdDataB = Output(UInt(6.W))
+    val lcdDataR = Output(UInt(revision.displayColorDepth.W))
+    val lcdDataG = Output(UInt(revision.displayColorDepth.W))
+    val lcdDataB = Output(UInt(revision.displayColorDepth.W))
     val dac = Output(new I2sSignals)
 
     /** HDMI */
@@ -419,7 +422,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
   // Double buffering
   val framebuffers = (0 until 2).map(_ =>
     SRAM(
-      videoWidth * videoHeight, UInt(ColorARGB.rgb555().getWidth.W),
+      videoWidth * videoHeight, UInt(module.io.video.data.getWidth.W),
       readPortClocks = Seq(io.clock_av), writePortClocks = Seq(), readwritePortClocks = Seq(clock)
     )
   )
@@ -466,7 +469,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
     }
     val framebufferRead = MuxLookup(framebufferIndex, 0.U)(
       (0 until 2).map(i => i.U -> RegNext(RegNext(framebuffers(i).readPorts(0).data)))
-    ).asTypeOf(ColorARGB.rgb555())
+    ).asTypeOf(module.io.video.data)
 
     // Color corrections
     val colorCorrector = Module(new ColorCorrection(inputDepth = 5, outputDepth = 6))
@@ -536,7 +539,12 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
     ))
     dpiDriver.io.lastRenderedFrame := lastFrameComplete
     io.lcd := dpiDriver.io.signals
-    val lcdData = videoOutput.convertTo(ColorARGB(0, 6, 6, 6))
+    val lcdData = videoOutput.convertTo(
+      ColorARGB(0,
+        revision.displayColorDepth,
+        revision.displayColorDepth,
+        revision.displayColorDepth,
+      ))
     io.lcdDataR := lcdData.r
     io.lcdDataG := lcdData.g
     io.lcdDataB := lcdData.b
@@ -781,6 +789,7 @@ case class Revision(
   displayHeight: Int,
   displayRotate: Boolean = false,
   displayOffsetX: Int = 0,
+  displayColorDepth: Int,
   dpiConfig: AdaptiveDpiDriver.Config,
 
   overlayWidth: Int,

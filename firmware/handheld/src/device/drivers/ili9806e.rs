@@ -189,8 +189,8 @@ where
         self.write_cmd(0xFF, &[0xFF, 0x98, 0x06, 0x04, 0x00])?;
         // Display access control: BGR=0 GS=1
         self.write_cmd(0x36, &[0x01])?;
-        // Interface pixel format: 18-bit
-        self.write_cmd(0x3A, &[0x60])?;
+        // Interface pixel format: 24-bit
+        self.write_cmd(0x3A, &[0x70])?;
 
         Ok(())
     }
