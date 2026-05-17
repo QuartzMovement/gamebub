@@ -31,7 +31,7 @@ export component MainMenuScreen inherits ScreenBase {
             }
         }
 
-        Image {
+        i-logo := Image {
             source: @image-url("../../logo.png");
             y: ((50% * parent.height) - self.height) / 2;
             height: 12px * (Global.window-height / 80px);
@@ -41,6 +41,12 @@ export component MainMenuScreen inherits ScreenBase {
             init => {
                 debug("logo y:", self.absolute-position.y);
             }
+        }
+
+        Text {
+            text: "™";
+            x: i-logo.x + i-logo.width + 4px;
+            y: i-logo.y;
         }
 
         VerticalLayout {
