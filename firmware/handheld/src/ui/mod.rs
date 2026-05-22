@@ -12,14 +12,17 @@ use std::{cell::RefCell, rc::Rc, sync::mpsc::Receiver, time::Instant};
 
 use ::slint::{
     platform::software_renderer::{LineBufferProvider, RepaintBufferType, TargetPixel},
-    PhysicalSize, Timer,
+    PhysicalSize, Timer, TimerMode,
 };
 
 use crate::device::{Device, DisplayMode};
 use crate::input::{self, InputManager};
+use crate::worker;
 pub use state::notifications::Notification;
 
 use self::{slint::Argb1555, slint::MinimalSoftwareWindow, state::UiState};
+
+const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 
 cfg_if::cfg_if! {
     if #[cfg(any(feature = "rev1", feature = "rev2"))] {
@@ -116,6 +119,7 @@ pub struct UI {
     root: slint::MainWindow,
     state: Rc<RefCell<UiState>>,
     button_event_detector: buttons::ButtonEventDetector,
+    idle_timer: Timer,
 }
 
 impl UI {
@@ -137,6 +141,12 @@ impl UI {
                 .fpga
                 .write_u32(crate::bitstream::boot::REG_LOGO_ANIM, animation)
                 .unwrap(); // Start animation (no loop)
+        });
+
+        // Set up the idle timer
+        let idle_timer = Timer::default();
+        idle_timer.start(TimerMode::Repeated, IDLE_TIMEOUT, || {
+            worker::send(worker::Message::IdleTimerExpired);
         });
 
         let (sender, receiver) = mpsc::channel::<Message>();
@@ -165,6 +175,7 @@ impl UI {
             state: UiState::new(&root, device),
             root,
             button_event_detector: buttons::ButtonEventDetector::new(),
+            idle_timer,
         };
         ui
     }
@@ -182,6 +193,7 @@ impl UI {
             }
             for button_event in self.button_event_detector.update(None) {
                 self.window.dispatch_event(button_event.into());
+                self.idle_timer.restart();
             }
 
             ::slint::platform::update_timers_and_animations();
@@ -239,6 +251,7 @@ impl UI {
     fn dispatch_message(&mut self, message: Message) {
         match message {
             Message::Button(state) => {
+                self.idle_timer.restart();
                 for button_event in self.button_event_detector.update(Some(state)) {
                     self.window.dispatch_event(button_event.into());
                 }

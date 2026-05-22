@@ -10,7 +10,7 @@ use crate::device::Device;
 use crate::device::DisplayMode;
 use crate::fwinfo::FirmwareVersion;
 use crate::input::InputManager;
-use crate::{bitstream, ui};
+use crate::{bitstream, kvs, ui};
 
 #[derive(Debug)]
 pub enum Message {
@@ -38,6 +38,8 @@ pub enum Message {
     ListRoms(PathBuf),
     /// Load Boot / Utility bitstream
     EnsureBootBitstream,
+    /// The idle timer has expired
+    IdleTimerExpired,
 }
 
 /// Send a message to the worker threads.
@@ -183,6 +185,15 @@ fn dispatch(message: Message) {
         }
         Message::EnsureBootBitstream => {
             bitstream::current().ensure_boot().unwrap();
+        }
+        Message::IdleTimerExpired => {
+            // If the idle timer expires during setup, just power off.
+            let setup_stage = kvs::keys::SETUP_STAGE.get().unwrap_or_default();
+            if setup_stage == 0 {
+                log::warn!("Idle during setup, powering off.");
+                Device::lock().power_off();
+            }
+            // TODO: Dim the screen temporarily.
         }
         #[allow(unreachable_patterns)]
         _ => {
