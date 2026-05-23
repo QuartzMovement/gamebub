@@ -289,10 +289,10 @@ module top_handheld (
         .io_buttons_start(btn_start),
         .io_buttons_select(btn_select),
 
-        .io_cartridgeSwitch(cart_switch),
         .io_cartridge3V3Enable(cart_en_3v3),
         .io_cartridge5V0Enable(cart_en_5v0),
         .io_cartridge_enabled(inner_cart_enabled),
+        .io_cartridge_switch(cart_switch),
         .io_cartridge_bank0In(inner_cart_bank0_in),
         .io_cartridge_bank1In(inner_cart_bank1_in),
         .io_cartridge_bank2In(inner_cart_bank2_in),

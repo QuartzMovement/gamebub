@@ -22,6 +22,9 @@ class CartridgePortV0(
 ) extends Bundle {
   val enabled = Output(Bool())
 
+  /** Cartridge switch: 1 when DMG/CGB cartridge inserted */
+  val switch = Input(Bool())
+
   val bank0In = Input(UInt(8.W))
   val bank1In = Input(UInt(8.W))
   val bank2In = Input(UInt(8.W))

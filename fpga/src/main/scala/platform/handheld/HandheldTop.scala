@@ -190,8 +190,6 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
     val buttons = Input(new InputV0.Buttons)
 
     // Cartridge I/O
-    /** Cartridge switch: 1 when DMG/CGB cartridge inserted */
-    val cartridgeSwitch = Input(Bool())
     val cartridge3V3Enable = Output(Bool())
     val cartridge5V0Enable = Output(Bool())
 
@@ -269,7 +267,7 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
   val interruptFlags = RegInit(0.U.asTypeOf(new HandheldInterrupts))
   val statusRegister = Cat(
     // 0: cartridge switch state
-    RegNext(RegNext(io.cartridgeSwitch)),
+    RegNext(RegNext(io.cartridge.switch)),
   )
   val colorCorrectionRegister = RegInit(0.U.asTypeOf(new Bundle() {
     val enableColorCorrections = Bool()
@@ -775,8 +773,8 @@ class HandheldTop[T <: Module with HandheldModule](genT: => T, revision: Revisio
   // Cartridge
   io.cartridge <> module.io.cartridge
   // Rev1 and Rev2 only
-  io.cartridge3V3Enable := RegNext(module.io.cartridge.enabled && !io.cartridgeSwitch)
-  io.cartridge5V0Enable := RegNext(module.io.cartridge.enabled && io.cartridgeSwitch)
+  io.cartridge3V3Enable := RegNext(module.io.cartridge.enabled && !io.cartridge.switch)
+  io.cartridge5V0Enable := RegNext(module.io.cartridge.enabled && io.cartridge.switch)
 
   // Memories
   sramArbiter.io.initiator(1) <> module.io.sram.mem

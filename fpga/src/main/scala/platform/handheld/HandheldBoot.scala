@@ -145,6 +145,7 @@ class HandheldBoot extends Module with HandheldModule {
     val regPeriphCartOut = RegInit(0.U(30.W))
     val regPeriphCartDir = RegInit(0.U(6.W))
     val regPeriphCartEn = RegInit(0.U(1.W))
+    val regPeriphCartSwitch = RegInit(0.U(1.W))
 
     val regPeriphLinkOut = RegInit(0.U(4.W))
     val regPeriphLinkDir = RegInit(0.U(4.W))
@@ -212,6 +213,7 @@ class HandheldBoot extends Module with HandheldModule {
             ),
             0x0320 -> RegisterMap.Entry.r(regPeriphCartIn),
             0x0380 -> RegisterMap.Entry.rw(regPeriphCartEn),
+            0x0384 -> RegisterMap.Entry.r(regPeriphCartSwitch),
             // GPIO: Link
             0x0400 -> RegisterMap.Entry.rw(regPeriphLinkDir),
             0x0410 -> RegisterMap.Entry.rw(regPeriphLinkOut),
@@ -245,6 +247,7 @@ class HandheldBoot extends Module with HandheldModule {
         io.cartridge.bank1In,
         io.cartridge.bank2In,
     ))
+    regPeriphCartSwitch := RegNext(io.cartridge.switch)
 
     io.link.soOut := regPeriphPmodOut(3)
     io.link.siOut := regPeriphPmodOut(2)
