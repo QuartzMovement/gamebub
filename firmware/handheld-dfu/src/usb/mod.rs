@@ -1,6 +1,9 @@
 use alloc::string::ToString;
 use embassy_executor::Spawner;
 use embassy_futures::select::{select, select3};
+use embassy_usb::msos::{
+    CompatibleIdFeatureDescriptor, PropertyData, RegistryPropertyFeatureDescriptor, windows_version,
+};
 use embassy_usb::{Builder, UsbDevice};
 use esp_hal::otg_fs::asynch::Config;
 use esp_hal::otg_fs::{Usb, asynch::Driver as EspUsbDriver};
@@ -68,8 +71,16 @@ pub fn setup_usb(
         CONTROL_BUF.take(),
     );
 
+    builder.msos_descriptor(windows_version::WIN8_1, 0xF0);
+
     // Create the vendor interface.
     let mut func = builder.function(0xFF, 0, 0);
+    func.msos_feature(CompatibleIdFeatureDescriptor::new("WINUSB", ""));
+    func.msos_feature(RegistryPropertyFeatureDescriptor::new(
+        "DeviceInterfaceGUIDs",
+        PropertyData::RegMultiSz(&["{EBA74A86-FC4C-46B7-934D-578309693C58}"]),
+    ));
+
     let mut interface = func.interface();
     let interface_number = interface.interface_number();
     let mut alt = interface.alt_setting(0xFF, 0, 0, None);
