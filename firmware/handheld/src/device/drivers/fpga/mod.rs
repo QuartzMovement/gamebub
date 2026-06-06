@@ -133,7 +133,7 @@ where
         let expected_id = 0xB010_0000 | (hardware_version.major as u32);
         if header.user_id.is_none() || header.user_id == Some(0xFFFF_FFFF) {
             log::info!("Bitstream has no UserID, assuming it is compatible");
-        } else if hardware_version.major == 0 {
+        } else if hardware_version.major == 0 || hardware_version.major == 255 {
             log::info!("Hardware version major=0, skipping bitstream compatibility");
         } else if header.user_id != Some(expected_id) {
             log::error!("Incompatible bitstream, ID={:08X}", header.user_id.unwrap());

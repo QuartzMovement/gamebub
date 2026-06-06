@@ -61,7 +61,7 @@ fn main() -> anyhow::Result<()> {
         }
     };
     let actual_revision = hwinfo::get_hardware_version().major;
-    if actual_revision != required_revision && actual_revision != 0 {
+    if actual_revision != required_revision && actual_revision != 0 && actual_revision != 255 {
         anyhow::bail!(
             "Incompatible firmware revision: device={:?} firmware={}",
             actual_revision,
