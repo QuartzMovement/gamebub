@@ -1,6 +1,18 @@
-[![Game Bub trailer](./docs/assets/video-poster.jpg)](https://www.youtube.com/watch?v=_WQGJFFGHmE)
+<p align="center">
+  <a href="https://gamebub.net/">
+    <img src="./docs/assets/logo.svg" width="480" alt="Game Bub logo">
+  </a>
+</p>
+
+[![Game Bub trailer](./docs/assets/video-poster.jpg)](https://www.youtube.com/watch?v=f16E5J6qljw)
 
 **Game Bub** is an open-source FPGA retro emulation handheld, with support for Game Boy, Game Boy Color, and Game Boy Advance games.
+
+You can buy your own, prebuilt Game Bub from **[Crowd Supply](https://www.crowdsupply.com/second-bedroom/game-bub)**!
+
+You can find the [user guide and documentation here](https://docs.gamebub.net/).
+
+Want to chat about Game Bub? Feel free to [join the Discord](https://discord.gg/T5xrYpMfN7).
 
 Check out the [announcement blog post](https://eli.lipsitz.net/posts/introducing-gamebub/) for an in-depth look at the development process!
 
@@ -10,17 +22,15 @@ Check out the [announcement blog post](https://eli.lipsitz.net/posts/introducing
 * Load and play ROM files from a microSD card (with built-in support for rumble, clock, accelerometer, gyroscope)
 * Multiplayer link cable functionality
 * Custom, from-scratch Game Boy and Game Boy Advance FPGA cores with great game compatibility
-* 15+ hour battery life 
-* Video output to TV or monitor via custom dock
+* 14+ hour battery life 
+* Video output to TV or monitor via Game Bub Dock
 * Extensible hardware, designed for future improvements
 
 ## Building
 
 Building a Game Bub handheld requires manufacturing PCBs, 3D printing the shell and buttons, and assembling components from a variety of sources. For information on manufacturing and assembling your own, see [docs/building.md](docs/building.md).
 
-Are you instead interested in purchasing a complete Game Bub kit? There are no immediate plans to offer kits, but if you're interested, [fill out this form](https://forms.gle/m1FFUqpCde7x5u5AA).
-
-For other inquiries, contact me directly at eli@lipsitz.net.
+For other inquiries, contact us at support@gamebub.net.
 
 ## Architecture
 
