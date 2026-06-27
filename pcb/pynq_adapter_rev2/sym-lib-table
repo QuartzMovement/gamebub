@@ -1,5 +1,0 @@
-(sym_lib_table
-  (version 7)
-  (lib (name "Gekkio_Connector_Specialized")(type "KiCad")(uri "${KIPRJMOD}/libs/Gekkio_Connector_Specialized.kicad_sym")(options "")(descr ""))
-  (lib (name "Misc")(type "KiCad")(uri "${KIPRJMOD}/libs/Misc.kicad_sym")(options "")(descr ""))
-)
