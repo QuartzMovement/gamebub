@@ -30,16 +30,15 @@ The Game Bub handheld consists of a Xilinx XC7A100T FPGA to do the main emulatio
 
 ### Directory Structure
 
-* `pcb`: PCB design files for Handheld, Dock, and others
-* `3d`: STLs for 3D printed shell and buttons
 * `fpga`: FPGA source code (HDL), written in [Chisel](https://github.com/chipsalliance/chisel)
-* `firmware/handheld`: Microcontroller firmware
+* `firmware`: Microcontroller firmware
 
 ## License
 
 Unless otherwise specified:
-* FPGA source code (in `fpga/`) and firmware (in `firmware/`) is licensed under GPLv3 (`GPL-3.0-only`).
-* 3D STL files (in `3d/`) is licensed under Creative Commons Attribution / Share-Alike 4.0 (`CC-BY-SA-4.0`)
-* PCB schematic and layout files (in `pcb/`) are licensed under Creative Commons Attribution / Share-Alike 4.0 (`CC-BY-SA-4.0`)
 
-At a high level, this means that you can copy, share, and modify the source code, as long as you provide proper attribution and share your source code / design files with the same license. However, this does not mean that you can use the "Game Bub" name and logo for your product without permission.
+* Firmware (in `firmware/`) and scripts (in `scripts/`) are licensed under GPLv3 (`GPL-3.0-only`).
+* FPGA source code (in `fpga/`) is licensed under the CERN Open Hardware License Version 2 - Strongly Reciprocal (`CERN-OHL-S-2.0`)
+* PCB (schematic and layout), mechanical, and hardware design files are licensed under the CERN Open Hardware License Version 2 - Strongly Reciprocal (`CERN-OHL-S-2.0`)
+
+At a high level, this means that you can copy, share, and modify the source code, as long as you provide proper attribution and share your source code / design files with the same license. However, the "Game Bub" name and logo are trademarked, and you may not use them for your product without permission.
