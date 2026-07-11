@@ -43,8 +43,8 @@ class Mbc3(clockRate: Int) extends Module {
   // Reading always happens from the latched state.
   // Writing (and updates) always happen with the backing state.
   // Writing 0 and then 1 to to latch control will update latched state.
-  val rtcState = RegInit(0.U.asTypeOf(new RtcState))
-  val rtcStateLatched = RegInit(0.U.asTypeOf(new RtcState))
+  val rtcState = Reg(new RtcState)
+  val rtcStateLatched = Reg(new RtcState)
   // TODO update for handling 8 MHz clock and enable
   val rtcCounter = new Counter(clockRate)
   when (io.hasRtc && !rtcState.halt) {
