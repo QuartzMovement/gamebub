@@ -233,7 +233,8 @@ where
     /// Get the battery state of charge (in percent, from 0 to 100).
     pub fn get_battery_level(&mut self) -> Result<f32, Error> {
         let raw = self.read_standard(command::STATE_OF_CHARGE)?;
-        Ok(raw as f32)
+        let adjusted = (raw + 1).min(100);
+        Ok(adjusted as f32)
     }
 
     /// Get the compensated capacity of the battery when fully charged in ampere hours.
