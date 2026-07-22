@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import lib.mem.MemoryInterface
 import platform.handheld.AsyncSramController.State
+import xilinx.ODDRWrapper
 
 object AsyncSramController {
   object State extends ChiselEnum {
@@ -44,20 +45,24 @@ class AsyncSramController(addressWidth: Int, dataWidth: Int) extends Module {
   val regDataDir = RegInit(false.B)
   val regWriteMaskN = RegInit(0.U(maskWidth.W))
   val regOeN = RegInit(true.B)
-  val regWeN = RegInit(true.B)
+
+  val oddrWeN = Module(new ODDRWrapper(initial = true))
+  oddrWeN.io.D1 := true.B
+  oddrWeN.io.D2 := true.B
 
   io.signals.address := regAddress
   io.signals.dataOut := regDataOut
   io.signals.writeMaskN := regWriteMaskN
   io.signals.dataDir := regDataDir
   io.signals.oeN := regOeN
-  io.signals.weN := regWeN
+  io.signals.weN := oddrWeN.io.Q
   io.mem.dataRead := regDataIn
   io.mem.done := regDone
 
   switch (state) {
     is (State.idle) {
       regDone := false.B
+      regDataDir := false.B
 
       when (io.mem.enable && !regDone) {
         regAddress := io.mem.address
@@ -66,11 +71,15 @@ class AsyncSramController(addressWidth: Int, dataWidth: Int) extends Module {
           state := State.write
           regDataOut := io.mem.dataWrite
           regWriteMaskN := ~io.mem.writeStrobe
-          regWeN := false.B
           regDataDir := true.B
+
+          // Next cycle: first weN high, then weN low
+          oddrWeN.io.D1 := true.B
+          oddrWeN.io.D2 := false.B
         } .otherwise {
           state := State.read
           regOeN := false.B
+          regWriteMaskN := 0.U
         }
       }
     }
@@ -79,13 +88,14 @@ class AsyncSramController(addressWidth: Int, dataWidth: Int) extends Module {
       regDone := true.B
       regOeN := true.B
       regDataIn := io.signals.dataIn
+      regWriteMaskN := Fill(maskWidth, true.B)
     }
     is (State.write) {
       state := State.idle
       regDone := true.B
-      regWeN := true.B
-      regDataDir := false.B
-      regWriteMaskN := 0.U
+      regWriteMaskN := Fill(maskWidth, true.B)
+      
+      // dataDir will turn off (back to input) next cycle.
     }
   }
 }
