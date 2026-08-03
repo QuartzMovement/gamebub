@@ -93,23 +93,12 @@ parameters:
       paramtype: vlogdefine
 
 generate:
-  gameboy:
-    generator: chisel
-    parameters:
-      buildtool: sbt
-      outputdir: build/generated
-      main_class: "gameboy.Gameboy"
-      extraargs: ""
-      output:
-        files:
-          - build/generated/Gameboy.sv: { file_type: systemVerilogSource }
-
   handheld:
     generator: chisel
     parameters:
-      buildtool: sbt
+      buildtool: mill
       outputdir: build/generated
-      main_class: "platform.handheld.HandheldTop"
+      milltask: GameBub.runHandheld
       extraargs: >
         module_boot ? (platform.handheld.HandheldBoot)
         module_gba ? (platform.handheld.HandheldGba)
@@ -125,9 +114,9 @@ generate:
   sim_gameboy:
     generator: chisel
     parameters:
-      buildtool: sbt
+      buildtool: mill
       outputdir: build/generated
-      main_class: "platform.sim.SimGameboy"
+      milltask: GameBub.runSimGameboy
       extraargs: ""
       output:
         filelists:
@@ -136,9 +125,9 @@ generate:
   sim_gba:
     generator: chisel
     parameters:
-      buildtool: sbt
+      buildtool: mill
       outputdir: build/generated
-      main_class: "platform.sim.SimGba"
+      milltask: GameBub.runSimGba
       extraargs: ""
       output:
         filelists:
