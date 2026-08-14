@@ -436,7 +436,9 @@ module top_handheld (
         .VIDEO_ID_CODE(2),
         .VIDEO_REFRESH_RATE(60.00),
         .AUDIO_RATE(48000),
-        .AUDIO_BIT_WIDTH(16)
+        .AUDIO_BIT_WIDTH(16),
+        .PRODUCT_DESCRIPTION({"Game Bub", 64'd0}),
+        .SOURCE_DEVICE_INFORMATION(8'h08)
     ) hdmi(
         // Pass clock_hdmi directly as the pixel clock, because the OSERDESE2 requires the two clocks
         // to pass through the same clocking resources (for phase alignment).
