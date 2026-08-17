@@ -141,11 +141,13 @@ class AdaptiveDpiDriver(
         currentFrame := io.lastRenderedFrame
       }
 
-      when (!regLocked && newFrameReady) {
-        // Immediately display new frame (interrupting current frame)
-        regLocked := true.B
-        startFrame := true.B
-      } .elsewhen (y === (vSync - 1).U) {
+      // ILI9806E: don't interrupt V-active period.
+      // when (!regLocked && newFrameReady) {
+      //   // Immediately display new frame (interrupting current frame)
+      //   regLocked := true.B
+      //   startFrame := true.B
+      // } .else
+      when (y === (vSync - 1).U) {
         regVsync := false.B
       } .elsewhen ((y >= (totalHeightMin - 1).U) && newFrameReady) {
         // New frame available, start rendering.
