@@ -90,6 +90,22 @@ impl UiState {
             root.invoke_set_screen(ScreenId::Setup);
         }
 
+        // Firmware update notification.
+        {
+            let last_fw = kvs::keys::LAST_FIRMWARE_VERSION.get();
+            if last_fw.as_deref() != Some(env!("CARGO_PKG_VERSION")) {
+                kvs::keys::LAST_FIRMWARE_VERSION.set(&env!("CARGO_PKG_VERSION").to_string());
+
+                if last_fw.is_some() {
+                    let notification = notifications::Notification::new_long(format!(
+                        "Firmware updated to {}",
+                        env!("CARGO_PKG_VERSION")
+                    ));
+                    self.queue_notification(state.clone(), notification);
+                }
+            }
+        }
+
         let state_ = state.clone();
         backend.on_screen_enter(move |screen| {
             let mut state = state_.borrow_mut();

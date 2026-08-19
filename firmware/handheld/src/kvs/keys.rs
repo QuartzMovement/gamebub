@@ -44,6 +44,9 @@ pub static GBA_ENABLE_GBP: KvsKey<bool> = KvsKey::new_with_default("gba-enable-g
 /// Startup action.
 pub static STARTUP_ACTION: KvsKey<i32> = KvsKey::new_with_default("startup-action", 0);
 
+/// Last firmware version
+pub static LAST_FIRMWARE_VERSION: KvsKey<String> = KvsKey::new("last-fw-version");
+
 pub fn flush_all() {
     SETUP_STAGE.flush();
     UPTIME.flush();
@@ -59,4 +62,5 @@ pub fn flush_all() {
     GBA_COLOR_PROFILE.flush();
     GBA_ENABLE_GBP.flush();
     STARTUP_ACTION.flush();
+    LAST_FIRMWARE_VERSION.flush();
 }
