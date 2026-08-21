@@ -55,7 +55,7 @@ for r in [1, 2, 3, 4]:
                 "verilog/hdmi/src/tmds_channel.sv",
             ],
             top_module="top_handheld",
-            part="xc7a100tcsg324-2",
+            part="xc7a100tcsg324-1",
         )
     )
 
