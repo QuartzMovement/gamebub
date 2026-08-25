@@ -7,7 +7,8 @@ use drivers::lcd_backlight;
 use drivers::sdcard::Sdcard;
 use embedded_hal_bus::i2c::MutexDevice as MutexI2C;
 use esp_idf_svc::hal::gpio::{
-    self, AnyIOPin, AnyInputPin, IOPin, Input, InputOutput, InputPin, Level, OutputPin,
+    self, AnyIOPin, AnyInputPin, DriveStrength, IOPin, Input, InputOutput, InputPin, Level,
+    OutputPin,
 };
 use esp_idf_svc::hal::gpio::{AnyOutputPin, Output, PinDriver};
 use esp_idf_svc::hal::ledc::{LedcDriver, LedcTimerDriver};
@@ -622,13 +623,37 @@ impl Device<'_> {
     /// Gracefully turn the device off.
     pub fn power_off(&mut self) -> ! {
         log::info!("Powering off");
-        self.prepare_for_power_off();
+
+        let _ = self.change_display_mode(DisplayMode::None);
+
+        // Update uptime
+        let this_uptime =
+            Duration::from_micros(unsafe { esp_idf_svc::sys::esp_timer_get_time() as _ });
+        let new_uptime = kvs::keys::UPTIME.get().unwrap() + (this_uptime.as_secs() as u32);
+        kvs::keys::UPTIME.set(&new_uptime);
+        kvs::keys::flush_all();
+
+        // Leave FPGA powered, but put it in program-reset mode.
+        // A steady load (FPGA quiescent current) helps to drain capacitors.
+        let _ = self.fpga.pin_program_b.set_low();
 
         // Hold down the power button until the device shuts off.
+        let _ = self.fpga_power.set_drive_strength(DriveStrength::I40mA);
+        let _ = self.button_power.set_drive_strength(DriveStrength::I40mA);
         let _ = self.button_power.set_low();
 
-        loop {
-            std::thread::park();
+        unsafe {
+            // Enable pin hold during deep sleep.
+            esp_idf_svc::sys::gpio_hold_en(self.fpga_power.pin());
+            esp_idf_svc::sys::gpio_hold_en(self.fpga.pin_program_b.pin());
+            esp_idf_svc::sys::gpio_hold_en(self.button_power.pin());
+            esp_idf_svc::sys::gpio_deep_sleep_hold_en();
+
+            // Enter deep sleep to maximize chances of holding power button down past brown-out.
+            esp_idf_svc::sys::esp_sleep_disable_wakeup_source(
+                esp_idf_svc::sys::esp_sleep_source_t_ESP_SLEEP_WAKEUP_ALL,
+            );
+            esp_idf_svc::sys::esp_deep_sleep_start();
         }
     }
 

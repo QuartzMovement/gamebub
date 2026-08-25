@@ -79,7 +79,7 @@ pub struct Fpga<
     ProgramSpi: SpiDevice,
 > {
     pin_done: PinDone,
-    pin_program_b: PinProgramB,
+    pub pin_program_b: PinProgramB,
     pin_init_b: PinInitB,
     /// List of SPI drivers and their clock speed, from largest to smallest.
     data_spi: Vec<(SpiDataDriver<'a>, Hertz)>,
