@@ -94,7 +94,8 @@ class EepromBackup extends Module {
         regCounter := nextCounter
         val addressSize = Mux(eepromSize === 0.U, 6.U, 14.U)
         when (nextCounter === addressSize) {
-          val address = Mux(eepromSize === 0.U, nextData(5, 0), regData(13, 0))
+          val address = Mux(eepromSize === 0.U, nextData(5, 0), nextData(13, 0))
+
           regAddress := address
           regCounter := 0.U
           regState := State.GetWriteData
