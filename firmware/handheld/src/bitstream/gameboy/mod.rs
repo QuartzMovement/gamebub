@@ -354,7 +354,7 @@ impl Gameboy {
 
 impl Bitstream for Gameboy {
     fn get_bitstream_path(&self) -> &'static str {
-        return "gameboy.bit.gz";
+        return "gameboy.bit.hs";
     }
 
     fn on_after_program(&mut self) -> Result<(), String> {

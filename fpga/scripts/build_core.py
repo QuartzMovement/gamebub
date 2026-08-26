@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from edalize.edatool import get_edatool
 import os.path
-import gzip
 import struct
 import sys
 import shutil
@@ -177,16 +176,20 @@ def build(
     insert_bitstream_metadata(bitstream, ";GitRev=" + git_revision)
     open(bitstream_path, "wb").write(bitstream)
 
-    # Compress bitstream
-    compressed_path = bitstream_path.with_name(bitstream_path.name + ".gz")
-    compressed = gzip.compress(bitstream)
-    with open(compressed_path, "wb") as f:
-        f.write(compressed)
+    # Compress bitstream (heatshrink)
+    try:
+        import heatshrink2
+        compressed_path = bitstream_path.with_name(bitstream_path.name + ".hs")
+        compressed = heatshrink2.encode(bitstream, window_sz2=9, lookahead_sz2=6)
+        with open(compressed_path, "wb") as f:
+            f.write(compressed)
+    except ImportError:
+        # Skip heatshrink
+        pass
 
     print("*" * 80)
     print("Bitstream:")
     print(bitstream_path.resolve())
-    print(compressed_path.resolve())
     print("*" * 80)
 
 

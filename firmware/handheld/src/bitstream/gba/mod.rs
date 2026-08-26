@@ -469,7 +469,7 @@ impl Gba {
 
 impl Bitstream for Gba {
     fn get_bitstream_path(&self) -> &'static str {
-        return "gba.bit.gz";
+        return "gba.bit.hs";
     }
 
     fn on_after_program(&mut self) -> Result<(), String> {

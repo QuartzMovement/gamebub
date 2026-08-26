@@ -1,4 +1,5 @@
-use std::io::BufReader;
+use std::fs::File;
+use std::io::Read;
 use std::sync::{Mutex, MutexGuard};
 use std::time::Duration;
 
@@ -58,9 +59,7 @@ fn program_fpga(path: &str) {
     }
 
     let file = crate::util::open_system_file(path).unwrap();
-    let reader = BufReader::with_capacity(512, file);
-    // TODO: use a smaller gzip window size (512) to save memory. Not possible with miniz_oxide.
-    let mut bitstream = flate2::bufread::GzDecoder::new(reader);
+    let mut bitstream = heatshrink_decompress_stream(file);
 
     device
         .fpga
@@ -79,13 +78,21 @@ fn program_fpga(path: &str) {
 
 pub fn program_boot(device: &mut Device) -> anyhow::Result<()> {
     use anyhow::Context as _;
-    let file = crate::util::open_system_file("boot.bit.gz").context("Failed to read bitstream")?;
-    let reader = BufReader::with_capacity(512, file);
-    let mut bitstream = flate2::bufread::GzDecoder::new(reader);
+    let file = crate::util::open_system_file("boot.bit.hs").context("Failed to read bitstream")?;
+    let mut bitstream = heatshrink_decompress_stream(file);
+
     device
         .fpga
         .program(&mut bitstream, &mut SCRATCH.take().unwrap())
         .context("Failed to program FPGA")
+}
+
+fn heatshrink_decompress_stream(file: File) -> impl Read {
+    // Heatshrink decoder parameters: W=9, L=6 (chosen empirically)
+    type HeatshrinkDecoder = heatshrink::decoder::HeatshrinkDecoder<9, 6, 512, 512>;
+    let reader = embedded_io_adapters::std::FromStd::new(file);
+    let decoder = heatshrink::io::DecoderReader::<_, HeatshrinkDecoder>::new(reader);
+    embedded_io_adapters::std::ToStd::new(decoder)
 }
 
 pub enum CurrentBitstream {
@@ -118,7 +125,7 @@ impl CurrentBitstream {
         match self {
             CurrentBitstream::None => Ok(()),
             _ => {
-                program_fpga("boot.bit.gz");
+                program_fpga("boot.bit.hs");
                 self.set(CurrentBitstream::None)
             }
         }

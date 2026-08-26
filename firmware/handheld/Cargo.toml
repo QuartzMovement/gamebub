@@ -53,7 +53,6 @@ esp-idf-svc = { version = "0.50.0", default-features = false }
 anyhow = "1.0.79"
 embedded-hal = "1.0.0"
 embedded-hal-bus = "0.1.0"
-flate2 = "1.0.28"
 thiserror = "1.0.57"
 enum-map = "2.7.3"
 slint = { version = "~1.12.1", default-features = false, features = [
@@ -72,6 +71,8 @@ time = "0.3.37"
 cfg-if = "1.0"
 base64 = "0.22.1"
 hex = "0.4.3"
+heatshrink-lib = { version = "1.0.0", features = ["embedded-io"] }
+embedded-io-adapters = { version = "0.6.0", features = ["std"] }
 
 [build-dependencies]
 embuild = "0.33.0"
