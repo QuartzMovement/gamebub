@@ -1,10 +1,10 @@
 [package]
 name = "handheld"
-version = "1.0.0"
+version = "1.0.1"
 authors = ["Eli Lipsitz <eli.lipsitz@gmail.com>"]
 edition = "2021"
 resolver = "2"
-rust-version = "1.82"
+rust-version = "1.93"
 
 [[bin]]
 name = "handheld"
